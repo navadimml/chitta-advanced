@@ -18,6 +18,8 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeDeepView, setActiveDeepView] = useState(null);
+  const [videos, setVideos] = useState([]);
+  const [journalEntries, setJournalEntries] = useState([]);
 
   // Load scenarios on mount
   useEffect(() => {
@@ -26,6 +28,22 @@ function App() {
       setScenarios(scenarioList);
     };
     loadScenarios();
+  }, []);
+
+  // Load videos and journal entries on mount
+  useEffect(() => {
+    const loadData = async () => {
+      const videosResponse = await api.getVideos();
+      const journalResponse = await api.getJournalEntries();
+
+      if (videosResponse.success) {
+        setVideos(videosResponse.videos);
+      }
+      if (journalResponse.success) {
+        setJournalEntries(journalResponse.entries);
+      }
+    };
+    loadData();
   }, []);
 
   // Load scenario data when scenario changes
@@ -96,6 +114,42 @@ function App() {
     setActiveDeepView(null);
   };
 
+  // === CRUD HANDLERS ===
+
+  // Journal handlers
+  const handleCreateJournalEntry = async (text, status) => {
+    const response = await api.createJournalEntry(text, status);
+    if (response.success) {
+      setJournalEntries(prev => [response.entry, ...prev]);
+    }
+    return response;
+  };
+
+  const handleDeleteJournalEntry = async (entryId) => {
+    const response = await api.deleteJournalEntry(entryId);
+    if (response.success) {
+      setJournalEntries(prev => prev.filter(e => e.id !== entryId));
+    }
+    return response;
+  };
+
+  // Video handlers
+  const handleCreateVideo = async (videoData) => {
+    const response = await api.createVideo(videoData);
+    if (response.success) {
+      setVideos(prev => [...prev, response.video]);
+    }
+    return response;
+  };
+
+  const handleDeleteVideo = async (videoId) => {
+    const response = await api.deleteVideo(videoId);
+    if (response.success) {
+      setVideos(prev => prev.filter(v => v.id !== videoId));
+    }
+    return response;
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-indigo-50" dir="rtl">
       {/* Demo Controls */}
@@ -144,10 +198,16 @@ function App() {
       )}
 
       {/* Deep View Manager */}
-      <DeepViewManager 
+      <DeepViewManager
         activeView={activeDeepView}
         onClose={handleCloseDeepView}
         viewData={masterState}
+        videos={videos}
+        journalEntries={journalEntries}
+        onCreateJournalEntry={handleCreateJournalEntry}
+        onDeleteJournalEntry={handleDeleteJournalEntry}
+        onCreateVideo={handleCreateVideo}
+        onDeleteVideo={handleDeleteVideo}
       />
 
       {/* Global Styles */}
