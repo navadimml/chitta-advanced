@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { X, Video, Upload, Camera, Play, Pause, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 
-export default function VideoUploadView({ onClose, scenarioData }) {
+export default function VideoUploadView({ onClose, scenarioData, onCreateVideo }) {
   const [uploadStatus, setUploadStatus] = useState('idle'); // idle, uploading, success, error
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [videoPreview, setVideoPreview] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
 
@@ -15,33 +17,49 @@ export default function VideoUploadView({ onClose, scenarioData }) {
     const file = event.target.files[0];
     if (file && file.type.startsWith('video/')) {
       setVideoPreview(URL.createObjectURL(file));
+      setVideoTitle(file.name.replace(/\.[^/.]+$/, '')); // Remove file extension
       simulateUpload(file);
     }
   };
 
   // Simulate upload progress
-  const simulateUpload = (file) => {
+  const simulateUpload = async (file) => {
     setUploadStatus('uploading');
     setUploadProgress(0);
-    
+
     const interval = setInterval(() => {
       setUploadProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
-          setUploadStatus('success');
           return 100;
         }
         return prev + 10;
       });
     }, 300);
+
+    // Wait for upload to complete
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Save the video to the app state
+    if (onCreateVideo) {
+      const videoData = {
+        title: videoTitle || 'סרטון חדש',
+        description: videoDescription || 'סרטון שהועלה',
+        duration: '0:00', // In a real app, would get this from the video file
+        url: videoPreview
+      };
+      await onCreateVideo(videoData);
+    }
+
+    setUploadStatus('success');
   };
 
   // Handle recording start/stop (simplified simulation)
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     if (!isRecording) {
       setIsRecording(true);
       setRecordingTime(0);
-      
+
       // Simulate recording timer
       const timer = setInterval(() => {
         setRecordingTime(prev => {
@@ -55,7 +73,22 @@ export default function VideoUploadView({ onClose, scenarioData }) {
       }, 1000);
     } else {
       setIsRecording(false);
-      // In real app, would save the recording here
+
+      // Save the recorded video
+      if (onCreateVideo) {
+        const mins = Math.floor(recordingTime / 60);
+        const secs = recordingTime % 60;
+        const duration = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+        const videoData = {
+          title: videoTitle || 'סרטון מוקלט',
+          description: videoDescription || 'סרטון שצולם',
+          duration,
+          url: null
+        };
+        await onCreateVideo(videoData);
+      }
+
       setUploadStatus('success');
     }
   };
@@ -151,6 +184,33 @@ export default function VideoUploadView({ onClose, scenarioData }) {
           {/* Action Buttons */}
           {uploadStatus === 'idle' && (
             <>
+              {/* Video metadata inputs */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                <h5 className="font-bold text-gray-900 text-sm">פרטי הסרטון (אופציונלי)</h5>
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">כותרת</label>
+                  <input
+                    type="text"
+                    value={videoTitle}
+                    onChange={(e) => setVideoTitle(e.target.value)}
+                    placeholder="למשל: משחק חופשי, זמן ארוחה..."
+                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    dir="rtl"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">תיאור</label>
+                  <input
+                    type="text"
+                    value={videoDescription}
+                    onChange={(e) => setVideoDescription(e.target.value)}
+                    placeholder="תיאור קצר של הסרטון"
+                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    dir="rtl"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 {/* Record Button */}
                 <button

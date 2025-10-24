@@ -32,15 +32,37 @@ const viewComponents = {
   moreExperts: ExpertProfileView,
 };
 
-export default function DeepViewManager({ activeView, onClose, viewData }) {
+export default function DeepViewManager({
+  activeView,
+  onClose,
+  viewData,
+  videos,
+  journalEntries,
+  onCreateJournalEntry,
+  onDeleteJournalEntry,
+  onCreateVideo,
+  onDeleteVideo
+}) {
   if (!activeView) return null;
 
   const ViewComponent = viewComponents[activeView];
-  
+
   if (!ViewComponent) {
     console.warn(`No component found for view: ${activeView}`);
     return null;
   }
 
-  return <ViewComponent viewKey={activeView} onClose={onClose} data={viewData} />;
+  return (
+    <ViewComponent
+      viewKey={activeView}
+      onClose={onClose}
+      data={viewData}
+      videos={videos}
+      journalEntries={journalEntries}
+      onCreateJournalEntry={onCreateJournalEntry}
+      onDeleteJournalEntry={onDeleteJournalEntry}
+      onCreateVideo={onCreateVideo}
+      onDeleteVideo={onDeleteVideo}
+    />
+  );
 }
