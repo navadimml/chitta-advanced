@@ -1,11 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Menu, MessageCircle } from 'lucide-react';
 
-// New architecture imports
-import JourneyEngine from './core/JourneyEngine';
-import ConversationController from './core/ConversationController';
-import UIAdapter from './core/UIAdapter';
-import childDevelopmentJourney from './config/childDevelopmentJourney';
+// API Client
+import { api } from './api/client';
 
 // UI Components
 import ConversationTranscript from './components/ConversationTranscript';
@@ -14,106 +11,152 @@ import InputArea from './components/InputArea';
 import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
 
-// Initialize the journey engine once
-const journeyEngine = new JourneyEngine(childDevelopmentJourney);
-const conversationController = new ConversationController(journeyEngine);
-const uiAdapter = new UIAdapter(childDevelopmentJourney);
+// Generate unique family ID (in real app, from auth)
+const FAMILY_ID = 'family_' + Math.random().toString(36).substr(2, 9);
 
 function App() {
-  const [state, setState] = useState(journeyEngine.getState());
-  const [ui, setUI] = useState(uiAdapter.generateUI(state));
+  // Simple state
+  const [messages, setMessages] = useState([]);
+  const [stage, setStage] = useState('welcome');
+  const [cards, setCards] = useState([]);
+  const [suggestions, setSuggestions] = useState([
+    { text: "שמו יוני והוא בן 3.5", action: null },
+    { text: "הילדה שלי בת 5", action: null },
+    { text: "רוצה להתחיל בהערכה", action: null }
+  ]);
+  const [draftMessage, setDraftMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeDeepView, setActiveDeepView] = useState(null);
-
-  // Track videos and journal entries for DeepViewManager
   const [videos, setVideos] = useState([]);
   const [journalEntries, setJournalEntries] = useState([]);
+  const [childName, setChildName] = useState('');
 
-  // Subscribe to state changes
+  // Initial greeting on mount
   useEffect(() => {
-    const unsubscribe = journeyEngine.subscribe((newState) => {
-      setState(newState);
-      const newUI = uiAdapter.generateUI(newState);
-      setUI(newUI);
-
-      // Update videos and journal entries from state
-      if (newState.data.videos) {
-        setVideos(newState.data.videos);
-      }
-      if (newState.data.journalEntries) {
-        setJournalEntries(newState.data.journalEntries);
-      }
-    });
-
-    // Start proactive monitoring
-    conversationController.startProactiveMonitoring();
-
-    // Check for proactive message on mount (e.g., welcome back)
-    const proactiveMsg = conversationController.getProactiveMessage();
-    if (proactiveMsg) {
-      setTimeout(() => {
-        conversationController.addMessage({ sender: 'chitta', text: proactiveMsg.text });
-      }, 1000);
-    }
-
-    return () => {
-      unsubscribe();
-      conversationController.stopProactiveMonitoring();
-    };
+    setMessages([{
+      sender: 'chitta',
+      text: 'שלום! אני Chitta, ואני כאן לעזור לך להבין טוב יותר את ההתפתחות של הילד/ה שלך. בואי נתחיל - מה שם הילד/ה וכמה הוא/היא?',
+      timestamp: new Date().toISOString()
+    }]);
   }, []);
 
   // Handle sending a message
   const handleSend = async (message) => {
+    if (!message.trim()) return;
+
+    // Add user message to UI immediately
+    const userMessage = {
+      sender: 'user',
+      text: message,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setDraftMessage('');
     setIsTyping(true);
-    await conversationController.sendMessage(message);
-    setIsTyping(false);
+
+    try {
+      // Call backend API
+      const response = await api.sendMessage(FAMILY_ID, message);
+
+      // Add assistant response
+      const assistantMessage = {
+        sender: 'chitta',
+        text: response.response,
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // Update UI from backend response
+      if (response.ui_data) {
+        if (response.ui_data.suggestions) {
+          setSuggestions(response.ui_data.suggestions.map(s =>
+            typeof s === 'string' ? { text: s, action: null } : s
+          ));
+        }
+        if (response.ui_data.cards) {
+          setCards(response.ui_data.cards);
+        }
+      }
+
+      // Update stage
+      if (response.stage) {
+        setStage(response.stage);
+      }
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+
+      // Fallback message
+      const errorMessage = {
+        sender: 'chitta',
+        text: 'מצטערת, הייתה בעיה. נסי שוב.',
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   // Handle card click
   const handleCardClick = async (action) => {
-    // Special handling for certain actions
     if (action === 'upload') {
       setActiveDeepView('upload');
     } else if (action === 'videoGallery') {
       setActiveDeepView('videoGallery');
     } else if (action === 'journal') {
       setActiveDeepView('journal');
-    } else if (action === 'parentReport') {
-      setActiveDeepView('parentReport');
-    } else if (action === 'proReport') {
-      setActiveDeepView('proReport');
-    } else if (action === 'experts') {
-      setActiveDeepView('experts');
-    } else if (action === 'uploadDoc') {
-      setActiveDeepView('uploadDoc');
-    } else if (action === 'viewDocs') {
-      setActiveDeepView('viewDocs');
-    } else if (action === 'shareExpert') {
-      setActiveDeepView('shareExpert');
-    } else if (action?.startsWith('view_instruction_')) {
-      setActiveDeepView('instructions');
+    } else if (action === 'complete_interview') {
+      await handleCompleteInterview();
+    }
+  };
+
+  // Handle complete interview
+  const handleCompleteInterview = async () => {
+    setIsTyping(true);
+
+    try {
+      const response = await api.completeInterview(FAMILY_ID);
+
+      // Show video guidelines
+      if (response.video_guidelines) {
+        const guidelinesMsg = {
+          sender: 'chitta',
+          text: 'תודה רבה! הכנתי לך הנחיות מותאמות אישית לצילום וידאו.',
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages(prev => [...prev, guidelinesMsg]);
+
+        // Create cards for scenarios
+        const scenarioCards = response.video_guidelines.scenarios.map(scenario => ({
+          type: 'video_guideline',
+          title: scenario.title,
+          description: scenario.description,
+          priority: scenario.priority
+        }));
+
+        setCards(scenarioCards);
+        setStage('video_upload');
+      }
+
+    } catch (error) {
+      console.error('Error completing interview:', error);
+    } finally {
+      setIsTyping(false);
     }
   };
 
   // Handle suggestion click
-  const handleSuggestionClick = (suggestionText, action) => {
-    if (action) {
-      // If suggestion has an action, handle it
-      if (action === 'upload') {
-        setActiveDeepView('upload');
-      } else if (action === 'journal') {
-        setActiveDeepView('journal');
-      } else if (action === 'videoGallery') {
-        setActiveDeepView('videoGallery');
-      } else if (action === 'uploadDoc') {
-        setActiveDeepView('uploadDoc');
-      } else {
-        // Otherwise send as message
-        handleSend(suggestionText);
-      }
+  const handleSuggestionClick = (suggestion) => {
+    if (suggestion.action) {
+      handleCardClick(suggestion.action);
     } else {
-      handleSend(suggestionText);
+      handleSend(suggestion.text);
     }
     setShowSuggestions(false);
   };
@@ -126,7 +169,7 @@ function App() {
   // CRUD handlers for videos
   const handleCreateVideo = async (videoData) => {
     const newVideo = {
-      id: journeyEngine.generateId(),
+      id: 'vid_' + Date.now(),
       title: videoData.title || 'סרטון חדש',
       description: videoData.description || '',
       date: new Date().toLocaleDateString('he-IL'),
@@ -136,47 +179,50 @@ function App() {
       timestamp: Date.now()
     };
 
-    const currentVideos = state.data.videos || [];
-    journeyEngine.updateData('videos', [...currentVideos, newVideo]);
+    setVideos(prev => [...prev, newVideo]);
+
+    // Upload to backend
+    try {
+      await api.uploadVideo(
+        FAMILY_ID,
+        newVideo.id,
+        videoData.scenario || 'general',
+        0
+      );
+    } catch (error) {
+      console.error('Error uploading video:', error);
+    }
 
     return { success: true, video: newVideo, message: 'הסרטון הועלה בהצלחה' };
   };
 
   const handleDeleteVideo = async (videoId) => {
-    const currentVideos = state.data.videos || [];
-    const filtered = currentVideos.filter(v => v.id !== videoId);
-    journeyEngine.updateData('videos', filtered);
-
+    setVideos(prev => prev.filter(v => v.id !== videoId));
     return { success: true, message: 'הסרטון נמחק' };
   };
 
   // CRUD handlers for journal entries
   const handleCreateJournalEntry = async (text, status) => {
     const newEntry = {
-      id: journeyEngine.generateId(),
+      id: 'entry_' + Date.now(),
       text,
       status,
       timestamp: 'עכשיו',
       date: new Date()
     };
 
-    const currentEntries = state.data.journalEntries || [];
-    journeyEngine.updateData('journalEntries', [newEntry, ...currentEntries]);
-
+    setJournalEntries(prev => [newEntry, ...prev]);
     return { success: true, entry: newEntry, message: 'הרשומה נשמרה בהצלחה' };
   };
 
   const handleDeleteJournalEntry = async (entryId) => {
-    const currentEntries = state.data.journalEntries || [];
-    const filtered = currentEntries.filter(e => e.id !== entryId);
-    journeyEngine.updateData('journalEntries', filtered);
-
+    setJournalEntries(prev => prev.filter(e => e.id !== entryId));
     return { success: true, message: 'הרשומה נמחקה' };
   };
 
-  // Handle input change (for draft saving)
+  // Handle input change
   const handleInputChange = (value) => {
-    conversationController.updateDraft(value);
+    setDraftMessage(value);
   };
 
   return (
@@ -190,7 +236,7 @@ function App() {
           <div className="text-right">
             <h1 className="text-lg font-bold text-gray-800">Chitta</h1>
             <p className="text-xs text-gray-500">
-              {state.data.childName ? `המסע ההתפתחותי של ${state.data.childName}` : 'המסע ההתפתחותי'}
+              {childName ? `המסע ההתפתחותי של ${childName}` : 'המסע ההתפתחותי'}
             </p>
           </div>
           <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center shadow-md">
@@ -200,27 +246,25 @@ function App() {
       </div>
 
       {/* Conversation Transcript */}
-      <ConversationTranscript messages={ui.messages} isTyping={isTyping} />
+      <ConversationTranscript messages={messages} isTyping={isTyping} />
 
       {/* Contextual Surface */}
-      <ContextualSurface cards={ui.cards} onCardClick={handleCardClick} />
+      <ContextualSurface cards={cards} onCardClick={handleCardClick} />
 
       {/* Input Area */}
       <InputArea
         onSend={handleSend}
         onSuggestionsClick={() => setShowSuggestions(true)}
-        hasSuggestions={ui.suggestions && ui.suggestions.length > 0}
-        value={state.ui.draftMessage}
+        hasSuggestions={suggestions && suggestions.length > 0}
+        value={draftMessage}
         onChange={handleInputChange}
       />
 
       {/* Suggestions Popup */}
       {showSuggestions && (
         <SuggestionsPopup
-          suggestions={ui.suggestions}
-          onSuggestionClick={(suggestion) => {
-            handleSuggestionClick(suggestion.text, suggestion.action);
-          }}
+          suggestions={suggestions}
+          onSuggestionClick={handleSuggestionClick}
           onClose={() => setShowSuggestions(false)}
         />
       )}
@@ -229,7 +273,7 @@ function App() {
       <DeepViewManager
         activeView={activeDeepView}
         onClose={handleCloseDeepView}
-        viewData={state}
+        viewData={{ data: { childName } }}
         videos={videos}
         journalEntries={journalEntries}
         onCreateJournalEntry={handleCreateJournalEntry}
