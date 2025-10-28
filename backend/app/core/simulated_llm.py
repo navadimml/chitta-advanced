@@ -20,6 +20,11 @@ class SimulatedLLMProvider:
         user_messages = [m for m in messages if m.get("role") == "user"]
         message_count = len(user_messages)
 
+        # זיהוי תשובות חיוביות לסיום ראיון
+        affirmative_words = ["כן", "בטח", "מוכנה", "מוכן", "בוא", "בואי", "הבא", "המשך"]
+        if any(word in last_message for word in affirmative_words) and message_count >= 6:
+            return "INTERVIEW_COMPLETE"  # Signal to complete interview
+
         # שלב 1: שם וגיל
         if any(word in last_message for word in ["שם", "גיל", "בן", "בת", "שנים", "חודשים"]) or message_count == 1:
             return "תודה שסיפרת לי! ספרי לי קצת על החוזקות של הילד/ה - במה הוא/היא מצטיינים? מה הם אוהבים לעשות?"

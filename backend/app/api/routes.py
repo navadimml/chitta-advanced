@@ -74,6 +74,55 @@ async def send_message(request: SendMessageRequest):
 
     response = await app_state.llm.chat(messages)
 
+    # בדיקה אם הראיון הסתיים
+    if response == "INTERVIEW_COMPLETE":
+        # השלמת ראיון אוטומטית
+        summary_result = await app_state.llm.chat_with_structured_output(
+            messages=[{"role": "system", "content": "סכם את הראיון"}],
+            response_schema={"interview_summary": {}, "video_guidelines": {}}
+        )
+
+        # שמירה ב-session
+        session["interview_summary"] = summary_result["interview_summary"]
+        session["video_guidelines"] = summary_result["video_guidelines"]
+        session["current_stage"] = "video_upload"
+
+        # שמירה ב-Graphiti
+        await app_state.graphiti.add_episode(
+            name=f"interview_summary_{request.family_id}",
+            episode_body=summary_result["interview_summary"],
+            group_id=request.family_id
+        )
+
+        await app_state.graphiti.add_episode(
+            name=f"video_guidelines_{request.family_id}",
+            episode_body=summary_result["video_guidelines"],
+            group_id=request.family_id
+        )
+
+        response = "מעולה! יצרתי עבורך הנחיות צילום מותאמות אישית. תראי אותן למטה. כשתהיי מוכנה, תוכלי להעלות את הסרטונים."
+
+        # הוסף תגובה להיסטוריה
+        session["interview_messages"].append({
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # UI data עם כרטיסי וידאו
+        ui_data = {
+            "suggestions": ["אעלה סרטון עכשיו", "אקרא את ההנחיות"],
+            "cards": _generate_cards(session),
+            "progress": 0.4,
+            "video_guidelines": summary_result["video_guidelines"]
+        }
+
+        return SendMessageResponse(
+            response=response,
+            stage=session["current_stage"],
+            ui_data=ui_data
+        )
+
     # הוסף תגובה להיסטוריה
     session["interview_messages"].append({
         "role": "assistant",
