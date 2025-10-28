@@ -521,17 +521,7 @@ def _generate_cards(session: dict) -> List[dict]:
         num_scenarios = len(session["video_guidelines"].get("scenarios", []))
         num_videos = len(session.get("videos", []))
 
-        # כרטיס 1: הוראות צילום (כתום - pending) - ריכוז כל ההנחיות
-        cards.append({
-            "type": "guidelines_summary",
-            "title": "הוראות צילום",
-            "subtitle": f"{num_scenarios} תרחישים",
-            "icon": "Video",
-            "status": "pending",
-            "action": "view_all_guidelines"
-        })
-
-        # כרטיס 2: ההתקדמות שלך (ציאן - progress) + breadcrumbs
+        # כרטיס 1: ההתקדמות שלך (ציאן - progress) + breadcrumbs
         cards.append({
             "type": "overall_progress",
             "title": "ההתקדמות שלך",
@@ -543,29 +533,16 @@ def _generate_cards(session: dict) -> List[dict]:
             "journey_total": total_stages
         })
 
-        # כרטיס 3: העלאת סרטון (כחול - action)
+        # כרטיס 2: העלאת סרטון (כחול - action)
+        # ההוראות יופיעו בתוך טופס ההעלאה עצמו
         cards.append({
             "type": "upload_video",
             "title": "העלאת סרטון",
-            "subtitle": "לחצי כדי להעלות",
+            "subtitle": f"צילום: {num_scenarios} תרחישים | הועלו: {num_videos}",
             "icon": "Upload",
             "status": "action",
             "action": "upload"
         })
-
-        # כרטיסי הנחיות צילום מפורטות (אינדיגו - instruction)
-        for idx, scenario in enumerate(session["video_guidelines"].get("scenarios", [])):
-            cards.append({
-                "type": "video_guideline",
-                "title": scenario["title"],
-                "subtitle": scenario["description"],
-                "icon": "Video",
-                "status": "instruction",
-                "action": f"view_guideline_{idx}",
-                "priority": scenario.get("priority", "recommended"),
-                "rationale": scenario.get("rationale", ""),
-                "target_areas": scenario.get("target_areas", [])
-            })
 
     # כרטיסים לשלב ניתוח (analysis)
     elif session["current_stage"] == "video_analysis":
