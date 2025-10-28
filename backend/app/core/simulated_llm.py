@@ -12,22 +12,37 @@ class SimulatedLLMProvider:
     """LLM מדומה - מחזיר תשובות מוכנות מראש"""
 
     async def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
-        """תגובה מדומה"""
+        """תגובה מדומה עם זרימה משופרת"""
         # חלץ את ההודעה האחרונה
-        last_message = messages[-1]["content"] if messages else ""
+        last_message = messages[-1]["content"].lower() if messages else ""
 
-        # תגובות מוכנות מראש
-        if "שם" in last_message or "גיל" in last_message:
-            return "תודה שסיפרת לי! ספרי לי קצת על החוזקות של הילד/ה - במה הוא/היא מצטיינים? מה הם אוהבים?"
+        # ספירת הודעות למעקב אחר התקדמות
+        user_messages = [m for m in messages if m.get("role") == "user"]
+        message_count = len(user_messages)
 
-        elif "חוזק" in last_message or "אוהב" in last_message:
+        # שלב 1: שם וגיל
+        if any(word in last_message for word in ["שם", "גיל", "בן", "בת", "שנים", "חודשים"]) or message_count == 1:
+            return "תודה שסיפרת לי! ספרי לי קצת על החוזקות של הילד/ה - במה הוא/היא מצטיינים? מה הם אוהבים לעשות?"
+
+        # שלב 2: חוזקות
+        elif any(word in last_message for word in ["חוזק", "אוהב", "מצטיין", "טוב", "יכול", "משחק", "פאזל"]) or message_count == 2:
             return "נפלא! עכשיו, ספרי לי בבקשה - מה הדאגות העיקריות שלך? מה הביא אותך לפנות לצ'יטה?"
 
-        elif "קושי" in last_message or "דאגה" in last_message or "קשה" in last_message:
-            return "תודה על השיתוף. אני מבינה שזה מאתגר. ספרי לי על שגרות יומיומיות - איך עובר יום רגיל?"
+        # שלב 3: דאגות
+        elif any(word in last_message for word in ["קושי", "דאגה", "קשה", "בעיה", "לא", "מדבר", "עין", "תקשורת", "חברתי"]) or message_count == 3:
+            return "תודה על השיתוף. אני מבינה שזה מאתגר. ספרי לי על שגרות יומיומיות - איך עובר יום רגיל? איך הילד/ה בגן או בבית?"
 
+        # שלב 4: שגרה יומית
+        elif any(word in last_message for word in ["יום", "בוקר", "גן", "בית", "שגרה", "שינה", "אוכל", "משחק"]) or message_count == 4:
+            return "אני מבינה. עוד דבר אחרון - מה המטרות שלך? מה את מקווה שישתפר או ישתנה?"
+
+        # שלב 5: מטרות - סיום ראיון
+        elif any(word in last_message for word in ["מטרה", "רוצה", "מקווה", "ישתפר", "שיוכל", "שתהיה"]) or message_count >= 5:
+            return "תודה רבה על השיתוף! סיימנו את הראיון ההתפתחותי. עכשיו אני יכולה ליצור עבורך הנחיות מותאמות אישית לצילומי וידאו שיעזרו לי להבין טוב יותר את הילד/ה שלך. האם את מוכנה לעבור לשלב הבא?"
+
+        # ברירת מחדל - עידוד להמשיך
         else:
-            return "אני מקשיבה. ספרי לי עוד על זה."
+            return "תודה! ספרי לי עוד - מה עוד חשוב לך שאדע?"
 
     async def chat_with_structured_output(
         self,
