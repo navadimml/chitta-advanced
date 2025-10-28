@@ -28,6 +28,7 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeDeepView, setActiveDeepView] = useState(null);
+  const [activeViewData, setActiveViewData] = useState(null);
   const [videos, setVideos] = useState([]);
   const [journalEntries, setJournalEntries] = useState([]);
   const [childName, setChildName] = useState('');
@@ -106,38 +107,23 @@ function App() {
   const handleCardClick = async (action) => {
     if (action === 'upload') {
       setActiveDeepView('upload');
+      setActiveViewData(null);
     } else if (action === 'videoGallery') {
       setActiveDeepView('videoGallery');
+      setActiveViewData(null);
     } else if (action === 'journal') {
       setActiveDeepView('journal');
+      setActiveViewData(null);
     } else if (action === 'complete_interview') {
       await handleCompleteInterview();
     } else if (action && action.startsWith('view_guideline_')) {
-      // Extract guideline index
+      // Extract guideline index and open dynamic view
       const index = parseInt(action.split('_')[2]);
       const card = cards[index];
 
       if (card) {
-        // Create detailed message about the guideline
-        let detailsMessage = `📹 **${card.title}**\n\n`;
-        detailsMessage += `${card.subtitle}\n\n`;
-
-        if (card.rationale) {
-          detailsMessage += `**למה זה חשוב:** ${card.rationale}\n\n`;
-        }
-
-        if (card.target_areas && card.target_areas.length > 0) {
-          detailsMessage += `**תחומים לבדיקה:** ${card.target_areas.join(', ')}`;
-        }
-
-        // Add the message to chat
-        const guidelineMessage = {
-          sender: 'chitta',
-          text: detailsMessage,
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => [...prev, guidelineMessage]);
+        setActiveDeepView('dynamic_guideline');
+        setActiveViewData(card);
       }
     }
   };
@@ -191,6 +177,7 @@ function App() {
   // Handle deep view close
   const handleCloseDeepView = () => {
     setActiveDeepView(null);
+    setActiveViewData(null);
   };
 
   // CRUD handlers for videos
@@ -300,7 +287,7 @@ function App() {
       <DeepViewManager
         activeView={activeDeepView}
         onClose={handleCloseDeepView}
-        viewData={{ data: { childName } }}
+        viewData={activeViewData || { data: { childName } }}
         videos={videos}
         journalEntries={journalEntries}
         onCreateJournalEntry={handleCreateJournalEntry}
