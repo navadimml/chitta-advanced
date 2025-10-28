@@ -499,7 +499,7 @@ def _generate_cards(session: dict) -> List[dict]:
                 "type": "interview_topics",
                 "title": "נושאים שנדונו",
                 "subtitle": topics_text,
-                "icon": "CheckCircle2",
+                "icon": "CheckCircle",
                 "status": "progress",
                 "action": None
             })
@@ -536,7 +536,7 @@ def _generate_cards(session: dict) -> List[dict]:
             "type": "overall_progress",
             "title": "ההתקדמות שלך",
             "subtitle": f"ראיון ✓ | סרטונים ({num_videos}/{num_scenarios})",
-            "icon": "CheckCircle2",
+            "icon": "CheckCircle",
             "status": "progress",
             "action": None,
             "journey_step": stage_info["step"],
@@ -595,7 +595,7 @@ def _generate_cards(session: dict) -> List[dict]:
             "type": "journal",
             "title": "יומן יוני",
             "subtitle": "הוסיפי הערות מהימים האחרונים",
-            "icon": "Book",
+            "icon": "MessageCircle",
             "status": "action",
             "action": "journal"
         })
