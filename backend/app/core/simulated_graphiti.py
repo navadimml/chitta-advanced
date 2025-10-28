@@ -90,6 +90,13 @@ class SimulatedGraphitiClient:
         else:
             return str(obj)
 
+    def get_all_episodes(self, group_id: str) -> List[Any]:
+        """קבלת כל ה-episodes של קבוצה"""
+        if group_id not in self.episodes:
+            return []
+
+        return [SimulatedSearchResult(episode) for episode in self.episodes[group_id]]
+
     async def search(
         self,
         query: str,

@@ -34,6 +34,16 @@ class UploadVideoRequest(BaseModel):
     scenario: str
     duration_seconds: int
 
+class JournalEntryRequest(BaseModel):
+    family_id: str
+    content: str
+    category: str  # "התקדמות", "תצפית", "אתגר"
+
+class JournalEntryResponse(BaseModel):
+    entry_id: str
+    timestamp: str
+    success: bool
+
 # === Endpoints ===
 
 @router.get("/")
@@ -208,10 +218,26 @@ async def upload_video(request: UploadVideoRequest):
         group_id=request.family_id
     )
 
+    total_videos = len(session["videos"])
+
+    # בדיקה אם הושלמו כל הסרטונים הנדרשים
+    num_required = len(session.get("video_guidelines", {}).get("scenarios", []))
+    if num_required == 0:
+        num_required = 3  # ברירת מחדל
+
+    analysis_started = False
+    if total_videos >= num_required:
+        # מעבר אוטומטי לשלב ניתוח
+        session["current_stage"] = "video_analysis"
+        analysis_started = True
+
     return {
         "success": True,
         "video_id": request.video_id,
-        "total_videos": len(session["videos"])
+        "total_videos": total_videos,
+        "required_videos": num_required,
+        "analysis_started": analysis_started,
+        "next_stage": session["current_stage"]
     }
 
 @router.post("/video/analyze")
@@ -237,14 +263,23 @@ async def analyze_videos(family_id: str):
     await app_state.graphiti.add_episode(
         name=f"video_analysis_{family_id}",
         episode_body=analysis_result,
-        group_id=family_id
+        group_id=family_id,
+        reference_time=datetime.now()
     )
 
+    # שמירת תוצאות ניתוח ב-session
+    session["video_analysis"] = analysis_result
+
+    # מעבר אוטומטי ליצירת דוחות
     session["current_stage"] = "report_generation"
+
+    # יצירה אוטומטית של דוחות
+    await _generate_reports_internal(family_id, session)
 
     return {
         "success": True,
-        "analysis": analysis_result
+        "analysis": analysis_result,
+        "next_stage": session["current_stage"]
     }
 
 @router.post("/reports/generate")
@@ -254,6 +289,106 @@ async def generate_reports(family_id: str):
     """
     session = app_state.get_or_create_session(family_id)
 
+    # יצירת דוחות באמצעות הפונקציה הפנימית
+    await _generate_reports_internal(family_id, session)
+
+    return {
+        "success": True,
+        "professional_report": session.get("professional_report"),
+        "parent_report": session.get("parent_report"),
+        "next_stage": session["current_stage"]
+    }
+
+@router.get("/timeline/{family_id}")
+async def get_timeline(family_id: str):
+    """
+    קבלת timeline של כל המסע
+    """
+    # קבלת כל ה-episodes
+    episodes = app_state.graphiti.get_all_episodes(group_id=family_id)
+
+    # המרה לפורמט timeline
+    timeline = []
+    for episode in episodes:
+        timeline.append({
+            "date": episode.reference_time.isoformat() if episode.reference_time else None,
+            "type": _classify_episode_type(episode.name),
+            "title": _generate_event_title(episode),
+            "data": episode.body
+        })
+
+    # מיון לפי תאריך
+    timeline.sort(key=lambda x: x["date"] if x["date"] else "", reverse=True)
+
+    return {"timeline": timeline}
+
+@router.post("/journal/entry", response_model=JournalEntryResponse)
+async def add_journal_entry(request: JournalEntryRequest):
+    """
+    הוספת רשומה ליומן הילד
+    """
+    session = app_state.get_or_create_session(request.family_id)
+
+    # צור entry ID ייחודי
+    import uuid
+    entry_id = str(uuid.uuid4())
+    timestamp = datetime.now().isoformat()
+
+    # יצירת entry
+    entry = {
+        "entry_id": entry_id,
+        "content": request.content,
+        "category": request.category,
+        "timestamp": timestamp
+    }
+
+    # הוספה ל-session
+    if "journal_entries" not in session:
+        session["journal_entries"] = []
+    session["journal_entries"].append(entry)
+
+    # שמירה ב-Graphiti
+    await app_state.graphiti.add_episode(
+        name=f"journal_entry_{entry_id}",
+        episode_body={
+            "type": "journal",
+            "category": request.category,
+            "content": request.content,
+            "family_id": request.family_id
+        },
+        group_id=request.family_id,
+        reference_time=datetime.now()
+    )
+
+    return JournalEntryResponse(
+        entry_id=entry_id,
+        timestamp=timestamp,
+        success=True
+    )
+
+@router.get("/journal/entries/{family_id}")
+async def get_journal_entries(family_id: str, limit: int = 10):
+    """
+    קבלת רשומות יומן אחרונות
+    """
+    session = app_state.get_or_create_session(family_id)
+
+    # קבל entries מה-session
+    entries = session.get("journal_entries", [])
+
+    # מיון לפי תאריך (חדש לישן)
+    entries_sorted = sorted(entries, key=lambda x: x["timestamp"], reverse=True)
+
+    # החזר את המספר המבוקש
+    return {
+        "entries": entries_sorted[:limit],
+        "total": len(entries_sorted)
+    }
+
+# === Helper Functions ===
+
+async def _generate_reports_internal(family_id: str, session: dict):
+    """פונקציה פנימית ליצירת דוחות"""
     # דוח מקצועי
     prof_report = await app_state.llm.chat_with_structured_output(
         messages=[{
@@ -276,51 +411,23 @@ async def generate_reports(family_id: str):
     await app_state.graphiti.add_episode(
         name=f"professional_report_{family_id}",
         episode_body=prof_report,
-        group_id=family_id
+        group_id=family_id,
+        reference_time=datetime.now()
     )
 
     await app_state.graphiti.add_episode(
         name=f"parent_report_{family_id}",
         episode_body=parent_report,
-        group_id=family_id
-    )
-
-    session["current_stage"] = "consultation"
-
-    return {
-        "success": True,
-        "professional_report": prof_report,
-        "parent_report": parent_report
-    }
-
-@router.get("/timeline/{family_id}")
-async def get_timeline(family_id: str):
-    """
-    קבלת timeline של כל המסע
-    """
-    # חיפוש בגרף
-    episodes = await app_state.graphiti.search(
-        query="all events",
         group_id=family_id,
-        num_results=100
+        reference_time=datetime.now()
     )
 
-    # המרה לפורמט timeline
-    timeline = []
-    for episode in episodes:
-        timeline.append({
-            "date": episode.reference_time.isoformat() if episode.reference_time else None,
-            "type": _classify_episode_type(episode.name),
-            "title": _generate_event_title(episode),
-            "data": episode.body
-        })
+    # שמירה ב-session
+    session["professional_report"] = prof_report
+    session["parent_report"] = parent_report
 
-    # מיון לפי תאריך
-    timeline.sort(key=lambda x: x["date"] if x["date"] else "", reverse=True)
-
-    return {"timeline": timeline}
-
-# === Helper Functions ===
+    # מעבר לשלב consultation
+    session["current_stage"] = "consultation"
 
 def _generate_suggestions(session: dict) -> List[str]:
     """יצירת הצעות לפי שלב"""
@@ -412,7 +519,7 @@ def _generate_cards(session: dict) -> List[dict]:
     # כרטיסים לשלב צילום הווידאו
     elif session["current_stage"] == "video_upload" and "video_guidelines" in session:
         num_scenarios = len(session["video_guidelines"].get("scenarios", []))
-        num_videos = len(session.get("uploaded_videos", []))
+        num_videos = len(session.get("videos", []))
 
         # כרטיס 1: הוראות צילום (כתום - pending) - ריכוז כל ההנחיות
         cards.append({
@@ -460,6 +567,103 @@ def _generate_cards(session: dict) -> List[dict]:
                 "target_areas": scenario.get("target_areas", [])
             })
 
+    # כרטיסים לשלב ניתוח (analysis)
+    elif session["current_stage"] == "video_analysis":
+        # כרטיס 1: ניתוח בתהליך (צהוב - processing)
+        cards.append({
+            "type": "analysis_status",
+            "title": "ניתוח בתהליך",
+            "subtitle": "משוער: 24 שעות",
+            "icon": "Clock",
+            "status": "processing",
+            "action": None
+        })
+
+        # כרטיס 2: צפייה בסרטונים (כחול - action)
+        num_videos = len(session.get("videos", []))
+        cards.append({
+            "type": "video_gallery",
+            "title": "צפייה בסרטונים",
+            "subtitle": f"{num_videos} סרטונים",
+            "icon": "Video",
+            "status": "action",
+            "action": "videoGallery"
+        })
+
+        # כרטיס 3: יומן (ציאן - action)
+        cards.append({
+            "type": "journal",
+            "title": "יומן יוני",
+            "subtitle": "הוסיפי הערות מהימים האחרונים",
+            "icon": "Book",
+            "status": "action",
+            "action": "journal"
+        })
+
+    # כרטיסים לשלב יצירת דוחות (report_generation)
+    elif session["current_stage"] == "report_generation":
+        # כרטיס 1: מדריך להורים (סגול - new)
+        cards.append({
+            "type": "parent_report",
+            "title": "מדריך להורים",
+            "subtitle": "הסברים ברורים עבורך",
+            "icon": "FileText",
+            "status": "new",
+            "action": "parentReport"
+        })
+
+        # כרטיס 2: דוח מקצועי (סגול - new)
+        cards.append({
+            "type": "professional_report",
+            "title": "דוח מקצועי",
+            "subtitle": "לשיתוף עם מומחים",
+            "icon": "FileText",
+            "status": "new",
+            "action": "proReport"
+        })
+
+        # כרטיס 3: מציאת מומחים (ציאן - action)
+        cards.append({
+            "type": "find_experts",
+            "title": "מציאת מומחים",
+            "subtitle": "מבוסס על הממצאים",
+            "icon": "Search",
+            "status": "action",
+            "action": "experts"
+        })
+
+    # כרטיסים לשלב ייעוץ (consultation)
+    elif session["current_stage"] == "consultation":
+        # כרטיס 1: מצב התייעצות (סגול - processing)
+        cards.append({
+            "type": "consultation",
+            "title": "מצב התייעצות",
+            "subtitle": "שאלי כל שאלה",
+            "icon": "Brain",
+            "status": "processing",
+            "action": "consultDoc"
+        })
+
+        # כרטיס 2: העלאת מסמכים (כתום - action)
+        cards.append({
+            "type": "upload_document",
+            "title": "העלאת מסמכים",
+            "subtitle": "אבחונים, סיכומים, דוחות",
+            "icon": "FileText",
+            "status": "action",
+            "action": "uploadDoc"
+        })
+
+        # כרטיס 3: יומן (ציאן - action)
+        cards.append({
+            "type": "journal",
+            "title": "יומן יוני",
+            "subtitle": "הערות והתבוננויות",
+            "icon": "Book",
+            "status": "action",
+            "action": "journal"
+        })
+
     return cards
 
 def _classify_episode_type(name: str) -> str:
@@ -474,6 +678,8 @@ def _classify_episode_type(name: str) -> str:
         return "analysis"
     elif "report" in name:
         return "report"
+    elif "journal_entry" in name:
+        return "journal"
     else:
         return "other"
 
@@ -486,7 +692,8 @@ def _generate_event_title(episode) -> str:
         "guidelines": "הנחיות צילום נוצרו",
         "video_upload": "העלאת וידאו",
         "analysis": "ניתוח וידאו הושלם",
-        "report": "דוח מוכן"
+        "report": "דוח מוכן",
+        "journal": "רשומת יומן"
     }
 
     return titles.get(episode_type, "אירוע")
