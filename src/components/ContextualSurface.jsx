@@ -50,33 +50,21 @@ export default function ContextualSurface({ cards, onCardClick }) {
                     <div className="font-semibold text-sm">{card.title}</div>
                     <div className="text-xs opacity-80">{card.subtitle}</div>
 
-                    {/* Journey Progress - רק לכרטיס סטטוס */}
+                    {/* Journey Progress - עדין ומינימליסטי */}
                     {isStatusCard && (
-                      <div className="mt-2 space-y-1">
-                        <div className="flex items-center justify-between text-xs font-semibold opacity-70">
-                          <span>{card.journey_label}</span>
-                          <span>{Math.round((card.journey_step / card.journey_total) * 100)}%</span>
-                        </div>
-                        {/* Progress Bar */}
-                        <div className="w-full bg-white/50 rounded-full h-1.5 overflow-hidden">
+                      <div className="mt-2 flex items-center gap-1">
+                        {Array.from({ length: card.journey_total }).map((_, i) => (
                           <div
-                            className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500"
-                            style={{ width: `${(card.journey_step / card.journey_total) * 100}%` }}
+                            key={i}
+                            className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                              i < card.journey_step
+                                ? 'bg-violet-400'
+                                : i === card.journey_step
+                                ? 'bg-violet-600'
+                                : 'bg-violet-200/40'
+                            }`}
                           />
-                        </div>
-                        {/* Journey Steps Dots */}
-                        <div className="flex items-center gap-1 pt-1">
-                          {Array.from({ length: card.journey_total }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                                i < card.journey_step
-                                  ? 'bg-violet-500'
-                                  : 'bg-white/50'
-                              }`}
-                            />
-                          ))}
-                        </div>
+                        ))}
                       </div>
                     )}
                   </div>
