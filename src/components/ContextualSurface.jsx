@@ -50,21 +50,18 @@ export default function ContextualSurface({ cards, onCardClick }) {
                     <div className="font-semibold text-sm">{card.title}</div>
                     <div className="text-xs opacity-80">{card.subtitle}</div>
 
-                    {/* Journey Progress - עדין ומינימליסטי */}
+                    {/* Breadcrumbs - פירורי לחם */}
                     {isStatusCard && (
-                      <div className="mt-2 flex items-center gap-1">
-                        {Array.from({ length: card.journey_total }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                              i < card.journey_step
-                                ? 'bg-violet-400'
-                                : i === card.journey_step
-                                ? 'bg-violet-600'
-                                : 'bg-violet-200/40'
-                            }`}
-                          />
-                        ))}
+                      <div className="mt-2 flex items-center gap-1.5 text-[10px] opacity-60">
+                        <span className={card.journey_step >= 1 ? 'text-violet-600 font-semibold' : ''}>ראיון</span>
+                        <span className="opacity-30">›</span>
+                        <span className={card.journey_step >= 2 ? 'text-violet-600 font-semibold' : ''}>צילום</span>
+                        <span className="opacity-30">›</span>
+                        <span className={card.journey_step >= 3 ? 'text-violet-600 font-semibold' : ''}>ניתוח</span>
+                        <span className="opacity-30">›</span>
+                        <span className={card.journey_step >= 4 ? 'text-violet-600 font-semibold' : ''}>דוחות</span>
+                        <span className="opacity-30">›</span>
+                        <span className={card.journey_step >= 5 ? 'text-violet-600 font-semibold' : ''}>ייעוץ</span>
                       </div>
                     )}
                   </div>
