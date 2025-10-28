@@ -411,21 +411,42 @@ def _generate_cards(session: dict) -> List[dict]:
 
     # כרטיסים לשלב צילום הווידאו
     elif session["current_stage"] == "video_upload" and "video_guidelines" in session:
-        # כרטיס סטטוס ראשון - מסביר מה לעשות עכשיו + התקדמות במסע
         num_scenarios = len(session["video_guidelines"].get("scenarios", []))
+        num_videos = len(session.get("uploaded_videos", []))
+
+        # כרטיס 1: הוראות צילום (כתום - pending) - ריכוז כל ההנחיות
         cards.append({
-            "type": "status",
-            "title": f"{stage_info['emoji']} {stage_info['name']}",
-            "subtitle": f"צלמי {num_scenarios} סרטונים קצרים לפי ההנחיות למטה. לחצי על כל הנחיה לפרטים מלאים.",
-            "icon": "Info",
-            "status": "active",
-            "action": None,
-            "journey_step": stage_info["step"],
-            "journey_total": total_stages,
-            "journey_label": f"שלב {stage_info['step']} מתוך {total_stages}"
+            "type": "guidelines_summary",
+            "title": "הוראות צילום",
+            "subtitle": f"{num_scenarios} תרחישים",
+            "icon": "Video",
+            "status": "pending",
+            "action": "view_all_guidelines"
         })
 
-        # כרטיסי הנחיות צילום
+        # כרטיס 2: ההתקדמות שלך (ציאן - progress) + breadcrumbs
+        cards.append({
+            "type": "overall_progress",
+            "title": "ההתקדמות שלך",
+            "subtitle": f"ראיון ✓ | סרטונים ({num_videos}/{num_scenarios})",
+            "icon": "CheckCircle2",
+            "status": "progress",
+            "action": None,
+            "journey_step": stage_info["step"],
+            "journey_total": total_stages
+        })
+
+        # כרטיס 3: העלאת סרטון (כחול - action)
+        cards.append({
+            "type": "upload_video",
+            "title": "העלאת סרטון",
+            "subtitle": "לחצי כדי להעלות",
+            "icon": "Upload",
+            "status": "action",
+            "action": "upload"
+        })
+
+        # כרטיסי הנחיות צילום מפורטות (אינדיגו - instruction)
         for idx, scenario in enumerate(session["video_guidelines"].get("scenarios", [])):
             cards.append({
                 "type": "video_guideline",

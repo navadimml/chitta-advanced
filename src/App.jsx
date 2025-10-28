@@ -110,6 +110,10 @@ function App() {
     if (action === 'upload') {
       setActiveDeepView('upload');
       setActiveViewData(null);
+    } else if (action === 'view_all_guidelines') {
+      // Show all guidelines in instructions view
+      setActiveDeepView('instructions');
+      setActiveViewData(null);
     } else if (action === 'videoGallery') {
       setActiveDeepView('videoGallery');
       setActiveViewData(null);
