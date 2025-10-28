@@ -50,18 +50,66 @@ export default function ContextualSurface({ cards, onCardClick }) {
                     <div className="font-semibold text-sm">{card.title}</div>
                     <div className="text-xs opacity-80">{card.subtitle}</div>
 
-                    {/* Breadcrumbs - פירורי לחם */}
+                    {/* Breadcrumbs - ברור ובולט */}
                     {isStatusCard && (
-                      <div className="mt-2 flex items-center gap-1.5 text-[10px] opacity-60">
-                        <span className={card.journey_step >= 1 ? 'text-violet-600 font-semibold' : ''}>ראיון</span>
-                        <span className="opacity-30">›</span>
-                        <span className={card.journey_step >= 2 ? 'text-violet-600 font-semibold' : ''}>צילום</span>
-                        <span className="opacity-30">›</span>
-                        <span className={card.journey_step >= 3 ? 'text-violet-600 font-semibold' : ''}>ניתוח</span>
-                        <span className="opacity-30">›</span>
-                        <span className={card.journey_step >= 4 ? 'text-violet-600 font-semibold' : ''}>דוחות</span>
-                        <span className="opacity-30">›</span>
-                        <span className={card.journey_step >= 5 ? 'text-violet-600 font-semibold' : ''}>ייעוץ</span>
+                      <div className="mt-2.5 flex items-center gap-1.5 text-[11px]">
+                        {/* ראיון */}
+                        <span className={`flex items-center gap-1 ${card.journey_step >= 1 ? 'text-violet-500 font-medium' : 'text-gray-400'}`}>
+                          {card.journey_step > 1 && <span className="text-[9px]">✓</span>}
+                          <span>ראיון</span>
+                        </span>
+                        <span className="text-gray-300 text-[10px]">→</span>
+
+                        {/* צילום */}
+                        <span className={`flex items-center gap-1 ${
+                          card.journey_step === 2
+                            ? 'bg-violet-100 text-violet-700 font-semibold px-2 py-0.5 rounded-md'
+                            : card.journey_step > 2
+                            ? 'text-violet-500 font-medium'
+                            : 'text-gray-400'
+                        }`}>
+                          {card.journey_step > 2 && <span className="text-[9px]">✓</span>}
+                          <span>צילום</span>
+                        </span>
+                        <span className="text-gray-300 text-[10px]">→</span>
+
+                        {/* ניתוח */}
+                        <span className={`flex items-center gap-1 ${
+                          card.journey_step === 3
+                            ? 'bg-violet-100 text-violet-700 font-semibold px-2 py-0.5 rounded-md'
+                            : card.journey_step > 3
+                            ? 'text-violet-500 font-medium'
+                            : 'text-gray-400'
+                        }`}>
+                          {card.journey_step > 3 && <span className="text-[9px]">✓</span>}
+                          <span>ניתוח</span>
+                        </span>
+                        <span className="text-gray-300 text-[10px]">→</span>
+
+                        {/* דוחות */}
+                        <span className={`flex items-center gap-1 ${
+                          card.journey_step === 4
+                            ? 'bg-violet-100 text-violet-700 font-semibold px-2 py-0.5 rounded-md'
+                            : card.journey_step > 4
+                            ? 'text-violet-500 font-medium'
+                            : 'text-gray-400'
+                        }`}>
+                          {card.journey_step > 4 && <span className="text-[9px]">✓</span>}
+                          <span>דוחות</span>
+                        </span>
+                        <span className="text-gray-300 text-[10px]">→</span>
+
+                        {/* ייעוץ */}
+                        <span className={`flex items-center gap-1 ${
+                          card.journey_step === 5
+                            ? 'bg-violet-100 text-violet-700 font-semibold px-2 py-0.5 rounded-md'
+                            : card.journey_step > 5
+                            ? 'text-violet-500 font-medium'
+                            : 'text-gray-400'
+                        }`}>
+                          {card.journey_step > 5 && <span className="text-[9px]">✓</span>}
+                          <span>ייעוץ</span>
+                        </span>
                       </div>
                     )}
                   </div>
