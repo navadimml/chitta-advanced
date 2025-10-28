@@ -357,7 +357,60 @@ def _generate_cards(session: dict) -> List[dict]:
     current_stage = session["current_stage"]
     stage_info = journey_stages.get(current_stage, {"step": 1, "name": "התחלה", "emoji": "✨"})
 
-    if session["current_stage"] == "video_upload" and "video_guidelines" in session:
+    # כרטיסים לשלב הראיון
+    if session["current_stage"] == "welcome":
+        num_messages = len(session.get("interview_messages", []))
+
+        # כרטיס 1: מתנהל ראיון (צהוב - processing)
+        if num_messages > 0:
+            progress_stage = "מידע בסיסי" if num_messages <= 3 else "תובנות עמוקות" if num_messages <= 6 else "סיכום"
+            cards.append({
+                "type": "interview_status",
+                "title": "מתנהל ראיון",
+                "subtitle": f"התקדמות: {progress_stage}",
+                "icon": "MessageCircle",
+                "status": "processing",
+                "action": None
+            })
+
+        # כרטיס 2: נושאים שנדונו (ציאן - progress)
+        if num_messages >= 2:
+            topics = []
+            # ניתוח פשוט של הנושאים מההודעות
+            messages_text = " ".join([m.get("content", "") for m in session.get("interview_messages", []) if m.get("role") == "user"])
+            if "גיל" in messages_text or "שנ" in messages_text:
+                topics.append("גיל")
+            if "דיבור" in messages_text or "מדבר" in messages_text or "תקשורת" in messages_text:
+                topics.append("תקשורת")
+            if "חוזק" in messages_text or "אוהב" in messages_text:
+                topics.append("חוזקות")
+            if "דאגה" in messages_text or "קושי" in messages_text:
+                topics.append("דאגות")
+
+            topics_text = ", ".join(topics) if topics else "בניית פרופיל"
+            cards.append({
+                "type": "interview_topics",
+                "title": "נושאים שנדונו",
+                "subtitle": topics_text,
+                "icon": "CheckCircle2",
+                "status": "progress",
+                "action": None
+            })
+
+        # כרטיס 3: זמן משוער (כתום - pending)
+        if num_messages >= 3 and num_messages < 7:
+            estimated_time = max(5, 15 - (num_messages * 2))
+            cards.append({
+                "type": "interview_time",
+                "title": "זמן משוער",
+                "subtitle": f"עוד {estimated_time}-{estimated_time + 5} דקות",
+                "icon": "Clock",
+                "status": "pending",
+                "action": None
+            })
+
+    # כרטיסים לשלב צילום הווידאו
+    elif session["current_stage"] == "video_upload" and "video_guidelines" in session:
         # כרטיס סטטוס ראשון - מסביר מה לעשות עכשיו + התקדמות במסע
         num_scenarios = len(session["video_guidelines"].get("scenarios", []))
         cards.append({
@@ -366,7 +419,7 @@ def _generate_cards(session: dict) -> List[dict]:
             "subtitle": f"צלמי {num_scenarios} סרטונים קצרים לפי ההנחיות למטה. לחצי על כל הנחיה לפרטים מלאים.",
             "icon": "Info",
             "status": "active",
-            "action": None,  # לא ניתן ללחוץ
+            "action": None,
             "journey_step": stage_info["step"],
             "journey_total": total_stages,
             "journey_label": f"שלב {stage_info['step']} מתוך {total_stages}"
