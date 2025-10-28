@@ -105,6 +105,8 @@ function App() {
 
   // Handle card click
   const handleCardClick = async (action) => {
+    if (!action) return; // Status cards have no action
+
     if (action === 'upload') {
       setActiveDeepView('upload');
       setActiveViewData(null);
@@ -117,9 +119,8 @@ function App() {
     } else if (action === 'complete_interview') {
       await handleCompleteInterview();
     } else if (action && action.startsWith('view_guideline_')) {
-      // Extract guideline index and open dynamic view
-      const index = parseInt(action.split('_')[2]);
-      const card = cards[index];
+      // Find the card by action (not by index, as there may be status cards)
+      const card = cards.find(c => c.action === action);
 
       if (card) {
         setActiveDeepView('dynamic_guideline');

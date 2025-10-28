@@ -346,6 +346,18 @@ def _generate_cards(session: dict) -> List[dict]:
     cards = []
 
     if session["current_stage"] == "video_upload" and "video_guidelines" in session:
+        # כרטיס סטטוס ראשון - מסביר מה לעשות עכשיו
+        num_scenarios = len(session["video_guidelines"].get("scenarios", []))
+        cards.append({
+            "type": "status",
+            "title": "🎬 שלב צילום סרטונים",
+            "subtitle": f"צלמי {num_scenarios} סרטונים קצרים לפי ההנחיות למטה. לחצי על כל הנחיה לפרטים מלאים.",
+            "icon": "Info",
+            "status": "active",
+            "action": None,  # לא ניתן ללחוץ
+        })
+
+        # כרטיסי הנחיות צילום
         for idx, scenario in enumerate(session["video_guidelines"].get("scenarios", [])):
             cards.append({
                 "type": "video_guideline",

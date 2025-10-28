@@ -24,7 +24,7 @@ export default function ContextualSurface({ cards, onCardClick }) {
         <h3 className="text-sm font-bold text-gray-600">פעיל עכשיו</h3>
         <div className="w-8 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"></div>
       </div>
-      
+
       <div className="space-y-2">
         {cards.map((card, idx) => {
           const Icon = Icons[card.icon];
@@ -33,8 +33,11 @@ export default function ContextualSurface({ cards, onCardClick }) {
               key={idx}
               onClick={() => card.action && onCardClick(card.action)}
               className={`${getStatusColor(card.status)} border rounded-xl p-3 flex items-center justify-between ${
-                card.action ? 'cursor-pointer hover:shadow-md' : ''
-              } transition group`}
+                card.action ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''
+              } transition-all duration-300 ease-out group`}
+              style={{
+                animation: `cardSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.08}s both`,
+              }}
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white rounded-lg shadow-sm">
@@ -52,6 +55,19 @@ export default function ContextualSurface({ cards, onCardClick }) {
           );
         })}
       </div>
+
+      <style jsx>{`
+        @keyframes cardSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(12px) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 }
