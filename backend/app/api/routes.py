@@ -345,16 +345,31 @@ def _generate_cards(session: dict) -> List[dict]:
     """יצירת כרטיסים דינמיים"""
     cards = []
 
+    # הגדרת שלבי המסע
+    journey_stages = {
+        "welcome": {"step": 1, "name": "ראיון התפתחותי", "emoji": "🗣️"},
+        "video_upload": {"step": 2, "name": "צילום סרטונים", "emoji": "🎬"},
+        "video_analysis": {"step": 3, "name": "ניתוח סרטונים", "emoji": "🔍"},
+        "report_generation": {"step": 4, "name": "יצירת דוחות", "emoji": "📊"},
+        "consultation": {"step": 5, "name": "ייעוץ מקצועי", "emoji": "💬"}
+    }
+    total_stages = 5
+    current_stage = session["current_stage"]
+    stage_info = journey_stages.get(current_stage, {"step": 1, "name": "התחלה", "emoji": "✨"})
+
     if session["current_stage"] == "video_upload" and "video_guidelines" in session:
-        # כרטיס סטטוס ראשון - מסביר מה לעשות עכשיו
+        # כרטיס סטטוס ראשון - מסביר מה לעשות עכשיו + התקדמות במסע
         num_scenarios = len(session["video_guidelines"].get("scenarios", []))
         cards.append({
             "type": "status",
-            "title": "🎬 שלב צילום סרטונים",
+            "title": f"{stage_info['emoji']} {stage_info['name']}",
             "subtitle": f"צלמי {num_scenarios} סרטונים קצרים לפי ההנחיות למטה. לחצי על כל הנחיה לפרטים מלאים.",
             "icon": "Info",
             "status": "active",
             "action": None,  # לא ניתן ללחוץ
+            "journey_step": stage_info["step"],
+            "journey_total": total_stages,
+            "journey_label": f"שלב {stage_info['step']} מתוך {total_stages}"
         })
 
         # כרטיסי הנחיות צילום

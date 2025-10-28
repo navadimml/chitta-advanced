@@ -28,29 +28,63 @@ export default function ContextualSurface({ cards, onCardClick }) {
       <div className="space-y-2">
         {cards.map((card, idx) => {
           const Icon = Icons[card.icon];
+          const isStatusCard = card.type === 'status' && card.journey_step && card.journey_total;
+
           return (
             <div
               key={idx}
               onClick={() => card.action && onCardClick(card.action)}
-              className={`${getStatusColor(card.status)} border rounded-xl p-3 flex items-center justify-between ${
+              className={`${getStatusColor(card.status)} border rounded-xl p-3 ${
                 card.action ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''
               } transition-all duration-300 ease-out group`}
               style={{
                 animation: `cardSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.08}s both`,
               }}
             >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white rounded-lg shadow-sm">
-                  {Icon && <Icon className="w-5 h-5" />}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    {Icon && <Icon className="w-5 h-5" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm">{card.title}</div>
+                    <div className="text-xs opacity-80">{card.subtitle}</div>
+
+                    {/* Journey Progress - רק לכרטיס סטטוס */}
+                    {isStatusCard && (
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center justify-between text-xs font-semibold opacity-70">
+                          <span>{card.journey_label}</span>
+                          <span>{Math.round((card.journey_step / card.journey_total) * 100)}%</span>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-white/50 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500"
+                            style={{ width: `${(card.journey_step / card.journey_total) * 100}%` }}
+                          />
+                        </div>
+                        {/* Journey Steps Dots */}
+                        <div className="flex items-center gap-1 pt-1">
+                          {Array.from({ length: card.journey_total }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                                i < card.journey_step
+                                  ? 'bg-violet-500'
+                                  : 'bg-white/50'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold text-sm">{card.title}</div>
-                  <div className="text-xs opacity-80">{card.subtitle}</div>
-                </div>
+                {card.action && (
+                  <Icons.ChevronRight className="w-5 h-5 opacity-50 group-hover:opacity-100 transition" />
+                )}
               </div>
-              {card.action && (
-                <Icons.ChevronRight className="w-5 h-5 opacity-50 group-hover:opacity-100 transition" />
-              )}
             </div>
           );
         })}
