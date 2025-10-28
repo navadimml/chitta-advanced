@@ -112,6 +112,33 @@ function App() {
       setActiveDeepView('journal');
     } else if (action === 'complete_interview') {
       await handleCompleteInterview();
+    } else if (action && action.startsWith('view_guideline_')) {
+      // Extract guideline index
+      const index = parseInt(action.split('_')[2]);
+      const card = cards[index];
+
+      if (card) {
+        // Create detailed message about the guideline
+        let detailsMessage = `📹 **${card.title}**\n\n`;
+        detailsMessage += `${card.subtitle}\n\n`;
+
+        if (card.rationale) {
+          detailsMessage += `**למה זה חשוב:** ${card.rationale}\n\n`;
+        }
+
+        if (card.target_areas && card.target_areas.length > 0) {
+          detailsMessage += `**תחומים לבדיקה:** ${card.target_areas.join(', ')}`;
+        }
+
+        // Add the message to chat
+        const guidelineMessage = {
+          sender: 'chitta',
+          text: detailsMessage,
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages(prev => [...prev, guidelineMessage]);
+      }
     }
   };
 

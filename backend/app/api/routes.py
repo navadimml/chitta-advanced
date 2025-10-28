@@ -346,12 +346,17 @@ def _generate_cards(session: dict) -> List[dict]:
     cards = []
 
     if session["current_stage"] == "video_upload" and "video_guidelines" in session:
-        for scenario in session["video_guidelines"].get("scenarios", []):
+        for idx, scenario in enumerate(session["video_guidelines"].get("scenarios", [])):
             cards.append({
                 "type": "video_guideline",
                 "title": scenario["title"],
-                "description": scenario["description"],
-                "priority": scenario.get("priority", "recommended")
+                "subtitle": scenario["description"],
+                "icon": "Video",
+                "status": "instruction",
+                "action": f"view_guideline_{idx}",
+                "priority": scenario.get("priority", "recommended"),
+                "rationale": scenario.get("rationale", ""),
+                "target_areas": scenario.get("target_areas", [])
             })
 
     return cards
