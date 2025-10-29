@@ -32,6 +32,7 @@ function App() {
   const [videos, setVideos] = useState([]);
   const [journalEntries, setJournalEntries] = useState([]);
   const [childName, setChildName] = useState('');
+  const [videoGuidelines, setVideoGuidelines] = useState(null);
 
   // Initial greeting on mount
   useEffect(() => {
@@ -150,15 +151,8 @@ function App() {
 
         setMessages(prev => [...prev, guidelinesMsg]);
 
-        // Create cards for scenarios
-        const scenarioCards = response.video_guidelines.scenarios.map(scenario => ({
-          type: 'video_guideline',
-          title: scenario.title,
-          description: scenario.description,
-          priority: scenario.priority
-        }));
-
-        setCards(scenarioCards);
+        // Save guidelines to state
+        setVideoGuidelines(response.video_guidelines);
         setStage('video_upload');
       }
 
@@ -294,6 +288,7 @@ function App() {
         onClose={handleCloseDeepView}
         viewData={activeViewData || { data: { childName } }}
         videos={videos}
+        videoGuidelines={videoGuidelines}
         journalEntries={journalEntries}
         onCreateJournalEntry={handleCreateJournalEntry}
         onDeleteJournalEntry={handleDeleteJournalEntry}

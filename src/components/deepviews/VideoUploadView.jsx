@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Video, Upload, Camera, Play, Pause, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 
-export default function VideoUploadView({ onClose, scenarioData, onCreateVideo }) {
+export default function VideoUploadView({ onClose, scenarioData, videoGuidelines, onCreateVideo }) {
   const [uploadStatus, setUploadStatus] = useState('idle'); // idle, uploading, success, error
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -111,7 +111,42 @@ export default function VideoUploadView({ onClose, scenarioData, onCreateVideo }
         </div>
         
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          
+
+          {/* Video Guidelines Section */}
+          {videoGuidelines && videoGuidelines.scenarios && videoGuidelines.scenarios.length > 0 && (
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
+              <h5 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+                <Video className="w-5 h-5" />
+                הוראות צילום מותאמות אישית
+              </h5>
+              <div className="space-y-3">
+                {videoGuidelines.scenarios.map((scenario, idx) => (
+                  <div key={idx} className="bg-white border border-purple-200 rounded-lg p-3">
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1">
+                        <h6 className="font-bold text-purple-900 text-sm">{scenario.title}</h6>
+                        <p className="text-xs text-purple-700 mt-1">{scenario.description}</p>
+                        {scenario.rationale && (
+                          <p className="text-xs text-purple-600 mt-2 italic">
+                            <strong>למה זה חשוב:</strong> {scenario.rationale}
+                          </p>
+                        )}
+                        {scenario.priority === 'essential' && (
+                          <span className="inline-block mt-2 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">
+                            חיוני
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Video Preview Area */}
           {(videoPreview || isRecording) && (
             <div className="bg-black rounded-xl overflow-hidden">

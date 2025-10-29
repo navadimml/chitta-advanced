@@ -39,6 +39,7 @@ export default function DeepViewManager({
   onClose,
   viewData,
   videos,
+  videoGuidelines,
   journalEntries,
   onCreateJournalEntry,
   onDeleteJournalEntry,
@@ -66,6 +67,7 @@ export default function DeepViewManager({
       onClose={onClose}
       {...dataProps}
       videos={videos}
+      videoGuidelines={videoGuidelines}
       journalEntries={journalEntries}
       onCreateJournalEntry={onCreateJournalEntry}
       onDeleteJournalEntry={onDeleteJournalEntry}
