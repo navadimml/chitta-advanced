@@ -439,8 +439,8 @@ async def _generate_reports_internal(family_id: str, session: dict):
     session["professional_report"] = prof_report
     session["parent_report"] = parent_report
 
-    # מעבר לשלב consultation
-    session["current_stage"] = "consultation"
+    # לא עוברים אוטומטית ל-consultation - נשאר ב-report_generation
+    # כדי שהמשתמש יוכל לראות את הכרטיסים ולגשת לדוחות
 
 def _generate_suggestions(session: dict) -> List[str]:
     """יצירת הצעות לפי שלב"""
