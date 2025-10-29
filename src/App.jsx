@@ -81,6 +81,10 @@ function App() {
         if (response.ui_data.cards) {
           setCards(response.ui_data.cards);
         }
+        // CRITICAL: Save video guidelines when interview completes
+        if (response.ui_data.video_guidelines) {
+          setVideoGuidelines(response.ui_data.video_guidelines);
+        }
       }
 
       // Update stage
