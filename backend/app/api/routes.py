@@ -619,31 +619,41 @@ def _generate_cards(session: dict) -> List[dict]:
 
     # כרטיסים לשלב יצירת דוחות (report_generation)
     elif session["current_stage"] == "report_generation":
-        # כרטיס 1: מדריך להורים (סגול - new)
+        # כרטיס 0: הנחיה - מה עכשיו? (ציאן - instruction)
+        cards.append({
+            "type": "reports_ready_guide",
+            "title": "✨ הדוחות מוכנים!",
+            "subtitle": "סיימתי לנתח הכל. יש לך 2 דוחות לצפייה + המלצות",
+            "icon": "CheckCircle",
+            "status": "instruction",
+            "action": None
+        })
+
+        # כרטיס 1: מדריך להורים (ירוק - new)
         cards.append({
             "type": "parent_report",
-            "title": "מדריך להורים",
-            "subtitle": "הסברים ברורים עבורך",
+            "title": "📄 מדריך להורים",
+            "subtitle": "לחצי לקריאה - הסברים ברורים בשפה פשוטה",
             "icon": "FileText",
             "status": "new",
             "action": "parentReport"
         })
 
-        # כרטיס 2: דוח מקצועי (סגול - new)
+        # כרטיס 2: דוח מקצועי (כחול - new)
         cards.append({
             "type": "professional_report",
-            "title": "דוח מקצועי",
-            "subtitle": "לשיתוף עם מומחים",
+            "title": "📋 דוח מקצועי",
+            "subtitle": "לחצי לצפייה - דוח טכני לשיתוף עם מומחים",
             "icon": "FileText",
-            "status": "new",
+            "status": "action",
             "action": "proReport"
         })
 
         # כרטיס 3: מציאת מומחים (ציאן - action)
         cards.append({
             "type": "find_experts",
-            "title": "מציאת מומחים",
-            "subtitle": "מבוסס על הממצאים",
+            "title": "🔍 מציאת מומחים",
+            "subtitle": "המלצות מותאמות אישית על סמך הממצאים",
             "icon": "Search",
             "status": "action",
             "action": "experts"

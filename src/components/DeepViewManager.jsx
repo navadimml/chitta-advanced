@@ -30,7 +30,9 @@ const viewComponents = {
   summary: MeetingSummaryView,
   instructions: FilmingInstructionView,
   experts: ExpertProfileView,
+  findExperts: ExpertProfileView,
   moreExperts: ExpertProfileView,
+  professionalReport: ReportView,  // Add explicit mapping for professional report
   dynamic_guideline: DynamicGuidelineView,  // New dynamic view for backend guidelines
 };
 

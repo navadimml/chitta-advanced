@@ -129,6 +129,15 @@ function App() {
       await handleCompleteInterview();
     } else if (action === 'skipAnalysis') {
       await handleSkipAnalysis();
+    } else if (action === 'parentReport') {
+      setActiveDeepView('parentReport');
+      setActiveViewData(null);
+    } else if (action === 'proReport') {
+      setActiveDeepView('professionalReport');
+      setActiveViewData(null);
+    } else if (action === 'experts') {
+      setActiveDeepView('findExperts');
+      setActiveViewData(null);
     } else if (action && action.startsWith('view_guideline_')) {
       // Find the card by action (not by index, as there may be status cards)
       const card = cards.find(c => c.action === action);
