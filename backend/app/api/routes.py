@@ -302,8 +302,11 @@ async def generate_reports(family_id: str):
 @router.get("/timeline/{family_id}")
 async def get_timeline(family_id: str):
     """
-    קבלת timeline של כל המסע
+    קבלת timeline של כל המסע + UI state עדכני
     """
+    # קבלת session
+    session = app_state.get_or_create_session(family_id)
+
     # קבלת כל ה-episodes
     episodes = app_state.graphiti.get_all_episodes(group_id=family_id)
 
@@ -320,7 +323,17 @@ async def get_timeline(family_id: str):
     # מיון לפי תאריך
     timeline.sort(key=lambda x: x["date"] if x["date"] else "", reverse=True)
 
-    return {"timeline": timeline}
+    # יצירת contextual cards לפי stage הנוכחי
+    current_stage = session.get("stage", "welcome")
+    cards = _generate_contextual_cards_for_stage(session, current_stage)
+
+    return {
+        "timeline": timeline,
+        "ui_data": {
+            "cards": cards,
+            "stage": current_stage
+        }
+    }
 
 @router.post("/journal/entry", response_model=JournalEntryResponse)
 async def add_journal_entry(request: JournalEntryRequest):
@@ -543,6 +556,23 @@ def _generate_cards(session: dict) -> List[dict]:
             "status": "action",
             "action": "upload"
         })
+
+        # כרטיס 3: מה קורה אחרי? (מידע - instruction) - מופיע רק אחרי סרטון ראשון
+        if num_videos >= 1:
+            if num_videos >= num_scenarios:
+                next_step_text = "כל הסרטונים הועלו! אני אתחיל בניתוח בקרוב"
+            else:
+                remaining = num_scenarios - num_videos
+                next_step_text = f"נהדר! עוד {remaining} סרטונים ואני אוכל להתחיל בניתוח"
+
+            cards.append({
+                "type": "next_steps_info",
+                "title": "מה הלאה?",
+                "subtitle": next_step_text,
+                "icon": "MessageCircle",
+                "status": "instruction",
+                "action": None
+            })
 
     # כרטיסים לשלב ניתוח (analysis)
     elif session["current_stage"] == "video_analysis":

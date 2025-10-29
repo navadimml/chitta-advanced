@@ -100,6 +100,13 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Handler to select a guideline and auto-fill form
+  const handleSelectGuideline = (scenario) => {
+    setSelectedGuideline(scenario);
+    setVideoTitle(scenario.title);
+    setVideoDescription(scenario.description);
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-slideUp" onClick={(e) => e.stopPropagation()}>
@@ -120,11 +127,21 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                 <Video className="w-5 h-5" />
                 הוראות צילום מותאמות אישית
               </h5>
+
+              {/* Why These Scenarios */}
+              {videoGuidelines.why_these_scenarios && (
+                <div className="bg-white/70 rounded-lg p-3 mb-4 border border-purple-200">
+                  <p className="text-sm text-purple-900 leading-relaxed">
+                    {videoGuidelines.why_these_scenarios}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 {videoGuidelines.scenarios.map((scenario, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setSelectedGuideline(scenario)}
+                    onClick={() => handleSelectGuideline(scenario)}
                     className="w-full bg-white border-2 border-purple-200 hover:border-purple-400 rounded-lg p-3 text-right transition-all hover:shadow-md"
                   >
                     <div className="flex items-start gap-3">
@@ -164,6 +181,19 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                   ← חזרה לרשימה
                 </button>
               </div>
+
+              {/* Why I Chose This - New Section */}
+              {selectedGuideline.why_i_chose_this && (
+                <div className="bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 rounded-lg p-4">
+                  <h6 className="font-bold text-pink-900 mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    למה בחרתי את התרחיש הזה בשבילך?
+                  </h6>
+                  <p className="text-sm text-pink-900 leading-relaxed">
+                    {selectedGuideline.why_i_chose_this}
+                  </p>
+                </div>
+              )}
 
               {/* Detailed Description */}
               {selectedGuideline.detailed_description && (
@@ -232,6 +262,17 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                   </ul>
                 </div>
               )}
+
+              {/* Confirmation Message */}
+              <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-300 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                  <div>
+                    <h6 className="font-bold text-green-900">פרטי הטופס מולאו אוטומטית</h6>
+                    <p className="text-sm text-green-700">כותרת ותיאור הסרטון הוגדרו לפי ההוראה הזו. גללי למטה להעלות את הסרטון!</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -281,12 +322,23 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
           )}
 
           {uploadStatus === 'success' && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <CheckCircle className="w-6 h-6 text-green-600" />
                 <div>
                   <h5 className="font-bold text-green-900">הוידאו הועלה בהצלחה! 🎉</h5>
                   <p className="text-sm text-green-700">הוידאו נשמר ומוכן לניתוח</p>
+                </div>
+              </div>
+
+              {/* What happens next */}
+              <div className="bg-white border-l-4 border-green-400 rounded-lg p-3">
+                <h6 className="font-bold text-green-900 text-sm mb-2">מה קורה עכשיו?</h6>
+                <div className="text-xs text-green-800 space-y-1.5 leading-relaxed">
+                  <p>✓ הסרטון נשמר במערכת</p>
+                  <p>✓ תוכלי להעלות עוד סרטונים או לסגור את החלון</p>
+                  <p>✓ כשתסיימי להעלות את כל הסרטונים, אנתח אותם (לוקח כ-24 שעות)</p>
+                  <p>✓ תקבלי התראה כשהניתוח מוכן ואוכל ליצור עבורך דוחות מפורטים</p>
                 </div>
               </div>
             </div>

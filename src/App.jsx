@@ -183,6 +183,18 @@ function App() {
     setActiveViewData(null);
   };
 
+  // Function to refresh cards from backend
+  const refreshCards = async () => {
+    try {
+      const response = await api.getTimeline(FAMILY_ID);
+      if (response.ui_data && response.ui_data.cards) {
+        setCards(response.ui_data.cards);
+      }
+    } catch (error) {
+      console.error('Error refreshing cards:', error);
+    }
+  };
+
   // CRUD handlers for videos
   const handleCreateVideo = async (videoData) => {
     const newVideo = {
@@ -206,6 +218,9 @@ function App() {
         videoData.scenario || 'general',
         0
       );
+
+      // Refresh cards to show updated progress
+      await refreshCards();
     } catch (error) {
       console.error('Error uploading video:', error);
     }
