@@ -481,6 +481,17 @@ def _generate_cards(session: dict) -> List[dict]:
     if session["current_stage"] == "welcome":
         num_messages = len(session.get("interview_messages", []))
 
+        # כרטיס 0: הנחיה ראשונית - מה הולך לקרות? (ציאן - instruction)
+        if num_messages == 0:
+            cards.append({
+                "type": "welcome_guide",
+                "title": "👋 ברוכה הבאה! בואי נכיר את הילד/ה שלך",
+                "subtitle": "אני הולכת לשאול אותך כמה שאלות על הילד/ה - חוזקות, אתגרים, דברים שמעניינים אותו/ה. זה ייקח בערך 10-15 דקות. בסוף אכין לך המלצות מותאמות אישית",
+                "icon": "Info",
+                "status": "instruction",
+                "action": None
+            })
+
         # כרטיס 1: מתנהל ראיון (צהוב - processing)
         if num_messages > 0:
             progress_stage = "מידע בסיסי" if num_messages <= 3 else "תובנות עמוקות" if num_messages <= 6 else "סיכום"
@@ -534,6 +545,18 @@ def _generate_cards(session: dict) -> List[dict]:
         num_scenarios = len(session["video_guidelines"].get("scenarios", []))
         num_videos = len(session.get("videos", []))
 
+        # כרטיס 0: הנחיה ומוטיבציה - למה לצלם? (ציאן בולט - instruction)
+        if num_videos == 0:
+            # טקסט מלא ומוטיבציוני בפעם הראשונה
+            cards.append({
+                "type": "video_upload_guide",
+                "title": "🎬 שלב הצילום - למה זה חשוב?",
+                "subtitle": "הסרטונים יעזרו לי להבין את ההתפתחות של הילד/ה שלך בצורה מעמיקה ומדויקת. זה כמו שאלך איתך הביתה ואראה את הילד/ה בפעולה - רק שאת קובעת מתי ואיך",
+                "icon": "Info",
+                "status": "instruction",
+                "action": None
+            })
+
         # כרטיס 1: ההתקדמות שלך (ציאן - progress) + breadcrumbs
         cards.append({
             "type": "overall_progress",
@@ -576,6 +599,16 @@ def _generate_cards(session: dict) -> List[dict]:
 
     # כרטיסים לשלב ניתוח (analysis)
     elif session["current_stage"] == "video_analysis":
+        # כרטיס 0: הנחיה - מה קורה עכשיו? (ציאן - instruction)
+        cards.append({
+            "type": "analysis_guide",
+            "title": "🔍 מנתח את הסרטונים",
+            "subtitle": "אני עובר על הסרטונים והראיון שלנו, מחפש דפוסים והתנהגויות. זה לוקח בדרך כלל כ-24 שעות. אעדכן אותך כשאסיים - אין צורך לחכות כאן",
+            "icon": "Info",
+            "status": "instruction",
+            "action": None
+        })
+
         # כרטיס 1: ניתוח בתהליך (צהוב - processing)
         cards.append({
             "type": "analysis_status",
@@ -619,13 +652,13 @@ def _generate_cards(session: dict) -> List[dict]:
 
     # כרטיסים לשלב יצירת דוחות (report_generation)
     elif session["current_stage"] == "report_generation":
-        # כרטיס 0: הנחיה - מה עכשיו? (ציאן - instruction)
+        # כרטיס 0: הנחיה - מה עכשיו? (ירוק בולט - new)
         cards.append({
             "type": "reports_ready_guide",
-            "title": "✨ הדוחות מוכנים!",
-            "subtitle": "סיימתי לנתח הכל. יש לך 2 דוחות לצפייה + המלצות",
-            "icon": "CheckCircle",
-            "status": "instruction",
+            "title": "🎉 הניתוח הושלם - הדוחות מוכנים!",
+            "subtitle": "ניתחתי את הראיון והסרטונים. עכשיו יש לך 2 דוחות לקריאה + המלצות למומחים. הכל מוכן - פשוט לחצי על הכרטיסים למטה",
+            "icon": "Sparkles",
+            "status": "new",
             "action": None
         })
 
@@ -661,6 +694,16 @@ def _generate_cards(session: dict) -> List[dict]:
 
     # כרטיסים לשלב ייעוץ (consultation)
     elif session["current_stage"] == "consultation":
+        # כרטיס 0: הנחיה - מה השלב הזה? (ציאן - instruction)
+        cards.append({
+            "type": "consultation_guide",
+            "title": "💬 שלב הייעוץ - אני כאן בשבילך",
+            "subtitle": "קראת את הדוחות? יש לך שאלות? רוצה לדון בממצאים או לקבל המלצות נוספות? פשוט שאלי אותי בצ'אט. אפשר גם להעלות מסמכים נוספים אם יש",
+            "icon": "Info",
+            "status": "instruction",
+            "action": None
+        })
+
         # כרטיס 1: מצב התייעצות (סגול - processing)
         cards.append({
             "type": "consultation",
