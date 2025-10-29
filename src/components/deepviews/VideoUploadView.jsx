@@ -128,15 +128,6 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                 הוראות צילום מותאמות אישית
               </h5>
 
-              {/* Why These Scenarios */}
-              {videoGuidelines.why_these_scenarios && (
-                <div className="bg-white/70 rounded-lg p-3 mb-4 border border-purple-200">
-                  <p className="text-sm text-purple-900 leading-relaxed">
-                    {videoGuidelines.why_these_scenarios}
-                  </p>
-                </div>
-              )}
-
               <div className="space-y-2">
                 {videoGuidelines.scenarios.map((scenario, idx) => (
                   <button
@@ -248,237 +239,216 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                 </div>
               )}
 
-              {/* What to Look For */}
-              {selectedGuideline.what_to_look_for && selectedGuideline.what_to_look_for.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <h6 className="font-bold text-amber-900 mb-2">על מה לשים לב?</h6>
-                  <ul className="space-y-2">
-                    {selectedGuideline.what_to_look_for.map((item, idx) => (
-                      <li key={idx} className="text-sm text-amber-800 flex items-start gap-2">
-                        <span className="text-amber-600 font-bold">▸</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {/* Upload Form - Moved inside detailed view */}
+              <div className="border-t-2 border-purple-200 pt-4 mt-4">
+                <h6 className="font-bold text-purple-900 mb-3 text-base">העלאת הסרטון</h6>
 
-              {/* Confirmation Message */}
-              <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-300 rounded-lg p-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                  <div>
-                    <h6 className="font-bold text-green-900">פרטי הטופס מולאו אוטומטית</h6>
-                    <p className="text-sm text-green-700">כותרת ותיאור הסרטון הוגדרו לפי ההוראה הזו. גללי למטה להעלות את הסרטון!</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Video Preview Area */}
-          {(videoPreview || isRecording) && (
-            <div className="bg-black rounded-xl overflow-hidden">
-              <div className="aspect-video relative">
-                {videoPreview ? (
-                  <video 
-                    ref={videoRef}
-                    src={videoPreview} 
-                    controls 
-                    className="w-full h-full"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-red-900 to-red-700 flex items-center justify-center">
-                    <div className="text-center text-white">
-                      <div className="w-16 h-16 mx-auto mb-3 bg-red-500 rounded-full animate-pulse flex items-center justify-center">
-                        <Video className="w-8 h-8" />
-                      </div>
-                      <p className="text-2xl font-bold">{formatTime(recordingTime)}</p>
-                      <p className="text-sm opacity-80">מצלם...</p>
+                {/* Video Preview Area */}
+                {(videoPreview || isRecording) && (
+                  <div className="bg-black rounded-xl overflow-hidden">
+                    <div className="aspect-video relative">
+                      {videoPreview ? (
+                        <video
+                          ref={videoRef}
+                          src={videoPreview}
+                          controls
+                          className="w-full h-full"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-red-900 to-red-700 flex items-center justify-center">
+                          <div className="text-center text-white">
+                            <div className="w-16 h-16 mx-auto mb-3 bg-red-500 rounded-full animate-pulse flex items-center justify-center">
+                              <Video className="w-8 h-8" />
+                            </div>
+                            <p className="text-2xl font-bold">{formatTime(recordingTime)}</p>
+                            <p className="text-sm opacity-80">מצלם...</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-          )}
 
-          {/* Upload Status */}
-          {uploadStatus === 'uploading' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Loader className="w-5 h-5 text-blue-600 animate-spin" />
-                <div className="flex-1">
-                  <h5 className="font-bold text-blue-900 text-sm">מעלה וידאו...</h5>
-                  <p className="text-xs text-blue-700">{uploadProgress}% הושלם</p>
+                {/* Upload Status */}
+                {uploadStatus === 'uploading' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Loader className="w-5 h-5 text-blue-600 animate-spin" />
+                      <div className="flex-1">
+                        <h5 className="font-bold text-blue-900 text-sm">מעלה וידאו...</h5>
+                        <p className="text-xs text-blue-700">{uploadProgress}% הושלם</p>
+                      </div>
+                    </div>
+                    <div className="w-full bg-blue-200 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-blue-600 h-full rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {uploadStatus === 'success' && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                      <div>
+                        <h5 className="font-bold text-green-900">הוידאו הועלה בהצלחה! 🎉</h5>
+                        <p className="text-sm text-green-700">הוידאו נשמר ומוכן לניתוח</p>
+                      </div>
+                    </div>
+
+                    {/* What happens next */}
+                    <div className="bg-white border-l-4 border-green-400 rounded-lg p-3">
+                      <h6 className="font-bold text-green-900 text-sm mb-2">מה קורה עכשיו?</h6>
+                      <div className="text-xs text-green-800 space-y-1.5 leading-relaxed">
+                        <p>✓ הסרטון נשמר במערכת</p>
+                        <p>✓ תוכלי להעלות עוד סרטונים או לסגור את החלון</p>
+                        <p>✓ כשתסיימי להעלות את כל הסרטונים, אנתח אותם (לוקח כ-24 שעות)</p>
+                        <p>✓ תקבלי התראה כשהניתוח מוכן ואוכל ליצור עבורך דוחות מפורטים</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {uploadStatus === 'error' && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="w-6 h-6 text-red-600" />
+                      <div>
+                        <h5 className="font-bold text-red-900">שגיאה בהעלאה</h5>
+                        <p className="text-sm text-red-700">נסי שוב או בחרי קובץ אחר</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                {uploadStatus === 'idle' && (
+                  <>
+                    {/* Video metadata inputs */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                      <h5 className="font-bold text-gray-900 text-sm">פרטי הסרטון (אופציונלי)</h5>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">כותרת</label>
+                        <input
+                          type="text"
+                          value={videoTitle}
+                          onChange={(e) => setVideoTitle(e.target.value)}
+                          placeholder="למשל: משחק חופשי, זמן ארוחה..."
+                          className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          dir="rtl"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">תיאור</label>
+                        <input
+                          type="text"
+                          value={videoDescription}
+                          onChange={(e) => setVideoDescription(e.target.value)}
+                          placeholder="תיאור קצר של הסרטון"
+                          className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          dir="rtl"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Record Button */}
+                      <button
+                        onClick={toggleRecording}
+                        className="bg-gradient-to-r from-red-500 to-pink-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
+                      >
+                        <Camera className="w-8 h-8" />
+                        <span>צילום וידאו</span>
+                      </button>
+
+                      {/* Upload Button */}
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
+                      >
+                        <Upload className="w-8 h-8" />
+                        <span>העלאת קובץ</span>
+                      </button>
+                    </div>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="video/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </>
+                )}
+
+                {/* Recording Controls */}
+                {isRecording && (
+                  <button
+                    onClick={toggleRecording}
+                    className="w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 transition flex items-center justify-center gap-2"
+                  >
+                    <Pause className="w-5 h-5" />
+                    עצור צילום
+                  </button>
+                )}
+
+                {/* Tips Section */}
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                  <h5 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
+                    <Video className="w-5 h-5" />
+                    טיפים לצילום איכותי
+                  </h5>
+                  <div className="space-y-2 text-sm text-purple-800">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>ודאי שהתאורה טובה - לא נגד האור</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>השמע צריך להיות ברור</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>צלמי 3-5 דקות - לא צריך יותר</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>השאירי את המצלמה יציבה ככל האפשר</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="w-full bg-blue-200 h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-blue-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
 
-          {uploadStatus === 'success' && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-                <div>
-                  <h5 className="font-bold text-green-900">הוידאו הועלה בהצלחה! 🎉</h5>
-                  <p className="text-sm text-green-700">הוידאו נשמר ומוכן לניתוח</p>
+                {/* Privacy Note */}
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                  <p className="text-sm text-green-800 flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>הוידאו מוצפן ומאוחסן בצורה מאובטחת לחלוטין</span>
+                  </p>
                 </div>
+
+                {/* Success Actions */}
+                {uploadStatus === 'success' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={onClose}
+                      className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-3 px-4 rounded-xl font-bold hover:shadow-lg transition"
+                    >
+                      סגור
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUploadStatus('idle');
+                        setVideoPreview(null);
+                      }}
+                      className="bg-white border-2 border-indigo-500 text-indigo-600 py-3 px-4 rounded-xl font-bold hover:bg-indigo-50 transition"
+                    >
+                      העלה עוד
+                    </button>
+                  </div>
+                )}
               </div>
-
-              {/* What happens next */}
-              <div className="bg-white border-l-4 border-green-400 rounded-lg p-3">
-                <h6 className="font-bold text-green-900 text-sm mb-2">מה קורה עכשיו?</h6>
-                <div className="text-xs text-green-800 space-y-1.5 leading-relaxed">
-                  <p>✓ הסרטון נשמר במערכת</p>
-                  <p>✓ תוכלי להעלות עוד סרטונים או לסגור את החלון</p>
-                  <p>✓ כשתסיימי להעלות את כל הסרטונים, אנתח אותם (לוקח כ-24 שעות)</p>
-                  <p>✓ תקבלי התראה כשהניתוח מוכן ואוכל ליצור עבורך דוחות מפורטים</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {uploadStatus === 'error' && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-                <div>
-                  <h5 className="font-bold text-red-900">שגיאה בהעלאה</h5>
-                  <p className="text-sm text-red-700">נסי שוב או בחרי קובץ אחר</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          {uploadStatus === 'idle' && (
-            <>
-              {/* Video metadata inputs */}
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-                <h5 className="font-bold text-gray-900 text-sm">פרטי הסרטון (אופציונלי)</h5>
-                <div>
-                  <label className="text-xs text-gray-600 block mb-1">כותרת</label>
-                  <input
-                    type="text"
-                    value={videoTitle}
-                    onChange={(e) => setVideoTitle(e.target.value)}
-                    placeholder="למשל: משחק חופשי, זמן ארוחה..."
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    dir="rtl"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-600 block mb-1">תיאור</label>
-                  <input
-                    type="text"
-                    value={videoDescription}
-                    onChange={(e) => setVideoDescription(e.target.value)}
-                    placeholder="תיאור קצר של הסרטון"
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    dir="rtl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Record Button */}
-                <button
-                  onClick={toggleRecording}
-                  className="bg-gradient-to-r from-red-500 to-pink-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
-                >
-                  <Camera className="w-8 h-8" />
-                  <span>צילום וידאו</span>
-                </button>
-
-                {/* Upload Button */}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
-                >
-                  <Upload className="w-8 h-8" />
-                  <span>העלאת קובץ</span>
-                </button>
-              </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </>
-          )}
-
-          {/* Recording Controls */}
-          {isRecording && (
-            <button
-              onClick={toggleRecording}
-              className="w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 transition flex items-center justify-center gap-2"
-            >
-              <Pause className="w-5 h-5" />
-              עצור צילום
-            </button>
-          )}
-
-          {/* Tips Section */}
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-            <h5 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
-              <Video className="w-5 h-5" />
-              טיפים לצילום איכותי
-            </h5>
-            <div className="space-y-2 text-sm text-purple-800">
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>ודאי שהתאורה טובה - לא נגד האור</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>השמע צריך להיות ברור</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>צלמי 3-5 דקות - לא צריך יותר</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>השאירי את המצלמה יציבה ככל האפשר</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Privacy Note */}
-          <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-            <p className="text-sm text-green-800 flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <span>הוידאו מוצפן ומאוחסן בצורה מאובטחת לחלוטין</span>
-            </p>
-          </div>
-
-          {/* Success Actions */}
-          {uploadStatus === 'success' && (
-            <div className="grid grid-cols-2 gap-2">
-              <button 
-                onClick={onClose}
-                className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-3 px-4 rounded-xl font-bold hover:shadow-lg transition"
-              >
-                סגור
-              </button>
-              <button 
-                onClick={() => {
-                  setUploadStatus('idle');
-                  setVideoPreview(null);
-                }}
-                className="bg-white border-2 border-indigo-500 text-indigo-600 py-3 px-4 rounded-xl font-bold hover:bg-indigo-50 transition"
-              >
-                העלה עוד
-              </button>
             </div>
           )}
         </div>
