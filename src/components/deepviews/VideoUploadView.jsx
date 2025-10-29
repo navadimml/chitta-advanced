@@ -6,6 +6,7 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [videoPreview, setVideoPreview] = useState(null);
+  const [selectedGuideline, setSelectedGuideline] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
@@ -112,38 +113,125 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
         
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-          {/* Video Guidelines Section */}
-          {videoGuidelines && videoGuidelines.scenarios && videoGuidelines.scenarios.length > 0 && (
+          {/* Video Guidelines Section - Brief Summary with Click for Details */}
+          {videoGuidelines && videoGuidelines.scenarios && videoGuidelines.scenarios.length > 0 && !selectedGuideline && (
             <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
               <h5 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
                 <Video className="w-5 h-5" />
                 הוראות צילום מותאמות אישית
               </h5>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {videoGuidelines.scenarios.map((scenario, idx) => (
-                  <div key={idx} className="bg-white border border-purple-200 rounded-lg p-3">
-                    <div className="flex items-start gap-2 mb-2">
-                      <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedGuideline(scenario)}
+                    className="w-full bg-white border-2 border-purple-200 hover:border-purple-400 rounded-lg p-3 text-right transition-all hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="w-7 h-7 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
                         {idx + 1}
                       </span>
                       <div className="flex-1">
-                        <h6 className="font-bold text-purple-900 text-sm">{scenario.title}</h6>
-                        <p className="text-xs text-purple-700 mt-1">{scenario.description}</p>
-                        {scenario.rationale && (
-                          <p className="text-xs text-purple-600 mt-2 italic">
-                            <strong>למה זה חשוב:</strong> {scenario.rationale}
-                          </p>
-                        )}
-                        {scenario.priority === 'essential' && (
-                          <span className="inline-block mt-2 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">
-                            חיוני
+                        <h6 className="font-bold text-purple-900 text-sm mb-1">{scenario.title}</h6>
+                        <p className="text-xs text-purple-700 leading-relaxed">{scenario.description}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          {scenario.priority === 'essential' && (
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">
+                              חיוני
+                            </span>
+                          )}
+                          <span className="text-xs text-purple-600 font-semibold">
+                            לחץ לפרטים מלאים →
                           </span>
-                        )}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Detailed Guideline View */}
+          {selectedGuideline && (
+            <div className="bg-white border-2 border-purple-300 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h5 className="font-bold text-purple-900 text-lg">{selectedGuideline.title}</h5>
+                <button
+                  onClick={() => setSelectedGuideline(null)}
+                  className="text-purple-600 hover:text-purple-800 text-sm font-semibold"
+                >
+                  ← חזרה לרשימה
+                </button>
+              </div>
+
+              {/* Detailed Description */}
+              {selectedGuideline.detailed_description && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                  <h6 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                    <Video className="w-4 h-4" />
+                    מה לצלם?
+                  </h6>
+                  <p className="text-sm text-indigo-800 whitespace-pre-line leading-relaxed">
+                    {selectedGuideline.detailed_description}
+                  </p>
+                </div>
+              )}
+
+              {/* Detailed Rationale */}
+              {selectedGuideline.detailed_rationale && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <h6 className="font-bold text-purple-900 mb-2">למה זה חשוב?</h6>
+                  <p className="text-sm text-purple-800 whitespace-pre-line leading-relaxed">
+                    {selectedGuideline.detailed_rationale}
+                  </p>
+                </div>
+              )}
+
+              {/* Example Situations */}
+              {selectedGuideline.example_situations && selectedGuideline.example_situations.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h6 className="font-bold text-blue-900 mb-2">דוגמאות לסיטואציות:</h6>
+                  <ul className="space-y-2">
+                    {selectedGuideline.example_situations.map((example, idx) => (
+                      <li key={idx} className="text-sm text-blue-800 flex items-start gap-2">
+                        <span className="text-blue-500 font-bold">•</span>
+                        <span>{example}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Filming Tips */}
+              {selectedGuideline.filming_tips && selectedGuideline.filming_tips.length > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h6 className="font-bold text-green-900 mb-2">טיפים לצילום:</h6>
+                  <ul className="space-y-2">
+                    {selectedGuideline.filming_tips.map((tip, idx) => (
+                      <li key={idx} className="text-sm text-green-800 flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                        <span>{tip}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* What to Look For */}
+              {selectedGuideline.what_to_look_for && selectedGuideline.what_to_look_for.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <h6 className="font-bold text-amber-900 mb-2">על מה לשים לב?</h6>
+                  <ul className="space-y-2">
+                    {selectedGuideline.what_to_look_for.map((item, idx) => (
+                      <li key={idx} className="text-sm text-amber-800 flex items-start gap-2">
+                        <span className="text-amber-600 font-bold">▸</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
