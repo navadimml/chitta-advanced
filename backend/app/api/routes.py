@@ -586,6 +586,16 @@ def _generate_cards(session: dict) -> List[dict]:
             "action": None
         })
 
+        # כרטיס DEBUG: דלג לשלב הבא (כחול - action)
+        cards.append({
+            "type": "debug_skip",
+            "title": "🔧 סימולציה: דלג לדוחות",
+            "subtitle": "רק לפיתוח - מריץ ניתוח ומייצר דוחות",
+            "icon": "FastForward",
+            "status": "action",
+            "action": "skipAnalysis"
+        })
+
         # כרטיס 2: צפייה בסרטונים (כחול - action)
         num_videos = len(session.get("videos", []))
         cards.append({

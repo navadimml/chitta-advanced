@@ -127,6 +127,8 @@ function App() {
       setActiveViewData(null);
     } else if (action === 'complete_interview') {
       await handleCompleteInterview();
+    } else if (action === 'skipAnalysis') {
+      await handleSkipAnalysis();
     } else if (action && action.startsWith('view_guideline_')) {
       // Find the card by action (not by index, as there may be status cards)
       const card = cards.find(c => c.action === action);
@@ -162,6 +164,40 @@ function App() {
 
     } catch (error) {
       console.error('Error completing interview:', error);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  // Handle skip analysis (dev only)
+  const handleSkipAnalysis = async () => {
+    setIsTyping(true);
+
+    try {
+      const response = await api.analyzeVideos(FAMILY_ID);
+
+      if (response.success) {
+        const msg = {
+          sender: 'chitta',
+          text: 'ניתוח הסרטונים הושלם! הדוחות מוכנים לצפייה.',
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, msg]);
+
+        // Update stage
+        setStage(response.next_stage || 'report_generation');
+
+        // Refresh cards
+        await refreshCards();
+      }
+    } catch (error) {
+      console.error('Error skipping analysis:', error);
+      const errorMsg = {
+        sender: 'chitta',
+        text: 'שגיאה בסימולציה. נסי שוב.',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsTyping(false);
     }
