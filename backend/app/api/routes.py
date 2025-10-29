@@ -324,8 +324,8 @@ async def get_timeline(family_id: str):
     timeline.sort(key=lambda x: x["date"] if x["date"] else "", reverse=True)
 
     # יצירת contextual cards לפי stage הנוכחי
-    current_stage = session.get("stage", "welcome")
-    cards = _generate_contextual_cards_for_stage(session, current_stage)
+    current_stage = session.get("current_stage", "welcome")
+    cards = _generate_cards(session)
 
     return {
         "timeline": timeline,
