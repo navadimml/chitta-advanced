@@ -47,7 +47,8 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
         title: videoTitle || 'סרטון חדש',
         description: videoDescription || 'סרטון שהועלה',
         duration: '0:00', // In a real app, would get this from the video file
-        url: videoPreview
+        url: videoPreview,
+        scenario: selectedGuideline?.title || 'כללי'
       };
       await onCreateVideo(videoData);
     }
@@ -85,7 +86,8 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
           title: videoTitle || 'סרטון מוקלט',
           description: videoDescription || 'סרטון שצולם',
           duration,
-          url: null
+          url: null,
+          scenario: selectedGuideline?.title || 'כללי'
         };
         await onCreateVideo(videoData);
       }
@@ -441,10 +443,11 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                       onClick={() => {
                         setUploadStatus('idle');
                         setVideoPreview(null);
+                        setSelectedGuideline(null);
                       }}
                       className="bg-white border-2 border-indigo-500 text-indigo-600 py-3 px-4 rounded-xl font-bold hover:bg-indigo-50 transition"
                     >
-                      העלה עוד
+                      חזור לרשימה
                     </button>
                   </div>
                 )}

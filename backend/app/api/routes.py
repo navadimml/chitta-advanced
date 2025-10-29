@@ -546,13 +546,13 @@ def _generate_cards(session: dict) -> List[dict]:
             "journey_total": total_stages
         })
 
-        # כרטיס 2: העלאת סרטון (כחול - action)
+        # כרטיס 2: הוראות לצילום (כחול - action)
         # ההוראות יופיעו בתוך טופס ההעלאה עצמו
         cards.append({
             "type": "upload_video",
-            "title": "העלאת סרטון",
+            "title": "הוראות לצילום",
             "subtitle": f"צילום: {num_scenarios} תרחישים | הועלו: {num_videos}",
-            "icon": "Upload",
+            "icon": "Video",
             "status": "action",
             "action": "upload"
         })
