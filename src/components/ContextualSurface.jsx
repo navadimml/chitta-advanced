@@ -21,7 +21,7 @@ export default function ContextualSurface({ cards, onCardClick }) {
   return (
     <div className="bg-white border-t border-gray-200 p-4 shadow-lg">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-gray-600">פעיל עכשיו</h3>
+        <h3 className="text-base font-bold text-gray-600">פעיל עכשיו</h3>
         <div className="w-8 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"></div>
       </div>
 
@@ -50,13 +50,13 @@ export default function ContextualSurface({ cards, onCardClick }) {
                 <div className="flex items-center gap-3 flex-1">
                   <div className={`p-2 bg-white rounded-lg shadow-sm ${
                     card.status === 'processing' ? 'animate-spin-slow' : ''
-                  } ${card.action ? 'group-hover:shadow-md group-hover:scale-110' : ''} transition-all duration-300`}>
+                  } transition-all duration-300`}>
                     {Icon && <Icon className={`w-5 h-5 ${
                       card.status === 'processing' ? 'text-yellow-600' : ''
                     }`} />}
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold text-sm flex items-center gap-2">
+                    <div className="font-semibold text-base flex items-center gap-2">
                       {card.title}
                       {card.status === 'processing' && (
                         <span className="loading-dots">
@@ -66,7 +66,7 @@ export default function ContextualSurface({ cards, onCardClick }) {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs opacity-80">{card.subtitle}</div>
+                    <div className="text-sm opacity-80">{card.subtitle}</div>
 
                     {/* Breadcrumbs - ברור ובולט */}
                     {isStatusCard && (
