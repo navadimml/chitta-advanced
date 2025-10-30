@@ -34,7 +34,9 @@ export default function ContextualSurface({ cards, onCardClick }) {
             <div
               key={idx}
               onClick={() => card.action && onCardClick(card.action)}
-              className={`${getStatusColor(card.status)} border rounded-xl p-3 ${
+              className={`${getStatusColor(card.status)} ${
+                card.status === 'instruction' ? 'border-2 p-4' : 'border p-3'
+              } rounded-xl ${
                 card.action ? 'cursor-pointer hover:shadow-lg hover:scale-[1.03] active:scale-[0.99]' : ''
               } ${card.status === 'processing' ? 'animate-pulse-subtle' : ''} transition-all duration-300 ease-out group relative overflow-hidden`}
               style={{
@@ -50,13 +52,17 @@ export default function ContextualSurface({ cards, onCardClick }) {
                 <div className="flex items-center gap-3 flex-1">
                   <div className={`p-2 bg-white rounded-lg shadow-sm ${
                     card.status === 'processing' ? 'animate-spin-slow' : ''
-                  } transition-all duration-300`}>
-                    {Icon && <Icon className={`w-5 h-5 ${
+                  } ${card.status === 'instruction' ? 'p-3' : ''} transition-all duration-300`}>
+                    {Icon && <Icon className={`${
+                      card.status === 'instruction' ? 'w-7 h-7' : 'w-5 h-5'
+                    } ${
                       card.status === 'processing' ? 'text-yellow-600' : ''
                     }`} />}
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold text-base flex items-center gap-2">
+                    <div className={`font-semibold flex items-center gap-2 ${
+                      card.status === 'instruction' ? 'text-lg' : 'text-base'
+                    }`}>
                       {card.title}
                       {card.status === 'processing' && (
                         <span className="loading-dots">
@@ -66,7 +72,9 @@ export default function ContextualSurface({ cards, onCardClick }) {
                         </span>
                       )}
                     </div>
-                    <div className="text-sm opacity-80">{card.subtitle}</div>
+                    <div className={`opacity-90 leading-relaxed ${
+                      card.status === 'instruction' ? 'text-base mt-1' : 'text-sm opacity-80'
+                    }`}>{card.subtitle}</div>
 
                     {/* Breadcrumbs - ברור ובולט */}
                     {isStatusCard && (

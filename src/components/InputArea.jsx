@@ -31,7 +31,7 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
     <div className="bg-white border-t border-gray-200 p-4 shadow-lg">
       {/* Centered container on desktop */}
       <div className="max-w-3xl mx-auto">
-        <div className={`flex gap-3 transition-all duration-300 ${isFocused ? 'scale-[1.01]' : ''}`}>
+        <div className="flex gap-3 transition-all duration-300">
           {hasSuggestions && (
             <button
               onClick={onSuggestionsClick}
@@ -51,7 +51,7 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
             placeholder="כתבי כאן את המחשבות שלך..."
             className={`flex-1 px-6 py-4 text-base bg-gray-50 border-2 rounded-2xl focus:outline-none transition-all duration-300 ${
               isFocused
-                ? 'border-indigo-400 bg-white shadow-lg shadow-indigo-100/50 scale-[1.01]'
+                ? 'border-indigo-400 bg-white shadow-lg shadow-indigo-100/50'
                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-100'
             }`}
             dir="rtl"
