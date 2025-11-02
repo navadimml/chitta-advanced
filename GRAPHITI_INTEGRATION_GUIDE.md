@@ -6,6 +6,283 @@
 
 ---
 
+## 0. Architecture Decisions: Flexibility First
+
+### AI Model Abstraction
+
+**Critical Principle**: The AI models should be **abstracted for easy replacement** in the future.
+
+```python
+# services/llm/base.py
+from abc import ABC, abstractmethod
+from typing import Optional, AsyncIterator
+from pydantic import BaseModel
+
+class Message(BaseModel):
+    role: str  # "system", "user", "assistant"
+    content: str
+
+class LLMResponse(BaseModel):
+    content: str
+    model: str
+    tokens_used: Optional[int] = None
+    finish_reason: Optional[str] = None
+
+class BaseLLMProvider(ABC):
+    """Abstract base class for all LLM providers"""
+
+    @abstractmethod
+    async def generate(
+        self,
+        messages: list[Message],
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> LLMResponse:
+        """Generate a single response"""
+        pass
+
+    @abstractmethod
+    async def stream(
+        self,
+        messages: list[Message],
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> AsyncIterator[str]:
+        """Stream response token by token"""
+        pass
+```
+
+**Provider Implementations**:
+
+```python
+# services/llm/anthropic_provider.py
+from anthropic import AsyncAnthropic
+from .base import BaseLLMProvider, Message, LLMResponse
+
+class AnthropicProvider(BaseLLMProvider):
+    def __init__(self, api_key: str, model: str = "claude-3-5-sonnet-20241022"):
+        self.client = AsyncAnthropic(api_key=api_key)
+        self.model = model
+
+    async def generate(self, messages: list[Message], temperature: float = 0.7, max_tokens: int = 4096, **kwargs) -> LLMResponse:
+        response = await self.client.messages.create(
+            model=self.model,
+            messages=[{"role": m.role, "content": m.content} for m in messages if m.role != "system"],
+            system=next((m.content for m in messages if m.role == "system"), None),
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        return LLMResponse(
+            content=response.content[0].text,
+            model=self.model,
+            tokens_used=response.usage.input_tokens + response.usage.output_tokens,
+            finish_reason=response.stop_reason
+        )
+
+    async def stream(self, messages: list[Message], temperature: float = 0.7, max_tokens: int = 4096, **kwargs):
+        async with self.client.messages.stream(
+            model=self.model,
+            messages=[{"role": m.role, "content": m.content} for m in messages if m.role != "system"],
+            system=next((m.content for m in messages if m.role == "system"), None),
+            temperature=temperature,
+            max_tokens=max_tokens
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+
+# services/llm/openai_provider.py
+from openai import AsyncOpenAI
+from .base import BaseLLMProvider, Message, LLMResponse
+
+class OpenAIProvider(BaseLLMProvider):
+    def __init__(self, api_key: str, model: str = "gpt-4o"):
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model = model
+
+    async def generate(self, messages: list[Message], temperature: float = 0.7, max_tokens: int = 4096, **kwargs) -> LLMResponse:
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": m.role, "content": m.content} for m in messages],
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        return LLMResponse(
+            content=response.choices[0].message.content,
+            model=self.model,
+            tokens_used=response.usage.total_tokens,
+            finish_reason=response.choices[0].finish_reason
+        )
+
+    async def stream(self, messages: list[Message], temperature: float = 0.7, max_tokens: int = 4096, **kwargs):
+        stream = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": m.role, "content": m.content} for m in messages],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True
+        )
+        async for chunk in stream:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+```
+
+**LLM Service Factory**:
+
+```python
+# services/llm/factory.py
+from typing import Literal
+from .base import BaseLLMProvider
+from .anthropic_provider import AnthropicProvider
+from .openai_provider import OpenAIProvider
+
+LLMProviderType = Literal["anthropic", "openai"]
+
+class LLMFactory:
+    @staticmethod
+    def create(
+        provider: LLMProviderType,
+        api_key: str,
+        model: Optional[str] = None
+    ) -> BaseLLMProvider:
+        if provider == "anthropic":
+            return AnthropicProvider(api_key, model or "claude-3-5-sonnet-20241022")
+        elif provider == "openai":
+            return OpenAIProvider(api_key, model or "gpt-4o")
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
+
+# Usage in application
+from services.llm.factory import LLMFactory
+
+llm = LLMFactory.create(
+    provider=settings.LLM_PROVIDER,  # From environment variable
+    api_key=settings.LLM_API_KEY,
+    model=settings.LLM_MODEL
+)
+```
+
+**Why This Matters**:
+- Switch providers via environment variable (no code changes)
+- Test with different models easily
+- Future-proof as new models emerge
+- Can use multiple providers for different tasks (e.g., Claude for conversation, GPT-4 for structured extraction)
+
+### Graph Database Flexibility
+
+**Critical Decision**: The graph database choice is **not finalized yet**.
+
+**Options Under Consideration**:
+
+1. **Neo4j** - Industry standard, mature ecosystem
+2. **FalkorDB** - Very fast, resource-efficient, Redis-based
+
+**FalkorDB Advantages**:
+- **Speed**: 10x-30x faster for certain query patterns
+- **Memory Efficiency**: Uses significantly less RAM than Neo4j
+- **Resource Effective**: Critical for scaling the app
+- **Redis Integration**: Can leverage Redis ecosystem
+- **Cost**: Lower infrastructure costs at scale
+
+**Architecture Must Support Both**:
+
+```python
+# services/graph/base.py
+from abc import ABC, abstractmethod
+
+class BaseGraphDB(ABC):
+    """Abstract interface for graph database operations"""
+
+    @abstractmethod
+    async def initialize_graphiti(self, **kwargs):
+        """Initialize Graphiti with this graph DB"""
+        pass
+
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """Check if database is healthy"""
+        pass
+```
+
+**Implementation Example**:
+
+```python
+# services/graph/neo4j_adapter.py
+from graphiti_core import Graphiti
+from .base import BaseGraphDB
+
+class Neo4jAdapter(BaseGraphDB):
+    def __init__(self, uri: str, user: str, password: str):
+        self.uri = uri
+        self.user = user
+        self.password = password
+
+    async def initialize_graphiti(self, **kwargs):
+        return Graphiti(
+            neo4j_uri=self.uri,
+            neo4j_user=self.user,
+            neo4j_password=self.password,
+            **kwargs
+        )
+
+    async def health_check(self) -> bool:
+        # Neo4j specific health check
+        pass
+
+# services/graph/falkordb_adapter.py
+from graphiti_core import Graphiti
+from .base import BaseGraphDB
+
+class FalkorDBAdapter(BaseGraphDB):
+    def __init__(self, host: str, port: int, password: Optional[str] = None):
+        self.host = host
+        self.port = port
+        self.password = password
+
+    async def initialize_graphiti(self, **kwargs):
+        # FalkorDB connection for Graphiti
+        # Note: Check Graphiti docs for FalkorDB support
+        return Graphiti(
+            # FalkorDB-specific initialization
+            **kwargs
+        )
+
+    async def health_check(self) -> bool:
+        # FalkorDB specific health check
+        pass
+```
+
+**Database Selection via Configuration**:
+
+```python
+# config/settings.py
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # LLM Configuration
+    LLM_PROVIDER: Literal["anthropic", "openai"] = "anthropic"
+    LLM_API_KEY: str
+    LLM_MODEL: Optional[str] = None
+
+    # Graph Database Configuration
+    GRAPH_DB_TYPE: Literal["neo4j", "falkordb"] = "neo4j"
+    GRAPH_DB_URI: str
+    GRAPH_DB_USER: Optional[str] = None
+    GRAPH_DB_PASSWORD: Optional[str] = None
+
+    class Config:
+        env_file = ".env"
+```
+
+**Why This Matters**:
+- Can benchmark Neo4j vs FalkorDB with real data
+- Switch databases without code changes
+- Optimize for cost vs performance based on scale
+- Future-proof for new graph databases
+
+---
+
 ## 1. Context Cards ARE Actionable
 
 ### What I Missed
@@ -380,11 +657,13 @@ async def consult_with_chitta(parent_query: str, child_id: str, parent_id: str):
     Reference specific past observations and patterns when relevant.
     """
 
-    # Generate response with context-aware LLM
-    response = await llm.generate(
-        system_prompt=system_prompt,
-        user_message=parent_query
-    )
+    # Generate response with context-aware LLM (using abstraction)
+    messages = [
+        Message(role="system", content=system_prompt),
+        Message(role="user", content=parent_query)
+    ]
+    llm_response = await llm.generate(messages=messages)
+    response = llm_response.content
 
     # Save this consultation as a new episode
     await graphiti.add_episode(
@@ -507,18 +786,20 @@ async def detect_milestones(child_id: str, parent_id: str):
     )
 
     for entry in recent_entries:
-        # Use LLM to analyze if this is a milestone
-        is_milestone = await llm.classify(
-            text=entry.fact,
-            prompt="Is this a developmental milestone? Reply YES or NO and explain why."
-        )
+        # Use LLM to analyze if this is a milestone (using abstraction)
+        messages = [
+            Message(role="system", content="Analyze if this observation is a developmental milestone. Reply in JSON format: {\"is_milestone\": \"YES\" or \"NO\", \"category\": \"speech/motor/social/etc\", \"significance\": \"major/minor\", \"explanation\": \"why this is/isn't a milestone\"}"),
+            Message(role="user", content=entry.fact)
+        ]
+        llm_response = await llm.generate(messages=messages, temperature=0.3)
+        is_milestone = json.loads(llm_response.content)
 
-        if is_milestone.answer == "YES":
+        if is_milestone["is_milestone"] == "YES":
             # Add milestone to graph
             milestone_node = MilestoneNode(
-                category=is_milestone.category,
+                category=is_milestone["category"],
                 description=entry.fact,
-                significance=is_milestone.significance
+                significance=is_milestone["significance"]
             )
 
             await graphiti.add_triplet(
@@ -533,7 +814,7 @@ async def detect_milestones(child_id: str, parent_id: str):
             # Send proactive message to parent
             await send_system_message(
                 parent_id=parent_id,
-                message=f"🎉 זה נראה כמו אבן דרך משמעותית! סימנתי את זה כמיילסטון. {is_milestone.explanation}"
+                message=f"🎉 זה נראה כמו אבן דרך משמעותית! סימנתי את זה כמיילסטון. {is_milestone['explanation']}"
             )
 ```
 
@@ -576,25 +857,26 @@ async def suggest_strategies(child_id: str, parent_id: str, current_concern: str
         num_results=5
     )
 
-    # Generate contextual advice
+    # Generate contextual advice (using abstraction)
     context = format_strategies_for_llm(
         similar_situations=similar_situations,
         helpful_strategies=helpful_strategies,
         professional_advice=professional_advice
     )
 
-    response = await llm.generate(
-        system_prompt=f"""
+    messages = [
+        Message(role="system", content=f"""
         Based on this child's history and what has worked before:
         {context}
 
         Provide specific, actionable suggestions for: {current_concern}
         Reference past successes and professional guidance.
-        """,
-        user_message=current_concern
-    )
+        """),
+        Message(role="user", content=current_concern)
+    ]
+    llm_response = await llm.generate(messages=messages)
 
-    return response
+    return llm_response.content
 ```
 
 ---
@@ -651,8 +933,9 @@ async def prepare_for_meeting(
         "days_since_last_meeting": calculate_days_since(last_meeting)
     }
 
-    summary = await llm.generate(
-        system_prompt=f"""
+    # Generate meeting prep summary (using abstraction)
+    messages = [
+        Message(role="system", content=f"""
         Create a meeting preparation summary for a parent.
 
         Professional: {context['professional_name']} ({context['specialty']})
@@ -666,9 +949,11 @@ async def prepare_for_meeting(
 
         Context:
         {json.dumps(context, ensure_ascii=False, indent=2)}
-        """,
-        user_message="Generate meeting preparation summary"
-    )
+        """),
+        Message(role="user", content="Generate meeting preparation summary")
+    ]
+    llm_response = await llm.generate(messages=messages)
+    summary = llm_response.content
 
     # Save as episode
     await graphiti.add_episode(
@@ -722,21 +1007,27 @@ async def prepare_for_meeting(
 └──────────────────────────────────────────────────────┘
                         ↕
 ┌──────────────────────────────────────────────────────┐
-│           Graphiti + Neo4j Knowledge Graph           │
+│      Graphiti + Graph Database (Neo4j/FalkorDB)      │
 │  - All conversations (episodes)                      │
 │  - All journal entries (episodes)                    │
 │  - All observations, milestones, concerns            │
 │  - All professional relationships                    │
 │  - Temporal queries and pattern detection            │
 │  - Namespace per family (group_id)                   │
+│                                                       │
+│  Database Choice: Neo4j OR FalkorDB                  │
+│  - Neo4j: Mature, feature-rich                       │
+│  - FalkorDB: 10x-30x faster, lower memory usage      │
 └──────────────────────────────────────────────────────┘
                         ↕
 ┌──────────────────────────────────────────────────────┐
-│                 LLM (Anthropic Claude)               │
+│              LLM Provider (Abstracted)               │
+│  Options: Claude, GPT-4, Gemini, etc.                │
 │  - Conversation generation                           │
 │  - Entity extraction from episodes                   │
 │  - Context-aware consultations                       │
 │  - Pattern analysis and insights                     │
+│  Switchable via environment variable                 │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -804,6 +1095,173 @@ async def prepare_for_meeting(
 
 ---
 
+## Graph Database Comparison: Neo4j vs FalkorDB
+
+### Decision Criteria
+
+The choice between Neo4j and FalkorDB should be based on:
+- **Scale**: How many families will use the app?
+- **Budget**: Infrastructure costs at scale
+- **Performance Requirements**: Query latency expectations
+- **Feature Needs**: Do we need advanced Neo4j features?
+
+### Neo4j
+
+**Strengths**:
+- ✅ **Mature Ecosystem**: Battle-tested in production
+- ✅ **Rich Features**: Graph algorithms, full-text search, APOC procedures
+- ✅ **Excellent Tooling**: Neo4j Browser, Bloom visualization, monitoring tools
+- ✅ **Large Community**: Extensive documentation, Stack Overflow support
+- ✅ **Enterprise Support**: Commercial support options available
+- ✅ **Cypher Query Language**: Powerful, expressive graph query language
+- ✅ **Graphiti Compatibility**: Official support confirmed
+
+**Weaknesses**:
+- ❌ **Memory Usage**: Can consume 4-8GB RAM for moderate datasets
+- ❌ **Cost at Scale**: JVM overhead, higher infrastructure costs
+- ❌ **Startup Time**: Slower to initialize
+- ❌ **Resource Heavy**: Requires dedicated server for production
+
+**Best For**:
+- Enterprise deployments with complex graph analytics needs
+- Teams comfortable with JVM stack
+- When budget isn't a primary constraint
+- Need for advanced graph algorithms out of the box
+
+### FalkorDB
+
+**Strengths**:
+- ✅ **Speed**: 10x-30x faster for many query patterns (compared to Neo4j)
+- ✅ **Memory Efficient**: Uses 50-80% less RAM than Neo4j
+- ✅ **Redis-Based**: Can leverage Redis ecosystem (caching, pub/sub)
+- ✅ **Fast Startup**: Nearly instant initialization
+- ✅ **Cost Effective**: Lower infrastructure costs at scale
+- ✅ **Cypher Compatible**: Supports openCypher standard
+- ✅ **Lightweight**: Can run on smaller instances
+
+**Weaknesses**:
+- ❌ **Newer**: Less battle-tested in production (though stable)
+- ❌ **Smaller Community**: Fewer resources, examples, plugins
+- ❌ **Graphiti Compatibility**: May require adapter development (check docs)
+- ❌ **Fewer Features**: Not all Neo4j advanced features available
+
+**Best For**:
+- Startups and scale-ups optimizing for cost
+- High-throughput, low-latency requirements
+- Already using Redis infrastructure
+- Simpler graph queries (most of Chitta's needs)
+
+### Performance Comparison (Estimated)
+
+| Operation | Neo4j | FalkorDB | Winner |
+|-----------|-------|----------|---------|
+| **Simple read** (e.g., get child profile) | 5-10ms | <1ms | 🏆 FalkorDB |
+| **Pattern match** (e.g., find related observations) | 20-50ms | 5-15ms | 🏆 FalkorDB |
+| **Deep traversal** (e.g., 4+ hops) | 50-200ms | 10-50ms | 🏆 FalkorDB |
+| **Write + index** | 10-30ms | 2-8ms | 🏆 FalkorDB |
+| **Complex aggregation** | 100-500ms | 30-150ms | 🏆 FalkorDB |
+| **Graph algorithms** (PageRank, etc.) | ✅ Rich library | ⚠️ Limited | 🏆 Neo4j |
+| **Full-text search** | ✅ Built-in | ⚠️ Via Redis | 🏆 Neo4j |
+
+### Resource Usage Comparison (Estimated)
+
+**Scenario**: 1,000 active families, 3 months of data each
+
+| Resource | Neo4j | FalkorDB |
+|----------|-------|----------|
+| **RAM** | 6-8 GB | 1.5-2.5 GB |
+| **Disk** | 10-15 GB | 8-12 GB |
+| **CPU** (idle) | 5-10% | 1-3% |
+| **CPU** (load) | 40-60% | 15-30% |
+| **Monthly cost** (AWS) | ~$150-200 | ~$40-60 |
+
+### Recommendation for Chitta
+
+**Start with FalkorDB** for these reasons:
+
+1. **Chitta's Query Patterns Are Simple**:
+   - Most queries are 1-3 hop traversals
+   - Don't need complex graph algorithms
+   - Pattern matching is straightforward
+
+2. **Cost Matters for Long-Term Sustainability**:
+   - Each family generates months/years of data
+   - 3x-4x cost savings at scale is significant
+   - Can host multiple databases on same Redis instance
+
+3. **Performance Is Critical for UX**:
+   - Context cards need <100ms generation
+   - Consultation responses should be near-instant
+   - FalkorDB's speed improves perceived responsiveness
+
+4. **Migration Path Exists**:
+   - Both use openCypher (query compatibility)
+   - Can export/import graph data if needed
+   - Switch later if requirements change
+
+**When to Consider Neo4j Instead**:
+
+- Need advanced graph analytics (e.g., community detection among professionals)
+- Team has Neo4j expertise already
+- Enterprise client requires Neo4j specifically
+- Budget allows for higher infrastructure costs
+
+### Implementation Strategy
+
+**Phase 1**: Build abstraction layer (already designed above)
+
+**Phase 2**: Deploy with FalkorDB initially
+```bash
+# docker-compose.yml
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - falkor_data:/data
+    environment:
+      - FALKORDB_PASSWORD=your_secure_password
+```
+
+**Phase 3**: Benchmark with real data (3-month user simulation)
+
+**Phase 4**: Decide to keep FalkorDB or migrate to Neo4j based on:
+- Query performance metrics
+- Cost analysis
+- Feature needs discovered during testing
+
+**Phase 5**: If migrating to Neo4j, switch adapter in config:
+```env
+GRAPH_DB_TYPE=neo4j  # Change from "falkordb"
+GRAPH_DB_URI=bolt://localhost:7687
+```
+
+### Graphiti Compatibility Note
+
+**Important**: Verify Graphiti's support for FalkorDB before finalizing decision:
+
+```python
+# Check if Graphiti supports FalkorDB directly
+# If not, may need custom adapter:
+
+class FalkorDBGraphitiAdapter:
+    """Adapter to use FalkorDB with Graphiti"""
+
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.graph = self.redis.graph("chitta_knowledge_graph")
+
+    async def add_episode(self, episode_data):
+        # Convert Graphiti episode format to FalkorDB Cypher queries
+        # Execute via FalkorDB's openCypher interface
+        pass
+```
+
+**Recommendation**: Test Graphiti + FalkorDB integration early in Phase 1.
+
+---
+
 ## Key Benefits of Graphiti for Chitta
 
 1. **Temporal Memory**: Child development tracked over months/years
@@ -818,26 +1276,177 @@ async def prepare_for_meeting(
 
 ## Next Steps
 
-1. **Set up Graphiti infrastructure**
-   - Deploy Neo4j (or FalkorDB)
-   - Initialize Graphiti
-   - Define custom schema
+### 1. Build Abstraction Layers (Week 1)
 
-2. **Build core services**
-   - Episode ingestion pipeline
-   - Query abstraction layer
-   - Context retrieval functions
+**LLM Abstraction**:
+- ✅ Implement `BaseLLMProvider` interface
+- ✅ Create `AnthropicProvider` and `OpenAIProvider`
+- ✅ Build `LLMFactory` for provider selection
+- ✅ Set up environment-based configuration
+- 🔧 Test provider switching
 
-3. **Integrate with frontend**
-   - Update ContextualSurface to use Graphiti queries
-   - Implement card click handlers
-   - Build consultation interface
+**Graph DB Abstraction**:
+- ✅ Implement `BaseGraphDB` interface
+- ✅ Create `Neo4jAdapter` and `FalkorDBAdapter`
+- ✅ Verify Graphiti compatibility with both databases
+- 🔧 Set up Docker Compose for local development
 
-4. **Test with real data**
-   - Simulate 3-month user journey
-   - Validate pattern detection
-   - Measure query performance
+### 2. Set up Graphiti Infrastructure (Week 1-2)
+
+**Initial Setup with FalkorDB** (recommended):
+```bash
+# Start FalkorDB
+docker run -p 6379:6379 falkordb/falkordb:latest
+
+# Or with docker-compose
+docker-compose up falkordb
+```
+
+**Alternative Neo4j Setup**:
+```bash
+docker run -p 7687:7687 -p 7474:7474 \
+  -e NEO4J_AUTH=neo4j/password \
+  neo4j:latest
+```
+
+**Tasks**:
+- Initialize Graphiti with chosen database
+- Define custom schema (entities + edges)
+- Test basic episode ingestion
+- Verify temporal queries work
+
+### 3. Build Core Services (Week 2-3)
+
+**Episode Ingestion Pipeline**:
+```python
+# services/graphiti_service.py
+class GraphitiService:
+    def __init__(self, graphiti_client, llm_provider):
+        self.graphiti = graphiti_client
+        self.llm = llm_provider
+
+    async def ingest_conversation(self, conversation, child_id, parent_id):
+        # Convert conversation to episode format
+        # Use LLM to extract entities
+        # Add to Graphiti
+        pass
+```
+
+**Query Abstraction Layer**:
+- Build high-level query functions
+- Wrap Graphiti search with domain-specific methods
+- Add caching for frequent queries
+
+**Context Retrieval Functions**:
+- `get_child_context(child_id, timeframe)`
+- `get_consultation_context(query, child_id)`
+- `detect_patterns(child_id, area, timeframe)`
+
+### 4. Integrate with Frontend (Week 3-4)
+
+**Update ContextualSurface**:
+- Replace mock data with Graphiti queries
+- Implement card generation logic
+- Add card click handlers
+
+**Build Consultation Interface**:
+- Create ConsultationView component
+- Integrate with streaming LLM responses
+- Display historical context references
+
+**Deep View Updates**:
+- Populate deep views with Graphiti data
+- Add temporal navigation (e.g., "show journal from last month")
+
+### 5. Test with Real Data (Week 4-5)
+
+**Simulation**:
+- Create realistic 3-month user journey dataset
+- Ingest into Graphiti
+- Test all query patterns
+
+**Performance Benchmarking**:
+- Measure context card generation time (target: <100ms)
+- Test consultation response latency
+- Monitor memory usage with growing dataset
+
+**Validation**:
+- Verify pattern detection accuracy
+- Test milestone auto-detection
+- Validate consultation quality with historical context
+
+### 6. Decision Point: Database Selection (End of Week 5)
+
+**Metrics to Compare**:
+- Query performance (FalkorDB vs Neo4j)
+- Resource usage (RAM, CPU, disk)
+- Cost estimates at scale (1k, 10k, 100k families)
+- Feature gaps (if any)
+
+**Decision**:
+- Keep FalkorDB if performance and cost are satisfactory
+- Migrate to Neo4j if advanced features are needed
+- Document rationale
+
+### 7. Production Readiness (Week 6+)
+
+**Infrastructure**:
+- Set up production database cluster
+- Configure backups and replication
+- Set up monitoring and alerting
+
+**Security**:
+- Implement row-level security via `group_id`
+- Encrypt sensitive data
+- Set up audit logging
+
+**Optimization**:
+- Index frequently queried patterns
+- Implement query result caching
+- Add rate limiting
 
 ---
+
+## Environment Configuration Template
+
+```env
+# .env.example
+
+# LLM Configuration
+LLM_PROVIDER=anthropic  # or "openai"
+LLM_API_KEY=sk-ant-xxxxx
+LLM_MODEL=claude-3-5-sonnet-20241022  # or "gpt-4o"
+
+# Graph Database Configuration
+GRAPH_DB_TYPE=falkordb  # or "neo4j"
+GRAPH_DB_URI=localhost:6379  # FalkorDB uses Redis protocol
+GRAPH_DB_PASSWORD=your_secure_password
+
+# Alternative for Neo4j:
+# GRAPH_DB_TYPE=neo4j
+# GRAPH_DB_URI=bolt://localhost:7687
+# GRAPH_DB_USER=neo4j
+# GRAPH_DB_PASSWORD=password
+
+# Graphiti Configuration
+GRAPHITI_EMBEDDING_MODEL=text-embedding-3-small  # For semantic search
+GRAPHITI_MAX_CONTEXT_NODES=15
+
+# Application Settings
+LOG_LEVEL=INFO
+REDIS_CACHE_URL=redis://localhost:6380  # Separate from graph DB
+```
+
+---
+
+**Summary**:
+
+Chitta's architecture is designed for **flexibility and future-proofing**:
+
+1. **LLM Abstraction**: Switch between Claude, GPT-4, Gemini via config
+2. **Graph DB Abstraction**: Choose Neo4j or FalkorDB based on benchmarks
+3. **Graphiti Integration**: Perfect temporal memory for child development
+4. **Cost Optimization**: FalkorDB recommended for 3x-4x cost savings
+5. **Migration Path**: Can switch providers/databases without code changes
 
 **Graphiti transforms Chitta from a smart chatbot into a truly intelligent companion with perfect memory.**
