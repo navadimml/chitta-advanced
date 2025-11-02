@@ -92,11 +92,11 @@ from services.llm.factory import LLMFactory
 from config import settings
 import json
 
-# Initialize Gemini
+# Initialize Gemini 2.5 Pro (CRITICAL: Strong reasoning required for clinical analysis)
 llm = LLMFactory.create(
     provider="gemini",
     api_key=settings.GEMINI_API_KEY,
-    model="gemini-2.0-flash-exp"
+    model="gemini-2.5-pro"  # NOT Flash - insufficient analytical depth
 )
 
 async def analyze_child_video_with_interview(
