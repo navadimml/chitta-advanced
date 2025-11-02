@@ -141,9 +141,24 @@ This guide helps you navigate all documentation files and understand what each o
 
 ---
 
+### 10. **VIDEO_ANALYSIS_SYSTEM_PROMPT.md** ⭐
+**Video Analysis System Prompt**
+
+- Complete Gemini prompt for video analysis
+- DSM-5 observational framework
+- Integration with interview summary data
+- Timestamp-based evidence justification
+- Non-diagnostic observational stance
+- Example analysis output with Hebrew
+
+**Best For**: Prompt engineers, clinical developers
+**Key Feature**: Analyzes videos while integrating parent interview data for comprehensive screening
+
+---
+
 ## 📖 Reference Documentation
 
-### 10. **README.md**
+### 11. **README.md**
 - Quick start guide
 - Project structure
 - Available scenarios
@@ -231,11 +246,12 @@ These documents capture the evolution of our thinking. They contain valuable ins
 |----------|-------|-------|----------|--------|
 | ARCHITECTURE_V2.md | ~1,100 | Technical architecture | Developers | ⭐ Current |
 | UI_UX_STYLE_GUIDE.md | ~1,400 | Design system | Designers/Devs | ⭐ Current |
-| GRAPHITI_INTEGRATION_GUIDE.md | ~1,450 | Backend/Data | Backend devs | ⭐ Current |
+| GRAPHITI_INTEGRATION_GUIDE.md | ~1,650 | Backend/Data + Gemini | Backend devs | ⭐ Current |
 | ARCHITECTURE_RECONCILIATION.md | ~500 | Conversation-first + deps | Architects | ⭐ Current |
 | IMPLEMENTATION_DEEP_DIVE.md | ~700 | Technical specs | Backend devs | ⭐ Current |
 | INTERVIEW_SYSTEM_PROMPT_REFACTORED.md | ~370 | Interview prompt | Prompt engineers | ⭐ Current |
 | INTERVIEW_IMPLEMENTATION_GUIDE.md | ~650 | Interview backend | Backend devs | ⭐ Current |
+| VIDEO_ANALYSIS_SYSTEM_PROMPT.md | ~850 | Video analysis prompt | Prompt/Clinical devs | ⭐ Current |
 | ARCHITECTURE_ALIGNMENT_ANALYSIS.md | ~400 | Code vs docs | Refactoring | Current |
 | CORE_INNOVATION_DETAILED.md | ~700 | Philosophy | Product/UX | Current |
 | AI_AGENT_IMPLEMENTATION_GUIDE.md | 2,244 | Initial AI design | Historical | Legacy |
@@ -347,13 +363,14 @@ These documents capture the evolution of our thinking. They contain valuable ins
 ```
 ARCHITECTURE_V2.md ──────────────────────► Technical "How"
 UI_UX_STYLE_GUIDE.md ────────────────────► Visual "How"
-GRAPHITI_INTEGRATION_GUIDE.md ───────────► Backend "How"
+GRAPHITI_INTEGRATION_GUIDE.md ───────────► Backend "How" + Gemini Integration
 CORE_INNOVATION_DETAILED.md ─────────────► Philosophical "Why"
 
 ARCHITECTURE_RECONCILIATION.md ──────────► Conversation + Dependencies
 IMPLEMENTATION_DEEP_DIVE.md ─────────────► Technical Specs
-INTERVIEW_SYSTEM_PROMPT_REFACTORED.md ───► LLM Prompt
+INTERVIEW_SYSTEM_PROMPT_REFACTORED.md ───► Interview LLM Prompt
 INTERVIEW_IMPLEMENTATION_GUIDE.md ───────► Interview Backend Code
+VIDEO_ANALYSIS_SYSTEM_PROMPT.md ─────────► Video Analysis LLM Prompt (DSM-5)
 ARCHITECTURE_ALIGNMENT_ANALYSIS.md ──────► Code vs Docs Gap Analysis
 
 README.md ───────────────────────────────► Quick Start
@@ -362,6 +379,8 @@ COMPLETE.md ──────────────────────�
 
 Legacy docs ─────────────────────────────► Historical context
 ```
+
+**Complete Workflow**: Interview Prompt → Interview Code → Video Prompt → Backend Integration → Reports
 
 ---
 
