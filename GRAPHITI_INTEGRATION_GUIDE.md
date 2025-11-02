@@ -237,7 +237,14 @@ import asyncio
 from typing import Optional
 
 class GeminiProvider(BaseLLMProvider):
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash-exp"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-pro"):
+        """
+        Initialize Gemini provider.
+
+        Recommended models by task:
+        - gemini-2.5-pro: Complex reasoning, clinical analysis, video analysis (RECOMMENDED FOR CHITTA)
+        - gemini-2.0-flash-exp: Simple conversations, cost optimization (lower reasoning quality)
+        """
         self.client = genai.Client(api_key=api_key)
         self.model_name = model
 
@@ -453,7 +460,7 @@ class LLMFactory:
         elif provider == "openai":
             return OpenAIProvider(api_key, model or "gpt-4o")
         elif provider == "gemini":
-            return GeminiProvider(api_key, model or "gemini-2.0-flash-exp")
+            return GeminiProvider(api_key, model or "gemini-2.5-pro")
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
@@ -466,11 +473,11 @@ llm = LLMFactory.create(
     model=settings.LLM_MODEL  # Optional: override default model
 )
 
-# Example: Use Gemini 2.5 Pro
+# Example: Use Gemini 2.5 Pro (recommended for clinical analysis)
 llm = LLMFactory.create(
     provider="gemini",
     api_key=os.getenv("GEMINI_API_KEY"),
-    model="gemini-2.0-flash-exp"  # or "gemini-1.5-pro" for stability
+    model="gemini-2.5-pro"  # Strong reasoning for video/interview analysis
 )
 ```
 
@@ -482,17 +489,20 @@ llm = LLMFactory.create(
 
 **Provider Comparison for Chitta**:
 
-| Feature | Anthropic (Claude) | OpenAI (GPT-4o) | Google (Gemini 2.0) |
+| Feature | Anthropic (Claude 3.5) | OpenAI (GPT-4o) | **Google (Gemini 2.5 Pro)** |
 |---------|-------------------|-----------------|---------------------|
+| **Clinical Reasoning** | ✅ Excellent | ✅ Excellent | ✅ **Excellent** |
 | **Function Calling** | ✅ Excellent (tools API) | ✅ Excellent | ✅ Excellent |
 | **Hebrew Support** | ✅ Excellent | ✅ Excellent | ✅ Excellent |
-| **Context Window** | 200K tokens | 128K tokens | 1M tokens |
-| **Cost (Input)** | $3/1M tokens | $2.50/1M tokens | **Free** (during preview) |
-| **Cost (Output)** | $15/1M tokens | $10/1M tokens | **Free** (during preview) |
-| **Latency** | ~1-2s | ~1-2s | ~0.5-1s (faster) |
+| **Context Window** | 200K tokens | 128K tokens | **1M tokens** 🚀 |
+| **Cost (Input)** | $3/1M tokens | $2.50/1M tokens | **Free** (preview) 💰 |
+| **Cost (Output)** | $15/1M tokens | $10/1M tokens | **Free** (preview) 💰 |
+| **Latency** | ~1-2s | ~1-2s | ~1-2s |
 | **Streaming** | ✅ Excellent | ✅ Excellent | ✅ Excellent |
-| **Conversational Tone** | ✅ Warm, empathetic | ✅ Good | ✅ Good |
-| **Best For** | Interview conversation | Structured extraction | High-volume, cost-sensitive |
+| **Video Analysis** | ❌ No | ❌ No | ✅ **Native multimodal** |
+| **Best For** | Interview warmth | Structured extraction | **Clinical video analysis** |
+
+**Note**: For simple conversations where cost optimization is critical, Gemini 2.0 Flash is available but has **significantly lower reasoning quality** - not recommended for clinical tasks.
 
 **Gemini 2.5 Pro Advantages for Chitta**:
 
@@ -512,7 +522,7 @@ import os
 # Primary LLM for conversations (switch based on needs)
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # "gemini", "anthropic", or "openai"
 LLM_API_KEY = os.getenv("GEMINI_API_KEY")  # or ANTHROPIC_API_KEY, OPENAI_API_KEY
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.0-flash-exp")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-pro")  # Use 2.5 Pro for clinical reasoning
 
 # Optional: Use different providers for different tasks
 CONVERSATION_LLM = "gemini"  # High volume, cost-sensitive
@@ -532,7 +542,7 @@ LLM_PROVIDER=gemini
 
 # Gemini setup
 GEMINI_API_KEY=your_gemini_api_key_here
-# GEMINI_MODEL=gemini-2.0-flash-exp  # Optional: override default
+# GEMINI_MODEL=gemini-2.5-pro  # Optional: override default (recommended for clinical work)
 
 # Or Anthropic setup
 # ANTHROPIC_API_KEY=your_anthropic_key_here
@@ -592,11 +602,11 @@ from services.llm.factory import LLMFactory
 from services.llm.base import Message
 from config import settings
 
-# Initialize Gemini
+# Initialize Gemini with 2.5 Pro for strong reasoning
 llm = LLMFactory.create(
     provider="gemini",
     api_key=settings.GEMINI_API_KEY,
-    model="gemini-2.0-flash-exp"
+    model="gemini-2.5-pro"  # Required for interview analysis and function calling
 )
 
 # Interview functions (from INTERVIEW_IMPLEMENTATION_GUIDE.md)
@@ -724,7 +734,7 @@ Results:
 │ GPT-4o   │ 1.1s        │ $12.50   │ Excellent  │
 └──────────┴─────────────┴──────────┴────────────┘
 
-Recommendation: Use Gemini 2.0 Flash for high-volume production
+Recommendation: Use Gemini 2.5 Pro for clinical analysis (NOT Flash - insufficient reasoning)
 ```
 
 **Video Analysis Example: Chitta's Future Feature**
@@ -737,12 +747,16 @@ from config import settings
 llm = LLMFactory.create(
     provider="gemini",
     api_key=settings.GEMINI_API_KEY,
-    model="gemini-2.0-flash-exp"
+    model="gemini-2.5-pro"  # CRITICAL: Use 2.5 Pro for clinical video analysis
 )
 
 async def analyze_child_video(family_id: str, video_path: str, interview_summary: str):
     """
-    Analyze uploaded video of child using Gemini's multimodal capabilities.
+    Analyze uploaded video of child using Gemini 2.5 Pro's multimodal capabilities.
+
+    IMPORTANT: This task requires strong analytical and reasoning abilities.
+    Use gemini-2.5-pro, NOT flash models (insufficient reasoning quality).
+
     This leverages the new SDK's file upload and video analysis features.
     """
 
