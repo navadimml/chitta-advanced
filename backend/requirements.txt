@@ -1,6 +1,19 @@
+# Core Dependencies
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 pydantic==2.5.0
 python-dotenv==1.0.0
 aiofiles==23.2.1
+
+# LLM Providers (install based on LLM_PROVIDER in .env)
+google-generativeai>=0.3.0     # For Gemini (recommended)
+anthropic>=0.18.0              # For Claude (optional)
+openai>=1.12.0                 # For GPT-4 (optional)
+
+# Graphiti - Temporal Knowledge Graph
+# graphiti-core>=0.1.0         # Uncomment when ready to integrate
+
+# Graph Database (choose one based on your preference)
+# neo4j>=5.14.0                # Option 1: Neo4j (industry standard)
+# redis>=5.0.0                 # Option 2: FalkorDB via Redis (faster, cheaper)
