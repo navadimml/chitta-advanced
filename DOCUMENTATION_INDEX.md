@@ -1,6 +1,6 @@
 # Chitta Documentation Index
 
-**Last Updated**: November 2, 2025
+**Last Updated**: November 2, 2025 (Interview Implementation Added)
 
 This guide helps you navigate all documentation files and understand what each one covers.
 
@@ -68,9 +68,82 @@ This guide helps you navigate all documentation files and understand what each o
 
 ---
 
+## 🛠️ Implementation Documentation
+
+### 5. **ARCHITECTURE_ALIGNMENT_ANALYSIS.md**
+**Code vs Documentation Alignment**
+
+- Compares existing code with documented principles
+- Identifies conflicts and gaps
+- Alignment scoring by layer
+- Migration recommendations
+
+**Best For**: Developers refactoring existing code
+**Key Insight**: Visual layer 100% aligned, core architecture 51% aligned
+
+---
+
+### 6. **ARCHITECTURE_RECONCILIATION.md** ⭐
+**Resolving Conversation-First vs Technical Dependencies**
+
+- Core insight: "Conversation-first interface over prerequisite graph"
+- Intent-based routing with graceful prerequisite handling
+- Backend dependency management (invisible to user)
+- LLM-based feasibility checking
+
+**Best For**: Architects, developers implementing screening workflows
+**Key Pattern**: Backend maintains dependency graph, LLM explains gracefully when blocked
+
+---
+
+### 7. **IMPLEMENTATION_DEEP_DIVE.md** ⭐
+**Technical Implementation Specifications**
+
+- Message processing flow with LLM function calling
+- Continuous extraction paradigm
+- Interview summary mechanism
+- Question filtering and handling
+- Context card generation logic
+- Single-agent architecture with function calling
+
+**Best For**: Backend developers implementing conversation engine
+**Key Functions**: `extract_interview_data`, `user_wants_action`, `user_is_stuck`
+
+---
+
+### 8. **INTERVIEW_SYSTEM_PROMPT_REFACTORED.md** ⭐
+**Interview Conductor LLM Prompt**
+
+- Complete system prompt for interview agent
+- Function calling integration
+- Continuous extraction guidelines
+- Handling questions mid-interview
+- Warm, empathetic Hebrew conversation patterns
+- Completeness-based progression
+
+**Best For**: Prompt engineers, LLM integration developers
+**Key Change**: Removed JSON output and stage gates, added continuous extraction
+
+---
+
+### 9. **INTERVIEW_IMPLEMENTATION_GUIDE.md** ⭐
+**Interview Backend Implementation**
+
+- Function definitions for LLM
+- Message processing flow code
+- Function call handlers
+- Completeness calculation algorithm
+- Frontend integration patterns
+- Testing strategies
+
+**Best For**: Backend developers implementing interview system
+**Code Examples**: Complete Python implementation with Graphiti
+
+---
+
 ## 📖 Reference Documentation
 
-### 5. **README.md**
+### 10. **README.md**
 - Quick start guide
 - Project structure
 - Available scenarios
@@ -79,7 +152,7 @@ This guide helps you navigate all documentation files and understand what each o
 
 ---
 
-### 6. **ARCHITECTURE.md** (Legacy)
+### 11. **ARCHITECTURE.md** (Legacy)
 - Original architecture document
 - Still accurate for core patterns
 - Superseded by ARCHITECTURE_V2.md for completeness
@@ -88,14 +161,14 @@ This guide helps you navigate all documentation files and understand what each o
 
 ---
 
-### 7. **IMPLEMENTATION_STATUS.md**
+### 12. **IMPLEMENTATION_STATUS.md**
 - Component completion checklist
 - All 17 components marked complete
 - Feature implementation tracking
 
 ---
 
-### 8. **COMPLETE.md**
+### 13. **COMPLETE.md**
 - Final completion summary
 - Statistics and metrics
 - What's been delivered
@@ -106,7 +179,7 @@ This guide helps you navigate all documentation files and understand what each o
 
 These documents capture the evolution of our thinking. They contain valuable insights but have been superseded by the v2 documentation.
 
-### 9. **AI_AGENT_IMPLEMENTATION_GUIDE.md**
+### 14. **AI_AGENT_IMPLEMENTATION_GUIDE.md**
 - Initial AI agent architecture (2,244 lines)
 - Some patterns superseded by GRAPHITI_INTEGRATION_GUIDE.md
 - Historical value: Shows original Zustand-based approach
@@ -114,7 +187,7 @@ These documents capture the evolution of our thinking. They contain valuable ins
 
 ---
 
-### 10. **AI_AGENT_INTEGRATION_ALIGNED.md**
+### 15. **AI_AGENT_INTEGRATION_ALIGNED.md**
 - Corrected integration aligned with Chitta philosophy
 - Important clarifications on UI/UX patterns
 - **Incorporated into**: ARCHITECTURE_V2.md and UI_UX_STYLE_GUIDE.md
@@ -135,8 +208,10 @@ These documents capture the evolution of our thinking. They contain valuable ins
 
 ### I'm a **Backend Developer**
 1. Read: **GRAPHITI_INTEGRATION_GUIDE.md** (data layer)
-2. Read: **ARCHITECTURE_V2.md** (API patterns)
-3. Reference: **CORE_INNOVATION_DETAILED.md** (context for features)
+2. Read: **IMPLEMENTATION_DEEP_DIVE.md** (conversation engine)
+3. Read: **INTERVIEW_IMPLEMENTATION_GUIDE.md** (interview system)
+4. Reference: **ARCHITECTURE_V2.md** (API patterns)
+5. Reference: **INTERVIEW_SYSTEM_PROMPT_REFACTORED.md** (LLM prompt)
 
 ### I'm a **Product Manager**
 1. Read: **CORE_INNOVATION_DETAILED.md** (what problem we solve)
@@ -157,6 +232,11 @@ These documents capture the evolution of our thinking. They contain valuable ins
 | ARCHITECTURE_V2.md | ~1,100 | Technical architecture | Developers | ⭐ Current |
 | UI_UX_STYLE_GUIDE.md | ~1,400 | Design system | Designers/Devs | ⭐ Current |
 | GRAPHITI_INTEGRATION_GUIDE.md | ~1,450 | Backend/Data | Backend devs | ⭐ Current |
+| ARCHITECTURE_RECONCILIATION.md | ~500 | Conversation-first + deps | Architects | ⭐ Current |
+| IMPLEMENTATION_DEEP_DIVE.md | ~700 | Technical specs | Backend devs | ⭐ Current |
+| INTERVIEW_SYSTEM_PROMPT_REFACTORED.md | ~370 | Interview prompt | Prompt engineers | ⭐ Current |
+| INTERVIEW_IMPLEMENTATION_GUIDE.md | ~650 | Interview backend | Backend devs | ⭐ Current |
+| ARCHITECTURE_ALIGNMENT_ANALYSIS.md | ~400 | Code vs docs | Refactoring | Current |
 | CORE_INNOVATION_DETAILED.md | ~700 | Philosophy | Product/UX | Current |
 | AI_AGENT_IMPLEMENTATION_GUIDE.md | 2,244 | Initial AI design | Historical | Legacy |
 | AI_AGENT_INTEGRATION_ALIGNED.md | 855 | Aligned design | Historical | Legacy |
@@ -178,10 +258,18 @@ These documents capture the evolution of our thinking. They contain valuable ins
 - Day 4-5: **UI_UX_STYLE_GUIDE.md** (complete)
 
 ### Week 3: Backend & Integration
-- Day 1-5: **GRAPHITI_INTEGRATION_GUIDE.md**
+- Day 1-2: **GRAPHITI_INTEGRATION_GUIDE.md**
+- Day 3: **ARCHITECTURE_RECONCILIATION.md**
+- Day 4-5: **IMPLEMENTATION_DEEP_DIVE.md**
 - Practice: Set up local environment, explore code
 
-### Week 4: Build Something
+### Week 4: Interview System Implementation
+- Day 1: **INTERVIEW_SYSTEM_PROMPT_REFACTORED.md** (understand the prompt)
+- Day 2-3: **INTERVIEW_IMPLEMENTATION_GUIDE.md** (build backend)
+- Day 4-5: Test and refine interview flow
+- Practice: Implement continuous extraction, test with real LLM
+
+### Week 5: Build Something
 - Adapt a component to new domain
 - Implement a new deep view
 - Create custom scenario
@@ -207,6 +295,26 @@ These documents capture the evolution of our thinking. They contain valuable ins
 - New database support
 - LLM provider added
 - Query pattern optimization
+
+**IMPLEMENTATION_DEEP_DIVE.md**:
+- New LLM function added
+- Message processing flow changes
+- Context card generation logic updates
+
+**INTERVIEW_SYSTEM_PROMPT_REFACTORED.md**:
+- Interview conversation patterns change
+- New extraction fields added
+- Hebrew language refinements
+
+**INTERVIEW_IMPLEMENTATION_GUIDE.md**:
+- Function handler implementation changes
+- Completeness calculation algorithm updates
+- New testing patterns
+
+**ARCHITECTURE_RECONCILIATION.md**:
+- New prerequisite dependencies added
+- Intent routing patterns change
+- Graceful blocking scenarios discovered
 
 **CORE_INNOVATION_DETAILED.md**:
 - Philosophy evolution
@@ -237,16 +345,22 @@ These documents capture the evolution of our thinking. They contain valuable ins
 ## 🎯 Document Purpose Summary
 
 ```
-ARCHITECTURE_V2.md ──────────► Technical "How"
-UI_UX_STYLE_GUIDE.md ────────► Visual "How"
-GRAPHITI_INTEGRATION_GUIDE.md ► Backend "How"
-CORE_INNOVATION_DETAILED.md ─► Philosophical "Why"
+ARCHITECTURE_V2.md ──────────────────────► Technical "How"
+UI_UX_STYLE_GUIDE.md ────────────────────► Visual "How"
+GRAPHITI_INTEGRATION_GUIDE.md ───────────► Backend "How"
+CORE_INNOVATION_DETAILED.md ─────────────► Philosophical "Why"
 
-README.md ───────────────────► Quick Start
-IMPLEMENTATION_STATUS.md ────► Progress Tracking
-COMPLETE.md ─────────────────► Summary Statistics
+ARCHITECTURE_RECONCILIATION.md ──────────► Conversation + Dependencies
+IMPLEMENTATION_DEEP_DIVE.md ─────────────► Technical Specs
+INTERVIEW_SYSTEM_PROMPT_REFACTORED.md ───► LLM Prompt
+INTERVIEW_IMPLEMENTATION_GUIDE.md ───────► Interview Backend Code
+ARCHITECTURE_ALIGNMENT_ANALYSIS.md ──────► Code vs Docs Gap Analysis
 
-Legacy docs ─────────────────► Historical context
+README.md ───────────────────────────────► Quick Start
+IMPLEMENTATION_STATUS.md ────────────────► Progress Tracking
+COMPLETE.md ─────────────────────────────► Summary Statistics
+
+Legacy docs ─────────────────────────────► Historical context
 ```
 
 ---
