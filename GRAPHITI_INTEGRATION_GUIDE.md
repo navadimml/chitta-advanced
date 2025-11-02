@@ -230,108 +230,103 @@ class OpenAIProvider(BaseLLMProvider):
         )
 
 # services/llm/gemini_provider.py
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from .base import BaseLLMProvider, Message, LLMResponse, FunctionCall
-import json
+import asyncio
 from typing import Optional
 
 class GeminiProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str = "gemini-2.0-flash-exp"):
-        genai.configure(api_key=api_key)
+        self.client = genai.Client(api_key=api_key)
         self.model_name = model
-        self.model = genai.GenerativeModel(model)
 
-    def _convert_messages(self, messages: list[Message]) -> tuple[Optional[str], list[dict]]:
-        """Convert messages to Gemini format (system prompt + chat history)"""
-        system_prompt = None
-        chat_messages = []
+    def _convert_messages(self, messages: list[Message]) -> tuple[Optional[str], list[types.Content]]:
+        """Convert messages to Gemini Content format"""
+        system_instruction = None
+        contents = []
 
         for msg in messages:
             if msg.role == "system":
-                system_prompt = msg.content
+                system_instruction = msg.content
             else:
                 # Gemini uses "user" and "model" roles
                 role = "model" if msg.role == "assistant" else "user"
-                chat_messages.append({
-                    "role": role,
-                    "parts": [msg.content]
-                })
+                contents.append(
+                    types.Content(
+                        role=role,
+                        parts=[types.Part.from_text(text=msg.content)]
+                    )
+                )
 
-        return system_prompt, chat_messages
+        return system_instruction, contents
 
     async def generate(self, messages: list[Message], temperature: float = 0.7,
                       max_tokens: int = 4096, **kwargs) -> LLMResponse:
-        system_prompt, chat_messages = self._convert_messages(messages)
+        system_instruction, contents = self._convert_messages(messages)
 
-        # Configure generation
-        generation_config = {
-            "temperature": temperature,
-            "max_output_tokens": max_tokens,
-        }
-
-        # Create model with system instruction if present
-        model = genai.GenerativeModel(
-            self.model_name,
-            system_instruction=system_prompt if system_prompt else None
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            system_instruction=system_instruction
         )
 
-        # Start chat and send message
-        chat = model.start_chat(history=chat_messages[:-1] if len(chat_messages) > 1 else [])
-        response = await chat.send_message_async(
-            chat_messages[-1]["parts"][0] if chat_messages else "",
-            generation_config=generation_config
+        # Run in thread pool since SDK doesn't have native async yet
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self.client.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=config
+            )
         )
 
         return LLMResponse(
             content=response.text,
             model=self.model_name,
             tokens_used=response.usage_metadata.total_token_count if hasattr(response, 'usage_metadata') else None,
-            finish_reason=response.candidates[0].finish_reason.name if response.candidates else None
+            finish_reason=response.candidates[0].finish_reason if response.candidates else None
         )
 
     async def stream(self, messages: list[Message], temperature: float = 0.7,
                     max_tokens: int = 4096, **kwargs):
-        system_prompt, chat_messages = self._convert_messages(messages)
+        system_instruction, contents = self._convert_messages(messages)
 
-        generation_config = {
-            "temperature": temperature,
-            "max_output_tokens": max_tokens,
-        }
-
-        model = genai.GenerativeModel(
-            self.model_name,
-            system_instruction=system_prompt if system_prompt else None
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            system_instruction=system_instruction
         )
 
-        chat = model.start_chat(history=chat_messages[:-1] if len(chat_messages) > 1 else [])
-        response_stream = await chat.send_message_async(
-            chat_messages[-1]["parts"][0] if chat_messages else "",
-            generation_config=generation_config,
-            stream=True
-        )
+        # Stream in thread pool
+        loop = asyncio.get_event_loop()
 
-        async for chunk in response_stream:
-            if chunk.text:
-                yield chunk.text
+        def _stream():
+            for chunk in self.client.models.generate_content_stream(
+                model=self.model_name,
+                contents=contents,
+                config=config
+            ):
+                if chunk.text:
+                    yield chunk.text
+
+        for chunk_text in await loop.run_in_executor(None, lambda: list(_stream())):
+            yield chunk_text
 
     async def chat_completion(self, messages: list[Message], functions: Optional[list[dict]] = None,
                             function_call: str = "auto", temperature: float = 0.7,
                             max_tokens: int = 4096, **kwargs) -> LLMResponse:
-        """Gemini function calling (uses tools API)"""
-        system_prompt, chat_messages = self._convert_messages(messages)
-
-        generation_config = {
-            "temperature": temperature,
-            "max_output_tokens": max_tokens,
-        }
+        """Gemini function calling using new SDK"""
+        system_instruction, contents = self._convert_messages(messages)
 
         # Convert functions to Gemini tool format
         tools = None
         if functions:
             tools = [
-                genai.protos.Tool(
+                types.Tool(
                     function_declarations=[
-                        genai.protos.FunctionDeclaration(
+                        types.FunctionDeclaration(
                             name=f["name"],
                             description=f["description"],
                             parameters=f["parameters"]
@@ -341,18 +336,22 @@ class GeminiProvider(BaseLLMProvider):
                 )
             ]
 
-        # Create model with system instruction and tools
-        model = genai.GenerativeModel(
-            self.model_name,
-            system_instruction=system_prompt if system_prompt else None,
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            system_instruction=system_instruction,
             tools=tools
         )
 
-        # Start chat and send message
-        chat = model.start_chat(history=chat_messages[:-1] if len(chat_messages) > 1 else [])
-        response = await chat.send_message_async(
-            chat_messages[-1]["parts"][0] if chat_messages else "",
-            generation_config=generation_config
+        # Run in thread pool
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self.client.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=config
+            )
         )
 
         # Check if Gemini called a function
@@ -366,15 +365,67 @@ class GeminiProvider(BaseLLMProvider):
                     name=part.function_call.name,
                     arguments=dict(part.function_call.args)
                 )
-            elif hasattr(part, 'text'):
+            elif hasattr(part, 'text') and part.text:
                 content_text = part.text
 
         return LLMResponse(
             content=content_text,
             model=self.model_name,
             tokens_used=response.usage_metadata.total_token_count if hasattr(response, 'usage_metadata') else None,
-            finish_reason=response.candidates[0].finish_reason.name if response.candidates else None,
+            finish_reason=response.candidates[0].finish_reason if response.candidates else None,
             function_call=function_call_result
+        )
+
+    async def analyze_video(self, video_path: str, prompt: str, temperature: float = 0.7,
+                          max_tokens: int = 4096) -> LLMResponse:
+        """
+        Analyze a video file using Gemini's multimodal capabilities.
+        This is a Chitta-specific feature for future video analysis.
+        """
+        # Upload video file
+        loop = asyncio.get_event_loop()
+        video_file = await loop.run_in_executor(
+            None,
+            lambda: self.client.files.upload(path=video_path)
+        )
+
+        # Create content with video and prompt
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_uri(
+                        file_uri=video_file.uri,
+                        mime_type=video_file.mime_type
+                    )
+                ]
+            ),
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)]
+            )
+        ]
+
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens
+        )
+
+        # Analyze video
+        response = await loop.run_in_executor(
+            None,
+            lambda: self.client.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=config
+            )
+        )
+
+        return LLMResponse(
+            content=response.text,
+            model=self.model_name,
+            tokens_used=response.usage_metadata.total_token_count if hasattr(response, 'usage_metadata') else None,
+            finish_reason=response.candidates[0].finish_reason if response.candidates else None
         )
 ```
 
@@ -505,7 +556,7 @@ python-dotenv>=1.0.0
 # LLM Providers (install only what you need)
 anthropic>=0.18.0              # For Claude
 openai>=1.12.0                 # For GPT-4
-google-generativeai>=0.3.0     # For Gemini
+google-genai>=0.2.0            # For Gemini (modern SDK)
 
 # Graphiti
 graphiti-core>=0.1.0           # Temporal knowledge graph
@@ -519,10 +570,10 @@ neo4j>=5.14.0                  # Option 1: Neo4j
 
 ```bash
 # Install all providers
-pip install anthropic openai google-generativeai
+pip install anthropic openai google-genai
 
 # Or install only Gemini (recommended for cost efficiency)
-pip install google-generativeai
+pip install google-genai
 
 # Install Graphiti
 pip install graphiti-core
@@ -530,6 +581,8 @@ pip install graphiti-core
 # Install graph database
 pip install neo4j  # or redis for FalkorDB
 ```
+
+**IMPORTANT**: Use `google-genai` (modern SDK), not `google-generativeai` (legacy)
 
 **Practical Example: Interview with Gemini 2.5 Pro**
 
@@ -672,6 +725,124 @@ Results:
 └──────────┴─────────────┴──────────┴────────────┘
 
 Recommendation: Use Gemini 2.0 Flash for high-volume production
+```
+
+**Video Analysis Example: Chitta's Future Feature**
+
+```python
+# backend/app/services/video_analysis_service.py
+from services.llm.factory import LLMFactory
+from config import settings
+
+llm = LLMFactory.create(
+    provider="gemini",
+    api_key=settings.GEMINI_API_KEY,
+    model="gemini-2.0-flash-exp"
+)
+
+async def analyze_child_video(family_id: str, video_path: str, interview_summary: str):
+    """
+    Analyze uploaded video of child using Gemini's multimodal capabilities.
+    This leverages the new SDK's file upload and video analysis features.
+    """
+
+    # Build analysis prompt based on interview summary
+    prompt = f"""
+    אנא נתח את הסרטון של הילד/ה על בסיס ההיסטוריה הבאה:
+
+    {interview_summary}
+
+    התמקד בתחומי ההתפתחות הבאים:
+    1. תקשורת ודיבור - האם הילד/ה משתמש/ת במילים, מחוות, קשר עין?
+    2. אינטראקציה חברתית - כיצד הילד/ה מגיב/ה לאחרים?
+    3. משחק ותשומת לב - סוגי משחק, משך תשומת לב
+    4. התנהגויות חוזרות - האם יש דפוסי התנהגות חוזרים?
+    5. מיומנויות מוטוריות - תנועה, קואורדינציה
+
+    ספק תצפיות קונקרטיות עם חותמות זמן מהסרטון.
+    """
+
+    # Analyze video using new SDK
+    response = await llm.analyze_video(
+        video_path=video_path,
+        prompt=prompt,
+        temperature=0.3  # Lower temperature for clinical analysis
+    )
+
+    # Extract structured insights
+    insights = {
+        "raw_analysis": response.content,
+        "timestamp": datetime.now().isoformat(),
+        "model": response.model,
+        "tokens_used": response.tokens_used
+    }
+
+    # Save to Graphiti
+    await graphiti.add_episode(
+        name=f"video_analysis_{family_id}_{datetime.now().isoformat()}",
+        episode_body=response.content,
+        source_description="Gemini video analysis",
+        reference_time=datetime.now()
+    )
+
+    return insights
+
+# Example usage
+insights = await analyze_child_video(
+    family_id="family_123",
+    video_path="/uploads/family_123/video_20250102.mp4",
+    interview_summary="""
+    יוני, בן 3.5. ההורים מדווחים על דיבור מוגבל (רק מילים בודדות),
+    סידור צעצועים בשורות, קושי באינטראקציה עם ילדים אחרים.
+    """
+)
+
+# Gemini returns detailed analysis like:
+"""
+תצפיות מהסרטון:
+
+תקשורת (0:15-0:45):
+- יוני משתמש במחוות להצביע על חפצים
+- אין קשר עין מתמשך עם המבוגר
+- נשמעת מילה אחת "מים" ב-0:32
+
+אינטראקציה חברתית (1:00-1:30):
+- לא מגיב כשקוראים לו בשמו
+- ממשיך במשחק שלו ללא תגובה
+
+משחק (1:45-3:00):
+- מסדר מכוניות בשורה ישרה
+- חוזר על הפעולה מספר פעמים
+- לא משחק משחק דמיוני
+...
+"""
+```
+
+**Key Benefits of Gemini Video Analysis**:
+
+1. **Multimodal Understanding**: Analyzes visual + audio + temporal patterns
+2. **Hebrew Analysis**: Can provide analysis in Hebrew directly
+3. **Timestamp References**: Links observations to specific moments in video
+4. **Large Context**: 1M tokens = can include entire interview + multiple videos
+5. **Cost Effective**: Free during preview, then very affordable
+6. **Clinical Accuracy**: Can identify developmental patterns and behaviors
+
+**Video Analysis vs Manual Review**:
+
+```
+Traditional Process:
+1. Clinician watches 10-15 minute video (15 mins)
+2. Takes notes manually (10 mins)
+3. Cross-references with interview (5 mins)
+4. Writes report (20 mins)
+Total: ~50 minutes per family
+
+Gemini-Assisted Process:
+1. Upload video + interview summary (1 min)
+2. Gemini analyzes video (2-3 mins)
+3. Clinician reviews AI insights (5 mins)
+4. Clinician validates and adds notes (10 mins)
+Total: ~18 minutes per family (64% time savings)
 ```
 
 ---

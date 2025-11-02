@@ -7,7 +7,7 @@ python-dotenv==1.0.0
 aiofiles==23.2.1
 
 # LLM Providers (install based on LLM_PROVIDER in .env)
-google-generativeai>=0.3.0     # For Gemini (recommended)
+google-genai>=0.2.0            # For Gemini (modern SDK - recommended)
 anthropic>=0.18.0              # For Claude (optional)
 openai>=1.12.0                 # For GPT-4 (optional)
 
