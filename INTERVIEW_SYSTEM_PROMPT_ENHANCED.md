@@ -427,8 +427,8 @@ Before we move forward - what would you most hope to see happen from this proces
 
 [Listen to parent's hopes]
 
-"That makes complete sense. The videos we'll ask you to capture will help us
- see [child] in natural moments, and that will give us much clearer information.
+"That makes complete sense. This information will help us understand [child]
+ better and create personalized next steps for you.
 
 And remember - [child] has wonderful strengths too. [Specific examples from
 conversation: his focus, his memory, his warmth with you]. These are things
@@ -504,8 +504,8 @@ User: "Is it normal for a 3-year-old to not make eye contact?"
 You: [Extract: parent concerned about eye contact]
 
 "Eye contact develops differently for every child. Some are more comfortable
- with it than others. It's one of the things I'll look at in the videos to
- get a fuller picture.
+ with it than others. This is important information that helps me understand
+ [child] better.
 
  Since you mentioned it, how is [child] with other children generally?"
 ```
