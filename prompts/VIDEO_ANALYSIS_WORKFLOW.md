@@ -141,10 +141,67 @@ Step 4: VIDEO INTEGRATION ANALYSIS
 
                     ↓
 
+Step 4a: GENERATE CLARIFICATION QUESTIONS ← NEW INTEGRATION LOOP
+├─ Prompt: video_clarification_questions_prompt.md
+├─ Input:
+│   ├─ analysis_summary.json (interview)
+│   ├─ integration_analysis.json (from Step 4)
+│   └─ individual_video_analyses
+├─ Process:
+│   ├─ Identify discrepancies needing clarification
+│   ├─ Identify new findings needing parent context
+│   ├─ Identify pervasiveness questions
+│   ├─ Identify ambiguities needing parent explanation
+│   ├─ Prioritize questions by clinical significance
+│   └─ Generate 3-7 targeted questions for parent
+└─ Output: clarification_questions.json
+    ├─ 3-7 prioritized questions
+    ├─ Each with context, rationale, expected answer type
+    └─ OR: no questions needed (proceed to reports)
+
+                    ↓
+
+Step 4b: PARENT ANSWERS CLARIFICATION QUESTIONS
+├─ Parent receives questions via conversational interface
+├─ Chitta presents each question with:
+│   ├─ Context (what we observed in video)
+│   ├─ Why this matters (builds trust)
+│   └─ Question (clear, empathetic, in Hebrew if needed)
+├─ Parent provides answers (open text, multiple choice, etc.)
+└─ Output: parent_clarification_answers.json
+
+                    ↓
+
+Step 4c: INTEGRATE CLARIFICATION ANSWERS
+├─ Prompt: video_clarification_integration_prompt.md
+├─ Input:
+│   ├─ original_integration_analysis.json
+│   ├─ clarification_questions.json (what was asked)
+│   ├─ parent_clarification_answers.json (parent responses)
+│   ├─ analysis_summary.json (for reference)
+│   └─ individual_video_analyses (for reference)
+├─ Process:
+│   ├─ Analyze what each clarification revealed
+│   ├─ Resolve discrepancies based on parent context
+│   ├─ Update pervasiveness assessments
+│   ├─ Refine strength/challenge profiles
+│   ├─ Update DSM-5 pattern synthesis
+│   ├─ Adjust diagnostic considerations
+│   └─ Refine recommendations
+└─ Output: updated_integration_analysis.json (v2)
+    ├─ Updated cross-context patterns
+    ├─ Resolved discrepancies
+    ├─ Clarified pervasiveness
+    ├─ Refined clinical synthesis
+    ├─ Increased confidence
+    └─ Updated recommendations
+
+                    ↓
+
 Step 5: REPORT GENERATION
 ├─ Input:
 │   ├─ analysis_summary.json (interview)
-│   ├─ integration_analysis.json (video synthesis)
+│   ├─ updated_integration_analysis.json (video synthesis with clarifications)
 │   └─ individual_video_analyses (for specific examples)
 ├─ Outputs:
 │   ├─ Parent Report (מדריך להורים)
@@ -602,6 +659,164 @@ async def analyze_videos_hybrid(child_id, analysis_summary, video_files):
 
 ---
 
+## Phase 2.5: Clarification Loop (NEW)
+
+### Purpose
+After video integration, ask parent targeted clarification questions to:
+- Resolve discrepancies between parent report and video observations
+- Gather context for ambiguous observations
+- Assess pervasiveness of patterns beyond what videos show
+- Confirm/disconfirm new findings observed in videos
+
+### Why This Matters
+
+**Clinically:**
+- Videos provide LIMITED time samples (10-30 minutes total)
+- Parent knows child across ALL contexts and time
+- Discrepancies often reflect context-specificity (diagnostically valuable!)
+- Parent's perspective explains "why" behind behaviors
+
+**Example Impact:**
+- Video shows "mild attention difficulty during puzzle"
+- Parent clarifies: "That puzzle is his FAVORITE - his attention is much worse with homework!"
+- **Result:** Changes interpretation from "mild attention issue" to "significant ADHD pattern, even preferred tasks show difficulty"
+
+### Clarification Questions Prompt
+
+**When to use:** After integration analysis is complete
+
+**Input:**
+```json
+{
+  "analysis_summary": { /* interview */ },
+  "integration_analysis": { /* from Step 4 */ },
+  "individual_video_analyses": [ /* all videos */ ]
+}
+```
+
+**Prompt:** `video_clarification_questions_prompt.md`
+
+**Output:** `clarification_questions.json`
+- 3-7 prioritized questions
+- Each with clinical rationale
+- OR: "no questions needed" (proceed to reports)
+
+**Question Categories:**
+1. **Discrepancy resolution** (parent said X, video showed Y)
+2. **New finding confirmation** (observed in video, not mentioned in interview)
+3. **Pervasiveness assessment** (does this happen in other contexts?)
+4. **Context/frequency calibration** (was video typical or unusual?)
+5. **Parent interpretation** (what was child feeling/experiencing?)
+6. **Developmental history** (when did this start, has it changed?)
+
+**Prioritization Framework:**
+- **HIGH:** Discrepancies, new findings, pervasiveness for diagnostic patterns
+- **MEDIUM:** Contextual clarifications, frequency questions
+- **LOW:** Parent interpretation (nice to have)
+
+### Parent Answers Questions
+
+**UX Flow:**
+1. Chitta presents each question conversationally
+2. Provides context: "In Video 2, we noticed [behavior]..."
+3. Explains why it matters: "This helps us understand..."
+4. Asks question clearly, empathetically
+5. Parent responds (open text, multiple choice, rating, etc.)
+
+**Parent burden:** Keep to 3-7 questions max, respect parent's time
+
+### Clarification Integration Prompt
+
+**When to use:** After parent provides clarification answers
+
+**Input:**
+```json
+{
+  "original_integration_analysis": { /* from Step 4 */ },
+  "clarification_questions_asked": { /* what we asked */ },
+  "parent_clarification_answers": [ /* parent responses */ ],
+  "analysis_summary": { /* for reference */ },
+  "individual_video_analyses": [ /* for reference */ ]
+}
+```
+
+**Prompt:** `video_clarification_integration_prompt.md`
+
+**Output:** `updated_integration_analysis.json` (v2)
+
+**What Gets Updated:**
+
+1. **Cross-Context Patterns** - Patterns may move from "context-specific" to "pervasive" or vice versa based on parent clarification
+2. **Interview Comparison** - Discrepancies get resolved with parent's context
+3. **Strength/Challenge Profiles** - Confirmed or adjusted based on frequency/pervasiveness
+4. **DSM-5 Pattern Synthesis** - Updated pervasiveness classifications
+5. **Clinical Synthesis** - Refined with new insights, typically increased confidence
+6. **Recommendations** - Adjusted based on clarified understanding
+
+**Example Integration:**
+
+**Original (from videos):**
+```json
+{
+  "pattern": "Limited peer interaction observed in playground video",
+  "pervasiveness": "unknown"
+}
+```
+
+**Parent Clarification:**
+"Yes, this happens at school, with cousins, everywhere. He never approaches other kids."
+
+**Updated Integration:**
+```json
+{
+  "pattern": "Pervasive limited peer interaction across all contexts (confirmed by parent: school, playground, family gatherings)",
+  "pervasiveness": "pervasive_across_all_contexts",
+  "parent_clarification": {
+    "confirmed_pervasive": true,
+    "additional_contexts": ["school", "family gatherings", "cousins"],
+    "pattern_description": "Never initiates with peers across all settings"
+  },
+  "clinical_significance": "HIGH - pervasive social initiation deficit warrants comprehensive social-communication assessment"
+}
+```
+
+### Benefits of Clarification Loop
+
+**1. Resolves Ambiguities**
+- Videos show WHAT, parents explain WHY and WHEN
+- Context turns confusion into clarity
+
+**2. Establishes Pervasiveness**
+- Critical for differential diagnosis
+- Pervasive vs. context-specific determines intervention approach
+
+**3. Increases Confidence**
+- More data = more accurate understanding
+- Typically confidence goes from "moderate" to "high"
+
+**4. Improves Reports**
+- More accurate recommendations
+- Parents feel heard and understood
+- Clinicians get comprehensive picture
+
+**5. Builds Parent Awareness**
+- Questions draw parent attention to patterns
+- Helps parents become better observers
+- Strengthens parent-Chitta partnership
+
+### When to Skip Clarification
+
+**Don't ask questions if:**
+- Video observations fully align with interview (no discrepancies)
+- Context is entirely clear from videos
+- No new clinically significant patterns observed
+- Pervasiveness already well-established in interview
+- Time-sensitive situation where delay harmful
+
+**In these cases:** Proceed directly to report generation
+
+---
+
 ## Benefits of This Approach
 
 ### 1. **Clinical Rigor**
@@ -644,9 +859,11 @@ async def analyze_videos_hybrid(child_id, analysis_summary, video_files):
 
 ## Related Documents
 
-- `individual_video_analysis_prompt.md` - Prompt for Phase 1
-- `video_integration_prompt.md` - Prompt for Phase 2
-- `interview_analysis_prompt.md` - Generates video guidelines
+- `individual_video_analysis_prompt.md` - Prompt for Phase 1 (individual video analysis)
+- `video_integration_prompt.md` - Prompt for Phase 2 (cross-video integration)
+- `video_clarification_questions_prompt.md` - Prompt for Phase 2.5a (generate clarification questions)
+- `video_clarification_integration_prompt.md` - Prompt for Phase 2.5b (integrate clarification answers)
+- `interview_analysis_prompt.md` - Generates video guidelines from interview
 - `summary_generation_prompt.md` - Uses integration output to create parent/professional reports
 
 ---
