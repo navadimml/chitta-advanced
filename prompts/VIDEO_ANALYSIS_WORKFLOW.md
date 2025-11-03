@@ -199,27 +199,40 @@ Step 4c: INTEGRATE CLARIFICATION ANSWERS
                     ↓
 
 Step 5: REPORT GENERATION
-├─ Prompt: professional_report_generation_prompt.md
-├─ Input:
-│   ├─ analysis_summary.json (interview)
-│   ├─ updated_integration_analysis.json (video synthesis WITH clarifications integrated)
-│   ├─ clarification_integration_summary (what was learned from clarifications)
-│   └─ individual_video_analyses (for specific examples)
-├─ Outputs:
-│   ├─ Parent Report (מדריך להורים)
-│   │   ├─ Clear, compassionate explanations
-│   │   ├─ Strengths emphasized
-│   │   ├─ Concrete examples from videos
-│   │   ├─ How clarifications enriched understanding
-│   │   └─ Actionable guidance
-│   │
-│   └─ Professional Report (דוח מקצועי)
-│       ├─ Clinical detail
-│       ├─ Section on clarification integration and impact
-│       ├─ DSM-5 informed patterns (with clarification refinements)
-│       ├─ Diagnostic considerations (with confidence assessment)
-│       ├─ How clarifications resolved discrepancies
-│       └─ Recommendations for assessment/intervention (clarification-informed)
+├─ Two separate prompts for two audiences:
+│
+├─ 5a. PARENT REPORT (מדריך להורים)
+│   ├─ Prompt: parent_report_generation_prompt.md
+│   ├─ Input:
+│   │   ├─ interview_summary_json
+│   │   ├─ updated_integration_analysis (WITH clarifications)
+│   │   ├─ clarification_integration_summary
+│   │   ├─ professional_recommendations_data
+│   │   └─ visual_indicator_data
+│   ├─ Output: Warm, empathetic Hebrew letter to parents
+│   │   ├─ Extremely simple language (no jargon)
+│   │   ├─ Thanks parent for sharing AND for clarifications
+│   │   ├─ Strengths emphasized first and throughout
+│   │   ├─ Challenges described gently with context
+│   │   ├─ Clarification insights woven naturally
+│   │   ├─ 1-2 clear, actionable next steps
+│   │   ├─ Emotional support and reassurance
+│   │   └─ NOT a diagnosis - repeatedly emphasized
+│
+└─ 5b. PROFESSIONAL REPORT (דוח מקצועי)
+    ├─ Prompt: professional_report_generation_prompt.md
+    ├─ Input:
+    │   ├─ interview_summary_json
+    │   ├─ updated_integration_analysis (WITH clarifications)
+    │   ├─ clarification_integration_summary
+    │   └─ individual_video_analyses
+    ├─ Output: Comprehensive clinical report in Hebrew Markdown
+    │   ├─ Professional, concise, scannable format
+    │   ├─ Section V: Clarification process documentation
+    │   ├─ DSM-5 informed patterns (with clarification refinements)
+    │   ├─ How clarifications resolved discrepancies
+    │   ├─ Diagnostic considerations (with confidence assessment)
+    │   └─ Prioritized recommendations (clarification-informed)
 
                     ↓
 
@@ -868,7 +881,8 @@ After video integration, ask parent targeted clarification questions to:
 - `video_integration_prompt.md` - Prompt for Phase 2 (cross-video integration)
 - `video_clarification_questions_prompt.md` - Prompt for Phase 2.5a (generate clarification questions)
 - `video_clarification_integration_prompt.md` - Prompt for Phase 2.5b (integrate clarification answers)
-- `professional_report_generation_prompt.md` - Prompt for Phase 5 (generate professional clinical report)
+- `parent_report_generation_prompt.md` - Prompt for Phase 5a (generate parent-friendly report)
+- `professional_report_generation_prompt.md` - Prompt for Phase 5b (generate professional clinical report)
 - `CLARIFICATION_LOOP_CONVERSATIONAL_DESIGN.md` - UX design for clarification question presentation
 - `interview_analysis_prompt.md` - Generates video guidelines from interview
 
