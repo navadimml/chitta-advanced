@@ -199,22 +199,27 @@ Step 4c: INTEGRATE CLARIFICATION ANSWERS
                     ↓
 
 Step 5: REPORT GENERATION
+├─ Prompt: professional_report_generation_prompt.md
 ├─ Input:
 │   ├─ analysis_summary.json (interview)
-│   ├─ updated_integration_analysis.json (video synthesis with clarifications)
+│   ├─ updated_integration_analysis.json (video synthesis WITH clarifications integrated)
+│   ├─ clarification_integration_summary (what was learned from clarifications)
 │   └─ individual_video_analyses (for specific examples)
 ├─ Outputs:
 │   ├─ Parent Report (מדריך להורים)
 │   │   ├─ Clear, compassionate explanations
 │   │   ├─ Strengths emphasized
 │   │   ├─ Concrete examples from videos
+│   │   ├─ How clarifications enriched understanding
 │   │   └─ Actionable guidance
 │   │
 │   └─ Professional Report (דוח מקצועי)
 │       ├─ Clinical detail
-│       ├─ DSM-5 informed patterns
-│       ├─ Diagnostic considerations
-│       └─ Recommendations for assessment/intervention
+│       ├─ Section on clarification integration and impact
+│       ├─ DSM-5 informed patterns (with clarification refinements)
+│       ├─ Diagnostic considerations (with confidence assessment)
+│       ├─ How clarifications resolved discrepancies
+│       └─ Recommendations for assessment/intervention (clarification-informed)
 
                     ↓
 
@@ -863,8 +868,9 @@ After video integration, ask parent targeted clarification questions to:
 - `video_integration_prompt.md` - Prompt for Phase 2 (cross-video integration)
 - `video_clarification_questions_prompt.md` - Prompt for Phase 2.5a (generate clarification questions)
 - `video_clarification_integration_prompt.md` - Prompt for Phase 2.5b (integrate clarification answers)
+- `professional_report_generation_prompt.md` - Prompt for Phase 5 (generate professional clinical report)
+- `CLARIFICATION_LOOP_CONVERSATIONAL_DESIGN.md` - UX design for clarification question presentation
 - `interview_analysis_prompt.md` - Generates video guidelines from interview
-- `summary_generation_prompt.md` - Uses integration output to create parent/professional reports
 
 ---
 
