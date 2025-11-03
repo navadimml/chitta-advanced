@@ -1,8 +1,27 @@
 # Video Clarification Loop - UI/UX Design Proposal
 
-**Status:** DRAFT FOR DISCUSSION
+**Status:** ⚠️ SUPERSEDED by CLARIFICATION_LOOP_CONVERSATIONAL_DESIGN.md
 **Date:** 2025-11-03
+**Note:** This explored hybrid and modal approaches. Final decision: **Conversational-only**
+
+**See:** `CLARIFICATION_LOOP_CONVERSATIONAL_DESIGN.md` for the approved design
+
 **Purpose:** Align clarification loop with Chitta's existing design philosophy
+
+---
+
+## ⚠️ Final Decision
+
+After discussion, we decided on **pure conversational approach**:
+- ✅ Everything happens in chat (no deep view modal)
+- ✅ Badge + pulsing border on context card (moderate urgency)
+- ✅ Email notification after 24 hours if no response
+- ✅ No parent choice - guided conversational flow
+- ✅ Simplicity principle maintained
+
+**This document is preserved for reference of the design exploration process.**
+
+---
 
 ---
 

@@ -1,7 +1,29 @@
 # Video Clarification Loop - User Experience Flow
 
+**Status:** ⚠️ SUPERSEDED by CLARIFICATION_LOOP_CONVERSATIONAL_DESIGN.md
+**Note:** This document explored a structured modal approach. Final decision: **Conversational-only design**
+
+**See:** `CLARIFICATION_LOOP_CONVERSATIONAL_DESIGN.md` for the approved conversational approach
+
 **Purpose:** Document the parent-facing experience of the video clarification loop
 **Audience:** Product designers, UX developers, implementation team
+
+---
+
+## ⚠️ Design Decision Update
+
+After review, we decided to use a **pure conversational approach** instead of the deep view modal described in this document.
+
+**Reasons:**
+- ✅ Maintains design consistency (everything in chat)
+- ✅ Simpler mental model for parents
+- ✅ No component switching
+- ✅ More human and natural
+- ✅ Aligned with Chitta's caring, conversational philosophy
+
+**This document is preserved for reference but should NOT be implemented.**
+
+---
 
 ---
 
