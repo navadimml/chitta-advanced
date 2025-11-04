@@ -20,6 +20,16 @@ from pathlib import Path
 backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+env_path = backend_dir / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"✅ Loaded environment from: {env_path}")
+else:
+    print(f"⚠️  .env file not found at: {env_path}")
+    print(f"   Create a .env file with LLM_PROVIDER=gemini and GEMINI_API_KEY=your_key")
+
 from app.services.llm.factory import create_llm_provider, get_provider_info
 from app.services.llm.base import Message
 from app.prompts.interview_prompt import build_interview_prompt
