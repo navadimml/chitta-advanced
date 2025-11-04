@@ -84,7 +84,7 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-4px); }
           to { opacity: 1; transform: translateY(0); }

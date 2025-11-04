@@ -149,7 +149,7 @@ export default function ContextualSurface({ cards, onCardClick }) {
         })}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes cardSlideIn {
           from {
             opacity: 0;
