@@ -11,9 +11,21 @@ google-genai>=0.2.0            # For Gemini (modern SDK - recommended)
 anthropic>=0.18.0              # For Claude (optional)
 openai>=1.12.0                 # For GPT-4 (optional)
 
-# Graphiti - Temporal Knowledge Graph
-# graphiti-core>=0.1.0         # Uncomment when ready to integrate
+# Graphiti - Temporal Knowledge Graph with FalkorDB
+graphiti-core[falkordb]>=0.3.0
+falkordb>=1.0.0
 
-# Graph Database (choose one based on your preference)
-# neo4j>=5.14.0                # Option 1: Neo4j (industry standard)
-# redis>=5.0.0                 # Option 2: FalkorDB via Redis (faster, cheaper)
+# Additional dependencies for production
+pydantic-settings>=2.1.0
+python-json-logger>=2.0.7
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Testing
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+httpx>=0.25.2
+
+# Development
+black>=23.12.0
+ruff>=0.1.8
