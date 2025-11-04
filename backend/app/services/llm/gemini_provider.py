@@ -109,12 +109,12 @@ class GeminiProvider(BaseLLMProvider):
 
         try:
             # Generate response using async client
-            async with self.client.aio as aclient:
-                response = await aclient.models.generate_content(
-                    model=self.model_name,
-                    contents=contents,
-                    config=config
-                )
+            # Using direct .aio access without context manager
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=config
+            )
 
             # Parse response
             return self._parse_gemini_response(response)
