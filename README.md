@@ -1,19 +1,54 @@
-# Chitta - Advanced Refactored Architecture
+# Chitta - AI-Powered Child Development Assessment
 
 ## Overview
-This is the fully refactored version of the Chitta prototype with clean separation of concerns, complete component implementation, and production-ready architecture.
+Chitta is a full-stack AI-powered platform for child development assessment, featuring conversation-first architecture with video analysis and clinical insights.
 
-**Status**: ✅ All components implemented and functional
-**Last Updated**: November 2, 2025
+**Status**: ✅ Full stack integrated and functional
+**Last Updated**: November 4, 2025
 **Version**: 1.0.0
 
-## What's Different?
-✅ **Service Layer**: Mock API simulates backend (`src/services/api.js`)
-✅ **Component Architecture**: Small, focused, reusable components  
-✅ **Dumb Components**: UI components just render props
-✅ **State Management**: All state in App.jsx
-✅ **Preserved Styling**: ALL original Tailwind classes and animations maintained
-✅ **Backend Ready**: Easy to swap mock API for real backend
+## Stack
+- **Frontend**: React + Vite + Tailwind CSS
+- **Backend**: FastAPI (Python 3.11+)
+- **AI**: Multi-provider LLM abstraction (Gemini/Claude/OpenAI or Simulated)
+- **Knowledge Graph**: Graphiti with FalkorDB (or Simulated mode)
+- **Languages**: Hebrew + English with RTL support
+
+## Quick Start (No API Keys Required!)
+
+### Backend
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python -m app.main
+```
+
+### Frontend (in new terminal)
+```bash
+npm install
+npm run dev
+```
+
+Open **http://localhost:3000** and start chatting! 🚀
+
+> **Note**: Runs in simulated mode by default - no API keys needed for development!
+
+For detailed setup instructions, see [SETUP_GUIDE.md](./SETUP_GUIDE.md)
+
+## What's Implemented
+
+✅ **Full-stack architecture** - Frontend + Backend integrated
+✅ **Conversational AI interface** - Natural Hebrew conversation flow
+✅ **Interview system** - Dynamic assessment with continuous extraction
+✅ **Video upload & analysis** - Multi-scenario video processing
+✅ **Journal system** - Parent journaling with categories
+✅ **Report generation** - Clinical insights and recommendations
+✅ **Knowledge graph** - Persistent family context with Graphiti
+✅ **Multi-LLM support** - Gemini, Claude, OpenAI, or Simulated
+✅ **RTL support** - Full Hebrew UI with proper text rendering
+✅ **Responsive design** - Mobile-first with beautiful animations
 
 ## Project Structure
 ```
