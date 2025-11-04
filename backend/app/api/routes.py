@@ -8,6 +8,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.core.app_state import app_state
+from app.services.llm.base import Message
 
 router = APIRouter()
 
@@ -70,25 +71,27 @@ async def send_message(request: SendMessageRequest):
     })
 
     # קבל תגובה מה-LLM
+    # Convert to Message objects
     messages = [
-        {"role": msg["role"], "content": msg["content"]}
+        Message(role=msg["role"], content=msg["content"])
         for msg in session["interview_messages"]
     ]
 
     # אם זו ההודעה הראשונה, הוסף system prompt
     if len(session["interview_messages"]) == 1:
-        messages.insert(0, {
-            "role": "system",
-            "content": "אתה Chitta - עוזרת AI חמה שמנהלת ראיון התפתחותי עם הורה."
-        })
+        messages.insert(0, Message(
+            role="system",
+            content="אתה Chitta - עוזרת AI חמה שמנהלת ראיון התפתחותי עם הורה."
+        ))
 
-    response = await app_state.llm.chat(messages)
+    llm_response = await app_state.llm.chat(messages)
+    response = llm_response.content
 
     # בדיקה אם הראיון הסתיים
     if response == "INTERVIEW_COMPLETE":
         # השלמת ראיון אוטומטית
         summary_result = await app_state.llm.chat_with_structured_output(
-            messages=[{"role": "system", "content": "סכם את הראיון"}],
+            messages=[Message(role="system", content="סכם את הראיון")],
             response_schema={"interview_summary": {}, "video_guidelines": {}}
         )
 
@@ -162,10 +165,10 @@ async def complete_interview(family_id: str):
 
     # קריאה ל-LLM לסיכום
     summary_result = await app_state.llm.chat_with_structured_output(
-        messages=[{
-            "role": "system",
-            "content": "סכם את הראיון"
-        }],
+        messages=[Message(
+            role="system",
+            content="סכם את הראיון"
+        )],
         response_schema={"interview_summary": {}, "video_guidelines": {}}
     )
 
@@ -252,10 +255,10 @@ async def analyze_videos(family_id: str):
 
     # קריאה ל-LLM לניתוח
     analysis_result = await app_state.llm.chat_with_structured_output(
-        messages=[{
-            "role": "system",
-            "content": f"נתח {len(session['videos'])} וידאואים"
-        }],
+        messages=[Message(
+            role="system",
+            content=f"נתח {len(session['videos'])} וידאואים"
+        )],
         response_schema={"behavioral_observations": [], "key_findings_summary": ""}
     )
 
@@ -404,19 +407,19 @@ async def _generate_reports_internal(family_id: str, session: dict):
     """פונקציה פנימית ליצירת דוחות"""
     # דוח מקצועי
     prof_report = await app_state.llm.chat_with_structured_output(
-        messages=[{
-            "role": "system",
-            "content": "צור דוח מקצועי"
-        }],
+        messages=[Message(
+            role="system",
+            content="צור דוח מקצועי"
+        )],
         response_schema={"report_markdown": "", "professional_recommendations_data": []}
     )
 
     # דוח להורה
     parent_report = await app_state.llm.chat_with_structured_output(
-        messages=[{
-            "role": "system",
-            "content": "צור מכתב להורה"
-        }],
+        messages=[Message(
+            role="system",
+            content="צור מכתב להורה"
+        )],
         response_schema={"parent_letter": "", "actionable_next_steps": []}
     )
 

@@ -8,7 +8,8 @@ import os
 from typing import Optional, Dict
 
 from app.core.simulated_graphiti import SimulatedGraphitiClient
-from app.core.simulated_llm import SimulatedLLMProvider
+from app.services.llm.factory import create_llm_provider, get_provider_info
+from app.services.llm.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class AppState:
 
     def __init__(self):
         self.graphiti: Optional[SimulatedGraphitiClient] = None
-        self.llm: Optional[SimulatedLLMProvider] = None
+        self.llm: Optional[BaseLLMProvider] = None
         self.initialized = False
 
         # In-memory sessions storage
@@ -31,13 +32,16 @@ class AppState:
 
         logger.info("Initializing app state...")
 
-        # 1. Simulated Graphiti
+        # 1. Initialize LLM provider using factory
+        provider_info = get_provider_info()
+        logger.info(f"Provider configuration: {provider_info['configured_provider']}")
+
+        self.llm = create_llm_provider()
+        logger.info(f"✅ LLM initialized: {self.llm.get_provider_name()}")
+
+        # 2. Initialize Graphiti
         self.graphiti = SimulatedGraphitiClient()
         await self.graphiti.initialize()
-
-        # 2. Simulated LLM
-        self.llm = SimulatedLLMProvider()
-        logger.info("Using simulated LLM (no API calls)")
 
         self.initialized = True
         logger.info("✅ App state initialized")
