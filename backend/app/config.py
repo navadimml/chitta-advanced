@@ -24,10 +24,11 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
 
-    # Graphiti & Neo4j
-    neo4j_uri: str = "bolt://localhost:7687"
-    neo4j_user: str = "neo4j"
-    neo4j_password: str = "password"
+    # Graphiti & FalkorDB
+    falkordb_host: str = "localhost"
+    falkordb_port: int = 6379
+    falkordb_password: Optional[str] = None
+    falkordb_graph: str = "chitta"  # Graph name
 
     # CORS
     allowed_origins: str = "http://localhost:3000,http://localhost:5173"

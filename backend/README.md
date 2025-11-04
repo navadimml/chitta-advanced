@@ -7,7 +7,7 @@ AI-powered child development screening platform - Backend API
 ### Prerequisites
 
 - Python 3.11 or higher
-- Neo4j database (for Graphiti knowledge graph)
+- FalkorDB database (for Graphiti knowledge graph)
 - Gemini API key (free at https://ai.google.dev/)
 
 ### Setup
@@ -40,18 +40,19 @@ cp .env.example .env
 # Edit .env and add your API keys
 # Minimum required:
 # - GEMINI_API_KEY (get from https://ai.google.dev/)
-# - NEO4J_PASSWORD (if using Neo4j)
+# - FALKORDB_PASSWORD (optional, only if FalkorDB has password protection)
 ```
 
-4. **Start Neo4j database (using Docker):**
+4. **Start FalkorDB database (using Docker):**
 
 ```bash
 docker run -d \
-  --name neo4j \
-  -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/your_password \
-  neo4j:latest
+  --name falkordb \
+  -p 6379:6379 \
+  falkordb/falkordb:latest
 ```
+
+Or install locally (see https://docs.falkordb.com/)
 
 5. **Run the development server:**
 
@@ -175,8 +176,9 @@ Key environment variables (see `.env.example` for complete list):
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `GEMINI_API_KEY` | Google Gemini API key | Yes |
-| `NEO4J_URI` | Neo4j connection URI | Yes |
-| `NEO4J_PASSWORD` | Neo4j password | Yes |
+| `FALKORDB_HOST` | FalkorDB host | Yes (default: localhost) |
+| `FALKORDB_PORT` | FalkorDB port | Yes (default: 6379) |
+| `FALKORDB_GRAPH` | FalkorDB graph name | Yes (default: chitta) |
 | `ALLOWED_ORIGINS` | CORS allowed origins | Yes |
 | `JWT_SECRET_KEY` | JWT signing key | Yes |
 
@@ -194,7 +196,7 @@ docker run -p 8000:8000 chitta-backend
 - [ ] Set `DEBUG=False` in production
 - [ ] Use strong `JWT_SECRET_KEY`
 - [ ] Configure proper CORS origins
-- [ ] Set up proper Neo4j production instance
+- [ ] Set up proper FalkorDB production instance
 - [ ] Configure S3 for video storage
 - [ ] Add rate limiting
 - [ ] Set up monitoring (Sentry)

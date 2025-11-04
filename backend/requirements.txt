@@ -24,8 +24,9 @@ google-genai>=0.2.0
 # openai>=1.12.0
 
 # Graphiti & Graph Database
-graphiti-core>=0.3.0
-neo4j>=5.14.0
+# Using FalkorDB as the graph database backend
+graphiti-core[falkordb]>=0.3.0
+falkordb>=4.0.0
 
 # Storage (optional - for production S3)
 # boto3>=1.34.0
