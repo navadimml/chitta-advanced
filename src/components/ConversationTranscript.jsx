@@ -60,7 +60,7 @@ export default function ConversationTranscript({ messages, isTyping }) {
         <div ref={chatEndRef} />
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes messageSlideIn {
           from {
             opacity: 0;
