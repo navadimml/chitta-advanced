@@ -1,5 +1,12 @@
-// Mock API Service - Simulates backend communication
-// In production, this would make real API calls to the backend
+// API Service - Backend communication
+// Toggle between mock data (for demo) and real backend
+
+// Configuration
+const API_CONFIG = {
+  BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  USE_MOCK: import.meta.env.VITE_USE_MOCK === 'true' || false,
+  API_PREFIX: '/api/v1'
+};
 
 const SCENARIOS = {
   interview: {
@@ -348,20 +355,62 @@ const SCENARIOS = {
   }
 };
 
-// Mock API class
+// API class with real backend support
 class ChittaAPI {
   constructor() {
     this.currentScenario = 'interview';
+    this.baseURL = API_CONFIG.BASE_URL;
+    this.useMock = API_CONFIG.USE_MOCK;
   }
 
-  // Get scenario data
+  // Helper: Make API call
+  async _fetch(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+    const defaultHeaders = {
+      'Content-Type': 'application/json',
+    };
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...defaultHeaders,
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API call failed:', error);
+      throw error;
+    }
+  }
+
+  // Check backend health
+  async checkHealth() {
+    if (this.useMock) {
+      return { status: 'healthy', service: 'mock-api' };
+    }
+    return await this._fetch('/health');
+  }
+
+  // Get scenario data (mock for demo, will be replaced with real conversation state)
   async getScenario(scenarioKey) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        this.currentScenario = scenarioKey;
-        resolve(SCENARIOS[scenarioKey]);
-      }, 100);
-    });
+    if (this.useMock) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          this.currentScenario = scenarioKey;
+          resolve(SCENARIOS[scenarioKey]);
+        }, 100);
+      });
+    }
+
+    // Real API: Get conversation state (placeholder - not implemented yet)
+    return await this._fetch(`${API_CONFIG.API_PREFIX}/conversation/state`);
   }
 
   // Get all available scenarios for demo controls
@@ -372,43 +421,70 @@ class ChittaAPI {
     }));
   }
 
-  // Send a message (simulated)
+  // Send a message
   async sendMessage(message) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          success: true,
-          response: { 
-            sender: 'chitta', 
-            text: 'תגובה מהמערכת...' 
-          }
-        });
-      }, 800);
+    if (this.useMock) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            response: {
+              sender: 'chitta',
+              text: 'תגובה מהמערכת...'
+            }
+          });
+        }, 800);
+      });
+    }
+
+    // Real API: Send message to conversation
+    return await this._fetch(`${API_CONFIG.API_PREFIX}/conversation/message`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
     });
   }
 
   // Trigger an action (like opening a deep view)
   async triggerAction(actionKey) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          success: true,
-          deepView: actionKey
-        });
-      }, 300);
+    if (this.useMock) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            deepView: actionKey
+          });
+        }, 300);
+      });
+    }
+
+    // Real API: Trigger action (placeholder)
+    return await this._fetch(`${API_CONFIG.API_PREFIX}/actions/${actionKey}`, {
+      method: 'POST',
     });
   }
 
-  // Upload file (simulated)
+  // Upload file
   async uploadFile(file) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          success: true,
-          fileId: 'file_' + Date.now(),
-          message: 'הקובץ הועלה בהצלחה'
-        });
-      }, 1500);
+    if (this.useMock) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            fileId: 'file_' + Date.now(),
+            message: 'הקובץ הועלה בהצלחה'
+          });
+        }, 1500);
+      });
+    }
+
+    // Real API: Upload file
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return await this._fetch(`${API_CONFIG.API_PREFIX}/upload`, {
+      method: 'POST',
+      headers: {}, // Let browser set Content-Type for FormData
+      body: formData,
     });
   }
 }
