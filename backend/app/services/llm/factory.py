@@ -128,7 +128,11 @@ def get_provider_info() -> dict:
     Get information about current provider configuration
 
     Returns:
-        Dict with provider information
+        Dict with provider information including:
+        - configured_provider: The provider set in LLM_PROVIDER env var
+        - configured_model: The model set in LLM_MODEL env var
+        - available_providers: Dict of which providers have API keys configured
+        - will_use: Which provider will actually be used (accounting for fallbacks)
     """
     provider_type = os.getenv("LLM_PROVIDER", "simulated")
     model = os.getenv("LLM_MODEL", "default")
@@ -138,6 +142,17 @@ def get_provider_info() -> dict:
     has_anthropic = bool(os.getenv("ANTHROPIC_API_KEY"))
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
 
+    # Determine which provider will actually be used
+    will_use = provider_type
+    if provider_type == "gemini" and not has_gemini:
+        will_use = "simulated (gemini key missing)"
+    elif provider_type == "anthropic" and not has_anthropic:
+        will_use = "simulated (anthropic key missing)"
+    elif provider_type == "openai" and not has_openai:
+        will_use = "simulated (openai key missing)"
+    elif provider_type in ["anthropic", "openai"]:
+        will_use = f"simulated ({provider_type} not implemented yet)"
+
     return {
         "configured_provider": provider_type,
         "configured_model": model,
@@ -146,5 +161,6 @@ def get_provider_info() -> dict:
             "anthropic": has_anthropic,
             "openai": has_openai,
             "simulated": True
-        }
+        },
+        "will_use": will_use
     }

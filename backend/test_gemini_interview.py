@@ -237,8 +237,15 @@ async def main():
     provider_info = get_provider_info()
     print(f"\n📋 Provider Configuration:")
     print(f"   - Configured: {provider_info['configured_provider']}")
-    print(f"   - Model: {provider_info['model']}")
-    print(f"   - API Key Set: {provider_info['api_key_set']}")
+    print(f"   - Model: {provider_info['configured_model']}")
+    print(f"   - Will use: {provider_info['will_use']}")
+
+    # Show which providers have keys
+    available = provider_info['available_providers']
+    if available['gemini']:
+        print(f"   ✅ Gemini API key found")
+    else:
+        print(f"   ❌ Gemini API key not found")
 
     if provider_info['configured_provider'] != 'gemini':
         print("\n⚠️  WARNING: LLM_PROVIDER is not set to 'gemini'")
@@ -246,6 +253,11 @@ async def main():
         print("   LLM_PROVIDER=gemini")
         print("   GEMINI_API_KEY=your_actual_key")
         print("\n   Continuing with current provider...\n")
+    elif not available['gemini']:
+        print("\n⚠️  WARNING: GEMINI_API_KEY not found in .env")
+        print("   Add your API key to .env:")
+        print("   GEMINI_API_KEY=your_actual_key")
+        print("\n   Continuing with simulated provider...\n")
 
     try:
         # Run tests
