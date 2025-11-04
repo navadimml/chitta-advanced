@@ -30,6 +30,13 @@ else:
     print(f"⚠️  .env file not found at: {env_path}")
     print(f"   Create a .env file with LLM_PROVIDER=gemini and GEMINI_API_KEY=your_key")
 
+# Setup logging to see debug messages
+import logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(name)s - %(levelname)s - %(message)s'
+)
+
 from app.services.llm.factory import create_llm_provider, get_provider_info
 from app.services.llm.base import Message
 from app.prompts.interview_prompt import build_interview_prompt

@@ -250,35 +250,56 @@ class GeminiProvider(BaseLLMProvider):
         content = ""
         finish_reason = None
 
-        # Check for candidates
-        if hasattr(response, 'candidates') and response.candidates:
-            candidate = response.candidates[0]
+        try:
+            # Debug: log response structure
+            logger.debug(f"Response type: {type(response)}")
+            logger.debug(f"Response attributes: {dir(response)}")
 
-            # Get finish reason
-            if hasattr(candidate, 'finish_reason'):
-                finish_reason = str(candidate.finish_reason)
+            # Check for candidates
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                logger.debug(f"Candidate: {candidate}")
 
-            # Check for content parts
-            if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                for part in candidate.content.parts:
-                    # Text content
-                    if hasattr(part, 'text') and part.text:
-                        content += part.text
+                # Get finish reason
+                if hasattr(candidate, 'finish_reason'):
+                    finish_reason = str(candidate.finish_reason)
 
-                    # Function call
-                    if hasattr(part, 'function_call') and part.function_call:
-                        fc = part.function_call
-                        function_calls.append(
-                            FunctionCall(
-                                name=fc.name,
-                                arguments=dict(fc.args) if hasattr(fc, 'args') else {}
-                            )
-                        )
+                # Check for content parts
+                if hasattr(candidate, 'content') and candidate.content:
+                    logger.debug(f"Content: {candidate.content}")
 
-        # Fallback to simple text if available
-        if not content and not function_calls:
-            if hasattr(response, 'text'):
-                content = response.text
+                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        for part in candidate.content.parts:
+                            # Text content
+                            if hasattr(part, 'text') and part.text:
+                                content += part.text
+
+                            # Function call
+                            if hasattr(part, 'function_call') and part.function_call:
+                                fc = part.function_call
+                                function_calls.append(
+                                    FunctionCall(
+                                        name=fc.name,
+                                        arguments=dict(fc.args) if hasattr(fc, 'args') else {}
+                                    )
+                                )
+                    else:
+                        logger.warning("candidate.content.parts is None or empty")
+                else:
+                    logger.warning("candidate.content is None or missing")
+
+            # Fallback to simple text if available
+            if not content and not function_calls:
+                if hasattr(response, 'text'):
+                    content = response.text
+                else:
+                    logger.warning("No content found in response")
+                    # Try to extract any available text
+                    content = str(response) if response else "No response"
+
+        except Exception as e:
+            logger.error(f"Error parsing Gemini response: {e}", exc_info=True)
+            content = f"Error parsing response: {str(e)}"
 
         return LLMResponse(
             content=content,
