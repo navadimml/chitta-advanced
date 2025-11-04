@@ -1,10 +1,12 @@
 """
-Google Gemini Provider
+Google Gemini Provider (Modern SDK)
+
+Uses the google-genai SDK (2024+) with improved API
 
 Recommended provider for Chitta:
 - Free during preview period
 - Native video analysis (crucial for video screening)
-- 1M token context window
+- 2M token context window (Gemini 2.0)
 - Excellent Hebrew support
 - Function calling support
 - JSON mode for structured output
@@ -15,9 +17,8 @@ from typing import List, Dict, Any, Optional
 import json
 
 try:
-    import google.generativeai as genai
-    from google.generativeai import GenerativeModel
-    from google.generativeai.types import HarmCategory, HarmBlockThreshold
+    from google import genai
+    from google.genai import types
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiProvider(BaseLLMProvider):
-    """Google Gemini LLM Provider"""
+    """Google Gemini LLM Provider using modern SDK"""
 
     def __init__(
         self,
@@ -42,19 +43,30 @@ class GeminiProvider(BaseLLMProvider):
                 "google-genai is not installed. Install with: pip install google-genai"
             )
 
-        # Configure Gemini
-        genai.configure(api_key=api_key)
-
+        # Create Gemini client (modern SDK)
+        self.client = genai.Client(api_key=api_key)
         self.model_name = model
         self.default_temperature = default_temperature
 
         # Safety settings - minimal blocking for clinical conversations
-        self.safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        }
+        self.safety_settings = [
+            types.SafetySetting(
+                category="HARM_CATEGORY_HATE_SPEECH",
+                threshold="BLOCK_NONE"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                threshold="BLOCK_NONE"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_HARASSMENT",
+                threshold="BLOCK_NONE"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                threshold="BLOCK_NONE"
+            ),
+        ]
 
         logger.info(f"✅ Gemini provider initialized: {model}")
 
@@ -80,29 +92,29 @@ class GeminiProvider(BaseLLMProvider):
         temp = temperature if temperature is not None else self.default_temperature
 
         # Convert messages to Gemini format
-        gemini_messages = self._convert_messages_to_gemini(messages)
+        contents = self._convert_messages_to_contents(messages)
 
         # Prepare tools if functions provided
         tools = None
         if functions:
             tools = self._convert_functions_to_tools(functions)
 
-        # Create model with configuration
-        generation_config = {
-            "temperature": temp,
-            "max_output_tokens": max_tokens,
-        }
-
-        model = GenerativeModel(
-            model_name=self.model_name,
-            generation_config=generation_config,
+        # Create configuration
+        config = types.GenerateContentConfig(
+            temperature=temp,
+            max_output_tokens=max_tokens,
             safety_settings=self.safety_settings,
             tools=tools
         )
 
         try:
-            # Generate response
-            response = await model.generate_content_async(gemini_messages)
+            # Generate response using async client
+            async with self.client.aio as aclient:
+                response = await aclient.models.generate_content(
+                    model=self.model_name,
+                    contents=contents,
+                    config=config
+                )
 
             # Parse response
             return self._parse_gemini_response(response)
@@ -136,58 +148,71 @@ class GeminiProvider(BaseLLMProvider):
         temp = temperature if temperature is not None else self.default_temperature
 
         # Convert messages
-        gemini_messages = self._convert_messages_to_gemini(messages)
+        contents = self._convert_messages_to_contents(messages)
 
-        # Create model with JSON mode
-        generation_config = {
-            "temperature": temp,
-            "response_mime_type": "application/json",
-            "response_schema": response_schema
-        }
-
-        model = GenerativeModel(
-            model_name=self.model_name,
-            generation_config=generation_config,
+        # Create config with JSON mode
+        config = types.GenerateContentConfig(
+            temperature=temp,
+            response_mime_type="application/json",
+            response_schema=response_schema,
             safety_settings=self.safety_settings
         )
 
         try:
             # Generate JSON response
-            response = await model.generate_content_async(gemini_messages)
+            async with self.client.aio as aclient:
+                response = await aclient.models.generate_content(
+                    model=self.model_name,
+                    contents=contents,
+                    config=config
+                )
 
-            # Parse JSON
+            # Parse JSON from text
             return json.loads(response.text)
 
         except Exception as e:
             logger.error(f"Gemini structured output error: {e}")
             return {}
 
-    def _convert_messages_to_gemini(self, messages: List[Message]) -> List[Dict]:
+    def _convert_messages_to_contents(self, messages: List[Message]) -> List[types.Content]:
         """
-        Convert our Message format to Gemini format
+        Convert our Message format to Gemini Content format
 
         Gemini format:
-        - System message: Separate parameter
-        - User/Assistant: List of {"role": "user/model", "parts": ["text"]}
+        - System message: Included as first user message with system prompt prefix
+        - User/Assistant: Content with role and parts
         """
-        gemini_messages = []
+        contents = []
+        system_prompt = None
 
         for msg in messages:
-            # Skip system messages here (handled separately)
             if msg.role == "system":
+                # Save system prompt to prepend to first user message
+                system_prompt = msg.content
                 continue
 
+            # Map our roles to Gemini roles
             role = "model" if msg.role == "assistant" else "user"
-            gemini_messages.append({
-                "role": role,
-                "parts": [msg.content]
-            })
 
-        return gemini_messages
+            # If this is the first user message and we have a system prompt, prepend it
+            content_text = msg.content
+            if role == "user" and system_prompt and not contents:
+                content_text = f"{system_prompt}\n\n{msg.content}"
+                system_prompt = None  # Only use once
 
-    def _convert_functions_to_tools(self, functions: List[Dict[str, Any]]) -> List[Dict]:
+            # Create Content with Parts
+            contents.append(
+                types.Content(
+                    role=role,
+                    parts=[types.Part.from_text(content_text)]
+                )
+            )
+
+        return contents
+
+    def _convert_functions_to_tools(self, functions: List[Dict[str, Any]]) -> List[types.Tool]:
         """
-        Convert function definitions to Gemini tools format
+        Convert function definitions to Gemini Tool format
 
         Our format (OpenAI-style):
         {
@@ -196,22 +221,21 @@ class GeminiProvider(BaseLLMProvider):
             "parameters": {...}
         }
 
-        Gemini format:
-        tools = [FunctionDeclaration(...)]
+        Gemini format: Tool with FunctionDeclaration
         """
-        from google.generativeai.types import FunctionDeclaration, Tool
-
         declarations = []
-        for func in functions:
-            declarations.append(
-                FunctionDeclaration(
-                    name=func["name"],
-                    description=func.get("description", ""),
-                    parameters=func.get("parameters", {})
-                )
-            )
 
-        return [Tool(function_declarations=declarations)]
+        for func in functions:
+            # Create FunctionDeclaration
+            declaration = types.FunctionDeclaration(
+                name=func["name"],
+                description=func.get("description", ""),
+                parameters=func.get("parameters", {})
+            )
+            declarations.append(declaration)
+
+        # Return list with single Tool containing all declarations
+        return [types.Tool(function_declarations=declarations)]
 
     def _parse_gemini_response(self, response) -> LLMResponse:
         """
@@ -226,7 +250,7 @@ class GeminiProvider(BaseLLMProvider):
         content = ""
         finish_reason = None
 
-        # Check for function calls
+        # Check for candidates
         if hasattr(response, 'candidates') and response.candidates:
             candidate = response.candidates[0]
 
@@ -234,8 +258,8 @@ class GeminiProvider(BaseLLMProvider):
             if hasattr(candidate, 'finish_reason'):
                 finish_reason = str(candidate.finish_reason)
 
-            # Check for function calls in parts
-            if hasattr(candidate.content, 'parts'):
+            # Check for content parts
+            if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
                 for part in candidate.content.parts:
                     # Text content
                     if hasattr(part, 'text') and part.text:
@@ -247,13 +271,14 @@ class GeminiProvider(BaseLLMProvider):
                         function_calls.append(
                             FunctionCall(
                                 name=fc.name,
-                                arguments=dict(fc.args) if fc.args else {}
+                                arguments=dict(fc.args) if hasattr(fc, 'args') else {}
                             )
                         )
 
-        # Fallback to simple text if no parts
+        # Fallback to simple text if available
         if not content and not function_calls:
-            content = response.text if hasattr(response, 'text') else ""
+            if hasattr(response, 'text'):
+                content = response.text
 
         return LLMResponse(
             content=content,
