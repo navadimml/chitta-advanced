@@ -204,7 +204,7 @@ class GeminiProvider(BaseLLMProvider):
             contents.append(
                 types.Content(
                     role=role,
-                    parts=[types.Part.from_text(content_text)]
+                    parts=[types.Part(text=content_text)]
                 )
             )
 
