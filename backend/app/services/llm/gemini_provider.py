@@ -301,10 +301,18 @@ class GeminiProvider(BaseLLMProvider):
             logger.error(f"Error parsing Gemini response: {e}", exc_info=True)
             content = f"Error parsing response: {str(e)}"
 
+        # CRITICAL FIX: Ensure content is always a valid string, never None
+        if content is None:
+            content = ""
+        
+        # If we have function calls but no content, that's valid - set empty string
+        if not content and function_calls:
+            content = ""
+
         return LLMResponse(
             content=content,
             function_calls=function_calls,
-            finish_reason=finish_reason
+            finish_reason=finish_reason or "unknown"
         )
 
     def get_provider_name(self) -> str:
