@@ -154,20 +154,56 @@ def get_prerequisite_explanation(
     action: Action,
     child_name: str = "הילד/ה",
     video_count: int = 0,
-    required_videos: int = 3
+    required_videos: int = 3,
+    interview_complete: bool = False,
+    analysis_complete: bool = False,
+    completeness: float = 0.0
 ) -> str:
     """
-    Get Hebrew explanation for why action is not yet available
+    Get context-aware Hebrew explanation for why action is not yet available
 
     Args:
         action: The action user wants to perform
         child_name: Child's name for personalization
         video_count: Number of videos uploaded
         required_videos: Number of videos required
+        interview_complete: Whether interview is 80%+ complete
+        analysis_complete: Whether video analysis is complete
+        completeness: Interview completeness percentage (0.0 to 1.0)
 
     Returns:
         Hebrew explanation to give to user
     """
+    # For VIEW_REPORT, provide context-aware explanation based on actual state
+    if action == Action.VIEW_REPORT:
+        return _get_view_report_explanation(
+            child_name=child_name,
+            video_count=video_count,
+            required_videos=required_videos,
+            interview_complete=interview_complete,
+            analysis_complete=analysis_complete,
+            completeness=completeness
+        )
+
+    # For UPLOAD_VIDEO and VIEW_VIDEO_GUIDELINES, check interview state
+    if action in [Action.UPLOAD_VIDEO, Action.VIEW_VIDEO_GUIDELINES]:
+        if not interview_complete:
+            completeness_pct = int(completeness * 100)
+            return f"נהדר שאת מוכנה להמשיך! קודם בואי נסיים את הראיון (נשארו עוד {100 - completeness_pct}%), ואז אוכל ליצור עבורך הנחיות צילום מדויקות שמתאימות ל{child_name}."
+
+    # For ANALYZE_VIDEOS, check what's missing
+    if action == Action.ANALYZE_VIDEOS:
+        if not interview_complete:
+            return f"כדי לנתח סרטונים, אני קודם צריכה להכיר את {child_name} דרך הראיון. בואי נמשיך בשיחה."
+        elif video_count == 0:
+            return f"כדי לנתח, אני צריכה שתעלי סרטונים של {child_name}. בואי נסיים את הראיון ואני אכין לך הנחיות צילום."
+        elif video_count < required_videos:
+            remaining = required_videos - video_count
+            remaining_text = "סרטון אחד" if remaining == 1 else f"{remaining} סרטונים"
+            video_count_text = "סרטון אחד" if video_count == 1 else f"{video_count} סרטונים"
+            return f"כדי לנתח את הסרטונים, אני צריכה לפחות {required_videos} סרטונים שמציגים את {child_name} במצבים שונים. עד כה יש {video_count_text}. בואי נעלה עוד {remaining_text}."
+
+    # For other actions, use static explanation with placeholder replacement
     prereq_info = get_action_prerequisites(action)
     explanation = prereq_info.get("explanation_to_user", "")
 
@@ -178,6 +214,48 @@ def get_prerequisite_explanation(
     explanation = explanation.replace("{remaining}", str(remaining))
 
     return explanation
+
+
+def _get_view_report_explanation(
+    child_name: str,
+    video_count: int,
+    required_videos: int,
+    interview_complete: bool,
+    analysis_complete: bool,
+    completeness: float
+) -> str:
+    """
+    Get context-aware explanation for why VIEW_REPORT is not available
+
+    This checks the actual state and provides appropriate guidance:
+    - Interview not done → finish interview first
+    - Interview done, no videos → need to film videos based on guidelines
+    - Videos uploaded but not enough → need more videos
+    - Videos being analyzed → analysis in progress
+    """
+    # Check what stage we're actually at
+    if not interview_complete:
+        completeness_pct = int(completeness * 100)
+        return f"אני רוצה ליצור לך דוח מקיף! אבל קודם אני צריכה להכיר את {child_name} טוב יותר דרך השיחה שלנו. כבר עברנו {completeness_pct}% מהראיון - בואי נמשיך."
+
+    # Interview is complete, but no videos yet
+    if video_count == 0:
+        return f"כדי ליצור דוח, אני צריכה לראות את {child_name} בפעולה! קודם אני אכין לך הנחיות צילום מותאמות אישית, ואז תעלי 3 סרטונים קצרים. אחרי שאנתח אותם - הדוח יהיה מוכן."
+
+    # Have some videos but not enough
+    if video_count < required_videos:
+        remaining = required_videos - video_count
+        remaining_text = "סרטון אחד נוסף" if remaining == 1 else f"{remaining} סרטונים נוספים"
+        video_count_text = "סרטון אחד" if video_count == 1 else f"{video_count} סרטונים"
+        return f"כמעט שם! יש {video_count_text}, אני צריכה עוד {remaining_text} כדי לקבל תמונה מלאה של {child_name}. ברגע שיהיו 3 סרטונים, אני אתחיל בניתוח ואכין את הדוח."
+
+    # Have enough videos, currently analyzing
+    if analysis_complete:
+        # Analysis done but reports not generated yet (edge case)
+        return f"הניתוח הושלם! אני עובדת כרגע על הכנת הדוח המפורט עבור {child_name}. עוד רגע זה יהיה מוכן. 💙"
+    else:
+        # Analysis in progress
+        return f"מצוין! יש לי 3 סרטונים של {child_name} ואני מנתחת אותם כרגע. זה לוקח בדרך כלל כ-24 שעות. אני רוצה לתת לך ממצאים מדויקים ושימושיים, אז שווה להמתין. בינתיים, את יכולה להוסיף תצפיות ליומן. 💙"
 
 
 def is_always_available(action: Action) -> bool:

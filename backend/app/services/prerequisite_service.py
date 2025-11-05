@@ -120,11 +120,18 @@ class PrerequisiteService:
         if not feasible:
             child_name = context.get("child_name", "הילד/ה")
             video_count = context.get("video_count", 0)
+            completeness = context.get("completeness", 0.0)
+            interview_complete = current_state.get(PrerequisiteType.INTERVIEW_COMPLETE, False)
+            analysis_complete = current_state.get(PrerequisiteType.ANALYSIS_COMPLETE, False)
+
             explanation = get_prerequisite_explanation(
                 action_enum,
                 child_name=child_name,
                 video_count=video_count,
-                required_videos=3
+                required_videos=3,
+                interview_complete=interview_complete,
+                analysis_complete=analysis_complete,
+                completeness=completeness
             )
         else:
             explanation = ""
