@@ -96,9 +96,14 @@ class ConversationService:
             return {
                 "response": direct_answer,
                 "function_calls": [],
-                "completeness": session.completeness,
-                "extracted_data": data.to_dict(),
-                "context_cards": self._generate_context_cards(session),
+                "completeness": session.completeness * 100,
+                "extracted_data": data.model_dump(),
+                "context_cards": self._generate_context_cards(
+                    family_id=family_id,
+                    completeness=session.completeness,
+                    action_requested=None,
+                    completeness_check=None
+                ),
                 "stats": {
                     "intent": "faq_direct_answer",
                     "faq_matched": True
