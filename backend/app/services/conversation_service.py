@@ -17,6 +17,7 @@ from .llm.base import Message, BaseLLMProvider
 from .llm.factory import create_llm_provider
 from .interview_service import get_interview_service, InterviewService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
+from .knowledge_service import get_knowledge_service, KnowledgeService
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.interview_prompt_lite import build_interview_prompt_lite
 from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
@@ -40,11 +41,13 @@ class ConversationService:
         self,
         llm_provider: Optional[BaseLLMProvider] = None,
         interview_service: Optional[InterviewService] = None,
-        prerequisite_service: Optional[PrerequisiteService] = None
+        prerequisite_service: Optional[PrerequisiteService] = None,
+        knowledge_service: Optional[KnowledgeService] = None
     ):
         self.llm = llm_provider or create_llm_provider()
         self.interview_service = interview_service or get_interview_service()
         self.prerequisite_service = prerequisite_service or get_prerequisite_service()
+        self.knowledge_service = knowledge_service or get_knowledge_service()
 
         logger.info(f"ConversationService initialized with {self.llm.get_provider_name()}")
 
@@ -76,12 +79,36 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 2. QUICK INTENT DETECTION - Does user want to perform an action?
-        # This is a fast, lightweight call to detect action requests
+        # 2. QUICK INTENT DETECTION
+        # Detect if user wants to: (a) perform action, (b) get info about app, or (c) just conversing
         intent_detected = None
         prerequisite_check = None
+        information_request = None
+        injected_knowledge = None
 
-        intent_prompt = f"""Analyze this message and determine if the user wants to perform a specific ACTION.
+        # First check for information requests using knowledge service
+        information_request = self.knowledge_service.detect_information_request(user_message)
+
+        if information_request:
+            logger.info(f"✓ Information request detected: {information_request}")
+
+            # Get knowledge to inject into prompt
+            context = {
+                "child_name": data.child_name,
+                "completeness": session.completeness,
+                "video_count": 0,  # TODO: Get from actual video count
+                "reports_available": False  # TODO: Get from actual report status
+            }
+
+            injected_knowledge = self.knowledge_service.get_knowledge_for_prompt(
+                information_request,
+                context
+            )
+            logger.info(f"Injecting domain knowledge about {information_request}")
+
+        else:
+            # If not information request, check for action request
+            intent_prompt = f"""Analyze this message and determine if the user wants to perform a specific ACTION.
 
 User message: "{user_message}"
 
@@ -95,48 +122,48 @@ Respond with ONLY the action name if detected, or "CONVERSATION" if just talking
 Actions: view_report, upload_video, view_video_guidelines, find_experts, add_journal_entry
 Or: CONVERSATION"""
 
-        try:
-            intent_response = await self.llm.chat(
-                messages=[
-                    Message(role="system", content=intent_prompt),
-                    Message(role="user", content=user_message)
-                ],
-                functions=None,
-                temperature=0.1,
-                max_tokens=50
-            )
-
-            intent_text = intent_response.content.strip().lower()
-            logger.info(f"Intent detection: {intent_text}")
-
-            # Check if it's an action (not just conversation)
-            if intent_text != "conversation" and intent_text in [a.value for a in Action]:
-                intent_detected = intent_text
-                logger.info(f"✓ Action request detected: {intent_detected}")
-
-                # 3. PREREQUISITE CHECK - Is this action currently feasible?
-                context = {
-                    "completeness": session.completeness,
-                    "child_name": data.child_name,
-                    "video_count": 0,  # TODO: Get from actual video storage
-                    "analysis_complete": False,  # TODO: Get from actual analysis status
-                    "reports_available": False  # TODO: Get from actual report status
-                }
-
-                prerequisite_check = self.prerequisite_service.check_action_feasible(
-                    intent_detected,
-                    context
+            try:
+                intent_response = await self.llm.chat(
+                    messages=[
+                        Message(role="system", content=intent_prompt),
+                        Message(role="user", content=user_message)
+                    ],
+                    functions=None,
+                    temperature=0.1,
+                    max_tokens=50
                 )
 
-                logger.info(
-                    f"Prerequisite check: feasible={prerequisite_check.feasible}, "
-                    f"missing={prerequisite_check.missing_prerequisites}"
-                )
+                intent_text = intent_response.content.strip().lower()
+                logger.info(f"Intent detection: {intent_text}")
 
-        except Exception as e:
-            logger.warning(f"Intent detection failed: {e} - continuing with normal flow")
-            intent_detected = None
-            prerequisite_check = None
+                # Check if it's an action (not just conversation)
+                if intent_text != "conversation" and intent_text in [a.value for a in Action]:
+                    intent_detected = intent_text
+                    logger.info(f"✓ Action request detected: {intent_detected}")
+
+                    # 3. PREREQUISITE CHECK - Is this action currently feasible?
+                    context = {
+                        "completeness": session.completeness,
+                        "child_name": data.child_name,
+                        "video_count": 0,  # TODO: Get from actual video storage
+                        "analysis_complete": False,  # TODO: Get from actual analysis status
+                        "reports_available": False  # TODO: Get from actual report status
+                    }
+
+                    prerequisite_check = self.prerequisite_service.check_action_feasible(
+                        intent_detected,
+                        context
+                    )
+
+                    logger.info(
+                        f"Prerequisite check: feasible={prerequisite_check.feasible}, "
+                        f"missing={prerequisite_check.missing_prerequisites}"
+                    )
+
+            except Exception as e:
+                logger.warning(f"Intent detection failed: {e} - continuing with normal flow")
+                intent_detected = None
+                prerequisite_check = None
 
         # 4. Determine which functions to use (for extraction call later)
         model_name = getattr(self.llm, 'model_name', 'unknown')
@@ -216,6 +243,10 @@ Your response should:
 
 The explanation above is already in Hebrew and personalized - USE IT or adapt it naturally.
 """
+
+        # Add injected knowledge if information request detected
+        if injected_knowledge:
+            base_prompt += f"\n\n{injected_knowledge}"
 
         system_prompt = base_prompt
 
