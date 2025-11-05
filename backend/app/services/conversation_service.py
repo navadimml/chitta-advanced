@@ -327,27 +327,38 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
                 llm_response.content = "סליחה, יש לי בעיה טכנית. בואי ננסה שוב."
 
             # CALL 2: Extract structured data from conversation
-            # Create dedicated extraction context with EXPLICIT instructions for less capable models
-            extraction_system = """You are a data extraction assistant analyzing a parent-child development conversation.
+            # Create dedicated extraction context with EXPLICIT field names
+            extraction_system = """You are a data extraction assistant. Call extract_interview_data function.
 
-**YOUR ONLY JOB: Call the extract_interview_data function with any information found.**
+**FUNCTION SCHEMA - USE THESE EXACT FIELD NAMES**:
+```
+extract_interview_data(
+    child_name: string | null,
+    age: number | null,
+    gender: "male" | "female" | "unknown" | null,
+    primary_concerns: ["speech" | "social" | "motor" | "attention" | "sensory" | "emotional" | "behavioral" | "learning" | "other"] | null,
+    concern_details: string | null,
+    strengths: string | null,
+    developmental_history: string | null,
+    family_context: string | null,
+    daily_routines: string | null,
+    parent_goals: string | null
+)
+```
 
-Analyze this conversation turn and extract:
-1. **Child basics**: name, age (in years), gender
-2. **Concerns**: any difficulties, challenges, or worries mentioned
-3. **Strengths**: what the child is good at, enjoys, interests
-4. **Details**: specific examples, descriptions, context
-
-**CRITICAL**: You MUST call the extract_interview_data function.
-Even if you only extract ONE piece of information, call the function.
-Empty/null values are fine for missing data.
+**CRITICAL RULES**:
+1. MUST call the function (even if only 1 field has data)
+2. Use EXACT field names above (e.g., "primary_concerns" NOT "concerns")
+3. Use null for missing data
+4. Extract EVERYTHING you can find
 
 **Examples**:
-- Parent says: "הבת שלי בת 4" → Extract: {"child_name": null, "age": 4, "gender": "female"}
-- Parent says: "יש לו קשיים בדיבור" → Extract: {"primary_concerns": ["speech"], "concern_details": "קשיים בדיבור"}
-- Parent says: "הוא אוהב לצייר" → Extract: {"strengths": "אוהב לצייר"}
+- "הבת שלי בת 4" → extract_interview_data(age=4, gender="female")
+- "יש לו קשיים בדיבור" → extract_interview_data(primary_concerns=["speech"], concern_details="קשיים בדיבור", gender="male")
+- "הוא אוהב לצייר" → extract_interview_data(strengths="אוהב לצייר", gender="male")
+- "לא מצליחה להצטרף למשחקים" → extract_interview_data(primary_concerns=["social"], concern_details="לא מצליחה להצטרף למשחקים", gender="female")
 
-Now analyze and CALL THE FUNCTION:
+CALL THE FUNCTION NOW:
 
             extraction_messages = [
                 Message(role="system", content=extraction_system),
