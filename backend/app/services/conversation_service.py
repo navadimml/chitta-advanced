@@ -405,12 +405,37 @@ CALL THE FUNCTION NOW:
 
         for func_call in llm_response.function_calls:
             if func_call.name == "extract_interview_data":
-                # Update extracted data
+                # CRITICAL FIX: Remap wrong field names that LLMs sometimes use
+                # Gemini often ignores schema and uses shortened/alternative names
+                arguments = func_call.arguments.copy()
+
+                # Field name remapping
+                field_remapping = {
+                    'concerns': 'primary_concerns',           # Common mistake
+                    'concern_description': 'concern_details',  # Common mistake
+                    'concern_detail': 'concern_details',       # Singular variant
+                    'details': 'concern_details',              # Too short
+                    'history': 'developmental_history',        # Too short
+                    'family': 'family_context',                # Too short
+                    'routines': 'daily_routines',              # Too short
+                    'goals': 'parent_goals',                   # Too short
+                }
+
+                # Apply remapping
+                for wrong_name, correct_name in field_remapping.items():
+                    if wrong_name in arguments:
+                        if correct_name not in arguments or not arguments[correct_name]:
+                            # Move data from wrong field to correct field
+                            arguments[correct_name] = arguments[wrong_name]
+                            logger.warning(f"⚠️  Remapped field '{wrong_name}' → '{correct_name}'")
+                        del arguments[wrong_name]
+
+                # Update extracted data with corrected field names
                 updated_data = self.interview_service.update_extracted_data(
                     family_id,
-                    func_call.arguments
+                    arguments
                 )
-                extraction_summary = func_call.arguments
+                extraction_summary = arguments
                 logger.info(f"Extracted data: {list(extraction_summary.keys())}")
 
             elif func_call.name == "user_wants_action":
