@@ -12,7 +12,7 @@ This service:
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -22,29 +22,29 @@ class ExtractedData(BaseModel):
     child_name: Optional[str] = None
     age: Optional[float] = None
     gender: Optional[str] = None  # "male", "female", "unknown"
-    primary_concerns: List[str] = []
+    primary_concerns: List[str] = Field(default_factory=list)
     concern_details: Optional[str] = None
     strengths: Optional[str] = None
     developmental_history: Optional[str] = None
     family_context: Optional[str] = None
     daily_routines: Optional[str] = None
     parent_goals: Optional[str] = None
-    urgent_flags: List[str] = []
+    urgent_flags: List[str] = Field(default_factory=list)
 
     # Metadata
-    last_updated: datetime = datetime.now()
+    last_updated: datetime = Field(default_factory=datetime.now)
     extraction_count: int = 0  # How many times data was extracted
 
 
 class InterviewState(BaseModel):
     """Complete interview state for a family"""
     family_id: str
-    extracted_data: ExtractedData = ExtractedData()
+    extracted_data: ExtractedData = Field(default_factory=ExtractedData)
     completeness: float = 0.0  # 0.0 to 1.0
-    conversation_history: List[Dict[str, str]] = []  # List of {role, content}
+    conversation_history: List[Dict[str, str]] = Field(default_factory=list)
     video_guidelines_generated: bool = False
-    created_at: datetime = datetime.now()
-    updated_at: datetime = datetime.now()
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
 
 class InterviewService:
