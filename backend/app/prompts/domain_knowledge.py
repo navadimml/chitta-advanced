@@ -231,6 +231,26 @@ FAQ = {
 
 בואי נתמקד במה שחשוב - ספרי לי על הילד/ה שלך. מה מדאיג אותך? 💙"""
     },
+    "creative_writing_about_chitta": {
+        "question_patterns": [
+            "תכתבי לי שיר",
+            "תכתבי שיר",
+            "תספרי לי סיפור",
+            "איך עבר לך היום",
+            "מה את מרגישה",
+            "מה היום שלך",
+            "איך את מרגישה היום",
+            "write me a poem",
+            "write a song",
+            "tell me a story",
+            "how was your day",
+            "how are you feeling",
+            "what's your day like"
+        ],
+        "answer_hebrew": """אני כאן כדי לעזור לך עם הילד/ה שלך, לא לדבר על עצמי.
+
+בואי נתמקד במה שחשוב - ספרי לי על הילד/ה. מה מדאיג אותך? 💙"""
+    },
     "what_can_i_do": {
         "question_patterns": [
             "מה אני יכול לעשות",
