@@ -1,0 +1,207 @@
+"""
+Interview Function Definitions - LITE VERSION for Less Capable Models
+
+These are simplified versions of the interview functions optimized for
+models with weaker function calling capabilities (e.g., Gemini Flash).
+
+Key changes:
+1. Fewer optional parameters (only most important fields)
+2. Simpler descriptions
+3. Clearer examples
+4. More explicit required fields
+"""
+
+from typing import List, Dict, Any
+
+
+# === Simplified Interview Data Extraction ===
+
+EXTRACT_INTERVIEW_DATA_LITE = {
+    "name": "extract_interview_data",
+    "description": """Extract child development data from conversation.
+
+CALL THIS FUNCTION IMMEDIATELY whenever parent mentions:
+- Child's name, age, or gender
+- Concerns or challenges
+- Strengths or interests
+- Any other relevant information
+
+Don't wait - extract whatever information is available right now!""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "child_name": {
+                "type": "string",
+                "description": "Child's name (leave empty if not mentioned)"
+            },
+            "age": {
+                "type": "number",
+                "description": "Child's age in years (can be decimal like 3.5)"
+            },
+            "gender": {
+                "type": "string",
+                "enum": ["male", "female", "unknown"],
+                "description": "Child's gender. Infer from Hebrew (הוא=male, היא=female)"
+            },
+            "concerns": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["speech", "social", "attention", "motor", "sensory", "emotional", "behavioral", "learning", "sleep", "eating", "other"]
+                },
+                "description": "List of concern categories (e.g., ['speech', 'social'])"
+            },
+            "concern_description": {
+                "type": "string",
+                "description": "What parent said about concerns - copy their words with examples"
+            },
+            "strengths": {
+                "type": "string",
+                "description": "What child is good at, likes to do, interests"
+            },
+            "other_info": {
+                "type": "string",
+                "description": "Any other important information mentioned (history, family, routines, goals)"
+            }
+        },
+        "required": []  # Nothing required - extract what's available
+    }
+}
+
+
+# === User Action Intent ===
+
+USER_WANTS_ACTION_LITE = {
+    "name": "user_wants_action",
+    "description": """Call when user wants to DO something specific.
+
+Examples:
+- "רוצה לראות דוח" → action: "view_report"
+- "איך מעלים סרטון" → action: "upload_video"
+- "תראי לי הנחיות" → action: "view_video_guidelines"
+
+Only call for ACTIONS, not for questions during interview.""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": [
+                    "view_report",
+                    "upload_video",
+                    "view_video_guidelines",
+                    "consultation_mode",
+                    "add_journal_entry",
+                    "view_journal",
+                    "find_experts",
+                    "share_report"
+                ],
+                "description": "The action user wants to perform"
+            }
+        },
+        "required": ["action"]
+    }
+}
+
+
+# === Interview Completion Check ===
+
+CHECK_INTERVIEW_COMPLETENESS_LITE = {
+    "name": "check_interview_completeness",
+    "description": """Call when user signals they are done talking.
+
+Signals that user is done:
+- "זה הכל"
+- "סיימתי"
+- "אין לי יותר מה להוסיף"
+
+Only call this when user clearly wants to finish.""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "ready_to_complete": {
+                "type": "boolean",
+                "description": "True if enough information collected to create video guidelines"
+            },
+            "completeness_percentage": {
+                "type": "number",
+                "description": "Estimate 0-100. Need: basic info (20%), concerns (35%), strengths (15%), context (30%)"
+            },
+            "what_is_missing": {
+                "type": "string",
+                "description": "What critical information is still missing (if any)"
+            }
+        },
+        "required": ["ready_to_complete"]
+    }
+}
+
+
+# === All Functions (Lite Version) ===
+
+INTERVIEW_FUNCTIONS_LITE: List[Dict[str, Any]] = [
+    EXTRACT_INTERVIEW_DATA_LITE,
+    USER_WANTS_ACTION_LITE,
+    CHECK_INTERVIEW_COMPLETENESS_LITE
+]
+
+
+# === Helper Functions ===
+
+def get_function_by_name_lite(name: str) -> Dict[str, Any]:
+    """Get lite function definition by name"""
+    for func in INTERVIEW_FUNCTIONS_LITE:
+        if func["name"] == name:
+            return func
+    raise ValueError(f"Function {name} not found in lite functions")
+
+
+def should_use_lite_functions(model_name: str) -> bool:
+    """
+    Determine if we should use lite functions based on model
+
+    Use lite functions for:
+    - Gemini Flash models
+    - Smaller/faster models
+    - Models known to have weaker function calling
+
+    Use full functions for:
+    - Gemini Pro 2.0
+    - GPT-4
+    - Claude Opus/Sonnet
+    - Other high-capability models
+    """
+    model_lower = model_name.lower()
+
+    # Models that should use lite functions
+    lite_models = [
+        "flash",           # Gemini Flash
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+        "gpt-3.5",         # GPT-3.5
+        "small",           # Any "small" model
+        "mini",            # Any "mini" model
+        "lite",            # Any "lite" model
+    ]
+
+    for lite_indicator in lite_models:
+        if lite_indicator in model_lower:
+            return True
+
+    return False
+
+
+def get_appropriate_functions(model_name: str) -> List[Dict[str, Any]]:
+    """
+    Get the appropriate function set for the model
+
+    Returns:
+        INTERVIEW_FUNCTIONS_LITE for less capable models
+        INTERVIEW_FUNCTIONS for high-capability models
+    """
+    if should_use_lite_functions(model_name):
+        return INTERVIEW_FUNCTIONS_LITE
+
+    # Import full functions
+    from .interview_functions import INTERVIEW_FUNCTIONS
+    return INTERVIEW_FUNCTIONS
