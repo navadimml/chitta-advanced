@@ -79,7 +79,32 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 2. QUICK INTENT DETECTION
+        # 2. CHECK FOR DIRECT FAQ MATCH FIRST (tangents, off-topic, etc.)
+        # This handles things like creative writing requests, internal instructions requests
+        # without even going to the LLM
+        context = {
+            "child_name": data.child_name,
+            "completeness": session.completeness,
+            "video_count": 0,  # TODO: Get from actual video count
+            "reports_available": False  # TODO: Get from actual report status
+        }
+
+        direct_answer = self.knowledge_service.get_direct_answer(user_message, context)
+        if direct_answer:
+            logger.info(f"✓ Direct FAQ answer found - returning without LLM call")
+            return {
+                "response": direct_answer,
+                "function_calls": [],
+                "completeness": session.completeness,
+                "extracted_data": data.to_dict(),
+                "context_cards": self._generate_context_cards(session),
+                "stats": {
+                    "intent": "faq_direct_answer",
+                    "faq_matched": True
+                }
+            }
+
+        # 3. QUICK INTENT DETECTION
         # Detect if user wants to: (a) perform action, (b) get info about app, or (c) just conversing
         intent_detected = None
         prerequisite_check = None
