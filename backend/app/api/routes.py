@@ -9,6 +9,7 @@ from datetime import datetime
 
 from app.core.app_state import app_state
 from app.services.llm.base import Message
+from app.services.conversation_service import get_conversation_service
 
 router = APIRouter()
 
@@ -55,106 +56,61 @@ async def root():
 @router.post("/chat/send", response_model=SendMessageResponse)
 async def send_message(request: SendMessageRequest):
     """
-    שליחת הודעה לצ'יטה
+    שליחת הודעה לצ'יטה - Real AI Conversation with Function Calling
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    # קבל/צור session
-    session = app_state.get_or_create_session(request.family_id)
+    # Get conversation service (singleton)
+    conversation_service = get_conversation_service()
 
-    # הוסף הודעת משתמש
-    session["interview_messages"].append({
-        "role": "user",
-        "content": request.message,
-        "timestamp": datetime.now().isoformat()
-    })
-
-    # קבל תגובה מה-LLM
-    # Convert to Message objects
-    messages = [
-        Message(role=msg["role"], content=msg["content"])
-        for msg in session["interview_messages"]
-    ]
-
-    # אם זו ההודעה הראשונה, הוסף system prompt
-    if len(session["interview_messages"]) == 1:
-        messages.insert(0, Message(
-            role="system",
-            content="אתה Chitta - עוזרת AI חמה שמנהלת ראיון התפתחותי עם הורה."
-        ))
-
-    llm_response = await app_state.llm.chat(messages)
-    response = llm_response.content
-
-    # בדיקה אם הראיון הסתיים
-    if response == "INTERVIEW_COMPLETE":
-        # השלמת ראיון אוטומטית
-        summary_result = await app_state.llm.chat_with_structured_output(
-            messages=[Message(role="system", content="סכם את הראיון")],
-            response_schema={"interview_summary": {}, "video_guidelines": {}}
+    try:
+        # Process message with real LLM and function calling
+        result = await conversation_service.process_message(
+            family_id=request.family_id,
+            user_message=request.message,
+            temperature=0.7
         )
 
-        # שמירה ב-session
-        session["interview_summary"] = summary_result["interview_summary"]
-        session["video_guidelines"] = summary_result["video_guidelines"]
-        session["current_stage"] = "video_upload"
+        # Get or create session for backward compatibility
+        session = app_state.get_or_create_session(request.family_id)
 
-        # שמירה ב-Graphiti
-        await app_state.graphiti.add_episode(
-            name=f"interview_summary_{request.family_id}",
-            episode_body=summary_result["interview_summary"],
-            group_id=request.family_id
-        )
+        # Update session stage based on completeness
+        if result["completeness"] >= 80:
+            session["current_stage"] = "video_upload"
+        else:
+            session["current_stage"] = "interview"
 
-        await app_state.graphiti.add_episode(
-            name=f"video_guidelines_{request.family_id}",
-            episode_body=summary_result["video_guidelines"],
-            group_id=request.family_id
-        )
-
-        response = "מעולה! יצרתי עבורך הנחיות צילום מותאמות אישית. תראי אותן למטה. כשתהיי מוכנה, תוכלי להעלות את הסרטונים."
-
-        # הוסף תגובה להיסטוריה
-        session["interview_messages"].append({
-            "role": "assistant",
-            "content": response,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # UI data עם כרטיסי וידאו
+        # Build UI data with real data from conversation service
         ui_data = {
-            "suggestions": ["אעלה סרטון עכשיו", "אקרא את ההנחיות"],
-            "cards": _generate_cards(session),
-            "progress": 0.4,
-            "video_guidelines": summary_result["video_guidelines"]
+            "suggestions": _generate_suggestions_from_state(result),
+            "cards": result.get("context_cards", []),
+            "progress": result["completeness"] / 100,  # Convert to 0-1 scale
+            "extracted_data": result.get("extracted_data", {}),
+            "stats": result.get("stats", {})
         }
 
         return SendMessageResponse(
-            response=response,
+            response=result["response"],
             stage=session["current_stage"],
             ui_data=ui_data
         )
 
-    # הוסף תגובה להיסטוריה
-    session["interview_messages"].append({
-        "role": "assistant",
-        "content": response,
-        "timestamp": datetime.now().isoformat()
-    })
+    except Exception as e:
+        # Log error and return graceful fallback
+        import logging
+        logging.error(f"Error in send_message: {e}", exc_info=True)
 
-    # בנה UI data
-    ui_data = {
-        "suggestions": _generate_suggestions(session),
-        "cards": _generate_cards(session),
-        "progress": len(session["interview_messages"]) / 10  # Rough estimate
-    }
-
-    return SendMessageResponse(
-        response=response,
-        stage=session["current_stage"],
-        ui_data=ui_data
-    )
+        return SendMessageResponse(
+            response="מצטערת, נתקלתי בבעיה טכנית. בואי ננסה שוב.",
+            stage="interview",
+            ui_data={
+                "suggestions": ["נסה שוב", "דבר עם תמיכה"],
+                "cards": [],
+                "progress": 0,
+                "error": str(e)
+            }
+        )
 
 @router.post("/interview/complete", response_model=CompleteInterviewResponse)
 async def complete_interview(family_id: str):
@@ -463,6 +419,48 @@ def _generate_suggestions(session: dict) -> List[str]:
         ]
 
     return []
+
+def _generate_suggestions_from_state(result: dict) -> List[str]:
+    """
+    Generate suggestions based on conversation service result
+
+    Args:
+        result: Result dict from conversation_service.process_message()
+    """
+    completeness = result.get("completeness", 0)
+    stats = result.get("stats", {})
+
+    # Early conversation (<20% complete)
+    if completeness < 20:
+        return [
+            "שמו יוני והוא בן 3.5",
+            "יש לי דאגות לגבי הדיבור שלו",
+            "ספרי לי מה עוד חשוב"
+        ]
+
+    # Mid conversation (20-60% complete)
+    elif completeness < 60:
+        return [
+            "הוא מאוד אוהב פאזלים ומשחקי בנייה",
+            "איך הוא מתנהג בגן?",
+            "יש עוד משהו שחשוב לדעת?"
+        ]
+
+    # Late conversation (60-80% complete)
+    elif completeness < 80:
+        return [
+            "מה המטרה שלי עבורו?",
+            "איך המשפחה מתמודדת?",
+            "אני חושבת שזה הכל"
+        ]
+
+    # Ready for next stage (>80% complete)
+    else:
+        return [
+            "איך מעלים סרטון?",
+            "תראי לי את ההנחיות",
+            "מה הצעדים הבאים?"
+        ]
 
 def _generate_cards(session: dict) -> List[dict]:
     """יצירת כרטיסים דינמיים"""
