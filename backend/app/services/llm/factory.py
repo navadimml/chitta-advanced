@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 def create_llm_provider(
     provider_type: Optional[str] = None,
     api_key: Optional[str] = None,
-    model: Optional[str] = None
+    model: Optional[str] = None,
+    use_enhanced: Optional[bool] = None
 ) -> BaseLLMProvider:
     """
     Create LLM provider based on environment configuration or explicit parameters
@@ -30,6 +31,7 @@ def create_llm_provider(
         provider_type: Override for LLM_PROVIDER env var ("gemini", "anthropic", "openai", "simulated")
         api_key: Override for API key env var
         model: Override for LLM_MODEL env var
+        use_enhanced: Whether to use enhanced provider with fallback extraction (default: True for Gemini)
 
     Returns:
         Configured LLM provider instance
@@ -37,6 +39,7 @@ def create_llm_provider(
     Environment Variables:
         LLM_PROVIDER: Which provider to use (default: "simulated")
         LLM_MODEL: Model name (provider-specific)
+        LLM_USE_ENHANCED: Whether to use enhanced providers (default: "true")
         GEMINI_API_KEY: Google Gemini API key
         ANTHROPIC_API_KEY: Anthropic Claude API key
         OPENAI_API_KEY: OpenAI API key
@@ -45,15 +48,20 @@ def create_llm_provider(
         >>> # Use environment variables
         >>> provider = create_llm_provider()
 
-        >>> # Override provider type
-        >>> provider = create_llm_provider(provider_type="gemini", api_key="xxx")
+        >>> # Override provider type with enhanced mode
+        >>> provider = create_llm_provider(provider_type="gemini", api_key="xxx", use_enhanced=True)
     """
 
     # Get configuration from parameters or environment
     provider_type = provider_type or os.getenv("LLM_PROVIDER", "simulated")
     provider_type = provider_type.lower()
 
-    logger.info(f"Creating LLM provider: {provider_type}")
+    # Determine if enhanced mode should be used
+    if use_enhanced is None:
+        use_enhanced_env = os.getenv("LLM_USE_ENHANCED", "true").lower()
+        use_enhanced = use_enhanced_env in ["true", "1", "yes"]
+
+    logger.info(f"Creating LLM provider: {provider_type} (enhanced={use_enhanced})")
 
     # === Gemini Provider (Recommended) ===
     if provider_type == "gemini":
@@ -65,9 +73,21 @@ def create_llm_provider(
         model = model or os.getenv("LLM_MODEL", "gemini-2.0-flash-exp")
 
         try:
-            from .gemini_provider import GeminiProvider
-            provider = GeminiProvider(api_key=api_key, model=model)
-            logger.info(f"✅ Using Gemini provider: {model}")
+            if use_enhanced:
+                # Use enhanced provider with fallback extraction
+                from .gemini_provider_enhanced import GeminiProviderEnhanced
+                provider = GeminiProviderEnhanced(
+                    api_key=api_key,
+                    model=model,
+                    enable_fallback_extraction=True,
+                    enable_function_call_monitoring=True
+                )
+                logger.info(f"✅ Using Enhanced Gemini provider: {model}")
+            else:
+                # Use standard provider
+                from .gemini_provider import GeminiProvider
+                provider = GeminiProvider(api_key=api_key, model=model)
+                logger.info(f"✅ Using Gemini provider: {model}")
             return provider
         except ImportError as e:
             logger.error(f"Failed to import GeminiProvider: {e}")
