@@ -255,21 +255,12 @@ class GeminiProvider(BaseLLMProvider):
             "parameters": {...}
         }
 
-        Gemini format: Tool with FunctionDeclaration
+        Gemini format: Tool with FunctionDeclaration (as per official docs)
+        Note: We can pass plain dicts directly to types.Tool() - the SDK handles conversion
         """
-        declarations = []
-
-        for func in functions:
-            # Create FunctionDeclaration
-            declaration = types.FunctionDeclaration(
-                name=func["name"],
-                description=func.get("description", ""),
-                parameters=func.get("parameters", {})
-            )
-            declarations.append(declaration)
-
-        # Return list with single Tool containing all declarations
-        return [types.Tool(function_declarations=declarations)]
+        # Per official Gemini documentation, we can pass dicts directly to types.Tool
+        # The SDK will internally convert them to FunctionDeclaration objects
+        return [types.Tool(function_declarations=functions)]
 
     def _parse_gemini_response(self, response) -> LLMResponse:
         """
@@ -279,6 +270,11 @@ class GeminiProvider(BaseLLMProvider):
         - Text responses
         - Function calls
         - Finish reasons
+        - Empty responses (safety filters, etc.)
+
+        Note: Unlike the official documentation examples which directly access
+        response.candidates[0].content.parts[0], we safely check for None/empty
+        at each level to prevent errors when Gemini returns filtered/empty responses.
         """
         function_calls = []
         content = ""
