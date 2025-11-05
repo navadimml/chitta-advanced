@@ -36,9 +36,9 @@ class Feature:
 DOMAIN_INFO = {
     "app_name": "Chitta",
     "app_name_hebrew": "צ'יטה",
-    "domain": "child_development_screening",
-    "purpose": "Child development screening and assessment platform",
-    "purpose_hebrew": "פלטפורמה להערכת והתפתחות ילדים"
+    "domain": "child_development_assistant",
+    "purpose": "AI-powered parental assistant for child development - from initial screening through ongoing journey documentation and care coordination",
+    "purpose_hebrew": "מערכת ליווי הורי מונעת בינה מלאכותית להתפתחות ילדים - מהערכה ראשונית ועד תיעוד מסע מתמשך ותיאום טיפול"
 }
 
 PROCESS_OVERVIEW = """
@@ -55,8 +55,9 @@ The screening process happens in stages:
    - Shows exactly what scenarios to film
 
 3. **Film & Upload Videos** (צילום והעלאת סרטונים)
-   - Parent films 3+ short videos based on guidelines
-   - Shows child in different situations
+   - Parent films short videos based on personalized guidelines
+   - Number and type of videos tailored to child's specific needs
+   - Shows child in different relevant situations
 
 4. **AI Analysis** (ניתוח בינה מלאכותית)
    - Takes ~24 hours
@@ -87,8 +88,9 @@ PROCESS_OVERVIEW_HEBREW = """
    - מראה בדיוק אילו סיטואציות לצלם
 
 3. **צילום והעלאת סרטונים**
-   - ההורה מצלם 3+ סרטונים קצרים לפי ההנחיות
-   - מציגים את הילד/ה במצבים שונים
+   - ההורה מצלם סרטונים קצרים לפי הנחיות מותאמות אישית
+   - מספר וסוג הסרטונים מותאם לצרכים הספציפיים של הילד/ה
+   - מציגים את הילד/ה במצבים רלוונטיים שונים
 
 4. **ניתוח בינה מלאכותית**
    - לוקח בערך 24 שעות
@@ -138,8 +140,8 @@ FEATURES = [
     Feature(
         name="Upload Videos",
         name_hebrew="העלאת סרטונים",
-        description="Upload 3+ short videos of your child in different scenarios",
-        description_hebrew="העלאת 3+ סרטונים קצרים של הילד/ה במצבים שונים",
+        description="Upload short videos of your child based on personalized filming guidelines",
+        description_hebrew="העלאת סרטונים קצרים של הילד/ה לפי הנחיות צילום מותאמות",
         always_available=False,
         requires=["interview_complete"]
     ),
@@ -183,6 +185,36 @@ FEATURES = [
 # ============================================================================
 
 FAQ = {
+    "what_is_chitta": {
+        "question_patterns": [
+            "מה זה צ'יטה",
+            "מה זאת האפליקציה",
+            "מה זה האפליקציה הזאת",
+            "מה את",
+            "מה זה כאן",
+            "what is chitta",
+            "what is this app",
+            "what are you"
+        ],
+        "answer_hebrew": """שמחה שאת שואלת! 💙
+
+**צ'יטה (Chitta)** היא מערכת ליווי הורי חכמה להתפתחות ילדים - בעצם עוזרת אישית שלך במסע ההתפתחותי.
+
+**איך זה עובד?**
+1. **ראיון התפתחותי** - אני מכירה את הילד/ה שלך דרך שיחה מעמיקה
+2. **ניתוח ווידאו** - מנתחת סרטונים קצרים לזיהוי דפוסי התפתחות
+3. **יומן המסע** - תיעוד כל התקדמות, תצפיות, ופגישות במקום אחד
+4. **דוח מקיף** - ממצאים והמלצות מקצועיים מבוססי מחקר
+5. **ליווי מתמשך** - תמיכה, סיכומים חכמים, וחיבור למומחים
+
+**למה זה שונה?**
+• **הכל במקום אחד** - ראיון, ניתוח, תיעוד, דוחות, תיאום טיפול
+• **מותאם אישית** - כל שלב מותאם לצרכים של הילד/ה שלך
+• **תמיכה 24/7** - אני זמינה תמיד, בלי צורך לתאם פגישות
+• **הפחתת עומס** - אני מסדרת את כל המידע ועוזרת לך לנווט את התהליך
+
+בואי נתחיל! 🌟"""
+    },
     "what_can_i_do": {
         "question_patterns": [
             "מה אני יכול לעשות",
@@ -200,8 +232,8 @@ FAQ = {
 • **שאלת שאלות** - שאלי אותי כל שאלה על התפתחות ילדים
 
 **אחרי שנסיים את השיחה:**
-• **הנחיות צילום** - אני אכין לך הוראות מדויקות לאילו סרטונים לצלם
-• **העלאת סרטונים** - תעלי 3 סרטונים קצרים של {child_name}
+• **הנחיות צילום** - אני אכין לך הוראות מדויקות לאילו סרטונים לצלם (מותאם אישית)
+• **העלאת סרטונים** - תעלי סרטונים קצרים של {child_name} לפי ההנחיות המותאמות
 
 **אחרי ניתוח הסרטונים (~24 שעות):**
 • **דוח התפתחותי מקיף** - ממצאים והמלצות
@@ -318,10 +350,10 @@ FAQ = {
 הסרטונים מאפשרים לבינה המלאכותית שלי לנתח דפוסי התפתחות בדרך מדויקת יותר.
 
 **מה צריך לצלם?**
-אחרי השיחה שלנו, אני אכין לך **הנחיות צילום מותאמות אישית** - בדיוק מה צריך לצלם ואיך, בהתאם למה שדיברנו.
+אחרי השיחה שלנו, אני אכין לך **הנחיות צילום מותאמות אישית** - בדיוק מה צריך לצלם ואיך, בהתאם למה שדיברנו. מספר הסרטונים משתנה בהתאם לצרכים של {child_name or 'הילד/ה'}.
 
 **כמה זמן?**
-3 סרטונים קצרים (כ-3-5 דקות כל אחד) - סה"כ כ-15 דקות צילום.
+כמה סרטונים קצרים (כ-3-5 דקות כל אחד) - בדרך כלל סה"כ כ-15-20 דקות צילום.
 
 יש לך עוד שאלות על התהליך?"""
     },

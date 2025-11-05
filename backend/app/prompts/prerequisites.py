@@ -240,14 +240,16 @@ def _get_view_report_explanation(
 
     # Interview is complete, but no videos yet
     if video_count == 0:
-        return f"כדי ליצור דוח, אני צריכה לראות את {child_name} בפעולה! קודם אני אכין לך הנחיות צילום מותאמות אישית, ואז תעלי 3 סרטונים קצרים. אחרי שאנתח אותם - הדוח יהיה מוכן."
+        videos_text = "מספר סרטונים קצרים" if required_videos > 1 else "סרטון קצר"
+        return f"כדי ליצור דוח, אני צריכה לראות את {child_name} בפעולה! קודם אני אכין לך הנחיות צילום מותאמות אישית, ואז תעלי {videos_text}. אחרי שאנתח אותם - הדוח יהיה מוכן."
 
     # Have some videos but not enough
     if video_count < required_videos:
         remaining = required_videos - video_count
         remaining_text = "סרטון אחד נוסף" if remaining == 1 else f"{remaining} סרטונים נוספים"
         video_count_text = "סרטון אחד" if video_count == 1 else f"{video_count} סרטונים"
-        return f"כמעט שם! יש {video_count_text}, אני צריכה עוד {remaining_text} כדי לקבל תמונה מלאה של {child_name}. ברגע שיהיו 3 סרטונים, אני אתחיל בניתוח ואכין את הדוח."
+        required_text = "הסרטון" if required_videos == 1 else f"{required_videos} הסרטונים"
+        return f"כמעט שם! יש {video_count_text}, אני צריכה עוד {remaining_text} כדי לקבל תמונה מלאה של {child_name}. ברגע שיהיו {required_text}, אני אתחיל בניתוח ואכין את הדוח."
 
     # Have enough videos, currently analyzing
     if analysis_complete:
@@ -255,7 +257,8 @@ def _get_view_report_explanation(
         return f"הניתוח הושלם! אני עובדת כרגע על הכנת הדוח המפורט עבור {child_name}. עוד רגע זה יהיה מוכן. 💙"
     else:
         # Analysis in progress
-        return f"מצוין! יש לי 3 סרטונים של {child_name} ואני מנתחת אותם כרגע. זה לוקח בדרך כלל כ-24 שעות. אני רוצה לתת לך ממצאים מדויקים ושימושיים, אז שווה להמתין. בינתיים, את יכולה להוסיף תצפיות ליומן. 💙"
+        videos_text = f"{required_videos} הסרטונים" if required_videos > 1 else "הסרטון"
+        return f"מצוין! יש לי {videos_text} של {child_name} ואני מנתחת אותם כרגע. זה לוקח בדרך כלל כ-24 שעות. אני רוצה לתת לך ממצאים מדויקים ושימושיים, אז שווה להמתין. בינתיים, את יכולה להוסיף תצפיות ליומן. 💙"
 
 
 def is_always_available(action: Action) -> bool:
@@ -294,8 +297,8 @@ When user wants to perform an action, these are the requirements:
 - View video guidelines (need context to create personalized guidelines)
 - Upload videos (need interview to know what scenarios to film)
 
-**Requires Interview + Videos (3+):**
-- Analyze videos (need sufficient video data)
+**Requires Interview + Sufficient Videos:**
+- Analyze videos (need sufficient video data based on personalized guidelines)
 
 **Requires Analysis Complete (Reports Available):**
 - View report (must complete analysis first)
