@@ -16,10 +16,12 @@ from datetime import datetime
 from .llm.base import Message, BaseLLMProvider
 from .llm.factory import create_llm_provider
 from .interview_service import get_interview_service, InterviewService
+from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.interview_prompt_lite import build_interview_prompt_lite
 from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
+from ..prompts.prerequisites import Action
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +39,12 @@ class ConversationService:
     def __init__(
         self,
         llm_provider: Optional[BaseLLMProvider] = None,
-        interview_service: Optional[InterviewService] = None
+        interview_service: Optional[InterviewService] = None,
+        prerequisite_service: Optional[PrerequisiteService] = None
     ):
         self.llm = llm_provider or create_llm_provider()
         self.interview_service = interview_service or get_interview_service()
+        self.prerequisite_service = prerequisite_service or get_prerequisite_service()
 
         logger.info(f"ConversationService initialized with {self.llm.get_provider_name()}")
 
@@ -72,7 +76,69 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 2. Determine which functions to use (for extraction call later)
+        # 2. QUICK INTENT DETECTION - Does user want to perform an action?
+        # This is a fast, lightweight call to detect action requests
+        intent_detected = None
+        prerequisite_check = None
+
+        intent_prompt = f"""Analyze this message and determine if the user wants to perform a specific ACTION.
+
+User message: "{user_message}"
+
+Common action indicators:
+- "תן לי דוח" / "רוצה לראות דוח" → wants report
+- "איך מעלים סרטון" / "להעלות סרטון" → wants to upload video
+- "תראי לי הנחיות" → wants video guidelines
+- Just conversing about child → NO action
+
+Respond with ONLY the action name if detected, or "CONVERSATION" if just talking.
+Actions: view_report, upload_video, view_video_guidelines, find_experts, add_journal_entry
+Or: CONVERSATION"""
+
+        try:
+            intent_response = await self.llm.chat(
+                messages=[
+                    Message(role="system", content=intent_prompt),
+                    Message(role="user", content=user_message)
+                ],
+                functions=None,
+                temperature=0.1,
+                max_tokens=50
+            )
+
+            intent_text = intent_response.content.strip().lower()
+            logger.info(f"Intent detection: {intent_text}")
+
+            # Check if it's an action (not just conversation)
+            if intent_text != "conversation" and intent_text in [a.value for a in Action]:
+                intent_detected = intent_text
+                logger.info(f"✓ Action request detected: {intent_detected}")
+
+                # 3. PREREQUISITE CHECK - Is this action currently feasible?
+                context = {
+                    "completeness": session.completeness,
+                    "child_name": data.child_name,
+                    "video_count": 0,  # TODO: Get from actual video storage
+                    "analysis_complete": False,  # TODO: Get from actual analysis status
+                    "reports_available": False  # TODO: Get from actual report status
+                }
+
+                prerequisite_check = self.prerequisite_service.check_action_feasible(
+                    intent_detected,
+                    context
+                )
+
+                logger.info(
+                    f"Prerequisite check: feasible={prerequisite_check.feasible}, "
+                    f"missing={prerequisite_check.missing_prerequisites}"
+                )
+
+        except Exception as e:
+            logger.warning(f"Intent detection failed: {e} - continuing with normal flow")
+            intent_detected = None
+            prerequisite_check = None
+
+        # 4. Determine which functions to use (for extraction call later)
         model_name = getattr(self.llm, 'model_name', 'unknown')
         use_lite = self.interview_service.should_use_lite_mode(family_id, model_name)
 
@@ -83,9 +149,11 @@ class ConversationService:
             functions = INTERVIEW_FUNCTIONS
             logger.debug(f"Using FULL functions for {family_id}")
 
-        # Build conversation prompt WITHOUT function calling instructions
-        # (Functions are handled in separate extraction call)
-        system_prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic developmental specialist conducting an interview with a parent in Hebrew.
+        # 5. Build CONTEXTUAL conversation prompt
+        # This includes prerequisite information so LLM can respond appropriately
+
+        # Base prompt
+        base_prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic developmental specialist conducting an interview with a parent in Hebrew.
 
 Your job: Have a natural, flowing conversation to understand the child's development.
 
@@ -108,14 +176,50 @@ Interview flow (follow naturally, don't announce stages):
 - Main concerns: "מה הביא אותך אלינו? מה מדאיג אותך?" (detailed - examples, context, frequency, impact)
 - Additional areas: Development history, family context, daily routines, parent goals
 
-When parent requests action mid-interview (like asking for report):
-- Acknowledge their request warmly
-- Explain benefit of completing interview first
-- Guide back to conversation
-
 Keep the conversation natural and flowing. Just talk - don't mention any technical processes."""
 
-        # 3. Build conversation messages
+        # Add prerequisite context if action was detected
+        if prerequisite_check:
+            if prerequisite_check.feasible:
+                # Action IS possible - let LLM know they can facilitate it
+                base_prompt += f"""
+
+## ⚠️ IMPORTANT: User Action Request
+
+The user wants to: **{prerequisite_check.action.value}**
+
+✅ This action IS currently possible! The prerequisites are met.
+
+Your response should:
+1. Acknowledge their request positively
+2. Help them with what they want
+3. If interview not fully complete and action is view_report: Ask if there's anything else they want to share first
+
+Example: "בהחלט! יש לי מספיק מידע כדי להתחיל. לפני שאסכם - יש עוד משהו חשוב שלא דיברנו עליו?"
+"""
+            else:
+                # Action is NOT possible yet - explain warmly
+                base_prompt += f"""
+
+## ⚠️ IMPORTANT: User Action Request (Not Yet Possible)
+
+The user wants to: **{prerequisite_check.action.value}**
+
+❌ This action is NOT yet possible. Missing: {prerequisite_check.missing_prerequisites}
+
+Your response should:
+1. Use this explanation (personalized for them):
+   "{prerequisite_check.explanation_to_user}"
+
+2. Then guide back to completing what's needed
+3. Be warm and encouraging - never make them feel blocked
+
+The explanation above is already in Hebrew and personalized - USE IT or adapt it naturally.
+"""
+
+        system_prompt = base_prompt
+
+        # 6. Build conversation messages
         messages = [Message(role="system", content=system_prompt)]
 
         # Add recent conversation history (last 10 turns)
@@ -133,7 +237,7 @@ Keep the conversation natural and flowing. Just talk - don't mention any technic
         # Add current user message
         messages.append(Message(role="user", content=user_message))
 
-        # 4. Call LLM - TWO SEPARATE CALLS to ensure we always get text
+        # 7. Call LLM - TWO SEPARATE CALLS to ensure we always get text
         #
         # CRITICAL: Gemini returns empty text when functions are provided.
         # Solution: Split into two calls:
