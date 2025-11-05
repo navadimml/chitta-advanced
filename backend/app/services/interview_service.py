@@ -1,0 +1,297 @@
+"""
+Interview Service - Manages interview state and completeness calculation
+
+This service:
+1. Stores extracted interview data per family
+2. Calculates interview completeness
+3. Tracks conversation history
+4. Determines which prompt/functions to use
+5. Generates video guidelines when ready
+"""
+
+import logging
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
+
+
+class ExtractedData(BaseModel):
+    """Structured interview data extracted from conversation"""
+    child_name: Optional[str] = None
+    age: Optional[float] = None
+    gender: Optional[str] = None  # "male", "female", "unknown"
+    primary_concerns: List[str] = []
+    concern_details: Optional[str] = None
+    strengths: Optional[str] = None
+    developmental_history: Optional[str] = None
+    family_context: Optional[str] = None
+    daily_routines: Optional[str] = None
+    parent_goals: Optional[str] = None
+    urgent_flags: List[str] = []
+
+    # Metadata
+    last_updated: datetime = datetime.now()
+    extraction_count: int = 0  # How many times data was extracted
+
+
+class InterviewState(BaseModel):
+    """Complete interview state for a family"""
+    family_id: str
+    extracted_data: ExtractedData = ExtractedData()
+    completeness: float = 0.0  # 0.0 to 1.0
+    conversation_history: List[Dict[str, str]] = []  # List of {role, content}
+    video_guidelines_generated: bool = False
+    created_at: datetime = datetime.now()
+    updated_at: datetime = datetime.now()
+
+
+class InterviewService:
+    """
+    Manages interview state and data extraction for families
+
+    In production, this would integrate with Graphiti for persistent storage.
+    For now, we use in-memory storage.
+    """
+
+    def __init__(self):
+        # In-memory storage: family_id -> InterviewState
+        self.sessions: Dict[str, InterviewState] = {}
+        logger.info("InterviewService initialized (in-memory mode)")
+
+    def get_or_create_session(self, family_id: str) -> InterviewState:
+        """Get existing session or create new one"""
+        if family_id not in self.sessions:
+            self.sessions[family_id] = InterviewState(family_id=family_id)
+            logger.info(f"Created new interview session for family: {family_id}")
+        return self.sessions[family_id]
+
+    def update_extracted_data(
+        self,
+        family_id: str,
+        new_data: Dict[str, Any]
+    ) -> ExtractedData:
+        """
+        Update extracted data with new information (additive merge)
+
+        Rules:
+        - Scalars: new value overrides if not empty
+        - Arrays: merge and deduplicate
+        - Strings: append if significantly different
+        """
+        session = self.get_or_create_session(family_id)
+        current = session.extracted_data
+
+        # Update scalar fields
+        for field in ['child_name', 'age', 'gender']:
+            if field in new_data and new_data[field]:
+                setattr(current, field, new_data[field])
+
+        # Merge arrays (concerns, urgent_flags)
+        if 'primary_concerns' in new_data and new_data['primary_concerns']:
+            concerns = set(current.primary_concerns + new_data['primary_concerns'])
+            current.primary_concerns = list(concerns)
+
+        if 'urgent_flags' in new_data and new_data['urgent_flags']:
+            flags = set(current.urgent_flags + new_data['urgent_flags'])
+            current.urgent_flags = list(flags)
+
+        # Append or merge text fields
+        text_fields = [
+            'concern_details', 'strengths', 'developmental_history',
+            'family_context', 'daily_routines', 'parent_goals'
+        ]
+
+        for field in text_fields:
+            if field in new_data and new_data[field]:
+                current_text = getattr(current, field) or ""
+                new_text = new_data[field]
+
+                # Only append if new info is significantly different
+                if new_text.lower() not in current_text.lower():
+                    combined = f"{current_text}. {new_text}".strip(". ")
+                    setattr(current, field, combined)
+
+        # Update metadata
+        current.last_updated = datetime.now()
+        current.extraction_count += 1
+
+        # Recalculate completeness
+        session.completeness = self.calculate_completeness(family_id)
+        session.updated_at = datetime.now()
+
+        logger.info(
+            f"Updated data for {family_id}: "
+            f"completeness={session.completeness:.1%}, "
+            f"extractions={current.extraction_count}"
+        )
+
+        return current
+
+    def calculate_completeness(self, family_id: str) -> float:
+        """
+        Calculate interview completeness (0.0 to 1.0)
+
+        Weighting:
+        - Basic info (name, age, gender): 20%
+        - Primary concerns with details: 35%
+        - Strengths: 10%
+        - Developmental context: 20%
+        - Family/routines/goals: 15%
+        """
+        session = self.get_or_create_session(family_id)
+        data = session.extracted_data
+
+        score = 0.0
+
+        # Basic information (20 points)
+        if data.child_name:
+            score += 0.05
+        if data.age:
+            score += 0.10  # Age is critical
+        if data.gender and data.gender != "unknown":
+            score += 0.05
+
+        # Primary concerns (35 points)
+        if data.primary_concerns:
+            score += 0.15  # At least one concern mentioned
+
+            if data.concern_details and len(data.concern_details) > 50:
+                score += 0.20  # Detailed description provided
+
+        # Strengths (10 points)
+        if data.strengths and len(data.strengths) > 20:
+            score += 0.10
+
+        # Developmental context (20 points)
+        context_fields = [
+            data.developmental_history,
+            data.family_context,
+        ]
+        filled_context = sum(1 for f in context_fields if f and len(f) > 20)
+        score += (filled_context / len(context_fields)) * 0.20
+
+        # Daily life and goals (15 points)
+        life_fields = [
+            data.daily_routines,
+            data.parent_goals,
+        ]
+        filled_life = sum(1 for f in life_fields if f and len(f) > 20)
+        score += (filled_life / len(life_fields)) * 0.15
+
+        return min(1.0, score)
+
+    def add_conversation_turn(
+        self,
+        family_id: str,
+        role: str,
+        content: str
+    ):
+        """Add a message to conversation history"""
+        session = self.get_or_create_session(family_id)
+        session.conversation_history.append({
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now().isoformat()
+        })
+        session.updated_at = datetime.now()
+
+    def get_conversation_history(
+        self,
+        family_id: str,
+        last_n: Optional[int] = None
+    ) -> List[Dict[str, str]]:
+        """Get conversation history (optionally last N messages)"""
+        session = self.get_or_create_session(family_id)
+        history = session.conversation_history
+
+        if last_n:
+            return history[-last_n:]
+        return history
+
+    def get_context_summary(self, family_id: str) -> str:
+        """Get a text summary of what's been collected so far"""
+        session = self.get_or_create_session(family_id)
+        data = session.extracted_data
+
+        parts = []
+
+        if data.child_name:
+            parts.append(f"Child's name: {data.child_name}")
+        if data.age:
+            parts.append(f"Age: {data.age} years")
+        if data.gender and data.gender != "unknown":
+            parts.append(f"Gender: {data.gender}")
+
+        if data.primary_concerns:
+            concerns_str = ", ".join(data.primary_concerns)
+            parts.append(f"Concerns: {concerns_str}")
+
+        if data.strengths:
+            parts.append(f"Strengths: {data.strengths[:100]}")
+
+        if not parts:
+            return "No information collected yet."
+
+        return ". ".join(parts)
+
+    def should_use_lite_mode(self, family_id: str, model_name: str) -> bool:
+        """
+        Determine if lite mode should be used
+
+        Lite mode for:
+        - Flash models (always)
+        - Early in conversation (< 20% complete)
+        """
+        from .llm.gemini_provider_enhanced import GeminiProviderEnhanced
+
+        # Check model name
+        if "flash" in model_name.lower():
+            return True
+
+        # Check conversation progress
+        session = self.get_or_create_session(family_id)
+        if session.completeness < 0.20:
+            # Early conversation - use simpler prompts
+            return True
+
+        return False
+
+    def mark_video_guidelines_generated(self, family_id: str):
+        """Mark that video guidelines have been generated"""
+        session = self.get_or_create_session(family_id)
+        session.video_guidelines_generated = True
+        session.updated_at = datetime.now()
+        logger.info(f"Video guidelines generated for {family_id}")
+
+    def get_session_stats(self, family_id: str) -> Dict[str, Any]:
+        """Get statistics about the session"""
+        session = self.get_or_create_session(family_id)
+        data = session.extracted_data
+
+        return {
+            "family_id": family_id,
+            "completeness": session.completeness,
+            "completeness_pct": f"{session.completeness:.1%}",
+            "extraction_count": data.extraction_count,
+            "conversation_turns": len(session.conversation_history),
+            "video_guidelines_ready": session.video_guidelines_generated,
+            "has_child_name": bool(data.child_name),
+            "has_age": bool(data.age),
+            "concerns_count": len(data.primary_concerns),
+            "urgent_flags_count": len(data.urgent_flags),
+            "created_at": session.created_at.isoformat(),
+            "updated_at": session.updated_at.isoformat()
+        }
+
+
+# Singleton instance
+_interview_service = None
+
+def get_interview_service() -> InterviewService:
+    """Get singleton InterviewService instance"""
+    global _interview_service
+    if _interview_service is None:
+        _interview_service = InterviewService()
+    return _interview_service
