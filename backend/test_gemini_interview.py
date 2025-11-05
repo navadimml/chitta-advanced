@@ -33,9 +33,18 @@ else:
 # Setup logging to see debug messages
 import logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(name)s - %(levelname)s - %(message)s'
 )
+
+# Silence noisy loggers
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('google_genai').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+
+# Keep our app logs at INFO level
+logging.getLogger('app.services.llm').setLevel(logging.INFO)
 
 from app.services.llm.factory import create_llm_provider, get_provider_info
 from app.services.llm.base import Message
@@ -60,7 +69,7 @@ async def test_basic_chat():
     ]
 
     print("Sending test message...")
-    response = await llm.chat(messages, temperature=0.7, max_tokens=100)
+    response = await llm.chat(messages, temperature=0.7, max_tokens=20000)
 
     print(f"\n📝 Response: {response.content}")
     print(f"🏁 Finish reason: {response.finish_reason}")
@@ -99,7 +108,7 @@ async def test_function_calling():
         messages,
         functions=INTERVIEW_FUNCTIONS,
         temperature=0.7,
-        max_tokens=500
+        max_tokens=10000
     )
 
     print(f"📝 Response content: {response.content}\n")
@@ -165,7 +174,7 @@ async def test_multi_turn_conversation():
         conversation,
         functions=INTERVIEW_FUNCTIONS,
         temperature=0.7,
-        max_tokens=500
+        max_tokens=20000
     )
 
     print(f"\n📝 Assistant response: {response.content}\n")
@@ -225,7 +234,7 @@ async def test_completeness_check():
         conversation,
         functions=INTERVIEW_FUNCTIONS,
         temperature=0.7,
-        max_tokens=500
+        max_tokens=20000
     )
 
     print(f"📝 Response: {response.content}\n")
