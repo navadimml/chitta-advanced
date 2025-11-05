@@ -79,23 +79,34 @@ async def extract_with_structured_output(
     Returns:
         Extracted data as dictionary, or None if extraction fails
     """
-    extraction_prompt = f"""You are analyzing a conversation about a child's development.
+    extraction_prompt = f"""You are analyzing a parent-child development conversation.
 
-Extract structured information from the latest user message.
-
-Recent conversation context:
+Recent conversation:
 {_format_conversation_for_extraction(conversation_history[-3:] if len(conversation_history) > 3 else conversation_history)}
 
-Latest user message:
+Latest parent message:
 "{latest_user_message}"
 
-Extract any relevant information about:
-- Child's name, age, gender
-- Concerns or challenges mentioned
-- Strengths or interests
-- Family context, history, or other details
+**TASK**: Extract ANY information about the child, even if partial.
 
-If no new information in latest message, set has_new_information to false."""
+Look for:
+1. **Basic info**: name, age (e.g., "בת 4" = age 4), gender (e.g., "הוא" = male, "היא" = female)
+2. **Concerns**: difficulties, challenges, worries (e.g., "קשיים בדיבור" = speech concerns)
+3. **Strengths**: interests, what child enjoys, good at (e.g., "אוהב לצייר" = likes drawing)
+4. **Details**: any examples, descriptions, or context shared
+
+**IMPORTANT**:
+- Extract EVERYTHING you find, even single pieces of info
+- If you find even ONE piece of information, set has_new_information = true
+- Better to extract something than nothing
+- Partial data is OK (e.g., just age without name)
+
+**Examples**:
+- "הבת שלי בת 4" → age:4, gender:female, has_new_information:true
+- "יש לו קשיים בתקשורת" → concerns:["speech"], gender:male, has_new_information:true
+- "היא אוהבת לצייר" → strengths:"אוהבת לצייר", gender:female, has_new_information:true
+
+Extract now:
 
     try:
         messages = [

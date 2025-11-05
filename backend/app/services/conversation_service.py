@@ -327,17 +327,27 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
                 llm_response.content = "סליחה, יש לי בעיה טכנית. בואי ננסה שוב."
 
             # CALL 2: Extract structured data from conversation
-            # Create dedicated extraction context
-            extraction_system = """You are a data extraction assistant. Your job is to extract structured information from conversations.
+            # Create dedicated extraction context with EXPLICIT instructions for less capable models
+            extraction_system = """You are a data extraction assistant analyzing a parent-child development conversation.
 
-Given the latest conversation turn, identify and extract:
-- Child information (name, age, gender)
-- Concerns mentioned
-- Strengths described
-- Context shared
-- Action requests
+**YOUR ONLY JOB: Call the extract_interview_data function with any information found.**
 
-Call the appropriate functions to save this data. Extract everything you can from what the parent said."""
+Analyze this conversation turn and extract:
+1. **Child basics**: name, age (in years), gender
+2. **Concerns**: any difficulties, challenges, or worries mentioned
+3. **Strengths**: what the child is good at, enjoys, interests
+4. **Details**: specific examples, descriptions, context
+
+**CRITICAL**: You MUST call the extract_interview_data function.
+Even if you only extract ONE piece of information, call the function.
+Empty/null values are fine for missing data.
+
+**Examples**:
+- Parent says: "הבת שלי בת 4" → Extract: {"child_name": null, "age": 4, "gender": "female"}
+- Parent says: "יש לו קשיים בדיבור" → Extract: {"primary_concerns": ["speech"], "concern_details": "קשיים בדיבור"}
+- Parent says: "הוא אוהב לצייר" → Extract: {"strengths": "אוהב לצייר"}
+
+Now analyze and CALL THE FUNCTION:
 
             extraction_messages = [
                 Message(role="system", content=extraction_system),
