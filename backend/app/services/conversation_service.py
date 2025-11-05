@@ -131,10 +131,14 @@ class ConversationService:
                 f"{len(llm_response.function_calls)} function calls"
             )
 
-            # CRITICAL FIX: Handle empty responses when function calls are made
-            # Sometimes models return function calls but no text content
+            # SAFETY NET: Handle empty responses (should be VERY rare with fixed prompts)
+            # The prompts explicitly prioritize Hebrew conversation over function calls.
+            # If this triggers, it indicates the prompt isn't working correctly.
             if not llm_response.content.strip() and llm_response.function_calls:
-                logger.warning("⚠️  LLM returned empty text with function calls - generating fallback response")
+                logger.error(
+                    "❌ PROMPT FAILURE: Model returned empty text despite explicit prompt instructions! "
+                    "This should not happen. Check if prompt is being used correctly. Using safety fallback."
+                )
                 llm_response.content = self._generate_fallback_response(
                     llm_response.function_calls,
                     data
