@@ -132,6 +132,7 @@ Analyze the user message and classify it into one of these intent categories.
      * CURRENT_STATE - "איפה אני?", "מה השלב?", "מה עכשיו?"
      * PREREQUISITE_EXPLANATION - "למה אני לא יכולה...?", "מתי אוכל...?"
      * NEXT_STEPS - "מה הלאה?", "מה בשלב הבא?"
+     * PRIVACY_SECURITY - "מה עם פרטיות?", "איפה הסרטונים נשמרים?", "מי רואה את המידע?", "כמה זה מאובטח?", "מי יכול לראות?" (any questions about data privacy, security, storage, access)
      * DOMAIN_QUESTION - "מה זה אוטיזם?", "בגיל כמה ילדים מדברים?" (questions about child development, not about the app)
 
 4. **TANGENT** - Off-topic or tangential request
@@ -155,7 +156,7 @@ Analyze the user message and classify it into one of these intent categories.
 {{
     "category": "DATA_COLLECTION" | "ACTION_REQUEST" | "INFORMATION_REQUEST" | "TANGENT" | "PAUSE_EXIT",
     "specific_action": "view_report" | "upload_video" | "view_video_guidelines" | "find_experts" | "add_journal_entry" | null,
-    "information_type": "APP_FEATURES" | "PROCESS_EXPLANATION" | "CURRENT_STATE" | "PREREQUISITE_EXPLANATION" | "NEXT_STEPS" | "DOMAIN_QUESTION" | null,
+    "information_type": "APP_FEATURES" | "PROCESS_EXPLANATION" | "CURRENT_STATE" | "PREREQUISITE_EXPLANATION" | "NEXT_STEPS" | "PRIVACY_SECURITY" | "DOMAIN_QUESTION" | null,
     "confidence": 0.95,
     "reasoning": "Brief explanation of why you chose this classification"
 }}
@@ -246,6 +247,9 @@ Respond with ONLY the JSON object, no other text."""
         elif information_type == InformationRequestType.CURRENT_STATE:
             return self._get_current_state_knowledge(context)
 
+        elif information_type == InformationRequestType.PRIVACY_SECURITY:
+            return self._get_privacy_security_knowledge(context)
+
         else:
             return ""
 
@@ -330,6 +334,50 @@ The parent asked where they are in the process.
 
 **Tell them:**
 "סיימנו את הראיון! ({completeness_pct}%) השלב הבא הוא שאני אכין לך הנחיות צילום מותאמות אישית ל{child_name}. מוכנ/ה לקבל אותן?"
+"""
+
+    def _get_privacy_security_knowledge(self, context: Dict) -> str:
+        """Get knowledge about privacy and security to inject into LLM prompt"""
+        # For privacy questions, we want the LLM to generate a contextual response
+        # using our _get_contextual_privacy_answer method
+        # But since we're in the prompt injection flow, we'll provide the key points
+        # and let the LLM phrase it naturally
+
+        return """## ⚠️ PRIVACY/SECURITY QUESTION DETECTED
+
+The parent is asking about data privacy, security, storage, or who can access their information.
+
+**Important: Use a context-aware, focused response!**
+
+Detect what they're specifically asking about:
+- **Video storage**: If asking about where videos are saved
+- **Data storage**: If asking about where data is stored in general
+- **Who sees data**: If asking about access control
+- **Security level**: If asking about how secure it is
+
+**Key privacy/security facts to share (be selective based on their question):**
+
+**Storage & Security:**
+• All data (conversations, videos, reports) stored on secured servers
+• Full encryption at AES-256 level (banking/medical grade)
+• Complies with GDPR and medical data protection standards
+• Automated encrypted backups
+
+**Access Control:**
+• **Only the parent** has access to their data
+• **Chosen professionals** - only with explicit permission
+• **Quality control** - in rare cases, verified expert may review report
+• **No third parties** without consent
+
+**User Control:**
+• Right to delete all data at any time
+• Right to export a copy of all data
+• Right to restrict usage of data
+
+**Answer their specific question first, then briefly mention related points.**
+
+Keep it warm, reassuring, and concise. Don't overwhelm with all details at once.
+End with: "יש לך עוד שאלות על פרטיות או אבטחה?"
 """
 
     def get_direct_answer(

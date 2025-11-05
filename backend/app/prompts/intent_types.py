@@ -51,6 +51,9 @@ class InformationRequestType(Enum):
     # "What happens after X?"
     NEXT_STEPS = "next_steps"
 
+    # "Is my data safe? Who can see it? Where is it stored?"
+    PRIVACY_SECURITY = "privacy_security"
+
     # Domain-specific question (child development, not app features)
     DOMAIN_QUESTION = "domain_question"
 

@@ -80,9 +80,6 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 2. CHECK FOR DIRECT FAQ MATCH FIRST (tangents, off-topic, etc.)
-        # This handles things like creative writing requests, internal instructions requests
-        # without even going to the LLM
         context = {
             "child_name": data.child_name,
             "completeness": session.completeness,
@@ -90,27 +87,9 @@ class ConversationService:
             "reports_available": False  # TODO: Get from actual report status
         }
 
-        direct_answer = self.knowledge_service.get_direct_answer(user_message, context)
-        if direct_answer:
-            logger.info(f"✓ Direct FAQ answer found - returning without LLM call")
-            return {
-                "response": direct_answer,
-                "function_calls": [],
-                "completeness": session.completeness * 100,
-                "extracted_data": data.model_dump(),
-                "context_cards": self._generate_context_cards(
-                    family_id=family_id,
-                    completeness=session.completeness,
-                    action_requested=None,
-                    completeness_check=None
-                ),
-                "stats": {
-                    "intent": "faq_direct_answer",
-                    "faq_matched": True
-                }
-            }
-
-        # 3. TIER 2: LLM-BASED INTENT CLASSIFICATION
+        # 2. TIER 2: LLM-BASED INTENT CLASSIFICATION (PRIMARY PATH)
+        # Use LLM's semantic understanding FIRST for accurate intent detection
+        # This handles privacy questions, app features, action requests, etc.
         # Use semantic understanding to detect user intent
         # This replaces the primitive string matching with proper confidence scoring
         intent_detected = None
@@ -179,9 +158,30 @@ class ConversationService:
                 logger.info(f"Injecting domain knowledge about {detected_intent.information_type}")
 
             elif detected_intent.category == IntentCategory.TANGENT:
-                # Off-topic request - should have been caught by FAQ, but handle gracefully
-                logger.info(f"✓ Tangent detected by Tier 2 (FAQ didn't catch it)")
-                # The LLM conversation will handle this naturally
+                # Off-topic request (creative writing, system prompts, etc.)
+                # Try direct FAQ matching for canned responses
+                logger.info(f"✓ Tangent detected - checking for direct FAQ answer")
+                direct_answer = self.knowledge_service.get_direct_answer(user_message, context)
+                if direct_answer:
+                    logger.info(f"✓ Direct FAQ answer found for tangent - returning without LLM call")
+                    return {
+                        "response": direct_answer,
+                        "function_calls": [],
+                        "completeness": session.completeness * 100,
+                        "extracted_data": data.model_dump(),
+                        "context_cards": self._generate_context_cards(
+                            family_id=family_id,
+                            completeness=session.completeness,
+                            action_requested=None,
+                            completeness_check=None
+                        ),
+                        "stats": {
+                            "intent": "tangent_faq",
+                            "faq_matched": True,
+                            "tier": "llm_detected_tangent"
+                        }
+                    }
+                # If no FAQ match, let LLM conversation handle it naturally
 
             elif detected_intent.category == IntentCategory.PAUSE_EXIT:
                 # User wants to pause/exit
