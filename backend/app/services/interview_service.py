@@ -133,52 +133,74 @@ class InterviewService:
         """
         Calculate interview completeness (0.0 to 1.0)
 
-        Weighting:
-        - Basic info (name, age, gender): 20%
-        - Primary concerns with details: 35%
+        For 30-minute in-depth interview, basic info is just the start.
+
+        Weighting (designed for ~30 min deep conversation):
+        - Basic info (name, age, gender): 5% (quick start)
+        - Primary concerns with details: 50% (MAIN focus - multiple concerns, examples, impact)
         - Strengths: 10%
-        - Developmental context: 20%
-        - Family/routines/goals: 15%
+        - Developmental context: 15%
+        - Family/routines/goals: 20%
         """
         session = self.get_or_create_session(family_id)
         data = session.extracted_data
 
         score = 0.0
 
-        # Basic information (20 points)
+        # Basic information (5 points) - just getting started
         if data.child_name:
-            score += 0.05
+            score += 0.01
         if data.age:
-            score += 0.10  # Age is critical
+            score += 0.03  # Age is most critical of basics
         if data.gender and data.gender != "unknown":
-            score += 0.05
+            score += 0.01
 
-        # Primary concerns (35 points)
+        # Primary concerns (50 points) - THIS IS THE MAIN INTERVIEW
+        # This should take most of the 30 minutes
         if data.primary_concerns:
-            score += 0.15  # At least one concern mentioned
+            # Having concerns mentioned: 10%
+            concerns_score = min(len(data.primary_concerns) * 0.05, 0.10)
+            score += concerns_score
 
-            if data.concern_details and len(data.concern_details) > 50:
-                score += 0.20  # Detailed description provided
+            # Detailed description with examples: 20%
+            if data.concern_details:
+                detail_length = len(data.concern_details)
+                if detail_length > 200:  # Substantial detail
+                    score += 0.20
+                elif detail_length > 100:  # Some detail
+                    score += 0.12
+                elif detail_length > 50:  # Basic detail
+                    score += 0.07
+
+            # Multiple concerns explored: 10%
+            if len(data.primary_concerns) >= 2:
+                score += 0.05
+            if len(data.primary_concerns) >= 3:
+                score += 0.05
+
+            # Urgent flags identified: 10%
+            if data.urgent_flags:
+                score += min(len(data.urgent_flags) * 0.05, 0.10)
 
         # Strengths (10 points)
-        if data.strengths and len(data.strengths) > 20:
+        if data.strengths and len(data.strengths) > 30:
             score += 0.10
 
-        # Developmental context (20 points)
-        context_fields = [
-            data.developmental_history,
-            data.family_context,
-        ]
-        filled_context = sum(1 for f in context_fields if f and len(f) > 20)
-        score += (filled_context / len(context_fields)) * 0.20
+        # Developmental context (15 points)
+        context_score = 0.0
+        if data.developmental_history and len(data.developmental_history) > 30:
+            context_score += 0.08
+        if data.family_context and len(data.family_context) > 30:
+            context_score += 0.07
+        score += context_score
 
-        # Daily life and goals (15 points)
-        life_fields = [
-            data.daily_routines,
-            data.parent_goals,
-        ]
-        filled_life = sum(1 for f in life_fields if f and len(f) > 20)
-        score += (filled_life / len(life_fields)) * 0.15
+        # Daily life and goals (20 points)
+        life_score = 0.0
+        if data.daily_routines and len(data.daily_routines) > 30:
+            life_score += 0.10
+        if data.parent_goals and len(data.parent_goals) > 30:
+            life_score += 0.10
+        score += life_score
 
         return min(1.0, score)
 

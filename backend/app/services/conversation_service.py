@@ -261,9 +261,18 @@ class ConversationService:
 
         # Child profile card (if we have basic info)
         if data.child_name and data.age:
+            # Build subtitle - don't show "0 תחומי התפתחות"
+            if data.primary_concerns:
+                concerns_count = len(data.primary_concerns)
+                concerns_text = "תחום התפתחות אחד" if concerns_count == 1 else f"{concerns_count} תחומי התפתחות"
+                subtitle = f"גיל {data.age}, {concerns_text}"
+            else:
+                # No concerns yet - just show age
+                subtitle = f"גיל {data.age}"
+
             cards.append({
                 "title": f"פרופיל: {data.child_name}",
-                "subtitle": f"גיל {data.age}, {len(data.primary_concerns)} תחומי התפתחות",
+                "subtitle": subtitle,
                 "icon": "user",
                 "status": "active"
             })
