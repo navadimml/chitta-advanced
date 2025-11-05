@@ -350,6 +350,10 @@ The parent asked where they are in the process.
         faq_key = domain_knowledge.match_faq_question(user_message)
 
         if faq_key and faq_key in self.faq:
+            # Special handling for privacy questions - make them context-aware
+            if faq_key == "data_privacy_comprehensive":
+                return self._get_contextual_privacy_answer(user_message, context)
+
             answer = self.faq[faq_key]["answer_hebrew"]
 
             # Replace placeholders
@@ -359,6 +363,98 @@ The parent asked where they are in the process.
             return answer
 
         return None
+
+    def _get_contextual_privacy_answer(
+        self,
+        user_message: str,
+        context: Dict
+    ) -> str:
+        """
+        Generate context-aware privacy response based on what user is specifically asking
+
+        Args:
+            user_message: User's privacy-related question
+            context: Current context
+
+        Returns:
+            Focused privacy answer addressing their specific concern
+        """
+        message_lower = user_message.lower()
+        child_name = context.get("child_name", "הילד/ה")
+
+        # Detect specific sub-topic
+        asking_about_videos = any(word in message_lower for word in ['סרטון', 'וידאו', 'צילום'])
+        asking_about_who_sees = any(word in message_lower for word in ['מי רואה', 'מי יכול', 'גישה'])
+        asking_about_storage = any(word in message_lower for word in ['איפה', 'שומר', 'נשמר', 'מאוחסן'])
+        asking_about_security = any(word in message_lower for word in ['מאובטח', 'בטוח', 'הצפנה'])
+
+        # Build a focused response based on what they're asking
+        response_parts = []
+
+        # Opening - acknowledge their concern
+        response_parts.append(
+            f"זו שאלה **חשובה** ואני שמחה שאתה שואל! 🔒\n"
+        )
+
+        # Answer their specific question first
+        if asking_about_videos and asking_about_storage:
+            response_parts.append(
+                "**איפה הסרטונים נשמרים?**\n"
+                "• הסרטונים שלך נשמרים בשרתים מאובטחים עם הצפנה מלאה (AES-256 - כמו בנקים)\n"
+                "• השרתים עומדים בתקני הגנת מידע רפואי ו-GDPR\n"
+                "• גיבויים מוצפנים אוטומטיים למניעת אובדן\n\n"
+            )
+        elif asking_about_storage:
+            response_parts.append(
+                "**איפה המידע נשמר?**\n"
+                "• כל המידע (שיחות, סרטונים, דוחות) נשמר בשרתים מאובטחים\n"
+                "• הצפנה מלאה ברמת AES-256 (כמו במערכות בנקאות ורפואיות)\n"
+                "• עומדים בתקני GDPR והגנת מידע רפואי\n\n"
+            )
+
+        if asking_about_who_sees:
+            response_parts.append(
+                "**מי יכול לראות את המידע?**\n"
+                "• **אתה בלבד** - יש לך גישה מלאה לכל המידע שלך\n"
+                "• **מומחים שתבחר** - רק אם תאשר במפורש לשתף איתם\n"
+                "• **בקרת איכות** - במקרים נדירים, מומחה מאומת עשוי לבדוק את הדוח לאיכות\n"
+                "• **אף גורם שלישי** לא מקבל גישה ללא הסכמתך\n\n"
+            )
+
+        if asking_about_security:
+            response_parts.append(
+                "**כמה זה מאובטח?**\n"
+                "• הצפנה מלאה ברמת AES-256 (התקן הגבוה ביותר)\n"
+                "• אבטחת רשת רב-שכבתית\n"
+                "• תקני אבטחה רפואיים\n"
+                "• גיבויים מוצפנים\n\n"
+            )
+
+        # Add general privacy principles if they didn't ask specifically
+        if not any([asking_about_storage, asking_about_who_sees, asking_about_security]):
+            response_parts.append(
+                "**בקצרה:**\n"
+                "• **הצפנה מלאה** - ברמת בנקאות ורפואה (AES-256)\n"
+                "• **רק אתה** יכול לראות את המידע שלך\n"
+                "• **שליטה מלאה** - זכות למחיקה, ייצוא, והגבלה\n"
+                "• **תקני GDPR** והגנה מיוחדת לקטינים\n\n"
+            )
+
+        # Always add control section
+        response_parts.append(
+            "**השליטה שלך:**\n"
+            "• זכות למחיקת כל המידע בכל עת\n"
+            "• זכות לייצוא העתק של כל המידע שלך\n"
+            "• זכות להגבלת השימוש במידע\n\n"
+        )
+
+        # Closing
+        response_parts.append(
+            "הפרטיות שלך היא **קדושה** עבורנו. 💙\n\n"
+            "יש לך עוד שאלות על פרטיות או אבטחה?"
+        )
+
+        return "".join(response_parts)
 
 
 # Singleton instance

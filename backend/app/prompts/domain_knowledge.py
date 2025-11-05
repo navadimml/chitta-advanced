@@ -542,7 +542,9 @@ def get_feature_list_hebrew(current_state: Dict = None) -> str:
 
 def match_faq_question(user_message: str) -> Optional[str]:
     """
-    Match user message to FAQ question
+    Match user message to FAQ question with fuzzy matching
+
+    Handles word variations, different word orders, and stemming
 
     Args:
         user_message: User's message
@@ -552,9 +554,93 @@ def match_faq_question(user_message: str) -> Optional[str]:
     """
     user_message_lower = user_message.lower()
 
+    # Helper function to check if multiple keywords are present (fuzzy match)
+    def fuzzy_match(keywords: List[str], text: str) -> bool:
+        """Check if all keywords are present in text (with stemming)"""
+        import re
+
+        # Simple Hebrew stemming - remove common suffixes and prefixes
+        def stem_hebrew(word: str) -> str:
+            # Remove punctuation first
+            word = re.sub(r'[^\u0590-\u05FF\u0600-\u06FF\w]', '', word)
+
+            # Only remove definite article prefix 'ה' (the)
+            # Don't remove other letters that might be part of the root
+            if word.startswith('ה') and len(word) > 2:
+                word = word[1:]
+
+            # Remove common suffixes like ים, ות
+            for suffix in ['ים', 'ות']:
+                if word.endswith(suffix) and len(word) > len(suffix) + 1:
+                    word = word[:-len(suffix)]
+                    break
+
+            return word
+
+        # Stem all words in text
+        text_words = [stem_hebrew(w) for w in text.split()]
+        text_combined = ' '.join(text_words)  # Also check in combined form
+
+        for keyword in keywords:
+            keyword_stemmed = stem_hebrew(keyword.lower())
+            # Check if keyword (or its stem) appears in any word in text
+            found = False
+            for word in text_words:
+                # Use similarity check - allow for small differences
+                # Check if one contains the other, or if they're very similar
+                if keyword_stemmed in word or word in keyword_stemmed:
+                    found = True
+                    break
+                # Check for close match (1-2 character difference for Hebrew)
+                if len(keyword_stemmed) >= 3 and len(word) >= 3:
+                    # Calculate simple similarity
+                    # If first 2 chars match and one is substring of other
+                    if keyword_stemmed[:2] == word[:2] or keyword_stemmed[:3] == word[:3]:
+                        if keyword_stemmed in word or word in keyword_stemmed or \
+                           abs(len(keyword_stemmed) - len(word)) <= 1:
+                            found = True
+                            break
+
+            # Also check if keyword appears in the combined stemmed text
+            if not found and keyword_stemmed in text_combined:
+                found = True
+
+            if not found:
+                return False
+        return True
+
+    # Try exact substring match first (backward compatibility)
     for faq_key, faq_data in FAQ.items():
         for pattern in faq_data["question_patterns"]:
             if pattern.lower() in user_message_lower:
                 return faq_key
+
+    # Try fuzzy matching for privacy-related questions
+    # Special handling for video storage/privacy questions
+    privacy_keywords = [
+        ['סרטון', 'נשמר'],  # video + saved (נשמר/נישמר/שומר)
+        ['סרטון', 'שומר'],  # video + save
+        ['סרטון', 'איפה'],  # video + where
+        ['וידאו', 'נשמר'],  # video + saved
+        ['וידאו', 'שומר'],  # video + save
+        ['וידאו', 'איפה'],  # video + where
+        ['סרטון', 'פרטיות'],  # video + privacy
+        ['וידאו', 'פרטיות'],  # video + privacy
+        ['מידע', 'נשמר'],  # data + saved
+        ['מידע', 'שומר'],  # data + save
+        ['מידע', 'איפה'],  # data + where
+        ['נתונים', 'נשמר'],  # data + saved
+        ['נתונים', 'שומר'],  # data + save
+    ]
+
+    for keywords in privacy_keywords:
+        if fuzzy_match(keywords, user_message_lower):
+            return "data_privacy_comprehensive"
+
+    # Try fuzzy matching for general privacy questions
+    if fuzzy_match(['פרטיות'], user_message_lower) or \
+       fuzzy_match(['מאובטח'], user_message_lower) or \
+       fuzzy_match(['בטוח'], user_message_lower):
+        return "data_privacy_comprehensive"
 
     return None
