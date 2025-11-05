@@ -72,32 +72,48 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 2. Determine which prompt and functions to use
+        # 2. Determine which functions to use (for extraction call later)
         model_name = getattr(self.llm, 'model_name', 'unknown')
         use_lite = self.interview_service.should_use_lite_mode(family_id, model_name)
 
         if use_lite:
-            system_prompt = build_interview_prompt_lite(
-                child_name=data.child_name or "unknown",
-                age=str(data.age) if data.age else "unknown",
-                gender=data.gender or "unknown",
-                concerns=data.primary_concerns,
-                completeness=session.completeness,
-                context_summary=self.interview_service.get_context_summary(family_id)
-            )
             functions = INTERVIEW_FUNCTIONS_LITE
-            logger.debug(f"Using LITE mode for {family_id}")
+            logger.debug(f"Using LITE functions for {family_id}")
         else:
-            system_prompt = build_interview_prompt(
-                child_name=data.child_name or "unknown",
-                age=str(data.age) if data.age else "unknown",
-                gender=data.gender or "unknown",
-                concerns=data.primary_concerns,
-                completeness=session.completeness,
-                context_summary=self.interview_service.get_context_summary(family_id)
-            )
             functions = INTERVIEW_FUNCTIONS
-            logger.debug(f"Using FULL mode for {family_id}")
+            logger.debug(f"Using FULL functions for {family_id}")
+
+        # Build conversation prompt WITHOUT function calling instructions
+        # (Functions are handled in separate extraction call)
+        system_prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic developmental specialist conducting an interview with a parent in Hebrew.
+
+Your job: Have a natural, flowing conversation to understand the child's development.
+
+Current context:
+- Child: {data.child_name or "unknown"} (age: {data.age or "unknown"}, gender: {data.gender or "unknown"})
+- Concerns mentioned so far: {", ".join(data.primary_concerns) if data.primary_concerns else "none yet"}
+- Interview completeness: {session.completeness:.0%}
+- Summary: {self.interview_service.get_context_summary(family_id)}
+
+Conversation guidelines:
+1. Be warm and natural - speak like a caring friend
+2. Ask ONE clear question at a time
+3. Build on what the parent shares
+4. Show you're listening through thoughtful follow-ups
+5. Focus on gathering rich information about the child
+
+Interview flow (follow naturally, don't announce stages):
+- Start: Ask child's name and age if unknown
+- Strengths first: "במה הילד/ה אוהב/ת לעסוק?" (brief)
+- Main concerns: "מה הביא אותך אלינו? מה מדאיג אותך?" (detailed - examples, context, frequency, impact)
+- Additional areas: Development history, family context, daily routines, parent goals
+
+When parent requests action mid-interview (like asking for report):
+- Acknowledge their request warmly
+- Explain benefit of completing interview first
+- Guide back to conversation
+
+Keep the conversation natural and flowing. Just talk - don't mention any technical processes."""
 
         # 3. Build conversation messages
         messages = [Message(role="system", content=system_prompt)]
@@ -172,12 +188,18 @@ Call the appropriate functions to save this data. Extract everything you can fro
                 max_tokens=500
             )
 
-            # Use function calls from extraction response
+            # Use ONLY function calls from extraction response
+            # CRITICAL: Do NOT append extraction_response.content to llm_response.content
+            # The extraction content is just for the model, not for the user
             llm_response.function_calls = extraction_response.function_calls
 
             logger.info(
                 f"Extraction found: {len(extraction_response.function_calls)} function calls"
             )
+
+            # Debug: Log if extraction returned unexpected text
+            if extraction_response.content and extraction_response.content.strip():
+                logger.debug(f"Extraction response text (not shown to user): {extraction_response.content[:100]}")
 
         except Exception as e:
             logger.error(f"LLM call failed: {e}", exc_info=True)
