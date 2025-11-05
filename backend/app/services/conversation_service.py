@@ -131,6 +131,15 @@ class ConversationService:
                 f"{len(llm_response.function_calls)} function calls"
             )
 
+            # CRITICAL FIX: Handle empty responses when function calls are made
+            # Sometimes models return function calls but no text content
+            if not llm_response.content.strip() and llm_response.function_calls:
+                logger.warning("⚠️  LLM returned empty text with function calls - generating fallback response")
+                llm_response.content = self._generate_fallback_response(
+                    llm_response.function_calls,
+                    data
+                )
+
         except Exception as e:
             logger.error(f"LLM call failed: {e}", exc_info=True)
             return {
@@ -302,6 +311,68 @@ class ConversationService:
             "other": "אחר"
         }
         return [translations.get(c, c) for c in concerns]
+
+    def _generate_fallback_response(
+        self,
+        function_calls: List[Any],
+        current_data: Any
+    ) -> str:
+        """
+        Generate an appropriate Hebrew response when LLM returns empty text
+
+        This is a fallback for when the model makes function calls but doesn't
+        include conversational text (a known issue with some models).
+
+        Args:
+            function_calls: The function calls made by the LLM
+            current_data: Current extracted data
+
+        Returns:
+            Appropriate Hebrew response based on what was extracted
+        """
+        for func_call in function_calls:
+            if func_call.name == "extract_interview_data":
+                args = func_call.arguments
+
+                # Check what was extracted and respond accordingly
+                if args.get("child_name") and args.get("age"):
+                    name = args.get("child_name")
+                    age = args.get("age")
+                    return f"נעים להכיר את {name}! ספרי לי עוד על {name} - במה הוא/היא אוהב/ת לעסוק?"
+
+                elif args.get("child_name"):
+                    name = args.get("child_name")
+                    return f"נעים להכיר, {name}! בן כמה הוא/היא?"
+
+                elif args.get("age"):
+                    return "תודה! ספרי לי קצת עוד - מה מעניין אותך בעיקר בהתפתחות של הילד/ה?"
+
+                elif args.get("primary_concerns") or args.get("concern_details"):
+                    return "הבנתי. זה חשוב שדיברנו על זה. ספרי לי עוד - איך זה משפיע על היום יום?"
+
+                elif args.get("strengths"):
+                    return "נהדר! חשוב לי לדעת גם על החוזקות. מה עוד מתקדם יפה?"
+
+                elif args.get("developmental_history"):
+                    return "תודה על השיתוף. זה עוזר לי להבין את התמונה המלאה."
+
+                # Generic response for any other extraction
+                return "הבנתי, תודה! ספרי לי עוד קצת."
+
+            elif func_call.name == "user_wants_action":
+                action = func_call.arguments.get("action")
+                if action == "request_video_upload":
+                    return "נהדר! אני מכינה לך עכשיו הנחיות צילום מותאמות אישית."
+                elif action == "request_summary":
+                    return "בסדר, אני מסכמת לך את מה ששוחחנו עליו."
+                elif action == "request_recommendations":
+                    return "אני מכינה לך המלצות מותאמות על בסיס השיחה שלנו."
+
+        # Default fallback if we can't determine what was extracted
+        if current_data and current_data.child_name:
+            return "הבנתי. ספרי לי עוד."
+        else:
+            return "שלום! אני כאן כדי להכיר את המשפחה שלך. ספרי לי על הילד/ה שלך."
 
     async def get_session_summary(self, family_id: str) -> Dict[str, Any]:
         """Get a summary of the current session state"""
