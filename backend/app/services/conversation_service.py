@@ -374,12 +374,25 @@ class ConversationService:
 
             elif func_call.name == "user_wants_action":
                 action = func_call.arguments.get("action")
-                if action == "request_video_upload":
-                    return "נהדר! אני מכינה לך עכשיו הנחיות צילום מותאמות אישית."
-                elif action == "request_summary":
-                    return "בסדר, אני מסכמת לך את מה ששוחחנו עליו."
-                elif action == "request_recommendations":
-                    return "אני מכינה לך המלצות מותאמות על בסיס השיחה שלנו."
+
+                # Get child reference for personalized responses
+                child_ref = current_data.child_name if (current_data and current_data.child_name) else "הילד/ה"
+
+                # Handle report request
+                if action == "view_report":
+                    return f"אני רוצה לעזור לך עם דוח מקיף! אבל כדי לייצר ממצאים משמעותיים אני צריכה להכיר את {child_ref} טוב יותר. בואי נמשיך עוד קצת והדוח יהיה הרבה יותר מותאם."
+
+                # Handle video upload request
+                elif action == "upload_video":
+                    return "נהדר שאת מוכנה להעלות סרטון! קודם בואי נסיים את השיחה כדי שאוכל ליצור לך הנחיות צילום מותאמות אישית."
+
+                # Handle video guidelines request
+                elif action == "view_video_guidelines":
+                    return "אני אכין לך הנחיות צילום מותאמות ברגע שנסיים את השיחה. בואי נמשיך עוד קצת."
+
+                # Generic action response
+                else:
+                    return "הבנתי את הבקשה. בואי קודם נסיים את השיחה ואז נטפל בזה."
 
         # Default fallback if we can't determine what was extracted
         if current_data and current_data.child_name:
