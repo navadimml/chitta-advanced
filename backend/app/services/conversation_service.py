@@ -23,6 +23,7 @@ from ..prompts.interview_prompt_lite import build_interview_prompt_lite
 from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
 from ..prompts.prerequisites import Action
+from ..prompts.intent_types import IntentCategory
 
 logger = logging.getLogger(__name__)
 
@@ -104,91 +105,90 @@ class ConversationService:
                 }
             }
 
-        # 3. QUICK INTENT DETECTION
-        # Detect if user wants to: (a) perform action, (b) get info about app, or (c) just conversing
+        # 3. TIER 2: LLM-BASED INTENT CLASSIFICATION
+        # Use semantic understanding to detect user intent
+        # This replaces the primitive string matching with proper confidence scoring
         intent_detected = None
         prerequisite_check = None
-        information_request = None
         injected_knowledge = None
 
-        # First check for information requests using knowledge service
-        information_request = self.knowledge_service.detect_information_request(user_message)
-
-        if information_request:
-            logger.info(f"✓ Information request detected: {information_request}")
-
-            # Get knowledge to inject into prompt
-            context = {
-                "child_name": data.child_name,
-                "completeness": session.completeness,
-                "video_count": 0,  # TODO: Get from actual video count
-                "reports_available": False  # TODO: Get from actual report status
-            }
-
-            injected_knowledge = self.knowledge_service.get_knowledge_for_prompt(
-                information_request,
-                context
+        try:
+            # Call Tier 2 LLM intent classifier
+            detected_intent = await self.knowledge_service.detect_intent_llm(
+                user_message=user_message,
+                llm_provider=self.llm,
+                context={
+                    "child_name": data.child_name,
+                    "completeness": session.completeness,
+                    "video_count": 0,  # TODO: Get from actual video count
+                    "reports_available": False  # TODO: Get from actual report status
+                }
             )
-            logger.info(f"Injecting domain knowledge about {information_request}")
 
-        else:
-            # If not information request, check for action request
-            intent_prompt = f"""Analyze this message and determine if the user wants to perform a specific ACTION.
+            logger.info(
+                f"✓ Intent detected (Tier 2): category={detected_intent.category.value}, "
+                f"confidence={detected_intent.confidence:.2f}"
+            )
 
-User message: "{user_message}"
+            # Handle different intent categories
+            if detected_intent.category == IntentCategory.ACTION_REQUEST:
+                # User wants to perform a specific action
+                intent_detected = detected_intent.specific_action
+                logger.info(f"✓ Action request: {intent_detected}")
 
-Common action indicators:
-- "תן לי דוח" / "רוצה לראות דוח" → wants report
-- "איך מעלים סרטון" / "להעלות סרטון" → wants to upload video
-- "תראי לי הנחיות" → wants video guidelines
-- Just conversing about child → NO action
+                # PREREQUISITE CHECK - Is this action currently feasible?
+                prerequisite_context = {
+                    "completeness": session.completeness,
+                    "child_name": data.child_name,
+                    "video_count": 0,  # TODO: Get from actual video storage
+                    "analysis_complete": False,  # TODO: Get from actual analysis status
+                    "reports_available": False  # TODO: Get from actual report status
+                }
 
-Respond with ONLY the action name if detected, or "CONVERSATION" if just talking.
-Actions: view_report, upload_video, view_video_guidelines, find_experts, add_journal_entry
-Or: CONVERSATION"""
-
-            try:
-                intent_response = await self.llm.chat(
-                    messages=[
-                        Message(role="system", content=intent_prompt),
-                        Message(role="user", content=user_message)
-                    ],
-                    functions=None,
-                    temperature=0.1,
-                    max_tokens=50
+                prerequisite_check = self.prerequisite_service.check_action_feasible(
+                    intent_detected,
+                    prerequisite_context
                 )
 
-                intent_text = intent_response.content.strip().lower()
-                logger.info(f"Intent detection: {intent_text}")
+                logger.info(
+                    f"Prerequisite check: feasible={prerequisite_check.feasible}, "
+                    f"missing={prerequisite_check.missing_prerequisites}"
+                )
 
-                # Check if it's an action (not just conversation)
-                if intent_text != "conversation" and intent_text in [a.value for a in Action]:
-                    intent_detected = intent_text
-                    logger.info(f"✓ Action request detected: {intent_detected}")
+            elif detected_intent.category == IntentCategory.INFORMATION_REQUEST:
+                # User wants information about the app/process
+                logger.info(f"✓ Information request: {detected_intent.information_type}")
 
-                    # 3. PREREQUISITE CHECK - Is this action currently feasible?
-                    context = {
-                        "completeness": session.completeness,
-                        "child_name": data.child_name,
-                        "video_count": 0,  # TODO: Get from actual video storage
-                        "analysis_complete": False,  # TODO: Get from actual analysis status
-                        "reports_available": False  # TODO: Get from actual report status
-                    }
+                # Get knowledge to inject into prompt
+                knowledge_context = {
+                    "child_name": data.child_name,
+                    "completeness": session.completeness,
+                    "video_count": 0,
+                    "reports_available": False
+                }
 
-                    prerequisite_check = self.prerequisite_service.check_action_feasible(
-                        intent_detected,
-                        context
-                    )
+                injected_knowledge = self.knowledge_service.get_knowledge_for_prompt(
+                    detected_intent.information_type,
+                    knowledge_context
+                )
+                logger.info(f"Injecting domain knowledge about {detected_intent.information_type}")
 
-                    logger.info(
-                        f"Prerequisite check: feasible={prerequisite_check.feasible}, "
-                        f"missing={prerequisite_check.missing_prerequisites}"
-                    )
+            elif detected_intent.category == IntentCategory.TANGENT:
+                # Off-topic request - should have been caught by FAQ, but handle gracefully
+                logger.info(f"✓ Tangent detected by Tier 2 (FAQ didn't catch it)")
+                # The LLM conversation will handle this naturally
 
-            except Exception as e:
-                logger.warning(f"Intent detection failed: {e} - continuing with normal flow")
-                intent_detected = None
-                prerequisite_check = None
+            elif detected_intent.category == IntentCategory.PAUSE_EXIT:
+                # User wants to pause/exit
+                logger.info(f"✓ Pause/Exit intent detected")
+                # The LLM conversation will handle this naturally
+
+            # DATA_COLLECTION falls through to normal conversation flow
+
+        except Exception as e:
+            logger.warning(f"Tier 2 intent classification failed: {e} - continuing with normal flow")
+            intent_detected = None
+            prerequisite_check = None
 
         # 4. Determine which functions to use (for extraction call later)
         model_name = getattr(self.llm, 'model_name', 'unknown')

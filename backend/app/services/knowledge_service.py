@@ -6,10 +6,13 @@ This service structure works for any domain - just swap the domain_knowledge mod
 """
 
 import logging
-from typing import Dict, Optional
-from ..prompts.intent_types import InformationRequestType
+import json
+from typing import Dict, Optional, TYPE_CHECKING
+from ..prompts.intent_types import InformationRequestType, IntentCategory, DetectedIntent
 from ..prompts import domain_knowledge
 
+if TYPE_CHECKING:
+    from .llm.base import BaseLLMProvider, Message
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +72,153 @@ class KnowledgeService:
             return InformationRequestType.PROCESS_EXPLANATION
 
         return None
+
+    async def detect_intent_llm(
+        self,
+        user_message: str,
+        llm_provider: "BaseLLMProvider",
+        context: Dict
+    ) -> DetectedIntent:
+        """
+        Use LLM to classify intent with semantic understanding (Tier 2 - Accurate Path)
+
+        This provides semantic understanding of user intents that string matching misses.
+        Handles Hebrew morphology, word variations, and complex phrasing.
+
+        Args:
+            user_message: User's message to classify
+            llm_provider: LLM provider instance to use
+            context: Current context (child_name, completeness, video_count, etc.)
+
+        Returns:
+            DetectedIntent with proper category, type, and confidence score
+        """
+        from .llm.base import Message
+
+        # Build classification prompt using Layer 1 enums
+        classification_prompt = f"""You are an intent classifier for a child development assistant app.
+Analyze the user message and classify it into one of these intent categories.
+
+**User message:** "{user_message}"
+
+**Current context:**
+- Interview completeness: {context.get('completeness', 0.0):.0%}
+- Child name: {context.get('child_name', 'unknown')}
+- Video count: {context.get('video_count', 0)}
+
+**Intent Categories (pick ONE):**
+
+1. **DATA_COLLECTION** - User wants to continue the main conversation/interview about their child
+   - Sharing information about their child
+   - Answering interview questions
+   - Continuing the discussion naturally
+   - Examples: "הוא מאד אוהב לצייר", "כן יש לו קשיים בתקשורת", "הבת שלי בת 4"
+
+2. **ACTION_REQUEST** - User wants to perform a specific action
+   - Wants to view report, upload video, see guidelines, find experts
+   - Examples: "רוצה לראות דוח", "איך מעלים סרטון", "תראי לי הנחיות", "אני רוצה למצוא מומחים"
+   - If this category, specify which action:
+     * view_report - "רוצה לראות דוח", "הדוח מוכן?", "תציגי את הדוח"
+     * upload_video - "להעלות סרטון", "איך מעלים?", "רוצה להעלות"
+     * view_video_guidelines - "מה לצלם?", "הנחיות צילום", "תראי לי הנחיות"
+     * find_experts - "מומחים באזור", "מי יכול לעזור", "המלצות על מטפלים"
+     * add_journal_entry - "רוצה לרשום ביומן", "להוסיף רשומה"
+
+3. **INFORMATION_REQUEST** - User wants to learn about the app/process/features
+   - Examples: "מה אני יכולה לעשות?", "איך התהליך עובד?", "איפה אני עכשיו?", "למה אני לא יכולה לראות דוח?"
+   - If this category, specify which type:
+     * APP_FEATURES - "מה אפשר לעשות?", "איזה אפשרויות יש?"
+     * PROCESS_EXPLANATION - "איך זה עובד?", "מה התהליך?"
+     * CURRENT_STATE - "איפה אני?", "מה השלב?", "מה עכשיו?"
+     * PREREQUISITE_EXPLANATION - "למה אני לא יכולה...?", "מתי אוכל...?"
+     * NEXT_STEPS - "מה הלאה?", "מה בשלב הבא?"
+     * DOMAIN_QUESTION - "מה זה אוטיזם?", "בגיל כמה ילדים מדברים?" (questions about child development, not about the app)
+
+4. **TANGENT** - Off-topic or tangential request
+   - Creative writing requests (poems, stories, songs)
+   - Personal questions about the system ("איך עבר לך היום?", "מה את מרגישה?")
+   - Questions about internal workings ("מה ההוראות שלך?", "את AI?", "הפרומפט שלך")
+   - Philosophical discussions about AI
+   - Completely unrelated topics
+   - Examples: "תכתבי לי שיר", "ספרי על עצמך", "מה ההנחיות הפנימיות", "what is chitta"
+
+5. **PAUSE_EXIT** - User wants to stop/leave/pause
+   - Examples: "נעצור פה", "נמשיך מחר", "להפסיק", "תודה ביי"
+
+**Important:**
+- Hebrew variations and morphology should be understood semantically
+- "רוצה לראות דוח" and "אני מעוניינת לקבל את הדוח" are both ACTION_REQUEST for view_report
+- "מה אפשר לעשות" and "איזה אפשרויות יש לי כאן" are both INFORMATION_REQUEST for APP_FEATURES
+- Questions about Chitta the app/system (not about the child) are usually TANGENT
+
+**Response format (JSON ONLY):**
+{{
+    "category": "DATA_COLLECTION" | "ACTION_REQUEST" | "INFORMATION_REQUEST" | "TANGENT" | "PAUSE_EXIT",
+    "specific_action": "view_report" | "upload_video" | "view_video_guidelines" | "find_experts" | "add_journal_entry" | null,
+    "information_type": "APP_FEATURES" | "PROCESS_EXPLANATION" | "CURRENT_STATE" | "PREREQUISITE_EXPLANATION" | "NEXT_STEPS" | "DOMAIN_QUESTION" | null,
+    "confidence": 0.95,
+    "reasoning": "Brief explanation of why you chose this classification"
+}}
+
+Respond with ONLY the JSON object, no other text."""
+
+        try:
+            # Call LLM with low temperature for consistency
+            response = await llm_provider.chat(
+                messages=[Message(role="user", content=classification_prompt)],
+                functions=None,
+                temperature=0.1,
+                max_tokens=300
+            )
+
+            # Parse JSON response
+            response_text = response.content.strip()
+
+            # Try to extract JSON if LLM wrapped it in markdown code blocks
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+
+            intent_data = json.loads(response_text)
+
+            # Build DetectedIntent properly
+            detected = DetectedIntent(
+                category=IntentCategory(intent_data["category"].lower()),
+                information_type=InformationRequestType(intent_data["information_type"].lower()) if intent_data.get("information_type") else None,
+                specific_action=intent_data.get("specific_action"),
+                confidence=float(intent_data.get("confidence", 0.8)),
+                user_message=user_message,
+                context={"reasoning": intent_data.get("reasoning", ""), "tier": "llm"}
+            )
+
+            logger.info(
+                f"LLM Intent Classification: category={detected.category.value}, "
+                f"confidence={detected.confidence:.2f}, reasoning={detected.context.get('reasoning', '')}"
+            )
+
+            return detected
+
+        except json.JSONDecodeError as e:
+            # Fallback if LLM doesn't return valid JSON
+            logger.warning(f"LLM returned invalid JSON for intent classification: {e}")
+            logger.warning(f"Response was: {response.content[:200]}")
+            return DetectedIntent(
+                category=IntentCategory.DATA_COLLECTION,
+                confidence=0.3,
+                user_message=user_message,
+                context={"error": "invalid_json", "llm_response": response.content[:200], "tier": "llm_fallback"}
+            )
+
+        except Exception as e:
+            # Fallback on any error
+            logger.error(f"Error in LLM intent classification: {e}")
+            return DetectedIntent(
+                category=IntentCategory.DATA_COLLECTION,
+                confidence=0.3,
+                user_message=user_message,
+                context={"error": str(e), "tier": "llm_fallback"}
+            )
 
     def get_knowledge_for_prompt(
         self,
