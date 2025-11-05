@@ -160,12 +160,12 @@ class GeminiProvider(BaseLLMProvider):
 
         try:
             # Generate JSON response
-            async with self.client.aio as aclient:
-                response = await aclient.models.generate_content(
-                    model=self.model_name,
-                    contents=contents,
-                    config=config
-                )
+            # Using direct .aio access without context manager to avoid closing client
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=config
+            )
 
             # Parse JSON from text
             return json.loads(response.text)
