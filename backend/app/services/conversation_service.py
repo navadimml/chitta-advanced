@@ -117,32 +117,67 @@ class ConversationService:
         # Add current user message
         messages.append(Message(role="user", content=user_message))
 
-        # 4. Call LLM with functions
+        # 4. Call LLM - TWO SEPARATE CALLS to ensure we always get text
+        #
+        # CRITICAL: Gemini returns empty text when functions are provided.
+        # Solution: Split into two calls:
+        #   Call 1 (Conversation): Get natural Hebrew response WITHOUT functions
+        #   Call 2 (Extraction): Extract structured data from the conversation
+        #
+        # This ensures parents always see a response, and data extraction happens separately.
+
         try:
+            # CALL 1: Get conversational response (NO functions)
+            # This ensures we ALWAYS get Hebrew text back
             llm_response = await self.llm.chat(
                 messages=messages,
-                functions=functions,
+                functions=None,  # ← NO FUNCTIONS = Always get text
                 temperature=temperature,
                 max_tokens=2000
             )
 
             logger.info(
-                f"LLM response received: {len(llm_response.content)} chars, "
-                f"{len(llm_response.function_calls)} function calls"
+                f"Conversation response: {len(llm_response.content)} chars"
             )
 
-            # SAFETY NET: Handle empty responses (should be VERY rare with fixed prompts)
-            # The prompts explicitly prioritize Hebrew conversation over function calls.
-            # If this triggers, it indicates the prompt isn't working correctly.
-            if not llm_response.content.strip() and llm_response.function_calls:
-                logger.error(
-                    "❌ PROMPT FAILURE: Model returned empty text despite explicit prompt instructions! "
-                    "This should not happen. Check if prompt is being used correctly. Using safety fallback."
-                )
-                llm_response.content = self._generate_fallback_response(
-                    llm_response.function_calls,
-                    data
-                )
+            # Ensure we got a response
+            if not llm_response.content.strip():
+                logger.error("❌ LLM returned empty response even without functions!")
+                llm_response.content = "סליחה, יש לי בעיה טכנית. בואי ננסה שוב."
+
+            # CALL 2: Extract structured data from conversation
+            # Create dedicated extraction context
+            extraction_system = """You are a data extraction assistant. Your job is to extract structured information from conversations.
+
+Given the latest conversation turn, identify and extract:
+- Child information (name, age, gender)
+- Concerns mentioned
+- Strengths described
+- Context shared
+- Action requests
+
+Call the appropriate functions to save this data. Extract everything you can from what the parent said."""
+
+            extraction_messages = [
+                Message(role="system", content=extraction_system),
+                Message(role="user", content=f"Parent: {user_message}"),
+                Message(role="assistant", content=f"Response: {llm_response.content}"),
+                Message(role="user", content="Extract all relevant data from this conversation turn.")
+            ]
+
+            extraction_response = await self.llm.chat(
+                messages=extraction_messages,
+                functions=functions,  # ← NOW with functions for extraction
+                temperature=0.1,  # Very low temp for deterministic extraction
+                max_tokens=500
+            )
+
+            # Use function calls from extraction response
+            llm_response.function_calls = extraction_response.function_calls
+
+            logger.info(
+                f"Extraction found: {len(extraction_response.function_calls)} function calls"
+            )
 
         except Exception as e:
             logger.error(f"LLM call failed: {e}", exc_info=True)
