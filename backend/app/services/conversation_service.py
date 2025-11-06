@@ -20,6 +20,7 @@ from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.interview_prompt_lite import build_interview_prompt_lite
+from ..prompts.interview_prompt_lite_minimal import build_interview_prompt_lite_minimal
 from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
 from ..prompts.prerequisites import Action
@@ -202,9 +203,10 @@ Your role now:
 Remember: You are an AI assistant. Be transparent about your nature when relevant."""
 
         else:
-            # During interview: use comprehensive interview prompt
+            # During interview: use appropriate interview prompt based on model capability
             if use_lite:
-                base_prompt = build_interview_prompt_lite(
+                # For flash-lite: use ultra-minimal prompt to avoid overwhelming the model
+                base_prompt = build_interview_prompt_lite_minimal(
                     child_name=data.child_name or "unknown",
                     age=str(data.age) if data.age else "unknown",
                     gender=data.gender or "unknown",
@@ -213,6 +215,7 @@ Remember: You are an AI assistant. Be transparent about your nature when relevan
                     context_summary=self.interview_service.get_context_summary(family_id)
                 )
             else:
+                # For more capable models: use comprehensive prompt
                 base_prompt = build_interview_prompt(
                     child_name=data.child_name or "unknown",
                     age=str(data.age) if data.age else "unknown",
