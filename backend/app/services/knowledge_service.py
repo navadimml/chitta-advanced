@@ -9,6 +9,8 @@ import logging
 from typing import Dict, Optional
 from ..prompts.intent_types import InformationRequestType
 from ..prompts import domain_knowledge
+from .llm.factory import create_llm_provider
+from .llm.base import Message
 
 
 logger = logging.getLogger(__name__)
@@ -22,16 +24,23 @@ class KnowledgeService:
     content comes from the domain_knowledge module.
     """
 
-    def __init__(self):
-        """Initialize knowledge service"""
+    def __init__(self, llm_provider=None):
+        """Initialize knowledge service
+
+        Args:
+            llm_provider: Optional LLM provider for intelligent intent detection
+        """
         self.domain_info = domain_knowledge.DOMAIN_INFO
         self.features = domain_knowledge.FEATURES
         self.faq = domain_knowledge.FAQ
+        self.llm = llm_provider or create_llm_provider()
         logger.info(f"KnowledgeService initialized for domain: {self.domain_info['domain']}")
 
-    def detect_information_request(self, user_message: str) -> Optional[InformationRequestType]:
+    async def detect_information_request(self, user_message: str) -> Optional[InformationRequestType]:
         """
-        Detect if user is asking for information about the app/process
+        Detect if user is asking for information about the app/process using LLM
+
+        This is more accurate than keyword matching and can handle variations.
 
         Args:
             user_message: User's message
@@ -39,36 +48,53 @@ class KnowledgeService:
         Returns:
             InformationRequestType if detected, None otherwise
         """
-        message_lower = user_message.lower()
+        # Quick LLM call to classify information request intent
+        detection_prompt = f"""Analyze this user message and determine if they're asking for INFORMATION about the app/process/features (not having a conversation about their child).
 
-        # Check for app features questions
-        if any(phrase in message_lower for phrase in [
-            "מה אני יכול", "מה יש", "איזה אפשרויות", "מה זמין",
-            "what can i do", "what features", "what's available"
-        ]):
-            return InformationRequestType.APP_FEATURES
+User message: "{user_message}"
 
-        # Check for process explanation questions
-        if any(phrase in message_lower for phrase in [
-            "איך זה עובד", "מה התהליך", "איך זה עובד",
-            "how does", "what's the process", "how it works"
-        ]):
-            return InformationRequestType.PROCESS_EXPLANATION
+Information request types:
+- APP_FEATURES: Asking what they can do in the app, what features are available
+  Examples: "מה אני יכול לעשות פה?", "what can I do here?", "what features do you have?"
 
-        # Check for current state questions
-        if any(phrase in message_lower for phrase in [
-            "איפה אני", "מה השלב", "מה עכשיו",
-            "where am i", "what stage", "what's next", "what now"
-        ]):
-            return InformationRequestType.CURRENT_STATE
+- PROCESS_EXPLANATION: Asking how the process/system works, what happens next
+  Examples: "איך זה עובד?", "how does this work?", "what's the process?", "כמה זמן זה לוקח?"
 
-        # Check for time/duration questions
-        if any(phrase in message_lower for phrase in [
-            "כמה זמן", "כמה לוקח", "how long", "duration"
-        ]):
-            return InformationRequestType.PROCESS_EXPLANATION
+- CURRENT_STATE: Asking where they are in the process, what stage they're at
+  Examples: "איפה אני?", "where am I in the process?", "what's next?", "מה השלב?"
 
-        return None
+- NOT_INFORMATION: Just talking about their child, answering interview questions, regular conversation
+  Examples: "הילד שלי אוהב לקרוא", "he's 3 years old", "yes I'm worried about his speech"
+
+Respond with ONLY one of: APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE, or NOT_INFORMATION"""
+
+        try:
+            response = await self.llm.chat(
+                messages=[
+                    Message(role="system", content=detection_prompt),
+                    Message(role="user", content=user_message)
+                ],
+                functions=None,
+                temperature=0.1,
+                max_tokens=20
+            )
+
+            intent_text = response.content.strip().upper()
+            logger.info(f"Information request detection: {intent_text} for message: {user_message[:50]}")
+
+            # Map to InformationRequestType
+            if intent_text == "APP_FEATURES":
+                return InformationRequestType.APP_FEATURES
+            elif intent_text == "PROCESS_EXPLANATION":
+                return InformationRequestType.PROCESS_EXPLANATION
+            elif intent_text == "CURRENT_STATE":
+                return InformationRequestType.CURRENT_STATE
+            else:
+                return None
+
+        except Exception as e:
+            logger.warning(f"Information request detection failed: {e} - returning None")
+            return None
 
     def get_knowledge_for_prompt(
         self,
