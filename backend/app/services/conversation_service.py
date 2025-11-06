@@ -299,17 +299,40 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
                 llm_response.content = "סליחה, יש לי בעיה טכנית. בואי ננסה שוב."
 
             # CALL 2: Extract structured data from conversation
-            # Create dedicated extraction context
-            extraction_system = """You are a data extraction assistant. Your job is to extract structured information from conversations.
+            # Create dedicated extraction context with current state
+            session = self.interview_service.get_or_create_session(family_id)
+            current_data = session.extracted_data
 
-Given the latest conversation turn, identify and extract:
-- Child information (name, age, gender)
-- Concerns mentioned
-- Strengths described
-- Context shared
-- Action requests
+            extraction_system = f"""You are a data extraction assistant. Extract structured information from this conversation turn.
 
-Call the appropriate functions to save this data. Extract everything you can from what the parent said."""
+**Current data summary (for context):**
+- Child: {current_data.child_name or 'unknown'}, {current_data.age or '?'} years, {current_data.gender or 'unknown'}
+- Concerns so far: {current_data.primary_concerns or 'none yet'}
+- Details collected: {len(current_data.concern_details or '')} characters
+- Completeness: {session.completeness:.0%}
+
+**Your job in this turn:**
+Extract EVERYTHING the parent shares - even small details add up!
+
+**CRITICAL - Concern Details:**
+If parent describes concerns, extract rich details to concern_details field:
+- What exactly happens? (specific behaviors/examples)
+- When does it occur? (frequency, situations)
+- Where? (home, school, everywhere)
+- Impact on daily life?
+- How long has this been happening?
+
+**Extract:**
+- Basic info (name, age, gender) - if mentioned
+- Primary concerns (categories like 'speech', 'social', etc.)
+- concern_details - ANY descriptions, examples, or elaborations about concerns
+- strengths - interests, what child enjoys, good at
+- developmental_history - milestones, pregnancy, birth, medical history
+- family_context - siblings, family history, educational setting
+- daily_routines - typical day, behaviors, patterns
+- parent_goals - what they hope to improve
+
+Call extract_interview_data with whatever is relevant from this turn. Every bit of information helps!"""
 
             extraction_messages = [
                 Message(role="system", content=extraction_system),
@@ -356,13 +379,33 @@ Call the appropriate functions to save this data. Extract everything you can fro
 
         for func_call in llm_response.function_calls:
             if func_call.name == "extract_interview_data":
+                # Log what's being extracted BEFORE update
+                logger.info(f"📝 EXTRACTION ATTEMPT: {list(func_call.arguments.keys())}")
+                for key, value in func_call.arguments.items():
+                    if value:  # Only log non-empty values
+                        value_preview = str(value)[:100] if isinstance(value, str) else value
+                        logger.info(f"   - {key}: {value_preview}")
+
                 # Update extracted data
                 updated_data = self.interview_service.update_extracted_data(
                     family_id,
                     func_call.arguments
                 )
                 extraction_summary = func_call.arguments
-                logger.info(f"Extracted data: {list(extraction_summary.keys())}")
+
+                # Get current completeness and show what was updated
+                session = self.interview_service.get_or_create_session(family_id)
+                logger.info(f"✅ DATA UPDATED - Completeness: {session.completeness:.1%}")
+                logger.info(f"   - Extraction count: {updated_data.extraction_count}")
+                logger.info(f"   - Current data summary:")
+                logger.info(f"     * Basic: name={bool(updated_data.child_name)}, age={bool(updated_data.age)}, gender={updated_data.gender}")
+                logger.info(f"     * Concerns: {len(updated_data.primary_concerns)} items = {updated_data.primary_concerns}")
+                logger.info(f"     * Concern details: {len(updated_data.concern_details or '')} chars")
+                logger.info(f"     * Strengths: {len(updated_data.strengths or '')} chars")
+                logger.info(f"     * Dev history: {len(updated_data.developmental_history or '')} chars")
+                logger.info(f"     * Family context: {len(updated_data.family_context or '')} chars")
+                logger.info(f"     * Daily routines: {len(updated_data.daily_routines or '')} chars")
+                logger.info(f"     * Parent goals: {len(updated_data.parent_goals or '')} chars")
 
             elif func_call.name == "user_wants_action":
                 action_requested = func_call.arguments.get("action")
