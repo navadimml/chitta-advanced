@@ -100,12 +100,14 @@ class InterviewService:
         # Normalize: concern_description → concern_details
         if 'concern_description' in new_data and 'concern_details' not in new_data:
             new_data['concern_details'] = new_data.pop('concern_description')
-            logger.info(f"📝 Normalized 'concern_description' → 'concern_details': {new_data['concern_details'][:100]}")
+            details_preview = (new_data['concern_details'][:100] if new_data['concern_details'] else 'None')
+            logger.info(f"📝 Normalized 'concern_description' → 'concern_details': {details_preview}")
 
         # Normalize: other_info → concern_details (append if concern_details exists)
         if 'other_info' in new_data:
             other_text = new_data.pop('other_info')
-            logger.info(f"📝 Got 'other_info' (LITE field): {other_text[:100]}")
+            other_preview = (other_text[:100] if other_text else 'None')
+            logger.info(f"📝 Got 'other_info' (LITE field): {other_preview}")
             if 'concern_details' not in new_data or not new_data['concern_details']:
                 new_data['concern_details'] = other_text
                 logger.info("   → Moved to 'concern_details'")
