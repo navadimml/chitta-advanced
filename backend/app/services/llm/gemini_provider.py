@@ -100,11 +100,23 @@ class GeminiProvider(BaseLLMProvider):
             tools = self._convert_functions_to_tools(functions)
 
         # Create configuration
+        # Note: When using tools, we need to ensure the model ALSO generates text
+        # By default, Gemini AFC (Automatic Function Calling) may only return function calls
+        tool_config = None
+        if tools:
+            # Configure function calling to allow text alongside function calls
+            tool_config = types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode="ANY"  # Allow model to call functions or respond with text (not AUTO which only calls functions)
+                )
+            )
+
         config = types.GenerateContentConfig(
             temperature=temp,
             max_output_tokens=max_tokens,
             safety_settings=self.safety_settings,
-            tools=tools
+            tools=tools,
+            tool_config=tool_config
         )
 
         try:
