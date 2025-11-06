@@ -326,17 +326,29 @@ class GeminiProvider(BaseLLMProvider):
                     if not finish_reason:
                         finish_reason = "empty_content"
 
-            # Fallback to simple text if available (only if we have no candidates)
-            if not content and not function_calls:
+            # Fallback to response.text if we didn't extract content from parts
+            # This is important even when we have function calls, since Gemini
+            # can return text + function calls where content.parts is None
+            if not content:
                 if hasattr(response, 'text') and response.text:
                     content = response.text
                     logger.debug("Used response.text fallback")
                 elif not hasattr(response, 'candidates') or not response.candidates:
-                    logger.warning("No content found in response")
-                    # Only use str(response) if we have no candidates at all
-                    # This indicates an unexpected response structure
+                    # Only warn if we have no candidates at all (unexpected response)
+                    logger.warning("No content found in response and no candidates")
                     content = str(response) if response else "No response"
                     finish_reason = "unexpected_response"
+                elif not function_calls:
+                    # We have candidates but no content and no function calls
+                    logger.warning("No content found in response (possibly filtered)")
+                    content = ""
+                    if not finish_reason:
+                        finish_reason = "empty_content"
+                else:
+                    # We have function calls but no content - log as info since this
+                    # might happen if LLM only wants to call functions
+                    logger.info("Response has function calls but no text content")
+                    content = ""
 
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {e}", exc_info=True)
@@ -344,10 +356,6 @@ class GeminiProvider(BaseLLMProvider):
 
         # CRITICAL FIX: Ensure content is always a valid string, never None
         if content is None:
-            content = ""
-        
-        # If we have function calls but no content, that's valid - set empty string
-        if not content and function_calls:
             content = ""
 
         return LLMResponse(
