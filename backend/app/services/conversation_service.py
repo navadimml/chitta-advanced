@@ -117,20 +117,70 @@ class ConversationService:
         # Add current user message
         messages.append(Message(role="user", content=user_message))
 
-        # 4a. FIRST CALL: Generate conversational response (NO functions)
-        # This ensures we always get Hebrew text response
+        # 4. Call LLM - TWO SEPARATE CALLS to ensure we always get text
+        #
+        # CRITICAL: Gemini returns empty text when functions are provided.
+        # Solution: Split into two calls:
+        #   Call 1 (Conversation): Get natural Hebrew response WITHOUT functions
+        #   Call 2 (Extraction): Extract structured data from the conversation
+        #
+        # This ensures parents always see a response, and data extraction happens separately.
+
         try:
-            conversation_response = await self.llm.chat(
+            # CALL 1: Get conversational response (NO functions)
+            # This ensures we ALWAYS get Hebrew text back
+            llm_response = await self.llm.chat(
                 messages=messages,
-                functions=None,  # NO functions - just generate text
+                functions=None,  # ← NO FUNCTIONS = Always get text
                 temperature=temperature,
                 max_tokens=2000
             )
 
-            logger.info(f"Conversation response: {len(conversation_response.content)} chars")
+            logger.info(
+                f"Conversation response: {len(llm_response.content)} chars"
+            )
+
+            # Ensure we got a response
+            if not llm_response.content.strip():
+                logger.error("❌ LLM returned empty response even without functions!")
+                llm_response.content = "סליחה, יש לי בעיה טכנית. בואי ננסה שוב."
+
+            # CALL 2: Extract structured data from conversation
+            # Create dedicated extraction context
+            extraction_system = """You are a data extraction assistant. Your job is to extract structured information from conversations.
+
+Given the latest conversation turn, identify and extract:
+- Child information (name, age, gender)
+- Concerns mentioned
+- Strengths described
+- Context shared
+- Action requests
+
+Call the appropriate functions to save this data. Extract everything you can from what the parent said."""
+
+            extraction_messages = [
+                Message(role="system", content=extraction_system),
+                Message(role="user", content=f"Parent: {user_message}"),
+                Message(role="assistant", content=f"Response: {llm_response.content}"),
+                Message(role="user", content="Extract all relevant data from this conversation turn.")
+            ]
+
+            extraction_response = await self.llm.chat(
+                messages=extraction_messages,
+                functions=functions,  # ← NOW with functions for extraction
+                temperature=0.1,  # Very low temp for deterministic extraction
+                max_tokens=500
+            )
+
+            # Use function calls from extraction response
+            llm_response.function_calls = extraction_response.function_calls
+
+            logger.info(
+                f"Extraction found: {len(extraction_response.function_calls)} function calls"
+            )
 
         except Exception as e:
-            logger.error(f"Conversation generation failed: {e}", exc_info=True)
+            logger.error(f"LLM call failed: {e}", exc_info=True)
             return {
                 "response": "מצטערת, נתקלתי בבעיה טכנית. בואי ננסה שוב.",
                 "function_calls": [],
@@ -140,55 +190,30 @@ class ConversationService:
                 "error": str(e)
             }
 
-        # 4b. SECOND CALL: Extract data from the conversation (WITH functions)
-        # Build extraction prompt that includes both the user message and assistant response
-        extraction_messages = messages.copy()
-        extraction_messages.append(Message(role="assistant", content=conversation_response.content))
-
-        # Add extraction instruction
-        extraction_messages.append(Message(
-            role="user",
-            content="[Extract structured data from this conversation turn]"
-        ))
-
+        # 5. Process function calls
         extraction_summary = {}
         action_requested = None
         completeness_check = None
 
-        try:
-            extraction_response = await self.llm.chat(
-                messages=extraction_messages,
-                functions=functions,  # NOW provide functions for extraction
-                temperature=0.3,  # Lower temperature for better extraction
-                max_tokens=1000
-            )
+        for func_call in llm_response.function_calls:
+            if func_call.name == "extract_interview_data":
+                # Update extracted data
+                updated_data = self.interview_service.update_extracted_data(
+                    family_id,
+                    func_call.arguments
+                )
+                extraction_summary = func_call.arguments
+                logger.info(f"Extracted data: {list(extraction_summary.keys())}")
 
-            logger.info(f"Extraction found: {len(extraction_response.function_calls)} function calls")
+            elif func_call.name == "user_wants_action":
+                action_requested = func_call.arguments.get("action")
+                logger.info(f"User wants action: {action_requested}")
 
-            # 5. Process function calls from extraction
-            for func_call in extraction_response.function_calls:
-                if func_call.name == "extract_interview_data":
-                    # Update extracted data
-                    updated_data = self.interview_service.update_extracted_data(
-                        family_id,
-                        func_call.arguments
-                    )
-                    extraction_summary = func_call.arguments
-                    logger.info(f"Extracted data: {list(extraction_summary.keys())}")
+            elif func_call.name == "check_interview_completeness":
+                completeness_check = func_call.arguments
+                logger.info(f"Completeness check: {completeness_check}")
 
-                elif func_call.name == "user_wants_action":
-                    action_requested = func_call.arguments.get("action")
-                    logger.info(f"User wants action: {action_requested}")
-
-                elif func_call.name == "check_interview_completeness":
-                    completeness_check = func_call.arguments
-                    logger.info(f"Completeness check: {completeness_check}")
-
-        except Exception as e:
-            logger.warning(f"Extraction call failed: {e} - continuing without extraction", exc_info=True)
-            # Don't fail the whole request if extraction fails
-
-        # 6. Save conversation turn (use the conversation response, not extraction)
+        # 6. Save conversation turn
         self.interview_service.add_conversation_turn(
             family_id,
             role="user",
@@ -197,7 +222,7 @@ class ConversationService:
         self.interview_service.add_conversation_turn(
             family_id,
             role="assistant",
-            content=conversation_response.content  # Use the text response
+            content=llm_response.content
         )
 
         # 7. Get updated session state
@@ -232,10 +257,10 @@ class ConversationService:
 
         # 10. Return comprehensive response
         return {
-            "response": conversation_response.content,  # Use conversation text
+            "response": llm_response.content,
             "function_calls": [
                 {"name": fc.name, "arguments": fc.arguments}
-                for fc in (extraction_response.function_calls if 'extraction_response' in locals() else [])
+                for fc in llm_response.function_calls
             ],
             "completeness": completeness_pct,
             "extracted_data": extraction_summary,
