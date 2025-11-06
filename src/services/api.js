@@ -12,8 +12,7 @@ const SCENARIOS = {
       completed_milestones: []
     },
     messages: [
-      { sender: 'chitta', text: 'שלום! אני Chitta, ואני כאן כדי לעזור לך להבין טוב יותר את המסע ההתפתחותי של הילד שלך. 💙', delay: 0 },
-      { sender: 'chitta', text: 'בואי נתחיל בהכרות. מה שמו של הילד/ה שלך?', delay: 1500 },
+      { sender: 'chitta', text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך וכמה הוא/היא?', delay: 0 },
       { sender: 'user', text: 'השם שלו יוני', delay: 3000 },
       { sender: 'chitta', text: 'נעים להכיר את יוני! 😊 בן כמה הוא?', delay: 4000 },
       { sender: 'user', text: 'הוא בן 3 וחצי', delay: 5500 },
