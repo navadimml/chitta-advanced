@@ -34,7 +34,13 @@ async def get_strategic_guidance(
     # Build analysis prompt
     completeness_pct = int(completeness * 100)
 
-    analysis_prompt = f"""You are analyzing an in-depth child development interview to determine what's been covered and what needs attention.
+    # Build content previews - show ACTUAL content, not just lengths
+    concern_details = (extracted_data.get('concern_details', '') or '')
+    strengths = (extracted_data.get('strengths', '') or '')
+
+    analysis_prompt = f"""You are analyzing a child development interview to determine what's been covered and what needs attention.
+
+**CRITICAL**: Don't just look at what fields are empty. READ THE ACTUAL CONTENT to understand what developmental areas have been discussed!
 
 **Current extracted data:**
 
@@ -43,34 +49,36 @@ Age: {extracted_data.get('age', 'unknown')}
 Gender: {extracted_data.get('gender', 'unknown')}
 
 Primary concerns: {extracted_data.get('primary_concerns', [])}
-Concern details: {len(extracted_data.get('concern_details', '') or '')} characters
-  Text: "{(extracted_data.get('concern_details', '') or '')[:200]}..."
 
-Strengths: {len(extracted_data.get('strengths', '') or '')} characters
-  Text: "{(extracted_data.get('strengths', '') or '')[:100]}..."
+**Concern details ({len(concern_details)} chars):**
+"{concern_details[:400] if concern_details else '[EMPTY - nothing discussed yet]'}"
 
-Developmental history: {len(extracted_data.get('developmental_history', '') or '')} characters
-Family context: {len(extracted_data.get('family_context', '') or '')} characters
-Daily routines: {len(extracted_data.get('daily_routines', '') or '')} characters
-Parent goals: {len(extracted_data.get('parent_goals', '') or '')} characters
+**Strengths ({len(strengths)} chars):**
+"{strengths[:300] if strengths else '[EMPTY - no strengths mentioned]'}"
 
 Overall completeness: {completeness_pct}%
 
 **Your task:**
 
-Analyze this data and provide brief, strategic guidance for the interviewer (Chitta).
+Analyze what developmental areas have ACTUALLY been discussed (read the content above carefully!):
+- Motor skills (writing, drawing, running, coordination)
+- Communication (speech, understanding, expressing)
+- Social (friends, playing with others)
+- Emotional/behavioral (tantrums, regulation, transitions)
+- Daily routines and context
+- Family background
+- Developmental history (milestones)
+- Parent's goals and hopes
 
-Focus on:
-1. What's been explored deeply with rich detail?
-2. What's been mentioned but needs more depth (examples, situations, frequency)?
-3. What hasn't been explored at all?
-4. What should Chitta focus on next?
+**Provide guidance in 2-4 bullet points:**
+1. What developmental areas have been covered with good depth? (Look in the actual text!)
+2. What's been mentioned briefly but needs concrete examples?
+3. What developmental areas haven't been touched at all?
+4. CRITICAL: If an area has been discussed extensively (50+ chars of detail), DON'T ask about it again!
 
-Provide your analysis in 2-4 bullet points. Be specific and actionable.
-Make it guidance, not commands - Chitta will find natural moments.
+**Anti-repetition rule**: If we have rich detail on a topic, mark it as DONE and move to unexplored areas.
 
-Keep it VERY concise - this is strategic awareness, not a script.
-"""
+Be VERY concise. This is strategic awareness, not a script."""
 
     messages = [Message(role="user", content=analysis_prompt)]
 
