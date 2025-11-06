@@ -49,7 +49,7 @@ Don't wait - extract whatever information is available right now!""",
                     "type": "string",
                     "enum": ["speech", "social", "attention", "motor", "sensory", "emotional", "behavioral", "learning", "sleep", "eating", "other"]
                 },
-                "description": "List of concern categories (e.g., ['speech', 'social'])"
+                "description": "List of concern categories ONLY if parent EXPLICITLY mentioned them. Don't infer! If parent says 'speech problems', only add 'speech'. If they don't mention behavior, don't add 'behavioral'."
             },
             "concern_description": {
                 "type": "string",

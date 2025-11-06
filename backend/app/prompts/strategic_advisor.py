@@ -70,15 +70,20 @@ Analyze what developmental areas have ACTUALLY been discussed (read the content 
 - Developmental history (milestones)
 - Parent's goals and hopes
 
-**Provide guidance in 2-4 bullet points:**
-1. What developmental areas have been covered with good depth? (Look in the actual text!)
-2. What's been mentioned briefly but needs concrete examples?
-3. What developmental areas haven't been touched at all?
-4. CRITICAL: If an area has been discussed extensively (50+ chars of detail), DON'T ask about it again!
+**Format your response as INTERNAL GUIDANCE - these are YOUR strategic thoughts, NOT what parent said!**
 
-**Anti-repetition rule**: If we have rich detail on a topic, mark it as DONE and move to unexplored areas.
+Write 2-4 bullet points in this format:
+- ✅ COVERED WELL: [area] - has rich detail, don't ask again
+- ⚠️ NEEDS MORE: [area] - mentioned but needs concrete examples
+- ❌ NOT EXPLORED: [area] - hasn't been discussed yet, consider exploring
 
-Be VERY concise. This is strategic awareness, not a script."""
+**CRITICAL**:
+- Only list areas as "COVERED WELL" if you see substantial text about them
+- Don't assume areas were discussed just because they SHOULD be
+- If concern_details mentions speech issues, mark SPEECH as covered, not all areas
+- Be ACCURATE - this prevents repeating questions
+
+Be VERY concise. This is internal strategic awareness, not a conversation script."""
 
     messages = [Message(role="user", content=analysis_prompt)]
 
