@@ -83,6 +83,37 @@ class InterviewService:
         session = self.get_or_create_session(family_id)
         current = session.extracted_data
 
+        # ========================================================================
+        # FIELD NAME NORMALIZATION: Handle both LITE and FULL function schemas
+        # ========================================================================
+        # LITE schema uses: concerns, concern_description, other_info
+        # FULL schema uses: primary_concerns, concern_details
+        #
+        # This normalization allows the system to handle both transparently.
+        # ========================================================================
+
+        # Normalize: concerns → primary_concerns
+        if 'concerns' in new_data and 'primary_concerns' not in new_data:
+            new_data['primary_concerns'] = new_data.pop('concerns')
+            logger.info(f"📝 Normalized 'concerns' → 'primary_concerns': {new_data['primary_concerns']}")
+
+        # Normalize: concern_description → concern_details
+        if 'concern_description' in new_data and 'concern_details' not in new_data:
+            new_data['concern_details'] = new_data.pop('concern_description')
+            logger.info(f"📝 Normalized 'concern_description' → 'concern_details': {new_data['concern_details'][:100]}")
+
+        # Normalize: other_info → concern_details (append if concern_details exists)
+        if 'other_info' in new_data:
+            other_text = new_data.pop('other_info')
+            logger.info(f"📝 Got 'other_info' (LITE field): {other_text[:100]}")
+            if 'concern_details' not in new_data or not new_data['concern_details']:
+                new_data['concern_details'] = other_text
+                logger.info("   → Moved to 'concern_details'")
+            else:
+                # Append to existing concern_details
+                new_data['concern_details'] += f". {other_text}"
+                logger.info("   → Appended to existing 'concern_details'")
+
         # Update scalar fields
         for field in ['child_name', 'age', 'gender']:
             if field in new_data and new_data[field]:
