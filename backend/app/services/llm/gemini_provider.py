@@ -44,7 +44,11 @@ class GeminiProvider(BaseLLMProvider):
             )
 
         # Create Gemini client (modern SDK)
-        self.client = genai.Client(api_key=api_key)
+        # IMPORTANT: Disable automatic function calling to ensure we get text responses
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options={'api_version': 'v1beta'}  # Use v1beta for more control
+        )
         self.model_name = model
         self.default_temperature = default_temperature
 
@@ -299,6 +303,7 @@ class GeminiProvider(BaseLLMProvider):
                 # Get finish reason
                 if hasattr(candidate, 'finish_reason'):
                     finish_reason = str(candidate.finish_reason)
+                    logger.info(f"📊 Finish reason: {finish_reason}")
 
                 # Check for content parts (for function calls, not text)
                 if hasattr(candidate, 'content') and candidate.content:
