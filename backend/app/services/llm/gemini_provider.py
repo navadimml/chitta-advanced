@@ -309,9 +309,13 @@ class GeminiProvider(BaseLLMProvider):
                                 logger.info(f"Found text in part.text: {len(part.text)} chars")
                                 content += part.text
                             elif hasattr(part, 'thought_signature') and part.thought_signature:
-                                # Gemini 2.5 Pro may use thought_signature for text content
-                                logger.info(f"Found text in part.thought_signature: {len(part.thought_signature)} chars")
-                                content += part.thought_signature
+                                # Gemini 2.5 Pro uses thought_signature for text content
+                                # It may be bytes or string, handle both
+                                thought_text = part.thought_signature
+                                if isinstance(thought_text, bytes):
+                                    thought_text = thought_text.decode('utf-8')
+                                logger.info(f"Found text in part.thought_signature: {len(thought_text)} chars")
+                                content += thought_text
 
                             # Function call
                             if hasattr(part, 'function_call') and part.function_call:
