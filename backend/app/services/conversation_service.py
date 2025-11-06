@@ -117,22 +117,20 @@ class ConversationService:
         # Add current user message
         messages.append(Message(role="user", content=user_message))
 
-        # 4. Call LLM with functions
+        # 4a. FIRST CALL: Generate conversational response (NO functions)
+        # This ensures we always get Hebrew text response
         try:
-            llm_response = await self.llm.chat(
+            conversation_response = await self.llm.chat(
                 messages=messages,
-                functions=functions,
+                functions=None,  # NO functions - just generate text
                 temperature=temperature,
                 max_tokens=2000
             )
 
-            logger.info(
-                f"LLM response received: {len(llm_response.content)} chars, "
-                f"{len(llm_response.function_calls)} function calls"
-            )
+            logger.info(f"Conversation response: {len(conversation_response.content)} chars")
 
         except Exception as e:
-            logger.error(f"LLM call failed: {e}", exc_info=True)
+            logger.error(f"Conversation generation failed: {e}", exc_info=True)
             return {
                 "response": "מצטערת, נתקלתי בבעיה טכנית. בואי ננסה שוב.",
                 "function_calls": [],
@@ -142,30 +140,55 @@ class ConversationService:
                 "error": str(e)
             }
 
-        # 5. Process function calls
+        # 4b. SECOND CALL: Extract data from the conversation (WITH functions)
+        # Build extraction prompt that includes both the user message and assistant response
+        extraction_messages = messages.copy()
+        extraction_messages.append(Message(role="assistant", content=conversation_response.content))
+
+        # Add extraction instruction
+        extraction_messages.append(Message(
+            role="user",
+            content="[Extract structured data from this conversation turn]"
+        ))
+
         extraction_summary = {}
         action_requested = None
         completeness_check = None
 
-        for func_call in llm_response.function_calls:
-            if func_call.name == "extract_interview_data":
-                # Update extracted data
-                updated_data = self.interview_service.update_extracted_data(
-                    family_id,
-                    func_call.arguments
-                )
-                extraction_summary = func_call.arguments
-                logger.info(f"Extracted data: {list(extraction_summary.keys())}")
+        try:
+            extraction_response = await self.llm.chat(
+                messages=extraction_messages,
+                functions=functions,  # NOW provide functions for extraction
+                temperature=0.3,  # Lower temperature for better extraction
+                max_tokens=1000
+            )
 
-            elif func_call.name == "user_wants_action":
-                action_requested = func_call.arguments.get("action")
-                logger.info(f"User wants action: {action_requested}")
+            logger.info(f"Extraction found: {len(extraction_response.function_calls)} function calls")
 
-            elif func_call.name == "check_interview_completeness":
-                completeness_check = func_call.arguments
-                logger.info(f"Completeness check: {completeness_check}")
+            # 5. Process function calls from extraction
+            for func_call in extraction_response.function_calls:
+                if func_call.name == "extract_interview_data":
+                    # Update extracted data
+                    updated_data = self.interview_service.update_extracted_data(
+                        family_id,
+                        func_call.arguments
+                    )
+                    extraction_summary = func_call.arguments
+                    logger.info(f"Extracted data: {list(extraction_summary.keys())}")
 
-        # 6. Save conversation turn
+                elif func_call.name == "user_wants_action":
+                    action_requested = func_call.arguments.get("action")
+                    logger.info(f"User wants action: {action_requested}")
+
+                elif func_call.name == "check_interview_completeness":
+                    completeness_check = func_call.arguments
+                    logger.info(f"Completeness check: {completeness_check}")
+
+        except Exception as e:
+            logger.warning(f"Extraction call failed: {e} - continuing without extraction", exc_info=True)
+            # Don't fail the whole request if extraction fails
+
+        # 6. Save conversation turn (use the conversation response, not extraction)
         self.interview_service.add_conversation_turn(
             family_id,
             role="user",
@@ -174,7 +197,7 @@ class ConversationService:
         self.interview_service.add_conversation_turn(
             family_id,
             role="assistant",
-            content=llm_response.content
+            content=conversation_response.content  # Use the text response
         )
 
         # 7. Get updated session state
@@ -209,10 +232,10 @@ class ConversationService:
 
         # 10. Return comprehensive response
         return {
-            "response": llm_response.content,
+            "response": conversation_response.content,  # Use conversation text
             "function_calls": [
                 {"name": fc.name, "arguments": fc.arguments}
-                for fc in llm_response.function_calls
+                for fc in (extraction_response.function_calls if 'extraction_response' in locals() else [])
             ],
             "completeness": completeness_pct,
             "extracted_data": extraction_summary,
