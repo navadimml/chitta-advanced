@@ -145,6 +145,18 @@ Respond with ONLY one of: APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE, or N
             main_answer = main_answer.replace("{child_name}", child_name)
             knowledge_sections.append(f"### What Chitta Does:\n{main_answer}")
 
+        # Comprehensive privacy details
+        if "data_privacy_comprehensive" in self.faq:
+            privacy_answer = self.faq["data_privacy_comprehensive"]["answer_hebrew"]
+            privacy_answer = privacy_answer.replace("{child_name}", child_name)
+            knowledge_sections.append(f"### Privacy & Data Security:\n{privacy_answer}")
+
+        # Sharing with professionals (digital process - NO paper forms!)
+        if "sharing_with_professionals" in self.faq:
+            sharing_answer = self.faq["sharing_with_professionals"]["answer_hebrew"]
+            sharing_answer = sharing_answer.replace("{child_name}", child_name)
+            knowledge_sections.append(f"### Sharing Data with Professionals:\n{sharing_answer}")
+
         # System/meta questions (how Chitta works, prompts, etc.)
         if "system_instructions" in self.faq:
             system_answer = self.faq["system_instructions"]["answer_hebrew"]
@@ -165,8 +177,9 @@ The parent is asking about the app/what it does/how it works. Use this FACTUAL i
 3. After explaining, gently guide back: "יש לך עוד שאלות, או שנמשיך בשיחה על {child_name}?"
 4. Be conversational - adapt to their specific question, don't just list everything
 5. For meta questions (prompts, how you work), use the "About How Chitta Works" section
+6. For sharing/privacy questions, use the specific sections - be clear about digital processes!
 
-**CRITICAL: Use ONLY the factual information provided above. DO NOT make up features, processes, or privacy details.**"""
+**CRITICAL: Use ONLY the factual information provided above. DO NOT make up features, processes, or privacy details. Especially DO NOT invent paper forms, physical signatures, or manual processes - everything is digital!**"""
 
     def _get_process_knowledge(self) -> str:
         """Get knowledge about the process"""
