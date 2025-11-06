@@ -19,11 +19,11 @@ from .interview_service import get_interview_service, InterviewService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
 from ..prompts.interview_prompt import build_interview_prompt
-from ..prompts.interview_prompt_lite import build_interview_prompt_lite
-from ..prompts.interview_prompt_lite_minimal import build_interview_prompt_lite_minimal
+from ..prompts.progressive_prompt_builder import build_progressive_prompt
 from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
 from ..prompts.prerequisites import Action
+from ..utils.hebrew_utils import smart_extract_child_name
 
 logger = logging.getLogger(__name__)
 
@@ -203,16 +203,41 @@ Your role now:
 Remember: You are an AI assistant. Be transparent about your nature when relevant."""
 
         else:
-            # During interview: use appropriate interview prompt based on model capability
+            # During interview: use progressive prompting for intelligent adaptation
+
+            # Determine what areas are still missing
+            missing_areas = []
+            if not data.strengths or len(data.strengths) < 30:
+                missing_areas.append("strengths")
+            if not data.primary_concerns:
+                missing_areas.append("concerns")
+            if not data.concern_details or len(data.concern_details) < 200:
+                missing_areas.append("detailed concern examples")
+            if not data.developmental_history or len(data.developmental_history) < 30:
+                missing_areas.append("developmental history")
+            if not data.family_context or len(data.family_context) < 30:
+                missing_areas.append("family context")
+            if not data.daily_routines or len(data.daily_routines) < 30:
+                missing_areas.append("daily routines")
+            if not data.parent_goals or len(data.parent_goals) < 30:
+                missing_areas.append("parent goals")
+
             if use_lite:
-                # For flash-lite: use ultra-minimal prompt to avoid overwhelming the model
-                base_prompt = build_interview_prompt_lite_minimal(
+                # For flash-lite: use PROGRESSIVE PROMPTING (innovative approach!)
+                # Adapts to stage and situation - much better than static prompts
+                base_prompt = build_progressive_prompt(
                     child_name=data.child_name or "unknown",
                     age=str(data.age) if data.age else "unknown",
                     gender=data.gender or "unknown",
                     concerns=data.primary_concerns,
                     completeness=session.completeness,
-                    context_summary=self.interview_service.get_context_summary(family_id)
+                    user_message=user_message,
+                    extracted_data={
+                        "primary_concerns": data.primary_concerns,
+                        "concern_details": data.concern_details,
+                        "strengths": data.strengths
+                    },
+                    missing_areas=missing_areas
                 )
             else:
                 # For more capable models: use comprehensive prompt
@@ -403,6 +428,15 @@ Call extract_interview_data with whatever is relevant from this turn. Every bit 
                     if value:  # Only log non-empty values
                         value_preview = str(value)[:100] if isinstance(value, str) else value
                         logger.info(f"   - {key}: {value_preview}")
+
+                # Smart name extraction: catch Hebrew names LLM might miss
+                if 'child_name' in func_call.arguments:
+                    llm_name = func_call.arguments['child_name']
+                    smart_name = smart_extract_child_name(user_message, llm_name)
+
+                    if smart_name and smart_name != llm_name:
+                        logger.info(f"🔍 Smart extraction: LLM got '{llm_name}', pattern found '{smart_name}' - using smart extraction")
+                        func_call.arguments['child_name'] = smart_name
 
                 # Update extracted data
                 updated_data = self.interview_service.update_extracted_data(
