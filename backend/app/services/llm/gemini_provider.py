@@ -309,15 +309,28 @@ class GeminiProvider(BaseLLMProvider):
                             part_attrs = [attr for attr in dir(part) if not attr.startswith('_')]
                             logger.info(f"Available attributes: {part_attrs}")
 
-                            # Check what's actually in the part
+                            # Check what's actually in the part - try multiple text sources
+                            text_found = False
+
+                            # Try part.text first (standard location)
                             if hasattr(part, 'text'):
                                 text_value = part.text
-                                logger.info(f"part.text exists: value={repr(text_value)}, type={type(text_value)}, truthy={bool(text_value)}")
+                                logger.info(f"part.text exists: value={repr(text_value)[:100] if text_value else None}, type={type(text_value)}, truthy={bool(text_value)}")
                                 if text_value:  # Only add if truthy
                                     content += text_value
                                     logger.info(f"✅ Added {len(text_value)} chars from part.text")
+                                    text_found = True
                             else:
                                 logger.info("part.text does NOT exist")
+
+                            # Try part.thought (Gemini 2.5 Pro thinking mode)
+                            if not text_found and hasattr(part, 'thought'):
+                                thought_value = part.thought
+                                logger.info(f"part.thought exists: value={repr(thought_value)[:100] if thought_value else None}, type={type(thought_value)}, truthy={bool(thought_value)}")
+                                if thought_value:
+                                    content += thought_value
+                                    logger.info(f"✅ Added {len(thought_value)} chars from part.thought")
+                                    text_found = True
 
                             if hasattr(part, 'function_call'):
                                 fc_value = part.function_call
