@@ -135,53 +135,56 @@ Respond with ONLY one of: APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE, or N
     def _get_app_features_knowledge(self, context: Dict) -> str:
         """Get knowledge about app features"""
         child_name = context.get("child_name", "הילד/ה")
-        completeness = context.get("completeness", 0.0)
-        interview_complete = completeness >= 0.80
 
-        # Get feature list based on current state
-        current_state = {
-            "interview_complete": interview_complete,
-            "minimum_videos": context.get("video_count", 0) >= 3,
-            "reports_available": context.get("reports_available", False)
-        }
+        # Build comprehensive knowledge base with multiple FAQ entries
+        knowledge_sections = []
 
-        feature_list = domain_knowledge.get_feature_list_hebrew(current_state)
+        # Main app explanation
+        if "what_is_app_and_safety" in self.faq:
+            main_answer = self.faq["what_is_app_and_safety"]["answer_hebrew"]
+            main_answer = main_answer.replace("{child_name}", child_name)
+            knowledge_sections.append(f"### What Chitta Does:\n{main_answer}")
 
-        # Check if there's a matching FAQ answer
-        faq_key = domain_knowledge.match_faq_question("מה אני יכול לעשות")
-        if faq_key and faq_key in self.faq:
-            faq_answer = self.faq[faq_key]["answer_hebrew"]
-            # Replace placeholders
-            faq_answer = faq_answer.replace("{child_name}", child_name)
-            answer = faq_answer
-        else:
-            answer = feature_list
+        # System/meta questions (how Chitta works, prompts, etc.)
+        if "system_instructions" in self.faq:
+            system_answer = self.faq["system_instructions"]["answer_hebrew"]
+            system_answer = system_answer.replace("{child_name}", child_name)
+            knowledge_sections.append(f"### About How Chitta Works (AI/System):\n{system_answer}")
 
-        return f"""## ⚠️ INFORMATION REQUEST DETECTED
+        comprehensive_knowledge = "\n\n".join(knowledge_sections)
 
-The parent asked: **"What can I do in this app?"**
+        return f"""## 📋 KNOWLEDGE BASE: About Chitta App
 
-This is a legitimate question about app features. You should answer it!
+The parent is asking about the app/what it does/how it works. Use this FACTUAL information:
 
-**Here's what you should tell them:**
+{comprehensive_knowledge}
 
-{answer}
+**Instructions for your response:**
+1. Answer their specific question naturally using the relevant facts above
+2. If they ALSO mentioned something about their child (mixed intent), acknowledge that too
+3. After explaining, gently guide back: "יש לך עוד שאלות, או שנמשיך בשיחה על {child_name}?"
+4. Be conversational - adapt to their specific question, don't just list everything
+5. For meta questions (prompts, how you work), use the "About How Chitta Works" section
 
-**After answering, ask if they want to continue the interview.**"""
+**CRITICAL: Use ONLY the factual information provided above. DO NOT make up features, processes, or privacy details.**"""
 
     def _get_process_knowledge(self) -> str:
         """Get knowledge about the process"""
         process = domain_knowledge.PROCESS_OVERVIEW_HEBREW
 
-        return f"""## ⚠️ INFORMATION REQUEST DETECTED
+        return f"""## 📋 KNOWLEDGE BASE: Chitta Process
 
-The parent asked about the process/how it works.
-
-**Here's the process overview to share:**
+The parent is asking how the process works. Use this FACTUAL information:
 
 {process}
 
-**After explaining, ask if they want to continue the interview.**"""
+**Instructions for your response:**
+1. Explain the process naturally, adapting to what they specifically asked
+2. If they mentioned concerns about their child too (mixed intent), acknowledge those
+3. Be conversational - help them understand where they are and what comes next
+4. Guide back to interview: "רוצה שנמשיך בשיחה על הילד/ה שלך?"
+
+**CRITICAL: Use ONLY the factual process information above. DO NOT invent steps or timelines.**"""
 
     def _get_current_state_knowledge(self, context: Dict) -> str:
         """Get knowledge about current state and next steps"""
@@ -190,30 +193,41 @@ The parent asked about the process/how it works.
         child_name = context.get("child_name", "הילד/ה")
 
         if completeness < 0.80:
-            return f"""## ⚠️ INFORMATION REQUEST DETECTED
-
-The parent asked where they are in the process.
-
-**Current state:**
+            state_info = f"""
+**Where they are:**
 - Stage: Interview (in progress)
-- Completeness: {completeness_pct}%
-- Next: Continue interview until ~80%+, then video guidelines
+- Progress: {completeness_pct}%
+- What's happening: Gathering information about {child_name}
+- Next step: Complete interview (~80%+), then personalized video filming guidelines
 
-**Tell them:**
-"אנחנו בשלב הראיון, שזה הבסיס לכל התהליך. עברנו בערך {completeness_pct}% - עוד קצת שיחה ואז נעבור להנחיות צילום. רוצה שנמשיך?"
+**What to tell them:**
+Explain naturally where we are, what we've covered so far, and that we need to continue
+the interview a bit more before moving to videos. Be encouraging about progress.
 """
         else:
-            return f"""## ⚠️ INFORMATION REQUEST DETECTED
-
-The parent asked where they are in the process.
-
-**Current state:**
+            state_info = f"""
+**Where they are:**
 - Stage: Interview complete ({completeness_pct}%)
-- Next: Video filming guidelines
+- What's next: Generate personalized video filming guidelines for {child_name}
+- Then: Film videos, AI analysis, comprehensive report
 
-**Tell them:**
-"סיימנו את הראיון! ({completeness_pct}%) השלב הבא הוא שאני אכין לך הנחיות צילום מותאמות אישית ל{child_name}. מוכנ/ה לקבל אותן?"
+**What to tell them:**
+Celebrate that the interview is complete and explain the next steps naturally.
 """
+
+        return f"""## 📋 KNOWLEDGE BASE: Current State
+
+The parent wants to know where they are in the process. Here's the factual state:
+
+{state_info}
+
+**Instructions for your response:**
+1. Answer naturally based on their actual progress
+2. Be encouraging and clear about next steps
+3. If they seem confused or impatient, reassure them about the value of each step
+4. Guide appropriately: continue interview OR move to next phase
+
+**Use ONLY the state information above. DO NOT make up progress or skip steps.**"""
 
     def get_direct_answer(
         self,
