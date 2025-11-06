@@ -100,23 +100,11 @@ class GeminiProvider(BaseLLMProvider):
             tools = self._convert_functions_to_tools(functions)
 
         # Create configuration
-        # Note: When using tools, we need to ensure the model ALSO generates text
-        # By default, Gemini AFC (Automatic Function Calling) may only return function calls
-        tool_config = None
-        if tools:
-            # Configure function calling to allow text alongside function calls
-            tool_config = types.ToolConfig(
-                function_calling_config=types.FunctionCallingConfig(
-                    mode="ANY"  # Allow model to call functions or respond with text (not AUTO which only calls functions)
-                )
-            )
-
         config = types.GenerateContentConfig(
             temperature=temp,
             max_output_tokens=max_tokens,
             safety_settings=self.safety_settings,
-            tools=tools,
-            tool_config=tool_config
+            tools=tools
         )
 
         try:
@@ -293,73 +281,42 @@ class GeminiProvider(BaseLLMProvider):
         finish_reason = None
 
         try:
-            # Debug: log response structure
-            logger.debug(f"Response type: {type(response)}")
-            logger.debug(f"Response attributes: {dir(response)}")
+            # Try response.text FIRST (SDK's concatenated text extraction)
+            # The SDK warns about non-text parts but says it returns "concatenated text result from text parts"
+            if hasattr(response, 'text'):
+                try:
+                    text_from_sdk = response.text
+                    if text_from_sdk:
+                        content = text_from_sdk
+                        logger.info(f"✅ Got text from response.text: {len(content)} chars")
+                except Exception as e:
+                    logger.warning(f"Could not access response.text: {e}")
 
-            # Check for candidates
+            # Now check for function calls and other metadata by examining parts
             if hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
-                logger.debug(f"Candidate: {candidate}")
 
                 # Get finish reason
                 if hasattr(candidate, 'finish_reason'):
                     finish_reason = str(candidate.finish_reason)
 
-                # Check for content parts
+                # Check for content parts (for function calls, not text)
                 if hasattr(candidate, 'content') and candidate.content:
                     logger.debug(f"Content: {candidate.content}")
 
                     if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                        logger.info(f"📦 Response has {len(candidate.content.parts)} parts")
-
-                        for i, part in enumerate(candidate.content.parts):
-                            logger.info(f"--- Part {i+1} ---")
-                            logger.info(f"Part type: {type(part)}")
-
-                            # Log all non-private attributes
-                            part_attrs = [attr for attr in dir(part) if not attr.startswith('_')]
-                            logger.info(f"Available attributes: {part_attrs}")
-
-                            # Check what's actually in the part - try multiple text sources
-                            text_found = False
-
-                            # Try part.text first (standard location)
-                            if hasattr(part, 'text'):
-                                text_value = part.text
-                                logger.info(f"part.text exists: value={repr(text_value)[:100] if text_value else None}, type={type(text_value)}, truthy={bool(text_value)}")
-                                if text_value:  # Only add if truthy
-                                    content += text_value
-                                    logger.info(f"✅ Added {len(text_value)} chars from part.text")
-                                    text_found = True
-                            else:
-                                logger.info("part.text does NOT exist")
-
-                            # Try part.thought (Gemini 2.5 Pro thinking mode)
-                            if not text_found and hasattr(part, 'thought'):
-                                thought_value = part.thought
-                                logger.info(f"part.thought exists: value={repr(thought_value)[:100] if thought_value else None}, type={type(thought_value)}, truthy={bool(thought_value)}")
-                                if thought_value:
-                                    content += thought_value
-                                    logger.info(f"✅ Added {len(thought_value)} chars from part.thought")
-                                    text_found = True
-
-                            if hasattr(part, 'function_call'):
-                                fc_value = part.function_call
-                                logger.info(f"part.function_call exists: {fc_value is not None}")
-                                if fc_value:
-                                    logger.info(f"✅ Found function call: {fc_value.name}")
-                                    function_calls.append(
-                                        FunctionCall(
-                                            name=fc_value.name,
-                                            arguments=dict(fc_value.args) if hasattr(fc_value, 'args') else {}
-                                        )
+                        # We already got text from response.text, now just extract function calls
+                        for part in candidate.content.parts:
+                            # Extract function calls only
+                            if hasattr(part, 'function_call') and part.function_call:
+                                fc = part.function_call
+                                logger.info(f"✅ Found function call: {fc.name}")
+                                function_calls.append(
+                                    FunctionCall(
+                                        name=fc.name,
+                                        arguments=dict(fc.args) if hasattr(fc, 'args') else {}
                                     )
-
-                            if hasattr(part, 'thought_signature'):
-                                ts_value = part.thought_signature
-                                logger.info(f"part.thought_signature exists: type={type(ts_value)}, len={len(ts_value) if ts_value else 0}")
-                                # Ignore thought_signature - it's not text content
+                                )
                     else:
                         logger.warning("candidate.content.parts is None or empty")
                         # Response was received but has no content (possibly filtered by safety settings)
