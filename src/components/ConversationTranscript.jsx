@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 export default function ConversationTranscript({ messages, isTyping }) {
   const chatEndRef = useRef(null);
@@ -33,9 +34,70 @@ export default function ConversationTranscript({ messages, isTyping }) {
                   ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-200/50'
                   : 'bg-white text-gray-800 border border-gray-100 shadow-md'
               } transform transition-all duration-200 hover:scale-[1.01]`}
-              style={{ whiteSpace: 'pre-line' }}
+              dir="auto"
             >
-              {msg.text}
+              <ReactMarkdown
+                components={{
+                  // Headings
+                  h1: ({node, ...props}) => <h1 className="text-2xl font-bold mb-2 mt-1" {...props} />,
+                  h2: ({node, ...props}) => <h2 className="text-xl font-bold mb-2 mt-1" {...props} />,
+                  h3: ({node, ...props}) => <h3 className="text-lg font-semibold mb-1 mt-1" {...props} />,
+
+                  // Paragraphs
+                  p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+
+                  // Lists
+                  ul: ({node, ...props}) => <ul className="list-disc list-inside mb-2 space-y-1" {...props} />,
+                  ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-2 space-y-1" {...props} />,
+                  li: ({node, ...props}) => <li className="mr-2" {...props} />,
+
+                  // Strong/Bold
+                  strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+
+                  // Emphasis/Italic
+                  em: ({node, ...props}) => <em className="italic" {...props} />,
+
+                  // Links
+                  a: ({node, ...props}) => (
+                    <a
+                      className={`underline ${
+                        msg.sender === 'user' ? 'text-white/90 hover:text-white' : 'text-indigo-600 hover:text-indigo-700'
+                      }`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      {...props}
+                    />
+                  ),
+
+                  // Code
+                  code: ({node, inline, ...props}) =>
+                    inline ? (
+                      <code className={`px-1.5 py-0.5 rounded text-sm font-mono ${
+                        msg.sender === 'user' ? 'bg-white/20' : 'bg-gray-100'
+                      }`} {...props} />
+                    ) : (
+                      <code className={`block px-3 py-2 rounded my-2 text-sm font-mono ${
+                        msg.sender === 'user' ? 'bg-white/20' : 'bg-gray-100'
+                      }`} {...props} />
+                    ),
+
+                  // Blockquote
+                  blockquote: ({node, ...props}) => (
+                    <blockquote className={`border-r-4 pr-3 my-2 italic ${
+                      msg.sender === 'user' ? 'border-white/40' : 'border-indigo-300'
+                    }`} {...props} />
+                  ),
+
+                  // Horizontal Rule
+                  hr: ({node, ...props}) => (
+                    <hr className={`my-3 ${
+                      msg.sender === 'user' ? 'border-white/30' : 'border-gray-200'
+                    }`} {...props} />
+                  ),
+                }}
+              >
+                {msg.text}
+              </ReactMarkdown>
             </div>
           </div>
         ))}
