@@ -16,6 +16,10 @@ def test_faq_matching():
     """Test that FAQ questions match correctly"""
 
     test_cases = [
+        # USER'S ACTUAL PROBLEMATIC QUESTIONS
+        ("היא מתחילה לצעוק אבל הייתי רוצה להבין קודם מה האפליקציה הזאת עושה?", "what_is_app_and_safety"),
+        ("רגע, אמרו לי שמצלמים ווידאו מייצרים דויות מה עם זה? תסביר על זה", "what_is_app_and_safety"),
+
         # Privacy questions
         ("מה האפליקציה עושה?", "what_is_app_and_safety"),
         ("האם זה בטוח?", "what_is_app_and_safety"),

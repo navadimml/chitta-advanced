@@ -49,22 +49,29 @@ class KnowledgeService:
             InformationRequestType if detected, None otherwise
         """
         # Quick LLM call to classify information request intent
-        detection_prompt = f"""Analyze this user message and determine if they're asking for INFORMATION about the app/process/features (not having a conversation about their child).
+        detection_prompt = f"""Analyze this user message and determine if they're asking for INFORMATION about the app/process/features.
+
+IMPORTANT: Even if they ALSO mention their child, if they're asking about the app/process, classify it as an information request!
 
 User message: "{user_message}"
 
 Information request types:
-- APP_FEATURES: Asking what they can do in the app, what features are available
-  Examples: "מה אני יכול לעשות פה?", "what can I do here?", "what features do you have?"
 
-- PROCESS_EXPLANATION: Asking how the process/system works, what happens next
-  Examples: "איך זה עובד?", "how does this work?", "what's the process?", "כמה זמן זה לוקח?"
+- APP_FEATURES or PROCESS_EXPLANATION: Asking what the app does, how it works, what happens
+  Examples:
+  • "מה האפליקציה עושה?", "מה זה?", "מה צ'יטה?"
+  • "איך זה עובד?", "מה התהליך?", "מה הסבר על זה?"
+  • "אמרו לי שמצלמים וידאו", "שומעים דוחות?", "מה עם הסרטונים?"
+  • "היא צועקת אבל רוצה להבין מה האפליקציה עושה" ← Still APP question!
+  • "before we continue, what is this?", "explain what this app does"
 
-- CURRENT_STATE: Asking where they are in the process, what stage they're at
-  Examples: "איפה אני?", "where am I in the process?", "what's next?", "מה השלב?"
+- CURRENT_STATE: Asking where they are in the process, what stage
+  Examples: "איפה אני?", "מה השלב?", "where am I?", "what's next for me?"
 
-- NOT_INFORMATION: Just talking about their child, answering interview questions, regular conversation
-  Examples: "הילד שלי אוהב לקרוא", "he's 3 years old", "yes I'm worried about his speech"
+- NOT_INFORMATION: ONLY talking about their child, NO questions about the app/process
+  Examples: "הילד שלי אוהב לקרוא", "he's 3 years old", "כן אני מודאגת מהדיבור"
+
+KEY: If the message contains ANY question about the app/process/what happens, classify it as APP_FEATURES or PROCESS_EXPLANATION (use your judgment which fits better).
 
 Respond with ONLY one of: APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE, or NOT_INFORMATION"""
 
