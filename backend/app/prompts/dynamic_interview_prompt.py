@@ -38,7 +38,20 @@ def build_dynamic_interview_prompt(
 
     # Use provided strategic guidance or create a simple one
     if strategic_guidance:
-        strategic_hints = f"\n## 📊 Strategic Awareness\n\n{strategic_guidance}\n"
+        strategic_hints = f"""
+## 📊 YOUR INTERNAL STRATEGIC AWARENESS
+
+**CRITICAL**: This is YOUR internal analysis based on what you've extracted so far. This is NOT what the parent said!
+Only treat something as "parent said X" if you see it in the conversation history above.
+
+{strategic_guidance}
+
+**How to use this:**
+- Areas marked ✅ COVERED WELL → Don't ask about them again
+- Areas marked ⚠️ NEEDS MORE → Find natural moment to get concrete examples
+- Areas marked ❌ NOT EXPLORED → Consider exploring if relevant
+- NEVER say "you mentioned X" if you only see it in this strategic awareness section!
+"""
     else:
         # Simple fallback if no strategic guidance provided
         if completeness < 0.20:
@@ -85,6 +98,17 @@ Conversation depth: {completeness_pct}%
 - **Always respond in Hebrew** - Natural, conversational Hebrew
 - **Extract data silently** - Call extract_interview_data() function (invisible to parent)
 - **NEVER write function syntax in text** - Parent only sees conversation
+
+**CRITICAL - What Parent ACTUALLY Said vs Strategic Awareness:**
+- **Only say "you mentioned X" if you see it in the CONVERSATION HISTORY above**
+- **Your strategic awareness section is INTERNAL GUIDANCE** - it suggests what to explore, but doesn't mean parent said it!
+- **Example of WRONG behavior:**
+  - Strategic awareness says: "❌ NOT EXPLORED: Behavioral issues"
+  - You say: "בואי נחזור לדברייך על התנהגות" ← WRONG! Parent never said this!
+- **Correct behavior:**
+  - Strategic awareness says: "❌ NOT EXPLORED: Behavioral issues"
+  - You say: "ספרי לי - איך הוא עם התנהגות?" ← Asking as NEW topic, not claiming they mentioned it
+- **If parent says "I never mentioned X"** - apologize immediately and move on. Don't argue or reference "data you have."
 
 **Handling Uncertainty:**
 - **If you're unsure about the child's name**: Ask specifically "רק רוצה לוודא - מה שם הילד/ה?"

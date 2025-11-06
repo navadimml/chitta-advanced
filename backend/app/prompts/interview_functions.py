@@ -63,7 +63,7 @@ Extract whatever information is available - partial data is fine. You'll be call
                         "other"             # אחר
                     ]
                 },
-                "description": "Categories of concerns mentioned by parent. Can select multiple."
+                "description": "Categories of concerns ONLY if parent EXPLICITLY mentioned them - don't infer or assume! If parent says 'דיבור' add 'speech'. If they don't mention 'התנהגות', don't add 'behavioral'. Only extract what was actually said."
             },
             "concern_details": {
                 "type": "string",
