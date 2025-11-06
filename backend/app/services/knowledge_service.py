@@ -129,10 +129,10 @@ Analyze the user message and classify it into one of these intent categories.
    - If this category, specify which type:
      * APP_FEATURES - "מה אפשר לעשות?", "איזה אפשרויות יש?"
      * PROCESS_EXPLANATION - "איך זה עובד?", "מה התהליך?"
-     * CURRENT_STATE - "איפה אני?", "מה השלב?", "מה עכשיו?"
+     * CURRENT_STATE - "איפה אני בתהליך?", "מה השלב שלי?", "כמה התקדמתי?" (ONLY about interview progress, NOT about data storage!)
      * PREREQUISITE_EXPLANATION - "למה אני לא יכולה...?", "מתי אוכל...?"
      * NEXT_STEPS - "מה הלאה?", "מה בשלב הבא?"
-     * DOMAIN_QUESTION - "מה זה אוטיזם?", "בגיל כמה ילדים מדברים?" (questions about child development, not about the app)
+     * DOMAIN_QUESTION - Questions about privacy/security/data storage ("איפה הסרטונים?", "מי רואה את המידע?"), child development ("מה זה אוטיזם?", "בגיל כמה ילדים מדברים?"), or other domain topics (not about the app interface)
 
 4. **TANGENT** - Off-topic or tangential request
    - Creative writing requests (poems, stories, songs)
@@ -149,7 +149,10 @@ Analyze the user message and classify it into one of these intent categories.
 - Hebrew variations and morphology should be understood semantically
 - "רוצה לראות דוח" and "אני מעוניינת לקבל את הדוח" are both ACTION_REQUEST for view_report
 - "מה אפשר לעשות" and "איזה אפשרויות יש לי כאן" are both INFORMATION_REQUEST for APP_FEATURES
-- Questions about Chitta the app/system (not about the child) are usually TANGENT
+- "איפה הסרטונים נישמרים?" and "מי רואה את המידע?" are INFORMATION_REQUEST with type DOMAIN_QUESTION (privacy/security questions)
+- "איפה אני בתהליך?" is INFORMATION_REQUEST with type CURRENT_STATE (interview progress)
+- Privacy/security/data questions → DOMAIN_QUESTION, NOT CURRENT_STATE!
+- Questions about Chitta the app/system (not about the child) that are off-topic are TANGENT
 
 **Response format (JSON ONLY):**
 {{
@@ -245,6 +248,12 @@ Respond with ONLY the JSON object, no other text."""
 
         elif information_type == InformationRequestType.CURRENT_STATE:
             return self._get_current_state_knowledge(context)
+
+        elif information_type == InformationRequestType.DOMAIN_QUESTION:
+            # For domain questions (privacy, child development topics),
+            # don't inject generic knowledge - these should be handled by FAQ or LLM's training
+            logger.info("Domain question detected - no knowledge injection (FAQ or LLM will handle)")
+            return ""
 
         else:
             return ""
