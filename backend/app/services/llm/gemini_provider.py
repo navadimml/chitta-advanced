@@ -299,34 +299,42 @@ class GeminiProvider(BaseLLMProvider):
                     logger.debug(f"Content: {candidate.content}")
 
                     if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                        for part in candidate.content.parts:
-                            # Log what type of part this is for debugging
-                            part_attrs = [attr for attr in dir(part) if not attr.startswith('_') and hasattr(part, attr)]
-                            logger.debug(f"Part has attributes: {part_attrs}")
+                        logger.info(f"📦 Response has {len(candidate.content.parts)} parts")
 
-                            # Text content - check multiple possible attributes
-                            if hasattr(part, 'text') and part.text:
-                                logger.info(f"Found text in part.text: {len(part.text)} chars")
-                                content += part.text
-                            elif hasattr(part, 'thought_signature') and part.thought_signature:
-                                # Gemini 2.5 Pro uses thought_signature for text content
-                                # It may be bytes or string, handle both
-                                thought_text = part.thought_signature
-                                if isinstance(thought_text, bytes):
-                                    thought_text = thought_text.decode('utf-8')
-                                logger.info(f"Found text in part.thought_signature: {len(thought_text)} chars")
-                                content += thought_text
+                        for i, part in enumerate(candidate.content.parts):
+                            logger.info(f"--- Part {i+1} ---")
+                            logger.info(f"Part type: {type(part)}")
 
-                            # Function call
-                            if hasattr(part, 'function_call') and part.function_call:
-                                fc = part.function_call
-                                logger.info(f"Found function call: {fc.name}")
-                                function_calls.append(
-                                    FunctionCall(
-                                        name=fc.name,
-                                        arguments=dict(fc.args) if hasattr(fc, 'args') else {}
+                            # Log all non-private attributes
+                            part_attrs = [attr for attr in dir(part) if not attr.startswith('_')]
+                            logger.info(f"Available attributes: {part_attrs}")
+
+                            # Check what's actually in the part
+                            if hasattr(part, 'text'):
+                                text_value = part.text
+                                logger.info(f"part.text exists: value={repr(text_value)}, type={type(text_value)}, truthy={bool(text_value)}")
+                                if text_value:  # Only add if truthy
+                                    content += text_value
+                                    logger.info(f"✅ Added {len(text_value)} chars from part.text")
+                            else:
+                                logger.info("part.text does NOT exist")
+
+                            if hasattr(part, 'function_call'):
+                                fc_value = part.function_call
+                                logger.info(f"part.function_call exists: {fc_value is not None}")
+                                if fc_value:
+                                    logger.info(f"✅ Found function call: {fc_value.name}")
+                                    function_calls.append(
+                                        FunctionCall(
+                                            name=fc_value.name,
+                                            arguments=dict(fc_value.args) if hasattr(fc_value, 'args') else {}
+                                        )
                                     )
-                                )
+
+                            if hasattr(part, 'thought_signature'):
+                                ts_value = part.thought_signature
+                                logger.info(f"part.thought_signature exists: type={type(ts_value)}, len={len(ts_value) if ts_value else 0}")
+                                # Ignore thought_signature - it's not text content
                     else:
                         logger.warning("candidate.content.parts is None or empty")
                         # Response was received but has no content (possibly filtered by safety settings)
