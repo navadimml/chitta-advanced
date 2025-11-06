@@ -92,7 +92,7 @@ class ConversationService:
         if information_request:
             logger.info(f"✓ Information request detected: {information_request}")
 
-            # Get knowledge to inject into prompt
+            # Build context for knowledge retrieval
             context = {
                 "child_name": data.child_name,
                 "completeness": session.completeness,
@@ -100,11 +100,53 @@ class ConversationService:
                 "reports_available": False  # TODO: Get from actual report status
             }
 
+            # ARCHITECTURAL SOLUTION: Try direct FAQ answer first
+            # This eliminates hallucinations by returning FAQ content directly
+            # without LLM generation. If no FAQ match, fall back to knowledge injection.
+            direct_answer = self.knowledge_service.get_direct_answer(user_message, context)
+
+            if direct_answer:
+                # ✅ DIRECT FAQ RESPONSE - No LLM generation needed!
+                # This guarantees accuracy and eliminates hallucinations
+                logger.info(f"✓ Returning direct FAQ answer (bypassing LLM generation)")
+
+                # Save conversation turn
+                self.interview_service.add_conversation_turn(
+                    family_id,
+                    role="user",
+                    content=user_message
+                )
+                self.interview_service.add_conversation_turn(
+                    family_id,
+                    role="assistant",
+                    content=direct_answer
+                )
+
+                # Get updated session state
+                session = self.interview_service.get_or_create_session(family_id)
+
+                # Return direct answer
+                return {
+                    "response": direct_answer,
+                    "function_calls": [],
+                    "completeness": session.completeness * 100,
+                    "extracted_data": {},
+                    "context_cards": self._generate_context_cards(
+                        family_id,
+                        session.completeness,
+                        None,
+                        None
+                    ),
+                    "stats": self.interview_service.get_session_stats(family_id)
+                }
+
+            # If no direct FAQ match, inject knowledge for LLM to use
+            # This handles complex queries that need contextual responses
             injected_knowledge = self.knowledge_service.get_knowledge_for_prompt(
                 information_request,
                 context
             )
-            logger.info(f"Injecting domain knowledge about {information_request}")
+            logger.info(f"No direct FAQ match - injecting domain knowledge about {information_request}")
 
         else:
             # If not information request, check for action request
