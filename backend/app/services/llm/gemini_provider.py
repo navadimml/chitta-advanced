@@ -300,13 +300,23 @@ class GeminiProvider(BaseLLMProvider):
 
                     if hasattr(candidate.content, 'parts') and candidate.content.parts:
                         for part in candidate.content.parts:
-                            # Text content
+                            # Log what type of part this is for debugging
+                            part_attrs = [attr for attr in dir(part) if not attr.startswith('_') and hasattr(part, attr)]
+                            logger.debug(f"Part has attributes: {part_attrs}")
+
+                            # Text content - check multiple possible attributes
                             if hasattr(part, 'text') and part.text:
+                                logger.info(f"Found text in part.text: {len(part.text)} chars")
                                 content += part.text
+                            elif hasattr(part, 'thought_signature') and part.thought_signature:
+                                # Gemini 2.5 Pro may use thought_signature for text content
+                                logger.info(f"Found text in part.thought_signature: {len(part.thought_signature)} chars")
+                                content += part.thought_signature
 
                             # Function call
                             if hasattr(part, 'function_call') and part.function_call:
                                 fc = part.function_call
+                                logger.info(f"Found function call: {fc.name}")
                                 function_calls.append(
                                     FunctionCall(
                                         name=fc.name,
