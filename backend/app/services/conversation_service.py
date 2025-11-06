@@ -20,6 +20,7 @@ from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.dynamic_interview_prompt import build_dynamic_interview_prompt
+from ..prompts.strategic_advisor import get_strategic_guidance
 from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
 from ..prompts.prerequisites import Action
@@ -202,51 +203,40 @@ Your role now:
 Remember: You are an AI assistant. Be transparent about your nature when relevant."""
 
         else:
-            # During interview: use dynamic interview prompt
-            # Natural flow with strategic awareness - not rigid stages!
+            # During interview: use dynamic interview prompt with LLM-based strategic advisor
+            # Natural flow + intelligent strategic awareness
 
-            if use_lite:
-                # For flash-lite: use dynamic prompt that analyzes coverage and provides subtle guidance
-                # This maintains natural flow while ensuring comprehensive coverage
-                base_prompt = build_dynamic_interview_prompt(
-                    child_name=data.child_name or "unknown",
-                    age=str(data.age) if data.age else "unknown",
-                    gender=data.gender or "unknown",
-                    concerns=data.primary_concerns,
-                    completeness=session.completeness,
-                    extracted_data={
-                        "child_name": data.child_name,
-                        "age": data.age,
-                        "primary_concerns": data.primary_concerns,
-                        "concern_details": data.concern_details,
-                        "strengths": data.strengths,
-                        "developmental_history": data.developmental_history,
-                        "family_context": data.family_context,
-                        "daily_routines": data.daily_routines,
-                        "parent_goals": data.parent_goals
-                    }
-                )
-            else:
-                # For more capable models: can use comprehensive prompt or dynamic prompt
-                # Dynamic prompt works for all models
-                base_prompt = build_dynamic_interview_prompt(
-                    child_name=data.child_name or "unknown",
-                    age=str(data.age) if data.age else "unknown",
-                    gender=data.gender or "unknown",
-                    concerns=data.primary_concerns,
-                    completeness=session.completeness,
-                    extracted_data={
-                        "child_name": data.child_name,
-                        "age": data.age,
-                        "primary_concerns": data.primary_concerns,
-                        "concern_details": data.concern_details,
-                        "strengths": data.strengths,
-                        "developmental_history": data.developmental_history,
-                        "family_context": data.family_context,
-                        "daily_routines": data.daily_routines,
-                        "parent_goals": data.parent_goals
-                    }
-                )
+            # Get strategic guidance from LLM analysis of extracted data
+            # This is MUCH smarter than pattern matching!
+            extracted_data_dict = {
+                "child_name": data.child_name,
+                "age": data.age,
+                "gender": data.gender,
+                "primary_concerns": data.primary_concerns,
+                "concern_details": data.concern_details,
+                "strengths": data.strengths,
+                "developmental_history": data.developmental_history,
+                "family_context": data.family_context,
+                "daily_routines": data.daily_routines,
+                "parent_goals": data.parent_goals
+            }
+
+            strategic_guidance = await get_strategic_guidance(
+                self.llm,
+                extracted_data_dict,
+                session.completeness
+            )
+
+            # Build dynamic prompt with strategic guidance
+            base_prompt = build_dynamic_interview_prompt(
+                child_name=data.child_name or "unknown",
+                age=str(data.age) if data.age else "unknown",
+                gender=data.gender or "unknown",
+                concerns=data.primary_concerns,
+                completeness=session.completeness,
+                extracted_data=extracted_data_dict,
+                strategic_guidance=strategic_guidance
+            )
 
         # Add prerequisite context if action was detected
         if prerequisite_check:
