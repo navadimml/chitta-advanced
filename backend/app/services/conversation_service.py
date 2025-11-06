@@ -19,11 +19,10 @@ from .interview_service import get_interview_service, InterviewService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
 from ..prompts.interview_prompt import build_interview_prompt
-from ..prompts.progressive_prompt_builder import build_progressive_prompt
+from ..prompts.dynamic_interview_prompt import build_dynamic_interview_prompt
 from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
 from ..prompts.prerequisites import Action
-from ..utils.hebrew_utils import smart_extract_child_name
 
 logger = logging.getLogger(__name__)
 
@@ -203,51 +202,50 @@ Your role now:
 Remember: You are an AI assistant. Be transparent about your nature when relevant."""
 
         else:
-            # During interview: use progressive prompting for intelligent adaptation
-
-            # Determine what areas are still missing
-            missing_areas = []
-            if not data.strengths or len(data.strengths) < 30:
-                missing_areas.append("strengths")
-            if not data.primary_concerns:
-                missing_areas.append("concerns")
-            if not data.concern_details or len(data.concern_details) < 200:
-                missing_areas.append("detailed concern examples")
-            if not data.developmental_history or len(data.developmental_history) < 30:
-                missing_areas.append("developmental history")
-            if not data.family_context or len(data.family_context) < 30:
-                missing_areas.append("family context")
-            if not data.daily_routines or len(data.daily_routines) < 30:
-                missing_areas.append("daily routines")
-            if not data.parent_goals or len(data.parent_goals) < 30:
-                missing_areas.append("parent goals")
+            # During interview: use dynamic interview prompt
+            # Natural flow with strategic awareness - not rigid stages!
 
             if use_lite:
-                # For flash-lite: use PROGRESSIVE PROMPTING (innovative approach!)
-                # Adapts to stage and situation - much better than static prompts
-                base_prompt = build_progressive_prompt(
+                # For flash-lite: use dynamic prompt that analyzes coverage and provides subtle guidance
+                # This maintains natural flow while ensuring comprehensive coverage
+                base_prompt = build_dynamic_interview_prompt(
                     child_name=data.child_name or "unknown",
                     age=str(data.age) if data.age else "unknown",
                     gender=data.gender or "unknown",
                     concerns=data.primary_concerns,
                     completeness=session.completeness,
-                    user_message=user_message,
                     extracted_data={
+                        "child_name": data.child_name,
+                        "age": data.age,
                         "primary_concerns": data.primary_concerns,
                         "concern_details": data.concern_details,
-                        "strengths": data.strengths
-                    },
-                    missing_areas=missing_areas
+                        "strengths": data.strengths,
+                        "developmental_history": data.developmental_history,
+                        "family_context": data.family_context,
+                        "daily_routines": data.daily_routines,
+                        "parent_goals": data.parent_goals
+                    }
                 )
             else:
-                # For more capable models: use comprehensive prompt
-                base_prompt = build_interview_prompt(
+                # For more capable models: can use comprehensive prompt or dynamic prompt
+                # Dynamic prompt works for all models
+                base_prompt = build_dynamic_interview_prompt(
                     child_name=data.child_name or "unknown",
                     age=str(data.age) if data.age else "unknown",
                     gender=data.gender or "unknown",
                     concerns=data.primary_concerns,
                     completeness=session.completeness,
-                    context_summary=self.interview_service.get_context_summary(family_id)
+                    extracted_data={
+                        "child_name": data.child_name,
+                        "age": data.age,
+                        "primary_concerns": data.primary_concerns,
+                        "concern_details": data.concern_details,
+                        "strengths": data.strengths,
+                        "developmental_history": data.developmental_history,
+                        "family_context": data.family_context,
+                        "daily_routines": data.daily_routines,
+                        "parent_goals": data.parent_goals
+                    }
                 )
 
         # Add prerequisite context if action was detected
@@ -429,16 +427,8 @@ Call extract_interview_data with whatever is relevant from this turn. Every bit 
                         value_preview = str(value)[:100] if isinstance(value, str) else value
                         logger.info(f"   - {key}: {value_preview}")
 
-                # Smart name extraction: catch Hebrew names LLM might miss
-                if 'child_name' in func_call.arguments:
-                    llm_name = func_call.arguments['child_name']
-                    smart_name = smart_extract_child_name(user_message, llm_name)
-
-                    if smart_name and smart_name != llm_name:
-                        logger.info(f"🔍 Smart extraction: LLM got '{llm_name}', pattern found '{smart_name}' - using smart extraction")
-                        func_call.arguments['child_name'] = smart_name
-
                 # Update extracted data
+                # Note: If LLM doesn't get the name, it will ask naturally in the conversation
                 updated_data = self.interview_service.update_extracted_data(
                     family_id,
                     func_call.arguments
