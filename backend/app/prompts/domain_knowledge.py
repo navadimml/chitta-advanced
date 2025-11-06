@@ -36,73 +36,83 @@ class Feature:
 DOMAIN_INFO = {
     "app_name": "Chitta",
     "app_name_hebrew": "צ'יטה",
-    "domain": "child_development_screening",
-    "purpose": "Child development screening and assessment platform",
-    "purpose_hebrew": "פלטפורמה להערכת והתפתחות ילדים"
+    "domain": "child_development_journey",
+    "purpose": "AI assistant for parents navigating their child's developmental journey",
+    "purpose_hebrew": "עוזרת AI להורים בניווט המסע ההתפתחותי של הילד/ה",
+    "value_proposition": "From initial concerns through ongoing care - your partner in understanding, documenting, and supporting your child's development",
+    "value_proposition_hebrew": "מהדאגות הראשוניות דרך ליווי מתמשך - השותפה שלך בהבנה, תיעוד ותמיכה בהתפתחות הילד/ה שלך"
 }
 
 PROCESS_OVERVIEW = """
-The screening process happens in stages:
+Chitta accompanies you through your child's entire developmental journey:
 
-1. **Interview** (מה שאנחנו עושים עכשיו)
-   - Deep conversation about your child
-   - Understanding strengths, concerns, context
-   - Takes about 30 minutes
+**Phase 1: Understanding** (Initial Assessment)
+1. **Interview** - Deep conversation about your child (30 min)
+2. **Video Guidelines** - Personalized filming instructions based on your conversation
+3. **Film & Upload** - Short videos (number varies based on needs)
+4. **AI Analysis** - Analyzing developmental patterns (~24 hours)
+5. **Comprehensive Report** - Detailed findings and recommendations
 
-2. **Video Guidelines** (הנחיות צילום)
-   - After interview is complete (80%+)
-   - I create personalized filming instructions
-   - Shows exactly what scenarios to film
+**Phase 2: Journey & Care Coordination** (Ongoing Support)
+6. **Developmental Timeline** - Visual story of your child's journey
+   - All assessments, diagnoses, meeting summaries in one place
+   - Track progress over time
 
-3. **Film & Upload Videos** (צילום והעלאת סרטונים)
-   - Parent films 3+ short videos based on guidelines
-   - Shows child in different situations
+7. **Collaborative Care Circle** - Unite your support team
+   - Invite professionals (therapists, teachers, specialists)
+   - Shared communication and goal-setting
+   - Everyone working together for your child
 
-4. **AI Analysis** (ניתוח בינה מלאכותית)
-   - Takes ~24 hours
-   - Analyzes developmental patterns in videos
-   - Combined with interview insights
+8. **Smart Summaries** - Prepared for every meeting
+   - One-page recap before important appointments
+   - Never forget important details
 
-5. **Comprehensive Report** (דוח מקיף)
-   - Detailed findings and recommendations
-   - Developmental profile
-   - Next steps
+9. **Success Tracking** - Celebrate every milestone
+   - Document and visualize progress
+   - Focus on achievements, big and small
 
-6. **Expert Matching** (התאמת מומחים)
-   - Connect with relevant specialists
-   - Based on report findings
+10. **Ongoing Support** - Proactive guidance
+    - Identify when you're stuck
+    - Suggest next steps
+    - Available 24/7
+
+Chitta transforms from an assessment tool into your constant companion on this journey.
 """
 
 PROCESS_OVERVIEW_HEBREW = """
-תהליך הבדיקה מתקדם בשלבים:
+צ'יטה מלווה אותך לאורך כל המסע ההתפתחותי של הילד/ה שלך:
 
-1. **ראיון** (מה שאנחנו עושים עכשיו)
-   - שיחה מעמיקה על הילד/ה שלך
-   - הבנת נקודות חוזק, דאגות, הקשר
-   - לוקח בערך 30 דקות
+**שלב 1: הבנה** (הערכה ראשונית)
+1. **ראיון** - שיחה מעמיקה על הילד/ה שלך (~30 דקות)
+2. **הנחיות צילום** - הוראות מותאמות אישית על סמך השיחה שלנו
+3. **צילום והעלאה** - סרטונים קצרים (מספר משתנה לפי צורך)
+4. **ניתוח AI** - ניתוח דפוסי התפתחות (~24 שעות)
+5. **דוח מקיף** - ממצאים והמלצות מפורטים
 
-2. **הנחיות צילום**
-   - אחרי שהראיון מושלם (80%+)
-   - אני יוצרת הוראות צילום מותאמות אישית
-   - מראה בדיוק אילו סיטואציות לצלם
+**שלב 2: המסע והליווי המתמשך** (תמיכה שוטפת)
+6. **ציר הזמן ההתפתחותי** - הסיפור החי של המסע
+   - כל ההערכות, האבחונים, סיכומי הפגישות במקום אחד
+   - מעקב התקדמות לאורך זמן
 
-3. **צילום והעלאת סרטונים**
-   - ההורה מצלם 3+ סרטונים קצרים לפי ההנחיות
-   - מציגים את הילד/ה במצבים שונים
+7. **מעגל הטיפול השיתופי** - איחוד צוות התמיכה
+   - הזמנת אנשי מקצוע (מטפלים, מורים, מומחים)
+   - תקשורת והגדרת מטרות משותפות
+   - כולם עובדים יחד למען הילד/ה
 
-4. **ניתוח בינה מלאכותית**
-   - לוקח בערך 24 שעות
-   - מנתח דפוסי התפתחות בסרטונים
-   - בשילוב תובנות מהראיון
+8. **סיכומים חכמים** - הכנה לכל פגישה
+   - תקציר של עמוד אחד לפני מפגשים חשובים
+   - לעולם לא לשכוח פרטים חשובים
 
-5. **דוח מקיף**
-   - ממצאים והמלצות מפורטים
-   - פרופיל התפתחותי
-   - צעדים הבאים
+9. **תיעוד הצלחות** - לחגוג כל אבן דרך
+   - תיעוד וויזואליזציה של התקדמות
+   - התמקדות בהישגים, גדולים וקטנים
 
-6. **התאמת מומחים**
-   - חיבור למומחים רלוונטיים
-   - מבוסס על ממצאי הדוח
+10. **ליווי מתמשך** - הכוונה פרואקטיבית
+    - זיהוי מתי המסע נעצר
+    - הצעת צעדים הבאים
+    - זמינה 24/7
+
+צ'יטה הופכת מכלי הערכה לשותפה המתמדת שלך במסע הזה.
 """
 
 FEATURES = [
@@ -138,8 +148,8 @@ FEATURES = [
     Feature(
         name="Upload Videos",
         name_hebrew="העלאת סרטונים",
-        description="Upload 3+ short videos of your child in different scenarios",
-        description_hebrew="העלאת 3+ סרטונים קצרים של הילד/ה במצבים שונים",
+        description="Upload short videos of your child based on personalized scenarios",
+        description_hebrew="העלאת סרטונים קצרים של הילד/ה לפי תרחישים מותאמים אישית",
         always_available=False,
         requires=["interview_complete"]
     ),
@@ -201,7 +211,7 @@ FAQ = {
 
 **אחרי שנסיים את השיחה:**
 • **הנחיות צילום** - אני אכין לך הוראות מדויקות לאילו סרטונים לצלם
-• **העלאת סרטונים** - תעלי 3 סרטונים קצרים של {child_name}
+• **העלאת סרטונים** - תעלי סרטונים קצרים של {child_name} (מספר משתנה לפי הצורך)
 
 **אחרי ניתוח הסרטונים (~24 שעות):**
 • **דוח התפתחותי מקיף** - ממצאים והמלצות
@@ -318,10 +328,10 @@ FAQ = {
 הסרטונים מאפשרים לבינה המלאכותית שלי לנתח דפוסי התפתחות בדרך מדויקת יותר.
 
 **מה צריך לצלם?**
-אחרי השיחה שלנו, אני אכין לך **הנחיות צילום מותאמות אישית** - בדיוק מה צריך לצלם ואיך, בהתאם למה שדיברנו.
+אחרי השיחה שלנו, אני אכין לך **הנחיות צילום מותאמות אישית** - בדיוק מה צריך לצלם ואיך, בהתאם למה שדיברנו. מספר הסרטונים והתרחישים משתנה בהתאם למה שסיפרת לי.
 
 **כמה זמן?**
-3 סרטונים קצרים (כ-3-5 דקות כל אחד) - סה"כ כ-15 דקות צילום.
+בדרך כלל מדובר במספר סרטונים קצרים (כ-3-5 דקות כל אחד) - סה"כ כ-15-20 דקות צילום.
 
 יש לך עוד שאלות על התהליך?"""
     },

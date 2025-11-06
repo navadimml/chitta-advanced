@@ -86,8 +86,8 @@ class ConversationService:
         information_request = None
         injected_knowledge = None
 
-        # First check for information requests using knowledge service
-        information_request = self.knowledge_service.detect_information_request(user_message)
+        # First check for information requests using knowledge service (LLM-based)
+        information_request = await self.knowledge_service.detect_information_request(user_message)
 
         if information_request:
             logger.info(f"✓ Information request detected: {information_request}")
