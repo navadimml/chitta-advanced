@@ -330,25 +330,35 @@ class GeminiProvider(BaseLLMProvider):
             # This is important even when we have function calls, since Gemini
             # can return text + function calls where content.parts is None
             if not content:
-                if hasattr(response, 'text') and response.text:
-                    content = response.text
-                    logger.debug("Used response.text fallback")
-                elif not hasattr(response, 'candidates') or not response.candidates:
-                    # Only warn if we have no candidates at all (unexpected response)
-                    logger.warning("No content found in response and no candidates")
-                    content = str(response) if response else "No response"
-                    finish_reason = "unexpected_response"
-                elif not function_calls:
-                    # We have candidates but no content and no function calls
-                    logger.warning("No content found in response (possibly filtered)")
-                    content = ""
-                    if not finish_reason:
-                        finish_reason = "empty_content"
-                else:
-                    # We have function calls but no content - log as info since this
-                    # might happen if LLM only wants to call functions
-                    logger.info("Response has function calls but no text content")
-                    content = ""
+                # Try response.text property first
+                try:
+                    if hasattr(response, 'text') and response.text:
+                        content = response.text
+                        logger.info(f"✅ Used response.text fallback: {len(content)} chars")
+                    else:
+                        logger.warning(f"response.text not available or empty. Has attr: {hasattr(response, 'text')}")
+                except Exception as e:
+                    logger.warning(f"Error accessing response.text: {e}")
+
+                # If still no content, determine why and set appropriate state
+                if not content:
+                    if not hasattr(response, 'candidates') or not response.candidates:
+                        # No candidates at all - unexpected response
+                        logger.warning("No content found in response and no candidates")
+                        content = str(response) if response else "No response"
+                        finish_reason = "unexpected_response"
+                    elif not function_calls:
+                        # We have candidates but no content and no function calls
+                        logger.warning("No content found in response (possibly filtered by safety settings)")
+                        content = ""
+                        if not finish_reason:
+                            finish_reason = "empty_content"
+                    else:
+                        # We have function calls but no content
+                        # This should NOT happen if LLM follows the prompt correctly
+                        logger.warning("⚠️  Response has function calls but NO text content - prompt violation!")
+                        logger.warning(f"Function calls: {[fc.name for fc in function_calls]}")
+                        content = ""
 
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {e}", exc_info=True)
