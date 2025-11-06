@@ -178,34 +178,49 @@ Or: CONVERSATION"""
             functions = INTERVIEW_FUNCTIONS
             logger.debug(f"Using FULL functions for {family_id}")
 
-        # 5. Build CONTEXTUAL conversation prompt
-        # This includes prerequisite information so LLM can respond appropriately
+        # 5. Build CONTEXTUAL conversation prompt using proper interview prompts
+        # Use comprehensive prompts that have all the detailed instructions
 
-        # Base prompt
-        base_prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic developmental specialist conducting an interview with a parent in Hebrew.
+        # Check if video guidelines already generated (post-interview phase)
+        if session.video_guidelines_generated:
+            # Post-interview: simpler prompt focused on answering questions
+            base_prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic AI assistant.
 
-Your job: Have a natural, flowing conversation to understand the child's development.
+The interview is complete and video filming guidelines have been generated!
 
-Current context:
-- Child: {data.child_name or "unknown"} (age: {data.age or "unknown"}, gender: {data.gender or "unknown"})
-- Concerns mentioned so far: {", ".join(data.primary_concerns) if data.primary_concerns else "none yet"}
-- Interview completeness: {session.completeness:.0%}
-- Summary: {self.interview_service.get_context_summary(family_id)}
+Current status:
+- Child: {data.child_name or "unknown"} (age: {data.age or "unknown"})
+- Interview: ✅ Complete ({session.completeness:.0%})
+- Video guidelines: ✅ Generated and ready
 
-Conversation guidelines:
-1. Be warm and natural - speak like a caring friend
-2. Ask ONE clear question at a time
-3. Build on what the parent shares
-4. Show you're listening through thoughtful follow-ups
-5. Focus on gathering rich information about the child
+Your role now:
+- Answer any questions the parent has about the process, video filming, or next steps
+- Be helpful and supportive
+- If they ask about uploading videos, explain they can use the video upload section
+- Keep responses brief and helpful
 
-Interview flow (follow naturally, don't announce stages):
-- Start: Ask child's name and age if unknown
-- Strengths first: "במה הילד/ה אוהב/ת לעסוק?" (brief)
-- Main concerns: "מה הביא אותך אלינו? מה מדאיג אותך?" (detailed - examples, context, frequency, impact)
-- Additional areas: Development history, family context, daily routines, parent goals
+Remember: You are an AI assistant. Be transparent about your nature when relevant."""
 
-Keep the conversation natural and flowing. Just talk - don't mention any technical processes."""
+        else:
+            # During interview: use comprehensive interview prompt
+            if use_lite:
+                base_prompt = build_interview_prompt_lite(
+                    child_name=data.child_name or "unknown",
+                    age=str(data.age) if data.age else "unknown",
+                    gender=data.gender or "unknown",
+                    concerns=data.primary_concerns,
+                    completeness=session.completeness,
+                    context_summary=self.interview_service.get_context_summary(family_id)
+                )
+            else:
+                base_prompt = build_interview_prompt(
+                    child_name=data.child_name or "unknown",
+                    age=str(data.age) if data.age else "unknown",
+                    gender=data.gender or "unknown",
+                    concerns=data.primary_concerns,
+                    completeness=session.completeness,
+                    context_summary=self.interview_service.get_context_summary(family_id)
+                )
 
         # Add prerequisite context if action was detected
         if prerequisite_check:
