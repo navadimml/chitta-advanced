@@ -38,7 +38,7 @@ function App() {
   useEffect(() => {
     setMessages([{
       sender: 'chitta',
-      text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך וכמה הוא/היא?',
+      text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
       timestamp: new Date().toISOString()
     }]);
   }, []);

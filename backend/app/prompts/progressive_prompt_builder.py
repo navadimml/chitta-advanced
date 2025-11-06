@@ -133,7 +133,7 @@ def build_stage_specific_focus(
 ## CURRENT FOCUS: Opening Stage ({completeness_pct}%)
 
 Your goals right now:
-1. **If missing name/age**: Ask "מה שם הילד/ה וכמה הוא/היא?"
+1. **If missing name/age**: Ask "מה שם הילד/ה ובן/בת כמה?"
 2. **Get what child enjoys**: "במה {child_ref} אוהב/ת לעסוק?"
 3. **Initial concerns**: "מה הביא אותך אלינו?"
 
