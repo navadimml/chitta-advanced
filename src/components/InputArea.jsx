@@ -41,6 +41,13 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
       // Max height of 200px (about 8 lines)
       const newHeight = Math.min(textarea.scrollHeight, 200);
       textarea.style.height = `${newHeight}px`;
+
+      // Only show scrollbar when content exceeds max height
+      if (textarea.scrollHeight > 200) {
+        textarea.style.overflowY = 'auto';
+      } else {
+        textarea.style.overflowY = 'hidden';
+      }
     }
   };
 
@@ -72,7 +79,7 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
             onBlur={() => setIsFocused(false)}
             placeholder="כתבי כאן את המחשבות שלך..."
             rows={1}
-            className={`flex-1 px-6 py-4 text-base bg-gray-50 border-2 rounded-2xl focus:outline-none transition-all duration-300 resize-none overflow-y-auto ${
+            className={`flex-1 px-6 py-4 text-base bg-gray-50 border-2 rounded-2xl focus:outline-none transition-all duration-300 resize-none overflow-y-hidden custom-textarea ${
               isFocused
                 ? 'border-indigo-400 bg-white shadow-lg shadow-indigo-100/50'
                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-100'
@@ -120,6 +127,35 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-4px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom scrollbar styling for textarea in RTL */
+        .custom-textarea::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .custom-textarea::-webkit-scrollbar-track {
+          background: transparent;
+          border-radius: 16px;
+        }
+
+        .custom-textarea::-webkit-scrollbar-thumb {
+          background: rgba(99, 102, 241, 0.3);
+          border-radius: 16px;
+          border: 2px solid transparent;
+          background-clip: padding-box;
+        }
+
+        .custom-textarea::-webkit-scrollbar-thumb:hover {
+          background: rgba(99, 102, 241, 0.5);
+          border: 2px solid transparent;
+          background-clip: padding-box;
+        }
+
+        /* Firefox scrollbar styling */
+        .custom-textarea {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
         }
       `}</style>
     </div>
