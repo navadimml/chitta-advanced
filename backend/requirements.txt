@@ -7,10 +7,6 @@ pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
 aiofiles>=23.2.0
 
-# Semantic Similarity & Embeddings
-sentence-transformers>=2.2.2
-numpy>=1.24.0
-
 # LLM Providers (optional - install only what you need)
 # Works with simulated provider by default (no API keys needed)
 # google-genai>=0.2.0            # For Gemini (recommended - free, video support, Hebrew)
