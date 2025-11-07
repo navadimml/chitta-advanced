@@ -251,7 +251,19 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
 
         # Add injected knowledge if information request detected
         if injected_knowledge:
-            base_prompt += f"\n\n{injected_knowledge}"
+            base_prompt += f"""
+
+## 📚 KNOWLEDGE TO USE IN YOUR RESPONSE
+
+{injected_knowledge}
+
+**CRITICAL - How to Use This Knowledge:**
+- Use the information above to answer the parent's question naturally
+- **DON'T re-introduce yourself!** You already said "שלום! אני צ'יטה" in your first message
+- **DON'T repeat greetings** - just answer their question warmly
+- If the knowledge includes "שאלה מצוינת" or similar, that's fine - just don't add "שלום! אני צ'יטה" again
+- After answering, invite them to continue: "יש לך עוד שאלות, או שנמשיך בשיחה על הילד/ה?"
+"""
 
         system_prompt = base_prompt
 
