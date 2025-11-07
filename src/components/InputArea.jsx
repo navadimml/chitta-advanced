@@ -71,17 +71,18 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
           </button>
         </div>
 
-        {/* Typing indicator */}
-        {value.length > 0 && (
-          <div
-            className="mt-2 text-xs text-gray-400 text-center"
-            style={{
-              animation: 'fadeIn 0.2s ease-out'
-            }}
-          >
-            {value.length > 100 ? '✨ מדהים! המשיכי לשתף' : ''}
-          </div>
-        )}
+        {/* Typing indicator - always rendered to prevent jumping */}
+        <div
+          className="mt-2 text-xs text-gray-400 text-center"
+          style={{
+            minHeight: '16px',
+            visibility: value.length > 0 ? 'visible' : 'hidden',
+            opacity: value.length > 0 ? 1 : 0,
+            transition: 'opacity 0.2s ease-out'
+          }}
+        >
+          {value.length > 100 ? '✨ מדהים! המשיכי לשתף' : ''}
+        </div>
       </div>
 
       <style>{`
