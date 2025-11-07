@@ -255,7 +255,12 @@ class GeminiProvider(BaseLLMProvider):
             logger.debug(f"Response type: {type(response)}")
             logger.debug(f"Response attributes: {dir(response)}")
 
-            # Check for candidates
+            # Try simple text property first (recommended in modern SDK)
+            if hasattr(response, 'text') and response.text:
+                content = response.text
+                logger.debug(f"Got text from response.text: {content[:100]}...")
+
+            # Check for candidates (for function calls and detailed parsing)
             if hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
                 logger.debug(f"Candidate: {candidate}")
@@ -270,8 +275,11 @@ class GeminiProvider(BaseLLMProvider):
 
                     if hasattr(candidate.content, 'parts') and candidate.content.parts:
                         for part in candidate.content.parts:
-                            # Text content
+                            # Text content (filter out thought parts for Gemini 2.5)
                             if hasattr(part, 'text') and part.text:
+                                # Skip thought parts if they exist
+                                if hasattr(part, 'thought') and part.thought:
+                                    continue
                                 content += part.text
 
                             # Function call
@@ -284,18 +292,22 @@ class GeminiProvider(BaseLLMProvider):
                                     )
                                 )
                     else:
-                        logger.warning("candidate.content.parts is None or empty")
+                        # parts is None or empty - try direct text access
+                        if hasattr(candidate.content, 'text') and candidate.content.text:
+                            content = candidate.content.text
+                        else:
+                            logger.warning("candidate.content.parts is None or empty, and no direct text")
                 else:
                     logger.warning("candidate.content is None or missing")
 
             # Fallback to simple text if available
             if not content and not function_calls:
-                if hasattr(response, 'text'):
+                if hasattr(response, 'text') and response.text:
                     content = response.text
                 else:
                     logger.warning("No content found in response")
-                    # Try to extract any available text
-                    content = str(response) if response else "No response"
+                    # Default to empty string, never None
+                    content = ""
 
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {e}", exc_info=True)
