@@ -1,0 +1,385 @@
+{
+  "id": "child-development-assessment",
+  "name": "Child Development Assessment Journey",
+  "description": "Multi-stage assessment and guidance workflow for understanding a child's developmental journey",
+  "version": "1.0.0",
+
+  "entitySchema": {
+    "type": "child",
+    "requiredAttributes": [
+      "name",
+      "age"
+    ],
+    "optionalAttributes": [
+      "birthDate",
+      "parentName",
+      "concerns",
+      "medicalHistory"
+    ]
+  },
+
+  "stages": [
+    {
+      "id": "interview",
+      "name": "Initial Interview",
+      "description": "Gather information about the child through conversation",
+      "type": "conversation",
+      "order": 1,
+      "nextStages": ["consultation", "document_upload"],
+      "completionCriteria": {
+        "requiredFields": ["name", "age", "concerns"],
+        "minMessages": 5
+      }
+    },
+    {
+      "id": "consultation",
+      "name": "Ongoing Consultation",
+      "description": "Provide guidance and answer parent's questions",
+      "type": "conversation",
+      "order": 2,
+      "nextStages": ["video_upload", "report_generation", "document_upload"],
+      "completionCriteria": {
+        "optional": true
+      }
+    },
+    {
+      "id": "document_upload",
+      "name": "Document Upload",
+      "description": "Upload diagnostic reports and medical documents",
+      "type": "upload",
+      "order": 3,
+      "nextStages": ["consultation", "report_generation"],
+      "completionCriteria": {
+        "minArtifacts": 1,
+        "artifactTypes": ["diagnostic_report", "medical_record"]
+      }
+    },
+    {
+      "id": "video_upload",
+      "name": "Video Upload",
+      "description": "Upload videos of child's behavior for observation",
+      "type": "upload",
+      "order": 4,
+      "nextStages": ["report_generation"],
+      "completionCriteria": {
+        "minArtifacts": 1,
+        "artifactTypes": ["behavioral_video"]
+      }
+    },
+    {
+      "id": "report_generation",
+      "name": "Report Generation",
+      "description": "Generate comprehensive assessment report",
+      "type": "review",
+      "order": 5,
+      "prerequisites": ["interview"],
+      "nextStages": ["expert_consultation"],
+      "completionCriteria": {
+        "dependencies": ["interview"]
+      }
+    },
+    {
+      "id": "expert_consultation",
+      "name": "Expert Consultation",
+      "description": "Connect with developmental specialists",
+      "type": "action",
+      "order": 6,
+      "nextStages": [],
+      "completionCriteria": {
+        "optional": true
+      }
+    }
+  ],
+
+  "initialStageId": "interview",
+
+  "artifactTypes": [
+    {
+      "id": "diagnostic_report",
+      "name": "Diagnostic Report",
+      "category": "medical",
+      "description": "Professional diagnostic assessment documents",
+      "acceptedFormats": [".pdf", ".doc", ".docx"],
+      "maxSizeMB": 10,
+      "icon": "FileText"
+    },
+    {
+      "id": "medical_record",
+      "name": "Medical Record",
+      "category": "medical",
+      "description": "Medical history and health records",
+      "acceptedFormats": [".pdf", ".jpg", ".jpeg", ".png"],
+      "maxSizeMB": 10,
+      "icon": "FileHeart"
+    },
+    {
+      "id": "behavioral_video",
+      "name": "Behavioral Video",
+      "category": "observation",
+      "description": "Video recordings of child's behavior and interactions",
+      "acceptedFormats": [".mp4", ".mov", ".avi", ".webm"],
+      "maxSizeMB": 500,
+      "icon": "Video"
+    }
+  ],
+
+  "statusCardTemplates": {
+    "interview_complete": {
+      "type": "completed",
+      "title": "Initial Interview Complete",
+      "subtitle": "Child information gathered successfully",
+      "icon": "CheckCircle",
+      "priority": 5
+    },
+    "interview_in_progress": {
+      "type": "processing",
+      "title": "Interview in Progress",
+      "subtitle": "Gathering child information",
+      "icon": "MessageCircle",
+      "priority": 10
+    },
+    "documents_needed": {
+      "type": "action",
+      "title": "Upload Documents",
+      "subtitle": "Add diagnostic reports to help with assessment",
+      "icon": "FileUp",
+      "priority": 8,
+      "action": {
+        "type": "open_deep_view",
+        "payload": {
+          "view": "document_upload"
+        }
+      }
+    },
+    "documents_uploaded": {
+      "type": "completed",
+      "title": "Documents Uploaded",
+      "subtitle": "{count} documents added",
+      "icon": "FileCheck",
+      "priority": 5
+    },
+    "video_needed": {
+      "type": "action",
+      "title": "Record Video",
+      "subtitle": "Upload behavioral observation video",
+      "icon": "VideoIcon",
+      "priority": 9,
+      "action": {
+        "type": "open_deep_view",
+        "payload": {
+          "view": "video_upload"
+        }
+      }
+    },
+    "video_processing": {
+      "type": "processing",
+      "title": "Processing Video",
+      "subtitle": "Analyzing behavioral patterns",
+      "icon": "Video",
+      "priority": 7
+    },
+    "video_ready": {
+      "type": "completed",
+      "title": "Video Analysis Complete",
+      "subtitle": "Behavioral observations recorded",
+      "icon": "CheckCircle",
+      "priority": 5
+    },
+    "report_generating": {
+      "type": "processing",
+      "title": "Generating Report",
+      "subtitle": "Compiling assessment findings",
+      "icon": "FileText",
+      "priority": 10
+    },
+    "report_ready": {
+      "type": "success",
+      "title": "Report Ready",
+      "subtitle": "View comprehensive assessment",
+      "icon": "FileCheck",
+      "priority": 10,
+      "action": {
+        "type": "open_deep_view",
+        "payload": {
+          "view": "report"
+        }
+      }
+    },
+    "expert_available": {
+      "type": "action",
+      "title": "Connect with Expert",
+      "subtitle": "Consult with developmental specialist",
+      "icon": "Users",
+      "priority": 6,
+      "action": {
+        "type": "open_deep_view",
+        "payload": {
+          "view": "expert_profile"
+        }
+      }
+    },
+    "milestone_achieved": {
+      "type": "milestone",
+      "title": "Milestone Reached",
+      "subtitle": "{milestone_name}",
+      "icon": "Award",
+      "priority": 8
+    },
+    "progress_metric": {
+      "type": "metric",
+      "title": "Journey Progress",
+      "subtitle": "{percentage}% complete",
+      "icon": "TrendingUp",
+      "priority": 3
+    }
+  },
+
+  "suggestionTemplates": {
+    "interview": [
+      {
+        "text": "Tell me about developmental concerns",
+        "icon": "MessageCircle",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "I'd like to discuss my concerns about my child's development"
+          }
+        },
+        "color": "blue"
+      },
+      {
+        "text": "Upload diagnostic reports",
+        "icon": "FileUp",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "document_upload"
+          }
+        },
+        "color": "purple"
+      },
+      {
+        "text": "Record observation video",
+        "icon": "Video",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "filming_instruction"
+          }
+        },
+        "color": "green"
+      },
+      {
+        "text": "View child's journal",
+        "icon": "BookOpen",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "journal"
+          }
+        },
+        "color": "amber"
+      }
+    ],
+    "consultation": [
+      {
+        "text": "Ask about speech development",
+        "icon": "MessageCircle",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "Can you tell me about typical speech development for this age?"
+          }
+        },
+        "color": "blue"
+      },
+      {
+        "text": "Ask about motor skills",
+        "icon": "Activity",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "What motor skills should my child have developed by now?"
+          }
+        },
+        "color": "green"
+      },
+      {
+        "text": "Connect with expert",
+        "icon": "Users",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "expert_profile"
+          }
+        },
+        "color": "purple"
+      },
+      {
+        "text": "View progress report",
+        "icon": "FileText",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "report"
+          }
+        },
+        "color": "amber"
+      }
+    ],
+    "video_upload": [
+      {
+        "text": "Learn filming best practices",
+        "icon": "Info",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "filming_instruction"
+          }
+        },
+        "color": "blue"
+      },
+      {
+        "text": "Upload existing video",
+        "icon": "Upload",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "video_upload"
+          }
+        },
+        "color": "green"
+      },
+      {
+        "text": "View video gallery",
+        "icon": "Film",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "video_gallery"
+          }
+        },
+        "color": "purple"
+      },
+      {
+        "text": "Continue consultation",
+        "icon": "MessageCircle",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "I have some questions about the video recording process"
+          }
+        },
+        "color": "amber"
+      }
+    ]
+  },
+
+  "metadata": {
+    "domain": "child_development",
+    "language": "he",
+    "direction": "rtl",
+    "author": "Chitta Team",
+    "tags": ["assessment", "development", "consultation"]
+  }
+}

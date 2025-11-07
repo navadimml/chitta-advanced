@@ -1,0 +1,398 @@
+{
+  "id": "healthcare-patient-intake",
+  "name": "Patient Intake and Care Journey",
+  "description": "Medical patient intake, triage, and treatment workflow",
+  "version": "1.0.0",
+
+  "entitySchema": {
+    "type": "patient",
+    "requiredAttributes": [
+      "fullName",
+      "dateOfBirth",
+      "insuranceId"
+    ],
+    "optionalAttributes": [
+      "phoneNumber",
+      "email",
+      "emergencyContact",
+      "allergies",
+      "currentMedications",
+      "medicalHistory",
+      "primaryConcern"
+    ]
+  },
+
+  "stages": [
+    {
+      "id": "registration",
+      "name": "Patient Registration",
+      "description": "Collect basic patient information and insurance details",
+      "type": "conversation",
+      "order": 1,
+      "nextStages": ["triage", "records_collection"],
+      "completionCriteria": {
+        "requiredFields": ["fullName", "dateOfBirth", "insuranceId"],
+        "minMessages": 3
+      }
+    },
+    {
+      "id": "triage",
+      "name": "Symptom Triage",
+      "description": "Assess symptoms and determine urgency",
+      "type": "conversation",
+      "order": 2,
+      "nextStages": ["records_collection", "scheduling"],
+      "completionCriteria": {
+        "requiredFields": ["primaryConcern", "symptomSeverity"],
+        "minMessages": 5
+      }
+    },
+    {
+      "id": "records_collection",
+      "name": "Medical Records Collection",
+      "description": "Upload previous medical records and lab results",
+      "type": "upload",
+      "order": 3,
+      "nextStages": ["scheduling"],
+      "completionCriteria": {
+        "minArtifacts": 1,
+        "artifactTypes": ["medical_record", "lab_result", "imaging"]
+      }
+    },
+    {
+      "id": "scheduling",
+      "name": "Appointment Scheduling",
+      "description": "Schedule appointment with appropriate healthcare provider",
+      "type": "action",
+      "order": 4,
+      "prerequisites": ["registration", "triage"],
+      "nextStages": ["pre_visit_prep"],
+      "completionCriteria": {
+        "requiredFields": ["appointmentDate", "providerId"]
+      }
+    },
+    {
+      "id": "pre_visit_prep",
+      "name": "Pre-Visit Preparation",
+      "description": "Complete pre-visit questionnaires and instructions",
+      "type": "conversation",
+      "order": 5,
+      "nextStages": ["treatment_plan"],
+      "completionCriteria": {
+        "optional": true
+      }
+    },
+    {
+      "id": "treatment_plan",
+      "name": "Treatment Plan Review",
+      "description": "Review and approve treatment plan",
+      "type": "review",
+      "order": 6,
+      "nextStages": ["follow_up"],
+      "completionCriteria": {
+        "dependencies": ["scheduling"]
+      }
+    },
+    {
+      "id": "follow_up",
+      "name": "Follow-up Care",
+      "description": "Schedule follow-up appointments and monitoring",
+      "type": "action",
+      "order": 7,
+      "nextStages": [],
+      "completionCriteria": {
+        "optional": true
+      }
+    }
+  ],
+
+  "initialStageId": "registration",
+
+  "artifactTypes": [
+    {
+      "id": "medical_record",
+      "name": "Medical Record",
+      "category": "medical_history",
+      "description": "Previous medical records and history",
+      "acceptedFormats": [".pdf", ".doc", ".docx"],
+      "maxSizeMB": 15,
+      "icon": "FileText"
+    },
+    {
+      "id": "lab_result",
+      "name": "Lab Results",
+      "category": "diagnostic",
+      "description": "Laboratory test results",
+      "acceptedFormats": [".pdf", ".jpg", ".jpeg", ".png"],
+      "maxSizeMB": 10,
+      "icon": "FlaskConical"
+    },
+    {
+      "id": "imaging",
+      "name": "Medical Imaging",
+      "category": "diagnostic",
+      "description": "X-rays, MRI, CT scans, etc.",
+      "acceptedFormats": [".dcm", ".jpg", ".jpeg", ".png", ".pdf"],
+      "maxSizeMB": 50,
+      "icon": "Scan"
+    },
+    {
+      "id": "insurance_card",
+      "name": "Insurance Card",
+      "category": "administrative",
+      "description": "Insurance card front and back",
+      "acceptedFormats": [".jpg", ".jpeg", ".png", ".pdf"],
+      "maxSizeMB": 5,
+      "icon": "CreditCard"
+    },
+    {
+      "id": "prescription",
+      "name": "Prescription",
+      "category": "medication",
+      "description": "Current prescriptions",
+      "acceptedFormats": [".pdf", ".jpg", ".jpeg", ".png"],
+      "maxSizeMB": 5,
+      "icon": "Pill"
+    }
+  ],
+
+  "statusCardTemplates": {
+    "registration_complete": {
+      "type": "completed",
+      "title": "Registration Complete",
+      "subtitle": "Patient information recorded",
+      "icon": "CheckCircle",
+      "priority": 5
+    },
+    "triage_needed": {
+      "type": "action",
+      "title": "Symptom Assessment Needed",
+      "subtitle": "Help us understand your condition",
+      "icon": "Activity",
+      "priority": 10,
+      "action": {
+        "type": "send_message",
+        "payload": {
+          "message": "I'd like to describe my symptoms"
+        }
+      }
+    },
+    "triage_complete": {
+      "type": "completed",
+      "title": "Triage Complete",
+      "subtitle": "Symptoms assessed - {urgency} priority",
+      "icon": "ClipboardCheck",
+      "priority": 7
+    },
+    "records_needed": {
+      "type": "action",
+      "title": "Upload Medical Records",
+      "subtitle": "Add previous records to help diagnosis",
+      "icon": "Upload",
+      "priority": 8,
+      "action": {
+        "type": "open_deep_view",
+        "payload": {
+          "view": "document_upload"
+        }
+      }
+    },
+    "records_uploaded": {
+      "type": "completed",
+      "title": "Records Uploaded",
+      "subtitle": "{count} documents added to your file",
+      "icon": "FileCheck",
+      "priority": 5
+    },
+    "appointment_scheduled": {
+      "type": "success",
+      "title": "Appointment Scheduled",
+      "subtitle": "{date} with Dr. {provider}",
+      "icon": "Calendar",
+      "priority": 10
+    },
+    "appointment_reminder": {
+      "type": "info",
+      "title": "Upcoming Appointment",
+      "subtitle": "{days} days until your visit",
+      "icon": "Bell",
+      "priority": 6
+    },
+    "treatment_plan_ready": {
+      "type": "action",
+      "title": "Review Treatment Plan",
+      "subtitle": "Your personalized care plan is ready",
+      "icon": "FileHeart",
+      "priority": 9,
+      "action": {
+        "type": "open_deep_view",
+        "payload": {
+          "view": "treatment_plan"
+        }
+      }
+    },
+    "prescription_ready": {
+      "type": "success",
+      "title": "Prescription Ready",
+      "subtitle": "Ready for pickup at pharmacy",
+      "icon": "Pill",
+      "priority": 8
+    },
+    "follow_up_scheduled": {
+      "type": "info",
+      "title": "Follow-up Scheduled",
+      "subtitle": "Next visit: {date}",
+      "icon": "CalendarClock",
+      "priority": 5
+    }
+  },
+
+  "suggestionTemplates": {
+    "registration": [
+      {
+        "text": "Complete registration",
+        "icon": "ClipboardEdit",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "I'd like to complete my registration"
+          }
+        },
+        "color": "blue"
+      },
+      {
+        "text": "Upload insurance card",
+        "icon": "CreditCard",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "document_upload"
+          }
+        },
+        "color": "purple"
+      },
+      {
+        "text": "Describe symptoms",
+        "icon": "Activity",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "I need to see a doctor about some symptoms"
+          }
+        },
+        "color": "red"
+      },
+      {
+        "text": "View privacy policy",
+        "icon": "Shield",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "privacy_policy"
+          }
+        },
+        "color": "gray"
+      }
+    ],
+    "triage": [
+      {
+        "text": "Describe symptoms in detail",
+        "icon": "MessageCircle",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "Let me describe my symptoms in more detail"
+          }
+        },
+        "color": "blue"
+      },
+      {
+        "text": "Rate pain level",
+        "icon": "ThermometerSun",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "I need to rate my pain level"
+          }
+        },
+        "color": "red"
+      },
+      {
+        "text": "Upload medical records",
+        "icon": "FileUp",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "document_upload"
+          }
+        },
+        "color": "purple"
+      },
+      {
+        "text": "Schedule urgent appointment",
+        "icon": "Calendar",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "scheduling"
+          }
+        },
+        "color": "orange"
+      }
+    ],
+    "scheduling": [
+      {
+        "text": "See available times",
+        "icon": "Clock",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "scheduling"
+          }
+        },
+        "color": "blue"
+      },
+      {
+        "text": "Choose specialist",
+        "icon": "Stethoscope",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "provider_selection"
+          }
+        },
+        "color": "purple"
+      },
+      {
+        "text": "Virtual visit option",
+        "icon": "Video",
+        "action": {
+          "type": "send_message",
+          "payload": {
+            "message": "Can I do a virtual visit instead?"
+          }
+        },
+        "color": "green"
+      },
+      {
+        "text": "Get directions",
+        "icon": "MapPin",
+        "action": {
+          "type": "open_deep_view",
+          "payload": {
+            "view": "location_info"
+          }
+        },
+        "color": "amber"
+      }
+    ]
+  },
+
+  "metadata": {
+    "domain": "healthcare",
+    "language": "en",
+    "direction": "ltr",
+    "author": "Healthcare Team",
+    "tags": ["patient_intake", "triage", "scheduling"]
+  }
+}
