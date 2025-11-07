@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ArrowRight, Lightbulb } from 'lucide-react';
 
 export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, value = '', onChange }) {
   const [isFocused, setIsFocused] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const textareaRef = useRef(null);
 
   const handleSend = async () => {
     if (value.trim()) {
@@ -14,7 +15,9 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
+    // Enter alone = send message
+    // Shift+Enter = new line
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -25,13 +28,32 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
     if (onChange) {
       onChange(e.target.value);
     }
+    // Auto-resize textarea
+    autoResize();
   };
+
+  const autoResize = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set height to scrollHeight (content height)
+      // Max height of 200px (about 8 lines)
+      const newHeight = Math.min(textarea.scrollHeight, 200);
+      textarea.style.height = `${newHeight}px`;
+    }
+  };
+
+  // Auto-resize on mount and when value changes externally
+  useEffect(() => {
+    autoResize();
+  }, [value]);
 
   return (
     <div className="bg-white border-t border-gray-200 p-4 shadow-lg">
       {/* Centered container on desktop */}
       <div className="max-w-3xl mx-auto">
-        <div className="flex gap-3 transition-all duration-300">
+        <div className="flex gap-3 items-end transition-all duration-300">
           {hasSuggestions && (
             <button
               onClick={onSuggestionsClick}
@@ -41,19 +63,24 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
               <Lightbulb className="w-6 h-6 group-hover:rotate-12 transition-transform duration-200" />
             </button>
           )}
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={value}
             onChange={handleChange}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder="כתבי כאן את המחשבות שלך..."
-            className={`flex-1 px-6 py-4 text-base bg-gray-50 border-2 rounded-2xl focus:outline-none transition-all duration-300 ${
+            rows={1}
+            className={`flex-1 px-6 py-4 text-base bg-gray-50 border-2 rounded-2xl focus:outline-none transition-all duration-300 resize-none overflow-y-auto ${
               isFocused
                 ? 'border-indigo-400 bg-white shadow-lg shadow-indigo-100/50'
                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-100'
             }`}
+            style={{
+              minHeight: '56px',
+              maxHeight: '200px'
+            }}
             dir="rtl"
           />
           <button
@@ -76,12 +103,16 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
           className="mt-2 text-xs text-gray-400 text-center"
           style={{
             minHeight: '16px',
-            visibility: value.length > 0 ? 'visible' : 'hidden',
-            opacity: value.length > 0 ? 1 : 0,
+            visibility: value.length > 0 || isFocused ? 'visible' : 'hidden',
+            opacity: value.length > 0 || isFocused ? 1 : 0,
             transition: 'opacity 0.2s ease-out'
           }}
         >
-          {value.length > 100 ? '✨ מדהים! המשיכי לשתף' : ''}
+          {value.length > 100
+            ? '✨ מדהים! המשיכי לשתף'
+            : isFocused && value.length === 0
+            ? 'Shift+Enter לשורה חדשה • Enter לשליחה'
+            : ''}
         </div>
       </div>
 
