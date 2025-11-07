@@ -118,8 +118,6 @@ Respond with ONLY one of: APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE, or N
         Returns:
             Formatted knowledge string to inject into prompt
         """
-        child_name = context.get("child_name", "הילד/ה")
-
         if information_type == InformationRequestType.APP_FEATURES:
             return self._get_app_features_knowledge(context)
 
@@ -134,7 +132,8 @@ Respond with ONLY one of: APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE, or N
 
     def _get_app_features_knowledge(self, context: Dict) -> str:
         """Get knowledge about app features"""
-        child_name = context.get("child_name", "הילד/ה")
+        # Handle None or empty child_name by using default
+        child_name = context.get("child_name") or "הילד/ה"
 
         # Build comprehensive knowledge base with multiple FAQ entries
         knowledge_sections = []
@@ -203,7 +202,8 @@ The parent is asking how the process works. Use this FACTUAL information:
         """Get knowledge about current state and next steps"""
         completeness = context.get("completeness", 0.0)
         completeness_pct = int(completeness * 100)
-        child_name = context.get("child_name", "הילד/ה")
+        # Handle None or empty child_name by using default
+        child_name = context.get("child_name") or "הילד/ה"
 
         if completeness < 0.80:
             state_info = f"""
@@ -262,8 +262,8 @@ The parent wants to know where they are in the process. Here's the factual state
         if faq_key and faq_key in self.faq:
             answer = self.faq[faq_key]["answer_hebrew"]
 
-            # Replace placeholders
-            child_name = context.get("child_name", "הילד/ה")
+            # Replace placeholders - handle None or empty child_name
+            child_name = context.get("child_name") or "הילד/ה"
             answer = answer.replace("{child_name}", child_name)
 
             return answer
