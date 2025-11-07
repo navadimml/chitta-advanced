@@ -219,6 +219,32 @@ FAQ = {
 
 כרגע אנחנו בשלב הראיון, וזה הבסיס לכל מה שיבוא אחר כך. רוצה שנמשיך?"""
     },
+    "why_the_name_chitta": {
+        "question_patterns": [
+            # Specifically about the name meaning
+            "למה צ'יטה",
+            "למה השם",
+            "למה קוראים",
+            "מה המשמעות של השם",
+            "מה זה אומר צ'יטה",
+            "מה המשמעות של צ'יטה",
+            "מאיפה השם",
+            "משמעות השם",
+            "מה זה chitta",
+            "why chitta",
+            "what does chitta mean",
+            "meaning of the name",
+            "why this name",
+            "where does the name come from"
+        ],
+        "answer_hebrew": """שם האפליקציה לקוח מהסנסקריט ומשמעותו "תודעה", "הבנה" או "ראייה צלולה".
+
+בפילוסופיה המזרחית, Chitta מתייחס ליכולת לראות ולהבין דברים כפי שהם באמת, בלי ערפול או בלבול.
+
+בחרנו בשם זה משום שזו בדיוק המטרה שלנו: **להאיר להורים את התמונה המלאה של התפתחות ילדם בבהירות ובאמפתיה**, לעזור להם לראות את הדרך קדימה, ולהפוך את המורכבות לסיפור ברור ומעצים.
+
+בדיוק כמו המשמעות המקורית של המילה, Chitta מביאה הבנה, צלילות ותובנה למסע ההתפתחותי של הילד והמשפחה. 💙"""
+    },
     "what_is_app_and_safety": {
         "question_patterns": [
             # About the app - varied phrasings
@@ -235,16 +261,6 @@ FAQ = {
             "תסביר מה האפליקציה",
             "מה עושים פה",
             "עושה האפליקציה",
-            # About the name
-            "למה צ'יטה",
-            "למה השם",
-            "מה המשמעות של השם",
-            "מה זה אומר צ'יטה",
-            "מאיפה השם",
-            "משמעות השם",
-            "why chitta",
-            "what does chitta mean",
-            "meaning of the name",
             # About videos and reports - key features
             "מצלמים וידאו",
             "מצלמים ווידאו",
@@ -271,10 +287,6 @@ FAQ = {
             "what is this app"
         ],
         "answer_hebrew": """שאלה מצוינת! אני שמחה לספר לך על צ'יטה.
-
-**למה "Chitta"?**
-
-שם האפליקציה לקוח מהסנסקריט ומשמעותו "תודעה", "הבנה" או "ראייה צלולה". בפילוסופיה המזרחית, Chitta מתייחס ליכולת לראות ולהבין דברים כפי שהם באמת, בלי ערפול או בלבול. בחרנו בשם זה משום שזו בדיוק המטרה שלנו: **להאיר להורים את התמונה המלאה של התפתחות ילדם בבהירות ובאמפתיה**, לעזור להם לראות את הדרך קדימה, ולהפוך את המורכבות לסיפור ברור ומעצים. בדיוק כמו המשמעות המקורית של המילה, Chitta מביאה הבנה, צלילות ותובנה למסע ההתפתחותי של הילד והמשפחה.
 
 **מה צ'יטה עושה?**
 
