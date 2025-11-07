@@ -3,14 +3,18 @@ Knowledge Service
 
 GENERAL service that handles information requests using domain-specific knowledge.
 This service structure works for any domain - just swap the domain_knowledge module.
+
+Uses semantic embeddings for robust FAQ matching instead of primitive string matching.
 """
 
 import logging
-from typing import Dict, Optional
+import numpy as np
+from typing import Dict, Optional, List, Tuple
 from ..prompts.intent_types import InformationRequestType
 from ..prompts import domain_knowledge
 from .llm.factory import create_llm_provider
 from .llm.base import Message
+from .embedding_service import get_embedding_service
 
 
 logger = logging.getLogger(__name__)
@@ -22,19 +26,57 @@ class KnowledgeService:
 
     This is a GENERAL pattern that works across domains. The domain-specific
     content comes from the domain_knowledge module.
+
+    Uses semantic embeddings for FAQ matching - much more robust than string matching!
     """
 
-    def __init__(self, llm_provider=None):
+    def __init__(self, llm_provider=None, use_embeddings=True):
         """Initialize knowledge service
 
         Args:
             llm_provider: Optional LLM provider for intelligent intent detection
+            use_embeddings: Whether to use semantic embeddings for FAQ matching (recommended)
         """
         self.domain_info = domain_knowledge.DOMAIN_INFO
         self.features = domain_knowledge.FEATURES
         self.faq = domain_knowledge.FAQ
         self.llm = llm_provider or create_llm_provider()
+        self.use_embeddings = use_embeddings
+
+        # Pre-calculate embeddings for all FAQ patterns for fast semantic matching
+        if self.use_embeddings:
+            try:
+                self.embedding_service = get_embedding_service()
+                self._precompute_faq_embeddings()
+                logger.info(f"✓ KnowledgeService initialized with semantic embeddings for {len(self.faq)} FAQs")
+            except Exception as e:
+                logger.warning(f"Failed to initialize embeddings, falling back to string matching: {e}")
+                self.use_embeddings = False
+                self.faq_patterns = []
+                self.faq_pattern_embeddings = None
+                self.pattern_to_faq = {}
+        else:
+            self.faq_patterns = []
+            self.faq_pattern_embeddings = None
+            self.pattern_to_faq = {}
+
         logger.info(f"KnowledgeService initialized for domain: {self.domain_info['domain']}")
+
+    def _precompute_faq_embeddings(self):
+        """Pre-calculate embeddings for all FAQ question patterns"""
+        self.faq_patterns: List[str] = []
+        self.pattern_to_faq: Dict[str, str] = {}
+
+        # Collect all patterns from all FAQs
+        for faq_key, faq_data in self.faq.items():
+            for pattern in faq_data.get("question_patterns", []):
+                self.faq_patterns.append(pattern)
+                self.pattern_to_faq[pattern] = faq_key
+
+        # Calculate embeddings for all patterns in one batch (efficient!)
+        logger.info(f"Pre-calculating embeddings for {len(self.faq_patterns)} FAQ patterns...")
+        self.faq_pattern_embeddings = self.embedding_service.embed_batch(self.faq_patterns)
+        logger.info("✓ FAQ embeddings pre-calculated and cached")
 
     async def detect_information_request(self, user_message: str) -> Optional[InformationRequestType]:
         """
@@ -248,6 +290,51 @@ The parent wants to know where they are in the process. Here's the factual state
 
 **Use ONLY the state information above. DO NOT make up progress or skip steps.**"""
 
+    def match_faq_semantic(self, user_message: str, threshold: float = 0.6) -> Optional[Tuple[str, float]]:
+        """
+        Match FAQ using semantic similarity (embeddings)
+
+        Much more robust than string matching - handles paraphrasing, synonyms, variations.
+
+        Args:
+            user_message: User's question
+            threshold: Minimum similarity score (0-1) to consider a match
+
+        Returns:
+            Tuple of (faq_key, similarity_score) or None if no good match
+        """
+        if not self.use_embeddings or self.faq_pattern_embeddings is None:
+            # Fall back to old string matching if embeddings not available
+            faq_key = domain_knowledge.match_faq_question(user_message)
+            return (faq_key, 1.0) if faq_key else None
+
+        try:
+            # Embed the user's question
+            query_embedding = self.embedding_service.embed(user_message)
+
+            # Find most similar FAQ pattern
+            result = self.embedding_service.find_most_similar(
+                query_embedding,
+                self.faq_pattern_embeddings,
+                threshold=threshold
+            )
+
+            if result is None:
+                logger.info(f"No FAQ match above threshold {threshold} for: {user_message[:50]}...")
+                return None
+
+            pattern_idx, similarity = result
+            matched_pattern = self.faq_patterns[pattern_idx]
+            faq_key = self.pattern_to_faq[matched_pattern]
+
+            logger.info(f"✓ FAQ matched: '{matched_pattern}' → {faq_key} (similarity: {similarity:.3f})")
+            return (faq_key, similarity)
+
+        except Exception as e:
+            logger.error(f"Embedding-based FAQ matching failed: {e}, falling back to string matching")
+            faq_key = domain_knowledge.match_faq_question(user_message)
+            return (faq_key, 1.0) if faq_key else None
+
     def get_direct_answer(
         self,
         user_message: str,
@@ -256,6 +343,8 @@ The parent wants to know where they are in the process. Here's the factual state
         """
         Get direct answer to FAQ question if available
 
+        Uses semantic similarity matching (embeddings) for robust FAQ detection.
+
         Args:
             user_message: User's question
             context: Current context
@@ -263,16 +352,20 @@ The parent wants to know where they are in the process. Here's the factual state
         Returns:
             Direct Hebrew answer if available, None otherwise
         """
-        faq_key = domain_knowledge.match_faq_question(user_message)
+        # Use semantic matching (or fall back to string matching if embeddings unavailable)
+        match_result = self.match_faq_semantic(user_message)
 
-        if faq_key and faq_key in self.faq:
-            answer = self.faq[faq_key]["answer_hebrew"]
+        if match_result:
+            faq_key, similarity = match_result
 
-            # Replace placeholders - handle None or empty child_name
-            child_name = context.get("child_name") or "הילד/ה"
-            answer = answer.replace("{child_name}", child_name)
+            if faq_key in self.faq:
+                answer = self.faq[faq_key]["answer_hebrew"]
 
-            return answer
+                # Replace placeholders - handle None or empty child_name
+                child_name = context.get("child_name") or "הילד/ה"
+                answer = answer.replace("{child_name}", child_name)
+
+                return answer
 
         return None
 
