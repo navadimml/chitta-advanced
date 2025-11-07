@@ -9,7 +9,8 @@ Uses LLM-based classification for FAQ matching - intelligent without heavy depen
 
 import logging
 from typing import Dict, Optional, Tuple
-from ..prompts.intent_types import InformationRequestType
+from ..prompts.intent_types import InformationRequestType, DetectedIntent, IntentCategory
+from ..prompts.prerequisites import Action
 from ..prompts import domain_knowledge
 from .llm.factory import create_llm_provider
 from .llm.base import Message
@@ -39,6 +40,135 @@ class KnowledgeService:
         self.faq = domain_knowledge.FAQ
         self.llm = llm_provider or create_llm_provider()
         logger.info(f"KnowledgeService initialized for domain: {self.domain_info['domain']}")
+
+    async def detect_unified_intent(self, user_message: str) -> DetectedIntent:
+        """
+        Unified intent detection - single LLM call for all intent types
+
+        This replaces separate calls for information requests and action requests,
+        saving one LLM call per message.
+
+        Args:
+            user_message: User's message
+
+        Returns:
+            DetectedIntent with category and specific details
+        """
+        detection_prompt = f"""Analyze this user message and classify their intent.
+
+User message: "{user_message}"
+
+Intent categories (respond with ONLY the category name):
+
+1. INFORMATION - User asking about the app/process/features
+   Examples:
+   • "מה זה צ'יטה?", "what is this app?"
+   • "איך זה עובד?", "how does this work?"
+   • "מה הסרטונים?", "what about videos?"
+   • "איפה אני?", "where am I in the process?"
+
+   For INFORMATION, also specify sub-type on next line:
+   - APP_FEATURES (what the app does, features)
+   - PROCESS_EXPLANATION (how it works, what happens)
+   - CURRENT_STATE (where they are, what's next)
+
+2. ACTION - User wants to perform a specific action
+   Examples:
+   • "תן לי דוח", "show me report"
+   • "איך מעלים סרטון?", "how to upload video?"
+   • "תראי הנחיות", "show guidelines"
+
+   For ACTION, also specify which action on next line:
+   - view_report
+   - upload_video
+   - view_video_guidelines
+   - find_experts
+   - add_journal_entry
+
+3. CONVERSATION - Just talking about their child/situation
+   Examples:
+   • "הילד שלי בן 5", "my child is 5"
+   • "יש לו קושי בדיבור", "he has speech delay"
+   • "כן, זה נכון", "yes, that's right"
+
+Response format:
+Line 1: Category (INFORMATION, ACTION, or CONVERSATION)
+Line 2 (if needed): Sub-type or specific action
+
+Examples:
+"מה זה?" → INFORMATION\nAPP_FEATURES
+"תן לי דוח" → ACTION\nview_report
+"הבן שלי בן 3" → CONVERSATION"""
+
+        try:
+            response = await self.llm.chat(
+                messages=[
+                    Message(role="system", content=detection_prompt),
+                    Message(role="user", content=user_message)
+                ],
+                functions=None,
+                temperature=0.1,
+                max_tokens=50
+            )
+
+            lines = [line.strip() for line in response.content.strip().split('\n') if line.strip()]
+            category_text = lines[0].upper() if lines else "CONVERSATION"
+
+            logger.info(f"Unified intent detection: {category_text} for message: {user_message[:50]}")
+
+            # Parse category
+            if category_text == "INFORMATION":
+                info_type_text = lines[1].upper() if len(lines) > 1 else "APP_FEATURES"
+
+                # Map to InformationRequestType
+                info_type = None
+                if info_type_text == "APP_FEATURES":
+                    info_type = InformationRequestType.APP_FEATURES
+                elif info_type_text == "PROCESS_EXPLANATION":
+                    info_type = InformationRequestType.PROCESS_EXPLANATION
+                elif info_type_text == "CURRENT_STATE":
+                    info_type = InformationRequestType.CURRENT_STATE
+                else:
+                    info_type = InformationRequestType.APP_FEATURES  # Default
+
+                return DetectedIntent(
+                    category=IntentCategory.INFORMATION_REQUEST,
+                    information_type=info_type,
+                    user_message=user_message
+                )
+
+            elif category_text == "ACTION":
+                action_text = lines[1].lower() if len(lines) > 1 else None
+
+                # Validate it's a real action
+                valid_actions = [a.value for a in Action]
+                if action_text in valid_actions:
+                    return DetectedIntent(
+                        category=IntentCategory.ACTION_REQUEST,
+                        specific_action=action_text,
+                        user_message=user_message
+                    )
+                else:
+                    # Invalid action, treat as conversation
+                    logger.warning(f"Invalid action detected: {action_text}, treating as conversation")
+                    return DetectedIntent(
+                        category=IntentCategory.DATA_COLLECTION,
+                        user_message=user_message
+                    )
+
+            else:
+                # CONVERSATION or anything else
+                return DetectedIntent(
+                    category=IntentCategory.DATA_COLLECTION,
+                    user_message=user_message
+                )
+
+        except Exception as e:
+            logger.warning(f"Unified intent detection failed: {e} - defaulting to CONVERSATION")
+            return DetectedIntent(
+                category=IntentCategory.DATA_COLLECTION,
+                user_message=user_message
+            )
 
     async def detect_information_request(self, user_message: str) -> Optional[InformationRequestType]:
         """
