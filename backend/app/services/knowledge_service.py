@@ -138,6 +138,12 @@ Respond with ONLY one of: APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE, or N
         # Build comprehensive knowledge base with multiple FAQ entries
         knowledge_sections = []
 
+        # Name meaning (for questions about why "Chitta")
+        if "why_the_name_chitta" in self.faq:
+            name_answer = self.faq["why_the_name_chitta"]["answer_hebrew"]
+            name_answer = name_answer.replace("{child_name}", child_name)
+            knowledge_sections.append(f"### Why the Name 'Chitta':\n{name_answer}")
+
         # Main app explanation
         if "what_is_app_and_safety" in self.faq:
             main_answer = self.faq["what_is_app_and_safety"]["answer_hebrew"]
