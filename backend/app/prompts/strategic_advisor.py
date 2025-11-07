@@ -38,6 +38,20 @@ async def get_strategic_guidance(
     concern_details = (extracted_data.get('concern_details', '') or '')
     strengths = (extracted_data.get('strengths', '') or '')
 
+    # Check for existing diagnoses in the data
+    dev_history = (extracted_data.get('developmental_history', '') or '')
+    has_diagnosis_mentioned = any(keyword in concern_details.lower() or keyword in dev_history.lower()
+                                   for keyword in ['אובחן', 'אבחנה', 'diagnosed', 'diagnosis', 'autism', 'אוטיזם', 'adhd', 'דיסלקציה'])
+
+    diagnosis_note = ""
+    if has_diagnosis_mentioned:
+        diagnosis_note = """
+**⚠️ EXISTING DIAGNOSIS MENTIONED**:
+- DON'T re-investigate areas already diagnosed
+- Focus on: diagnosis context, current support, NEW concerns beyond diagnosis, strengths
+- Parents are experts on diagnosed areas - respect that
+"""
+
     analysis_prompt = f"""You are analyzing a child development interview to determine what's been covered and what needs attention.
 
 **CRITICAL**: Don't just look at what fields are empty. READ THE ACTUAL CONTENT to understand what developmental areas have been discussed!
@@ -56,7 +70,12 @@ Primary concerns: {extracted_data.get('primary_concerns', [])}
 **Strengths ({len(strengths)} chars):**
 "{strengths[:300] if strengths else '[EMPTY - no strengths mentioned]'}"
 
+**Developmental history ({len(dev_history)} chars):**
+"{dev_history[:200] if dev_history else '[EMPTY]'}"
+
 Overall completeness: {completeness_pct}%
+
+{diagnosis_note}
 
 **Your task:**
 
@@ -70,18 +89,24 @@ Analyze what developmental areas have ACTUALLY been discussed (read the content 
 - Developmental history (milestones)
 - Parent's goals and hopes
 
+**SPECIAL: If existing diagnosis mentioned:**
+- Mark those areas as ✅ COVERED (don't need investigation)
+- Suggest focusing on: diagnosis context, interventions, NEW concerns, other areas, strengths
+
 **Format your response as INTERNAL GUIDANCE - these are YOUR strategic thoughts, NOT what parent said!**
 
 Write 2-4 bullet points in this format:
 - ✅ COVERED WELL: [area] - has rich detail, don't ask again
 - ⚠️ NEEDS MORE: [area] - mentioned but needs concrete examples
 - ❌ NOT EXPLORED: [area] - hasn't been discussed yet, consider exploring
+- 🏥 DIAGNOSED: [area] - existing diagnosis, focus on context/support not investigation
 
 **CRITICAL**:
 - Only list areas as "COVERED WELL" if you see substantial text about them
 - Don't assume areas were discussed just because they SHOULD be
 - If concern_details mentions speech issues, mark SPEECH as covered, not all areas
 - Be ACCURATE - this prevents repeating questions
+- If diagnosis mentioned, mark those areas as DIAGNOSED not NOT EXPLORED
 
 Be VERY concise. This is internal strategic awareness, not a conversation script."""
 
