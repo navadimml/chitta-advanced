@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowRight, Lightbulb } from 'lucide-react';
+import { Send, Lightbulb } from 'lucide-react';
 
 export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, value = '', onChange }) {
   const [isFocused, setIsFocused] = useState(false);
@@ -35,6 +35,13 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
   const autoResize = () => {
     const textarea = textareaRef.current;
     if (textarea) {
+      // If value is empty or only whitespace/newlines, reset to minimum height
+      if (!value.trim()) {
+        textarea.style.height = '56px';
+        textarea.style.overflowY = 'hidden';
+        return;
+      }
+
       // Reset height to auto to get the correct scrollHeight
       textarea.style.height = 'auto';
       // Set height to scrollHeight (content height)
@@ -98,9 +105,10 @@ export default function InputArea({ onSend, onSuggestionsClick, hasSuggestions, 
                 ? 'hover:scale-110 hover:shadow-xl hover:shadow-indigo-200/50 active:scale-95'
                 : 'opacity-50 cursor-not-allowed'
             } ${isSending ? 'animate-pulse' : ''}`}
+            title="שלח"
           >
-            <ArrowRight className={`w-6 h-6 transition-transform duration-200 ${
-              isSending ? 'translate-x-1' : ''
+            <Send className={`w-6 h-6 transition-transform duration-200 ${
+              isSending ? 'translate-y-[-2px]' : ''
             }`} />
           </button>
         </div>
