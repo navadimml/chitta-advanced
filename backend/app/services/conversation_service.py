@@ -286,10 +286,11 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
         # 6. Build conversation messages
         messages = [Message(role="system", content=system_prompt)]
 
-        # Add recent conversation history (last 10 turns)
+        # Add recent conversation history (last 20 turns)
+        # Increased from 20 to 40 to reduce context loss glitches
         history = self.interview_service.get_conversation_history(
             family_id,
-            last_n=20  # Last 10 exchanges (user + assistant)
+            last_n=40  # Last 20 exchanges (user + assistant)
         )
 
         for turn in history:
@@ -342,28 +343,67 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
 - Details collected: {len(current_data.concern_details or '')} characters
 - Completeness: {session.completeness:.0%}
 
-**Your job in this turn:**
-Extract EVERYTHING the parent shares - even small details add up!
+**⚠️ CRITICAL EXTRACTION RULES:**
 
-**CRITICAL - Concern Details:**
-If parent describes concerns, extract rich details to concern_details field:
-- What exactly happens? (specific behaviors/examples)
-- When does it occur? (frequency, situations)
-- Where? (home, school, everywhere)
-- Impact on daily life?
-- How long has this been happening?
+1. **EXTRACT EVERYTHING - This is your ONLY CHANCE!**
+   - Parent's words will disappear from conversation history after ~20 exchanges
+   - If you miss something now, it's LOST FOREVER
+   - Even "small" details matter - extract AGGRESSIVELY
 
-**Extract:**
-- Basic info (name, age, gender) - if mentioned
-- Primary concerns (categories like 'speech', 'social', etc.)
-- concern_details - ANY descriptions, examples, or elaborations about concerns
-- strengths - interests, what child enjoys, good at
-- developmental_history - milestones, pregnancy, birth, medical history
-- family_context - siblings, family history, educational setting
-- daily_routines - typical day, behaviors, patterns
-- parent_goals - what they hope to improve
+2. **Don't ignore casual mentions:**
+   - Parent says "הוא אוהב לצייר" → MUST extract to strengths!
+   - Parent says "הוא כבר אומר כמה מילים" → MUST extract to concern_details!
+   - Parent mentions sibling → MUST extract to family_context!
+   - Parent describes typical day → MUST extract to daily_routines!
 
-Call extract_interview_data with whatever is relevant from this turn. Every bit of information helps!"""
+3. **Preserve parent's exact descriptions:**
+   - Parent gives examples → Extract the full examples, not summaries
+   - Parent describes specific behaviors → Extract the specific details
+   - Parent mentions frequencies ("כל יום", "לפעמים") → Capture them
+   - Parent shares feelings/worries → Include them in concern_details
+
+4. **Multiple topics in one message:**
+   - If parent mentions BOTH concerns AND strengths → Extract BOTH
+   - If parent talks about multiple developmental areas → Extract ALL of them
+   - Don't pick and choose - capture everything!
+
+**WHAT TO EXTRACT:**
+
+- **Basic info:** name, age, gender (if mentioned)
+
+- **Primary concerns:** Categories like 'speech', 'social', 'motor', 'attention', 'sensory', 'emotional', 'behavioral', 'learning', 'sleep', 'eating'
+
+- **concern_details:** ANY information about concerns:
+  * What exactly happens? (specific behaviors/examples)
+  * When does it occur? (frequency, situations, timing)
+  * Where? (home, school, with peers, with family)
+  * Impact on daily life? (how it affects child/family)
+  * How long has this been happening? (duration)
+  * Parent's observations and worries
+  * Comparisons to peers or developmental expectations
+
+- **strengths:** EVERYTHING positive about the child:
+  * Interests and hobbies ("אוהב לצייר", "אוהב מכוניות")
+  * What child enjoys doing
+  * What child is good at
+  * Activities that engage them
+  * Positive behaviors or traits
+
+- **developmental_history:** Milestones, pregnancy, birth, medical history, when did child reach milestones
+
+- **family_context:** Siblings, family dynamics, family history of developmental issues, educational setting (daycare, kindergarten)
+
+- **daily_routines:** Typical day, sleep patterns, eating habits, activities, behaviors throughout the day
+
+- **parent_goals:** What they hope to achieve, improve, or understand better
+
+**⚠️ REMEMBER:**
+- After ~20 conversation exchanges, this turn will be GONE from history
+- The ONLY way to preserve it is through extraction
+- When in doubt → EXTRACT IT!
+- Better to over-extract than under-extract
+
+Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothing behind!"""
 
             extraction_messages = [
                 Message(role="system", content=extraction_system),
