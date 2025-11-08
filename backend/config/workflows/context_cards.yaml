@@ -137,7 +137,7 @@ cards:
   child_profile_card:
     name: "פרופיל הילד/ה"
     name_en: "Child Profile"
-    card_type: progress
+    card_type: guidance  # Informational card, not progress
     priority: 85
 
     # When to show - as soon as we have basic info
@@ -151,9 +151,8 @@ cards:
       title: "פרופיל: {child_name}"
       body: "גיל {child_age}, {concerns_summary}"
 
-    # Available actions
-    available_actions:
-      - continue_interview
+    # No actions - this is informational only, not clickable
+    # available_actions: []
 
     # Behavior
     dismissible: false
@@ -162,7 +161,7 @@ cards:
   concerns_card:
     name: "נושאים שעלו"
     name_en: "Concerns Mentioned"
-    card_type: progress
+    card_type: guidance  # Informational card, not progress
     priority: 80
 
     # When to show - when we have concerns
@@ -175,9 +174,8 @@ cards:
       title: "נושאים שעלו"
       body: "{concerns_list}"
 
-    # Available actions
-    available_actions:
-      - continue_interview
+    # No actions - this is informational only, not clickable
+    # available_actions: []
 
     # Behavior
     dismissible: false
@@ -199,9 +197,8 @@ cards:
       title: "חוזקות של {child_name} 💪"
       body: "{strengths_preview}"
 
-    # Available actions
-    available_actions:
-      - continue_interview
+    # No actions - this is informational only, not clickable
+    # available_actions: []
 
     # Behavior
     dismissible: false
