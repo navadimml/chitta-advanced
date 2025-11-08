@@ -310,12 +310,72 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
             )
 
             logger.info(
-                f"Conversation response: {len(llm_response.content)} chars"
+                f"Conversation response: {len(llm_response.content)} chars, "
+                f"finish_reason: {llm_response.finish_reason}"
             )
+
+            # Check if response was blocked by safety filters
+            if (not llm_response.content.strip() and
+                llm_response.finish_reason and
+                "PROHIBITED" in llm_response.finish_reason.upper()):
+
+                logger.warning(
+                    f"⚠️ Response blocked by safety filters ({llm_response.finish_reason}). "
+                    f"Retrying with simplified prompt..."
+                )
+
+                # Create a much simpler, safer prompt for retry
+                simple_system = f"""You are Chitta (צ'יטה), a warm Hebrew-speaking assistant helping parents understand their child's development.
+
+Child: {data.child_name or "unknown"} | Age: {data.age or "unknown"}
+Interview progress: {session.completeness:.0%}
+
+Your role:
+- Have a natural, empathetic conversation in Hebrew
+- Ask thoughtful questions about the child's development
+- Be warm and supportive
+- Ask ONE question at a time
+
+Current conversation state:
+- Basic info: {"collected" if data.child_name and data.age else "still gathering"}
+- Concerns discussed: {len(data.primary_concerns)} areas
+- Detail level: {session.completeness:.0%}
+
+Continue the conversation naturally."""
+
+                # Build simpler messages (last 10 turns only + simple system)
+                simple_messages = [Message(role="system", content=simple_system)]
+
+                # Add last 10 conversation turns
+                recent_history = self.interview_service.get_conversation_history(
+                    family_id,
+                    last_n=10
+                )
+                for turn in recent_history:
+                    simple_messages.append(Message(
+                        role=turn["role"],
+                        content=turn["content"]
+                    ))
+
+                # Add current user message
+                simple_messages.append(Message(role="user", content=user_message))
+
+                # Retry with simpler prompt
+                llm_response = await self.llm.chat(
+                    messages=simple_messages,
+                    functions=None,
+                    temperature=temperature,
+                    max_tokens=2000
+                )
+
+                logger.info(
+                    f"Retry response: {len(llm_response.content)} chars, "
+                    f"finish_reason: {llm_response.finish_reason}"
+                )
 
             # Ensure we got a response
             if not llm_response.content.strip():
-                logger.error("❌ LLM returned empty response even without functions!")
+                logger.error("❌ LLM returned empty response even after retry!")
                 llm_response.content = "סליחה, יש לי בעיה טכנית. בואי ננסה שוב."
 
             # CALL 2: Extract structured data from conversation
