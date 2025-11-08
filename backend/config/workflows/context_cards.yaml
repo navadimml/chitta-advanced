@@ -144,12 +144,12 @@ cards:
     display_conditions:
       phase: screening
       child_name: "!= None"  # Has name
-      child_age: "> 0"  # Has age
+      age: "> 0"  # Has age
 
     # Card content
     content:
       title: "פרופיל: {child_name}"
-      body: "גיל {child_age}, {concerns_summary}"
+      body: "גיל {age}, {concerns_summary}"
 
     # No actions - this is informational only, not clickable
     # available_actions: []
@@ -727,7 +727,7 @@ card_generation:
       available_variables:
         - "{parent_name}"
         - "{child_name}"
-        - "{child_age}"
+        - "{age}"
         - "{completeness_percentage}"
         - "{uploaded_count}"
         - "{journal_entry_count}"
