@@ -32,7 +32,7 @@ def main():
 
     # Show current env vars
     conversation_model = os.getenv("LLM_MODEL", "gemini-2.0-flash-exp (default)")
-    extraction_model = os.getenv("EXTRACTION_MODEL", "gemini-flash-latest (default)")
+    extraction_model = os.getenv("EXTRACTION_MODEL", "gemini-2.0-flash-exp (default)")
 
     print(f"LLM_MODEL (conversation): {conversation_model}")
     print(f"EXTRACTION_MODEL: {extraction_model}")
@@ -53,7 +53,7 @@ def main():
 
     print("\nFor optimal performance, use different models:")
     print("  LLM_MODEL=gemini-flash-lite-latest      # Fast conversation")
-    print("  EXTRACTION_MODEL=gemini-flash-latest    # Strong extraction (latest & most advanced)")
+    print("  EXTRACTION_MODEL=gemini-2.0-flash-exp   # Strong extraction (stable + accurate)")
 
     print("\nWhy?")
     print("  ✅ Fast conversation model (flash-lite):")
@@ -61,32 +61,42 @@ def main():
     print("     - Lower cost per conversation turn")
     print("     - Good enough for Hebrew conversation")
 
-    print("\n  ✅ Strong extraction model (flash-latest):")
-    print("     - Latest and most advanced flash model")
-    print("     - Better reasoning for categorization")
+    print("\n  ✅ Strong extraction model (flash-exp):")
+    print("     - Proven stable for function calling")
+    print("     - Better reasoning than flash-lite for categorization")
     print("     - Distinguishes concerns vs strengths correctly")
     print("     - Handles nuanced language better")
     print("     - Only called once per turn (less cost impact)")
+
+    print("\n  ⚠️  Why NOT flash-latest:")
+    print("     - MALFORMED_FUNCTION_CALL errors")
+    print("     - Function calling is unstable")
+    print("     - Extraction completely fails (0 data captured)")
+    print("     - 'Latest' doesn't mean 'best for this task'")
 
     print("\n" + "=" * 80)
     print("CONFIGURATION OPTIONS")
     print("=" * 80)
 
-    print("\n1. Both use flash-lite (CURRENT - has categorization issues):")
+    print("\n1. Both use flash-lite (NOT RECOMMENDED - has categorization issues):")
     print("   export LLM_MODEL=gemini-flash-lite-latest")
-    print("   # EXTRACTION_MODEL not set → defaults to same model")
+    print("   # EXTRACTION_MODEL not set → uses flash-exp by default")
+    print("   # Issue: flash-lite too weak for extraction")
 
-    print("\n2. Both use flash-latest (balanced - accurate + fast):")
-    print("   export LLM_MODEL=gemini-flash-latest")
-    print("   # EXTRACTION_MODEL not set → defaults to flash-latest")
+    print("\n2. Both use flash-exp (RECOMMENDED - balanced speed + accuracy):")
+    print("   export LLM_MODEL=gemini-2.0-flash-exp")
+    print("   # EXTRACTION_MODEL not set → defaults to flash-exp")
+    print("   # Good all-around choice")
 
-    print("\n3. Dual model (RECOMMENDED - fastest conversation + accurate extraction):")
+    print("\n3. Dual model (OPTIMAL - fastest conversation + accurate extraction):")
     print("   export LLM_MODEL=gemini-flash-lite-latest")
+    print("   export EXTRACTION_MODEL=gemini-2.0-flash-exp")
+    print("   # Best performance/accuracy balance")
+
+    print("\n4. Do NOT use flash-latest for extraction:")
     print("   export EXTRACTION_MODEL=gemini-flash-latest")
-
-    print("\n4. Maximum accuracy (slower, higher cost):")
-    print("   export LLM_MODEL=gemini-flash-latest")
-    print("   export EXTRACTION_MODEL=gemini-pro")
+    print("   # ❌ BROKEN: MALFORMED_FUNCTION_CALL errors")
+    print("   # ❌ Extraction fails completely")
 
     print("\n" + "=" * 80)
     print("IMPACT ON USER'S ISSUE")
@@ -101,10 +111,13 @@ def main():
     print("  2. Prompt now improved with explicit examples")
 
     print("\nSolution:")
-    print("  ✅ Improved prompt (already done)")
-    print("  ✅ Stronger extraction model (this change)")
-    print("     → Now uses gemini-flash-latest for extraction (most advanced)")
+    print("  ✅ Improved prompt with explicit examples")
+    print("  ✅ Stronger extraction model: flash-lite → flash-exp")
+    print("     → flash-exp has stable function calling")
     print("     → Better reasoning for concerns vs strengths")
+    print("  ❌ Tried flash-latest but it BROKE extraction")
+    print("     → MALFORMED_FUNCTION_CALL errors")
+    print("     → Reverted to flash-exp (proven stable)")
 
     print("\n" + "=" * 80)
 
