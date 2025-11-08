@@ -99,15 +99,40 @@ class CardGenerator:
             max_cards: Maximum number of cards to return
 
         Returns:
-            List of card configurations sorted by priority
+            List of card configurations sorted by priority, with flattened structure
         """
         visible = []
 
         for card_id, card in self._cards.items():
             if self.evaluate_display_conditions(card_id, context):
-                card_with_id = card.copy()
-                card_with_id["card_id"] = card_id
-                visible.append(card_with_id)
+                # Create flattened card structure for frontend consumption
+                card_data = {
+                    "card_id": card_id,
+                    "name": card.get("name", ""),
+                    "name_en": card.get("name_en", ""),
+                    "card_type": card.get("card_type", ""),
+                    "priority": card.get("priority", 0),
+                }
+
+                # Flatten content to top level for easier frontend access
+                content = card.get("content", {})
+                if isinstance(content, dict):
+                    card_data["title"] = content.get("title", "")
+                    card_data["body"] = content.get("body", "")
+                    card_data["footer"] = content.get("footer", "")
+                    # Keep other content fields as-is
+                    for key, value in content.items():
+                        if key not in ["title", "body", "footer"]:
+                            card_data[f"content_{key}"] = value
+
+                # Add available actions
+                card_data["available_actions"] = card.get("available_actions", [])
+
+                # Add behavior flags
+                card_data["dismissible"] = card.get("dismissible", True)
+                card_data["auto_dismiss_after_action"] = card.get("auto_dismiss_after_action")
+
+                visible.append(card_data)
 
         # Sort by priority (higher priority first)
         visible.sort(key=lambda c: c.get("priority", 0), reverse=True)

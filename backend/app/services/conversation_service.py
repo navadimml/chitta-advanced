@@ -25,8 +25,9 @@ from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
 from ..prompts.prerequisites import Action
 from ..prompts.intent_types import IntentCategory
-# Wu Wei Architecture: Import phase_manager for config-driven phase tracking
+# Wu Wei Architecture: Import phase_manager and card_generator for config-driven phase tracking and UI
 from ..config.phase_manager import get_phase_manager, PhaseManager
+from ..config.card_generator import get_card_generator, CardGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +48,15 @@ class ConversationService:
         interview_service: Optional[InterviewService] = None,
         prerequisite_service: Optional[PrerequisiteService] = None,
         knowledge_service: Optional[KnowledgeService] = None,
-        phase_manager: Optional[PhaseManager] = None
+        phase_manager: Optional[PhaseManager] = None,
+        card_generator: Optional[CardGenerator] = None
     ):
         self.llm = llm_provider or create_llm_provider()
         self.interview_service = interview_service or get_interview_service()
         self.prerequisite_service = prerequisite_service or get_prerequisite_service()
         self.knowledge_service = knowledge_service or get_knowledge_service()
         self.phase_manager = phase_manager or get_phase_manager()  # 🌟 Wu Wei: Config-driven phase management
+        self.card_generator = card_generator or get_card_generator()  # 🌟 Wu Wei: Config-driven UI cards
 
         logger.info(f"ConversationService initialized with {self.llm.get_provider_name()}")
 
@@ -636,70 +639,66 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
         completeness_check: Optional[Dict]
     ) -> List[Dict[str, Any]]:
         """
-        Generate context cards based on interview state
+        🌟 Wu Wei Architecture: Generate context cards using card_generator
 
-        Cards show current status and available actions
+        Now config-driven from context_cards.yaml instead of hardcoded logic!
         """
-        cards = []
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # Interview progress card (always shown)
-        progress_status = "pending" if completeness < 0.5 else "processing" if completeness < 0.8 else "completed"
-        cards.append({
-            "title": "שיחת ההיכרות",
-            "subtitle": f"התקדמות: {completeness:.0%}",
-            "icon": "message-circle",
-            "status": progress_status,
-            "progress": completeness * 100
-        })
+        # Build context for card_generator (matching display_conditions in YAML)
+        context = {
+            # Phase information
+            "phase": session.phase,
 
-        # Child profile card (if we have basic info)
-        if data.child_name and data.age:
-            # Build subtitle - don't show "0 תחומי התפתחות"
-            if data.primary_concerns:
-                concerns_count = len(data.primary_concerns)
-                concerns_text = "תחום התפתחות אחד" if concerns_count == 1 else f"{concerns_count} תחומי התפתחות"
-                subtitle = f"גיל {data.age}, {concerns_text}"
-            else:
-                # No concerns yet - just show age
-                subtitle = f"גיל {data.age}"
+            # Interview progress
+            "completeness": completeness,
+            "message_count": len(session.conversation_history),
 
-            cards.append({
-                "title": f"פרופיל: {data.child_name}",
-                "subtitle": subtitle,
-                "icon": "user",
-                "status": "active"
-            })
+            # Child/parent info
+            "parent_name": "הורה",  # TODO: Get from user profile
+            "child_name": data.child_name or "הילד/ה",
+            "child_age": data.age,
 
-        # Concerns card (if mentioned)
-        if data.primary_concerns:
-            concerns_hebrew = self._translate_concerns(data.primary_concerns)
-            cards.append({
-                "title": "נושאים שעלו",
-                "subtitle": ", ".join(concerns_hebrew[:3]),
-                "icon": "alert-circle",
-                "status": "active"
-            })
+            # Video-related state
+            "uploaded_video_count": 0,  # TODO: Get from video storage
+            "video_guidelines_status": "ready" if session.video_guidelines_generated else "not_ready",
+            "video_analysis_status": "pending",  # TODO: Get from analysis service
 
-        # Video guidelines card (if ready)
-        if completeness >= 0.80:
-            cards.append({
-                "title": "העלאת סרטון",
-                "subtitle": "מוכן לשלב הבא",
-                "icon": "video",
-                "status": "action",
-                "action": "upload_video"
-            })
+            # Reports state
+            "reports_status": "not_ready",  # TODO: Get from report service
+            "reports_available": False,  # TODO: Get from artifacts
+            "user_viewed_report": False,  # TODO: Track user actions
 
-        # Urgent flags card (if any)
-        if data.urgent_flags:
-            cards.append({
-                "title": "דורש תשומת לב",
-                "subtitle": "נושאים שחשוב לטפל בהם",
-                "icon": "alert-triangle",
-                "status": "urgent"
-            })
+            # Journal state (for future)
+            "journal_entry_count": 0,  # TODO: Get from journal service
+
+            # Ongoing phase state
+            "has_new_follow_up_summary": False,  # TODO: Get from analysis
+            "user_viewed_summary": False,  # TODO: Track user actions
+            "expert_search_count": 0,  # TODO: Track searches
+
+            # Re-assessment state
+            "updated_reports_status": "not_ready",  # TODO: Get from re-assessment
+            "user_viewed_updated_report": False,  # TODO: Track user actions
+            "phase_entry_message_shown": False,  # TODO: Track phase transitions
+
+            # Current interaction context
+            "action_requested": action_requested,
+            "completeness_check": completeness_check,
+
+            # Extracted data for card content
+            "primary_concerns": data.primary_concerns or [],
+            "urgent_flags": data.urgent_flags or [],
+        }
+
+        # 🌟 Use card_generator to get config-driven cards
+        cards = self.card_generator.get_visible_cards(context)
+
+        logger.debug(
+            f"Generated {len(cards)} context cards using card_generator "
+            f"(phase={session.phase}, completeness={completeness:.1%})"
+        )
 
         return cards
 
