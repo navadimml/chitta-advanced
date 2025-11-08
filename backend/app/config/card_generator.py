@@ -122,6 +122,23 @@ class CardGenerator:
 
         return True
 
+    def _translate_concerns(self, concerns: List[str]) -> List[str]:
+        """Translate concern categories to Hebrew"""
+        translations = {
+            "speech": "דיבור",
+            "social": "חברתי",
+            "attention": "קשב",
+            "motor": "מוטורי",
+            "sensory": "חושי",
+            "emotional": "רגשי",
+            "behavioral": "התנהגות",
+            "learning": "למידה",
+            "sleep": "שינה",
+            "eating": "אכילה",
+            "other": "אחר"
+        }
+        return [translations.get(c, c) for c in concerns]
+
     def _replace_template_vars(
         self,
         text: str,
@@ -190,6 +207,13 @@ class CardGenerator:
             return context_value is not None and float(context_value) < threshold
         elif condition.startswith("!="):
             expected = condition[2:].strip()
+
+            # Handle special cases
+            if expected == "None":
+                return context_value is not None
+            elif expected == "[]":
+                return context_value != [] and context_value is not None and len(context_value) > 0
+
             # Try to parse as number if possible
             try:
                 expected_num = float(expected)
@@ -270,6 +294,32 @@ class CardGenerator:
 
                     # Replace {progress_description} in body
                     body = body.replace("{progress_description}", progress_desc)
+
+                # Handle concerns_summary for child_profile_card
+                if "{concerns_summary}" in body:
+                    primary_concerns = context.get("primary_concerns", [])
+                    if primary_concerns:
+                        concerns_hebrew = self._translate_concerns(primary_concerns)
+                        concerns_count = len(concerns_hebrew)
+                        if concerns_count == 1:
+                            summary = f"{concerns_count} תחום התפתחות"
+                        else:
+                            summary = f"{concerns_count} תחומי התפתחות"
+                        body = body.replace("{concerns_summary}", summary)
+                    else:
+                        # Remove concerns_summary and any trailing comma/space
+                        body = body.replace(", {concerns_summary}", "")
+                        body = body.replace("{concerns_summary}", "")
+
+                # Handle concerns_list for concerns_card
+                if "{concerns_list}" in body:
+                    primary_concerns = context.get("primary_concerns", [])
+                    if primary_concerns:
+                        concerns_hebrew = self._translate_concerns(primary_concerns)
+                        concerns_str = ", ".join(concerns_hebrew[:3])  # Show max 3
+                        body = body.replace("{concerns_list}", concerns_str)
+                    else:
+                        body = body.replace("{concerns_list}", "")
 
                 # Remove unimplemented placeholders (like {missing_areas})
                 # TODO: Implement full dynamic content generation
