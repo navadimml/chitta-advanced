@@ -38,7 +38,7 @@ class GeminiProviderEnhanced(GeminiProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-2.0-flash-exp",
+        model: str = "gemini-2.5-flash",
         default_temperature: float = 0.7,
         enable_fallback_extraction: bool = True,
         enable_function_call_monitoring: bool = True
@@ -207,7 +207,7 @@ class GeminiProviderEnhanced(GeminiProvider):
 
 def create_enhanced_gemini_provider(
     api_key: str,
-    model: str = "gemini-2.0-flash-exp",
+    model: str = "gemini-2.5-flash",
     **kwargs
 ) -> GeminiProviderEnhanced:
     """

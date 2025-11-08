@@ -35,7 +35,7 @@ class GeminiProvider(BaseLLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-2.0-flash-exp",
+        model: str = "gemini-2.5-flash",
         default_temperature: float = 0.7
     ):
         if not GEMINI_AVAILABLE:

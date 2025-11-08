@@ -10,10 +10,10 @@ This script tests the enhanced function calling system with:
 
 Usage:
     # Test with Flash model (automatically uses lite mode)
-    LLM_MODEL=gemini-2.0-flash-exp python test_gemini_interview_enhanced.py
+    LLM_MODEL=gemini-2.5-flash python test_gemini_interview_enhanced.py
 
     # Test with Pro model (uses full mode)
-    LLM_MODEL=gemini-pro-2.5 python test_gemini_interview_enhanced.py
+    LLM_MODEL=gemini-2.5-pro python test_gemini_interview_enhanced.py
 
     # Force enhanced mode off for comparison
     LLM_USE_ENHANCED=false python test_gemini_interview_enhanced.py
