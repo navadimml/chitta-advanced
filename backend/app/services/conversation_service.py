@@ -424,6 +424,22 @@ Continue the conversation naturally."""
 
 - **Primary concerns:** Categories like 'speech', 'social', 'motor', 'attention', 'sensory', 'emotional', 'behavioral', 'learning', 'sleep', 'eating'
 
+  ⚠️ **CRITICAL - Concerns vs Strengths:**
+  - ONLY extract a concern if parent expresses WORRY, DIFFICULTY, or PROBLEM
+  - DO NOT confuse positive behavior with concerns!
+
+  **Examples of STRENGTHS (NOT concerns):**
+  - "משחק עם ילדים אחרים" (plays with other children) → STRENGTH, NOT social concern!
+  - "יש לו הרבה חברים" (has many friends) → STRENGTH, NOT social concern!
+  - "מדבר הרבה" (talks a lot) → STRENGTH, NOT speech concern!
+  - "רץ ומטפס" (runs and climbs) → STRENGTH, NOT motor concern!
+
+  **Examples of CONCERNS (extract these):**
+  - "קשה לו להתחבר לילדים" (hard for him to connect with children) → social concern
+  - "נמנע מחברה" (avoids social interaction) → social concern
+  - "לא מדבר טוב" (doesn't speak well) → speech concern
+  - "מתקשה בריצה" (struggles with running) → motor concern
+
 - **concern_details:** ANY information about concerns:
   * What exactly happens? (specific behaviors/examples)
   * When does it occur? (frequency, situations, timing)
@@ -439,6 +455,9 @@ Continue the conversation naturally."""
   * What child is good at
   * Activities that engage them
   * Positive behaviors or traits
+  * Social successes ("משחק עם חברים", "יש חברים")
+  * Physical abilities ("רץ טוב", "מטפס")
+  * Communication successes ("מדבר הרבה", "מבין טוב")
 
 - **developmental_history:** Milestones, pregnancy, birth, medical history, when did child reach milestones
 
