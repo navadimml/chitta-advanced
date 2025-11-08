@@ -368,9 +368,9 @@ cards:
     card_type: guidance
     priority: 70
 
-    # When to show
+    # When to show - only after interview is mostly complete or in ongoing phase
     display_conditions:
-      phase: [screening, ongoing, re_assessment]  # Always available
+      phase: [ongoing, re_assessment]  # Only in ongoing/re-assessment, NOT during screening
       journal_entry_count: "< 100"  # Don't nag forever
 
     # Card content varies by journal state

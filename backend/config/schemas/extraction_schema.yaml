@@ -63,13 +63,13 @@ fields:
     required: false
     weight_calculation:
       type: count_items
-      weight_per_item: 0.05  # 5% per concern
+      weight_per_item: 0.03  # 3% per concern (reduced from 5%)
       max_items_counted: 4   # Up to 4 concerns counted
       # Total weight calculation:
-      # 1 concern: 5%
-      # 2 concerns: 10%
-      # 3 concerns: 15%
-      # 4+ concerns: 20% (includes bonus for comprehensive exploration)
+      # 1 concern: 3%
+      # 2 concerns: 6%
+      # 3 concerns: 9%
+      # 4+ concerns: 12%
     category: concerns
     options:
       - speech        # דיבור
@@ -95,24 +95,29 @@ fields:
     weight_calculation:
       type: length_based
       thresholds:
-        - length: 200
-          weight: 0.20  # Substantial detail
-        - length: 100
-          weight: 0.12  # Some detail
-        - length: 50
-          weight: 0.07  # Basic detail
+        - length: 300
+          weight: 0.15  # Substantial detail - requires more text now
+        - length: 150
+          weight: 0.10  # Some detail
+        - length: 75
+          weight: 0.05  # Basic detail
         - length: 0
           weight: 0.00  # No detail
     target_length: 500  # What we aim for in a good interview
     extraction_priority: high  # Extract aggressively
     prompt_guidance: |
+      Extract ONLY details about the CHILD's developmental concerns.
+      DO NOT extract questions about the app, process, or system.
+
       Extract rich details including:
-      - Specific examples of concerning behaviors
+      - Specific examples of concerning behaviors OF THE CHILD
       - When and where they occur
       - Frequency and duration
       - Impact on daily life
-      - Parent's observations and worries
+      - Parent's observations and worries ABOUT THE CHILD
       - Comparisons to peers or developmental expectations
+
+      IGNORE: Questions about the app, technical issues, process questions
 
   # Additional urgent flags
   urgent_flags:
