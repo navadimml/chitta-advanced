@@ -134,6 +134,55 @@ cards:
     dismissible: false  # Always visible during interview
     updates_dynamically: true  # Re-render when completeness changes
 
+  child_profile_card:
+    name: "פרופיל הילד/ה"
+    name_en: "Child Profile"
+    card_type: progress
+    priority: 85
+
+    # When to show - as soon as we have basic info
+    display_conditions:
+      phase: screening
+      child_name: "!= None"  # Has name
+      child_age: "> 0"  # Has age
+
+    # Card content
+    content:
+      title: "פרופיל: {child_name}"
+      body: "גיל {child_age}, {concerns_summary}"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+
+  concerns_card:
+    name: "נושאים שעלו"
+    name_en: "Concerns Mentioned"
+    card_type: progress
+    priority: 80
+
+    # When to show - when we have concerns
+    display_conditions:
+      phase: screening
+      primary_concerns: "!= []"  # Has at least one concern
+
+    # Card content
+    content:
+      title: "נושאים שעלו"
+      body: "{concerns_list}"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+
   interview_complete_card:
     name: "הראיון הושלם"
     name_en: "Interview Complete"
