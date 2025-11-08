@@ -1,18 +1,24 @@
 import React from 'react';
 import * as Icons from 'lucide-react';
 
-// 🌟 Wu Wei: Card type colors from YAML config (context_cards.yaml)
-// Matches backend/config/workflows/context_cards.yaml card_types section
-const getCardTypeColor = (cardType) => {
-  const colors = {
-    // From YAML card_types:
-    progress: 'bg-blue-50 border-blue-200 text-blue-700',        // blue
-    action_needed: 'bg-orange-50 border-orange-200 text-orange-700',  // orange
-    success: 'bg-green-50 border-green-200 text-green-700',      // green
-    guidance: 'bg-purple-50 border-purple-200 text-purple-700',  // purple
-    ongoing_support: 'bg-pink-50 border-pink-200 text-pink-700', // pink
+// 🌟 Wu Wei: Dynamic colors from YAML config
+// Backend sends color value from YAML (e.g., "blue", "purple", "red")
+// This function maps color names to Tailwind classes
+const getColorClasses = (color) => {
+  const colorMap = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-700',
+    orange: 'bg-orange-50 border-orange-200 text-orange-700',
+    green: 'bg-green-50 border-green-200 text-green-700',
+    purple: 'bg-purple-50 border-purple-200 text-purple-700',
+    pink: 'bg-pink-50 border-pink-200 text-pink-700',
+    red: 'bg-red-50 border-red-200 text-red-700',
+    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+    teal: 'bg-teal-50 border-teal-200 text-teal-700',
+    cyan: 'bg-cyan-50 border-cyan-200 text-cyan-700',
+    gray: 'bg-gray-50 border-gray-200 text-gray-700',
   };
-  return colors[cardType] || 'bg-gray-50 border-gray-200 text-gray-700';
+  return colorMap[color] || colorMap.gray;
 };
 
 // Legacy status color mapping (fallback for old cards)
@@ -45,8 +51,8 @@ export default function ContextualSurface({ cards, onCardClick }) {
           const Icon = Icons[card.icon];
           const isStatusCard = card.type === 'status' && card.journey_step && card.journey_total;
 
-          // 🌟 Wu Wei: Use card_type for colors (from YAML), fallback to status (legacy)
-          const cardColor = card.card_type ? getCardTypeColor(card.card_type) : getStatusColor(card.status);
+          // 🌟 Wu Wei: Use color from YAML (sent by backend), fallback to status (legacy)
+          const cardColor = card.color ? getColorClasses(card.color) : getStatusColor(card.status);
 
           // Check card type for styling (guidance gets more emphasis)
           const isGuidance = card.card_type === 'guidance' || card.status === 'instruction';
