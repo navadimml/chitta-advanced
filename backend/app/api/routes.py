@@ -10,6 +10,10 @@ from datetime import datetime
 from app.core.app_state import app_state
 from app.services.llm.base import Message
 from app.services.conversation_service import get_conversation_service
+from app.services.interview_service import get_interview_service
+# Wu Wei Architecture: Import config-driven UI components
+from app.config.card_generator import get_card_generator
+from app.config.view_manager import get_view_manager
 
 router = APIRouter()
 
@@ -45,6 +49,21 @@ class JournalEntryResponse(BaseModel):
     entry_id: str
     timestamp: str
     success: bool
+
+class AvailableViewsResponse(BaseModel):
+    """Response model for available views"""
+    family_id: str
+    phase: str
+    available_views: List[str]
+
+class ViewContentResponse(BaseModel):
+    """Response model for view content"""
+    view_id: str
+    view_name: str
+    view_name_en: str
+    available: bool
+    content: Optional[dict] = None
+    reason_unavailable: Optional[str] = None
 
 # === Endpoints ===
 
@@ -768,3 +787,94 @@ def _generate_event_title(episode) -> str:
     }
 
     return titles.get(episode_type, "אירוע")
+
+# === Wu Wei Architecture: Deep Views Endpoints ===
+
+@router.get("/views/available", response_model=AvailableViewsResponse)
+async def get_available_views(family_id: str):
+    """
+    🌟 Wu Wei Architecture: Get available deep views for current session
+
+    Returns list of view IDs that are available based on current session state.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    # Get services
+    interview_service = get_interview_service()
+    view_manager = get_view_manager()
+
+    # Get session state
+    session = interview_service.get_or_create_session(family_id)
+    data = session.extracted_data
+
+    # Build context for view availability checks
+    context = {
+        "phase": session.phase,
+        "completeness": session.completeness,
+        "child_name": data.child_name,
+        "reports_ready": False,  # TODO: Get from artifacts
+        "video_count": 0,  # TODO: Get from video storage
+    }
+
+    # Get available views from view_manager
+    available_views = view_manager.get_available_views(context)
+
+    return AvailableViewsResponse(
+        family_id=family_id,
+        phase=session.phase,
+        available_views=available_views
+    )
+
+
+@router.get("/views/{view_id}", response_model=ViewContentResponse)
+async def get_view_content(view_id: str, family_id: str):
+    """
+    🌟 Wu Wei Architecture: Get specific view content
+
+    Returns view definition and content if available, or reason if unavailable.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    # Get services
+    interview_service = get_interview_service()
+    view_manager = get_view_manager()
+
+    # Get view definition
+    view = view_manager.get_view(view_id)
+    if not view:
+        raise HTTPException(status_code=404, detail=f"View '{view_id}' not found")
+
+    # Get session state
+    session = interview_service.get_or_create_session(family_id)
+    data = session.extracted_data
+
+    # Build context for availability check
+    context = {
+        "phase": session.phase,
+        "completeness": session.completeness,
+        "child_name": data.child_name,
+        "reports_ready": False,  # TODO: Get from artifacts
+        "video_count": 0,  # TODO: Get from video storage
+    }
+
+    # Check if view is available
+    is_available = view_manager.check_view_availability(view_id, context)
+
+    if is_available:
+        return ViewContentResponse(
+            view_id=view_id,
+            view_name=view.get("name", ""),
+            view_name_en=view.get("name_en", ""),
+            available=True,
+            content=view
+        )
+    else:
+        return ViewContentResponse(
+            view_id=view_id,
+            view_name=view.get("name", ""),
+            view_name_en=view.get("name_en", ""),
+            available=False,
+            reason_unavailable="View not available in current phase or missing required data"
+        )
