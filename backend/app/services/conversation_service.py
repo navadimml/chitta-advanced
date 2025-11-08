@@ -45,6 +45,7 @@ class ConversationService:
     def __init__(
         self,
         llm_provider: Optional[BaseLLMProvider] = None,
+        extraction_llm_provider: Optional[BaseLLMProvider] = None,
         interview_service: Optional[InterviewService] = None,
         prerequisite_service: Optional[PrerequisiteService] = None,
         knowledge_service: Optional[KnowledgeService] = None,
@@ -52,13 +53,47 @@ class ConversationService:
         card_generator: Optional[CardGenerator] = None
     ):
         self.llm = llm_provider or create_llm_provider()
+
+        # 🎯 Dedicated extraction LLM with stronger model for better categorization
+        # Conversation uses fast model (e.g., flash-lite) for speed
+        # Extraction uses stronger model (e.g., flash-exp or pro) for accuracy
+        self.extraction_llm = extraction_llm_provider or self._create_extraction_llm()
+
         self.interview_service = interview_service or get_interview_service()
         self.prerequisite_service = prerequisite_service or get_prerequisite_service()
         self.knowledge_service = knowledge_service or get_knowledge_service()
         self.phase_manager = phase_manager or get_phase_manager()  # 🌟 Wu Wei: Config-driven phase management
         self.card_generator = card_generator or get_card_generator()  # 🌟 Wu Wei: Config-driven UI cards
 
-        logger.info(f"ConversationService initialized with {self.llm.get_provider_name()}")
+        logger.info(f"ConversationService initialized:")
+        logger.info(f"  - Conversation LLM: {self.llm.get_provider_name()}")
+        logger.info(f"  - Extraction LLM: {self.extraction_llm.get_provider_name()}")
+
+    def _create_extraction_llm(self) -> BaseLLMProvider:
+        """
+        Create a stronger LLM specifically for extraction.
+
+        Extraction is a critical task that requires better reasoning to:
+        - Distinguish concerns from strengths
+        - Categorize information correctly
+        - Handle nuanced language
+
+        Uses stronger model (e.g., gemini-2.0-flash-exp) even if conversation
+        uses weaker model (e.g., flash-lite) for speed.
+        """
+        import os
+
+        # Check if extraction model is explicitly configured
+        extraction_model = os.getenv("EXTRACTION_MODEL")
+
+        if extraction_model:
+            logger.info(f"Using configured extraction model: {extraction_model}")
+            return create_llm_provider(model=extraction_model)
+
+        # Otherwise, use a stronger default model for extraction
+        # Default to gemini-2.0-flash-exp (better reasoning than flash-lite)
+        logger.info("Using default stronger model for extraction: gemini-2.0-flash-exp")
+        return create_llm_provider(model="gemini-2.0-flash-exp")
 
     async def process_message(
         self,
@@ -482,7 +517,8 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
                 Message(role="user", content="Extract all relevant data from this conversation turn.")
             ]
 
-            extraction_response = await self.llm.chat(
+            # 🎯 Use dedicated extraction LLM (stronger model for better categorization)
+            extraction_response = await self.extraction_llm.chat(
                 messages=extraction_messages,
                 functions=functions,  # ← NOW with functions for extraction
                 temperature=0.1,  # Very low temp for deterministic extraction
