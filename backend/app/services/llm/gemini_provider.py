@@ -264,6 +264,11 @@ class GeminiProvider(BaseLLMProvider):
                 if hasattr(candidate, 'finish_reason'):
                     finish_reason = str(candidate.finish_reason)
 
+                # Check for safety ratings if blocked
+                safety_info = ""
+                if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
+                    safety_info = f" Safety ratings: {candidate.safety_ratings}"
+
                 # Check for content parts
                 if hasattr(candidate, 'content') and candidate.content:
                     logger.debug(f"Content: {candidate.content}")
@@ -284,9 +289,21 @@ class GeminiProvider(BaseLLMProvider):
                                     )
                                 )
                     else:
-                        logger.warning("candidate.content.parts is None or empty")
+                        logger.warning(
+                            f"candidate.content.parts is None or empty. "
+                            f"Finish reason: {finish_reason}.{safety_info}"
+                        )
                 else:
-                    logger.warning("candidate.content is None or missing")
+                    # Log detailed info when content is missing
+                    logger.warning(
+                        f"⚠️ candidate.content is None or missing! "
+                        f"Finish reason: {finish_reason}.{safety_info} "
+                        f"This usually indicates: "
+                        f"SAFETY (blocked by filters), "
+                        f"MAX_TOKENS (hit limit), "
+                        f"RECITATION (copyright), or "
+                        f"other API issues."
+                    )
 
             # Fallback to simple text if available
             if not content and not function_calls:
