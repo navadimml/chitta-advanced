@@ -53,7 +53,7 @@ Don't wait - extract whatever information is available right now!""",
             },
             "concern_description": {
                 "type": "string",
-                "description": "What parent said about concerns - copy their words with examples"
+                "description": "Everything about concerns (including developmental history like 'started talking late'). Copy parent's words with examples and context."
             },
             "strengths": {
                 "type": "string",
@@ -61,7 +61,7 @@ Don't wait - extract whatever information is available right now!""",
             },
             "other_info": {
                 "type": "string",
-                "description": "ONLY for: developmental milestones (when walked/talked), family info (siblings, daycare), daily routines, parent goals. DO NOT put concerns or strengths here - use their dedicated fields!"
+                "description": "ONLY neutral/positive context: siblings, daycare, typical routines, parent hopes. DO NOT duplicate information already in concerns/strengths/concern_description! If milestone relates to a concern (late speech) → use concern_description, NOT here!"
             }
         },
         "required": []  # Nothing required - extract what's available
