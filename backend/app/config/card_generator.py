@@ -25,7 +25,15 @@ class CardGenerator:
         """Initialize card generator."""
         self._card_config = load_context_cards()
         self._cards: Dict[str, Dict[str, Any]] = {}
+        self._card_types: Dict[str, Dict[str, Any]] = {}
+        self._load_card_types()
         self._load_cards()
+
+    def _load_card_types(self) -> None:
+        """🌟 Wu Wei: Load card type definitions from YAML."""
+        card_types_config = self._card_config.get("card_types", {})
+        self._card_types = card_types_config
+        logger.info(f"Loaded {len(self._card_types)} card type definitions from YAML")
 
     def _load_cards(self) -> None:
         """Load card definitions from configuration."""
@@ -391,22 +399,14 @@ class CardGenerator:
         """
         visible = []
 
-        # Card type to frontend status mapping (for colors/animations)
-        card_type_to_status = {
+        # 🌟 Wu Wei: Legacy status mapping (for old frontend compatibility)
+        # Maps card_type → status for animation/behavior hints
+        legacy_status_hints = {
             "progress": "processing",
             "action_needed": "action",
             "success": "new",
             "guidance": "instruction",
             "ongoing_support": "processing",
-        }
-
-        # Card type to icon mapping (from YAML card_types config)
-        card_type_icons = {
-            "progress": "CheckCircle",
-            "action_needed": "AlertCircle",
-            "success": "CheckCircle",
-            "guidance": "Info",
-            "ongoing_support": "Heart",
         }
 
         for card_id, card in self._cards.items():
@@ -470,14 +470,33 @@ class CardGenerator:
                 if len(subtitle) > 100:
                     subtitle = subtitle[:97] + "..."
 
-                # Build card in OLD frontend format + Wu Wei card_type
+                # 🌟 Wu Wei: Get card type config from YAML
+                card_type_config = self._card_types.get(card_type, {})
+
+                # Get icon from YAML (convert icon name to Lucide icon component name)
+                icon_mapping = {
+                    "progress-bar": "TrendingUp",
+                    "alert-circle": "AlertCircle",
+                    "check-circle": "CheckCircle",
+                    "lightbulb": "Lightbulb",
+                    "heart": "Heart",
+                    "alert-triangle": "AlertTriangle",
+                }
+                yaml_icon = card_type_config.get("icon", "info")
+                icon = icon_mapping.get(yaml_icon, "Info")
+
+                # Get color from YAML
+                color = card_type_config.get("color", "gray")
+
+                # Build card in frontend format with Wu Wei dynamic config
                 card_data = {
                     "type": card_id,  # Card identifier
-                    "card_type": card_type,  # 🌟 Wu Wei: YAML card_type for frontend color mapping
+                    "card_type": card_type,  # 🌟 Wu Wei: YAML card_type
+                    "color": color,  # 🌟 Wu Wei: YAML color (dynamic!)
                     "title": title,
                     "subtitle": subtitle,
-                    "icon": card_type_icons.get(card_type, "Info"),
-                    "status": card_type_to_status.get(card_type, "instruction"),  # Legacy support
+                    "icon": icon,  # 🌟 Wu Wei: Icon from YAML card_types
+                    "status": legacy_status_hints.get(card_type, "instruction"),  # Legacy support
                     "action": card.get("available_actions", [None])[0] if card.get("available_actions") else None,
                 }
 
