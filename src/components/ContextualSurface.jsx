@@ -1,6 +1,21 @@
 import React from 'react';
 import * as Icons from 'lucide-react';
 
+// 🌟 Wu Wei: Card type colors from YAML config (context_cards.yaml)
+// Matches backend/config/workflows/context_cards.yaml card_types section
+const getCardTypeColor = (cardType) => {
+  const colors = {
+    // From YAML card_types:
+    progress: 'bg-blue-50 border-blue-200 text-blue-700',        // blue
+    action_needed: 'bg-orange-50 border-orange-200 text-orange-700',  // orange
+    success: 'bg-green-50 border-green-200 text-green-700',      // green
+    guidance: 'bg-purple-50 border-purple-200 text-purple-700',  // purple
+    ongoing_support: 'bg-pink-50 border-pink-200 text-pink-700', // pink
+  };
+  return colors[cardType] || 'bg-gray-50 border-gray-200 text-gray-700';
+};
+
+// Legacy status color mapping (fallback for old cards)
 const getStatusColor = (status) => {
   const colors = {
     completed: 'bg-green-50 border-green-200 text-green-700',
@@ -30,41 +45,49 @@ export default function ContextualSurface({ cards, onCardClick }) {
           const Icon = Icons[card.icon];
           const isStatusCard = card.type === 'status' && card.journey_step && card.journey_total;
 
+          // 🌟 Wu Wei: Use card_type for colors (from YAML), fallback to status (legacy)
+          const cardColor = card.card_type ? getCardTypeColor(card.card_type) : getStatusColor(card.status);
+
+          // Check card type for styling (guidance gets more emphasis)
+          const isGuidance = card.card_type === 'guidance' || card.status === 'instruction';
+          const isProgress = card.card_type === 'progress' || card.status === 'processing';
+          const isSuccess = card.card_type === 'success' || card.status === 'new';
+
           return (
             <div
               key={idx}
               onClick={() => card.action && onCardClick(card.action)}
-              className={`${getStatusColor(card.status)} ${
-                card.status === 'instruction' ? 'border-2 p-4' : 'border p-3'
+              className={`${cardColor} ${
+                isGuidance ? 'border-2 p-4' : 'border p-3'
               } rounded-xl ${
                 card.action ? 'cursor-pointer hover:shadow-lg hover:scale-[1.03] active:scale-[0.99]' : ''
-              } ${card.status === 'processing' ? 'animate-pulse-subtle' : ''} transition-all duration-300 ease-out group relative overflow-hidden`}
+              } ${isProgress ? 'animate-pulse-subtle' : ''} transition-all duration-300 ease-out group relative overflow-hidden`}
               style={{
                 animation: `cardSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.08}s both`,
               }}
             >
-              {/* Shimmer overlay for 'new' cards */}
-              {card.status === 'new' && (
+              {/* Shimmer overlay for success cards */}
+              {isSuccess && (
                 <div className="absolute inset-0 shimmer-overlay"></div>
               )}
 
               <div className="flex items-center justify-between relative z-10">
                 <div className="flex items-center gap-3 flex-1">
                   <div className={`p-2 bg-white rounded-lg shadow-sm ${
-                    card.status === 'processing' ? 'animate-spin-slow' : ''
-                  } ${card.status === 'instruction' ? 'p-3' : ''} transition-all duration-300`}>
+                    isProgress ? 'animate-spin-slow' : ''
+                  } ${isGuidance ? 'p-3' : ''} transition-all duration-300`}>
                     {Icon && <Icon className={`${
-                      card.status === 'instruction' ? 'w-7 h-7' : 'w-5 h-5'
+                      isGuidance ? 'w-7 h-7' : 'w-5 h-5'
                     } ${
-                      card.status === 'processing' ? 'text-yellow-600' : ''
+                      isProgress ? 'text-blue-600' : ''
                     }`} />}
                   </div>
                   <div className="flex-1">
                     <div className={`font-semibold flex items-center gap-2 ${
-                      card.status === 'instruction' ? 'text-lg' : 'text-base'
+                      isGuidance ? 'text-lg' : 'text-base'
                     }`}>
                       {card.title}
-                      {card.status === 'processing' && (
+                      {isProgress && (
                         <span className="loading-dots">
                           <span className="dot"></span>
                           <span className="dot"></span>
@@ -73,7 +96,7 @@ export default function ContextualSurface({ cards, onCardClick }) {
                       )}
                     </div>
                     <div className={`opacity-90 leading-relaxed ${
-                      card.status === 'instruction' ? 'text-base mt-1' : 'text-sm opacity-80'
+                      isGuidance ? 'text-base mt-1' : 'text-sm opacity-80'
                     }`}>{card.subtitle}</div>
 
                     {/* Breadcrumbs - ברור ובולט */}

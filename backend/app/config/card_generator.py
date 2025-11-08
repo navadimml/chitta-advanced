@@ -470,13 +470,14 @@ class CardGenerator:
                 if len(subtitle) > 100:
                     subtitle = subtitle[:97] + "..."
 
-                # Build card in OLD frontend format
+                # Build card in OLD frontend format + Wu Wei card_type
                 card_data = {
                     "type": card_id,  # Card identifier
+                    "card_type": card_type,  # 🌟 Wu Wei: YAML card_type for frontend color mapping
                     "title": title,
                     "subtitle": subtitle,
                     "icon": card_type_icons.get(card_type, "Info"),
-                    "status": card_type_to_status.get(card_type, "instruction"),
+                    "status": card_type_to_status.get(card_type, "instruction"),  # Legacy support
                     "action": card.get("available_actions", [None])[0] if card.get("available_actions") else None,
                 }
 
