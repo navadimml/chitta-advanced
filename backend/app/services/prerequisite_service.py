@@ -6,19 +6,26 @@ This service implements the "conversation over prerequisite graph" architecture:
 - Checks current state against requirements
 - Provides contextual explanations when actions aren't possible
 - No stages - just dependencies and current capabilities
+
+🌟 Wu Wei Architecture: Now uses action_registry for config-driven prerequisite checks!
 """
 
 import logging
 from typing import Dict, Any, Tuple, List, Optional
 from dataclasses import dataclass
 
+# Wu Wei Architecture: Import config-driven action registry
+from app.config.action_registry import (
+    get_action_registry,
+    get_available_actions as config_get_available_actions,
+    check_action_availability as config_check_availability
+)
+
+# Legacy imports for Action enum and Hebrew explanations
 from ..prompts.prerequisites import (
     Action,
     PrerequisiteType,
-    get_action_prerequisites,
     get_prerequisite_explanation,
-    is_always_available,
-    PREREQUISITES
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +90,8 @@ class PrerequisiteService:
         """
         Check if an action is currently feasible
 
+        🌟 Wu Wei Architecture: Now uses action_registry for config-driven checks!
+
         Args:
             action: Action name (string)
             context: Current state dict
@@ -103,27 +112,35 @@ class PrerequisiteService:
                 enhanced_by=[]
             )
 
-        # Get what this action requires
-        prereq_info = get_action_prerequisites(action_enum)
-        required = prereq_info.get("requires", [])
-        enhanced_by = prereq_info.get("enhanced_by", [])
+        # Build context for action_registry
+        # action_registry expects session object with attributes
+        registry_context = self._build_registry_context(context)
 
-        # Check current state
-        current_state = self.check_state(context)
+        # Use action_registry for config-driven check
+        availability = config_check_availability(action, registry_context)
 
-        # Check if all requirements are met
-        missing = [req for req in required if not current_state.get(req, False)]
+        feasible = availability["available"]
+        missing_prereq_ids = availability.get("missing_prerequisites", [])
 
-        feasible = len(missing) == 0
+        # Convert prerequisite IDs to PrerequisiteType enums for compatibility
+        missing = self._convert_prerequisite_ids_to_enums(missing_prereq_ids)
 
-        # Get personalized explanation if not feasible
+        # Get enhanced_by from action definition
+        action_def = get_action_registry().get_action(action)
+        enhanced_by = []
+        if action_def and action_def.enhanced_by:
+            enhanced_by = self._convert_prerequisite_ids_to_enums(action_def.enhanced_by)
+
+        # Get personalized Hebrew explanation if not feasible
         if not feasible:
             child_name = context.get("child_name", "הילד/ה")
             video_count = context.get("video_count", 0)
             completeness = context.get("completeness", 0.0)
+            current_state = self.check_state(context)
             interview_complete = current_state.get(PrerequisiteType.INTERVIEW_COMPLETE, False)
             analysis_complete = current_state.get(PrerequisiteType.ANALYSIS_COMPLETE, False)
 
+            # Use existing Hebrew explanation logic (from prerequisites.py)
             explanation = get_prerequisite_explanation(
                 action_enum,
                 child_name=child_name,
@@ -138,7 +155,8 @@ class PrerequisiteService:
 
         logger.info(
             f"Action '{action}' feasibility check: {feasible} "
-            f"(missing: {missing if not feasible else 'none'})"
+            f"(missing: {missing if not feasible else 'none'}) "
+            f"[config-driven via action_registry]"
         )
 
         return PrerequisiteCheckResult(
@@ -153,24 +171,32 @@ class PrerequisiteService:
         """
         Get list of actions that are currently available
 
+        🌟 Wu Wei Architecture: Now uses action_registry for config-driven checks!
+
         Args:
             context: Current state
 
         Returns:
             List of Action enums that are feasible right now
         """
-        current_state = self.check_state(context)
+        # Build context for action_registry
+        registry_context = self._build_registry_context(context)
+
+        # Use config-driven available actions check
+        available_action_ids = config_get_available_actions(registry_context)
+
+        # Convert action IDs to Action enums
         available = []
+        for action_id in available_action_ids:
+            try:
+                available.append(Action(action_id))
+            except ValueError:
+                logger.warning(f"Unknown action ID from config: {action_id}")
 
-        for action in Action:
-            prereq_info = PREREQUISITES.get(action, {})
-            required = prereq_info.get("requires", [])
-
-            # Check if all requirements met
-            if all(current_state.get(req, False) for req in required):
-                available.append(action)
-
-        logger.debug(f"Available actions: {[a.value for a in available]}")
+        logger.debug(
+            f"Available actions: {[a.value for a in available]} "
+            f"[config-driven via action_registry]"
+        )
         return available
 
     def get_next_logical_step(self, context: Dict[str, Any]) -> Optional[Action]:
@@ -268,6 +294,81 @@ class PrerequisiteService:
         parts.append("- Use the explanations from prerequisites.py when appropriate")
 
         return "\n".join(parts)
+
+    def _build_registry_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Build context dict for action_registry from prerequisite service context.
+
+        action_registry expects session object with attributes, but we can pass
+        a dict with the same structure for prerequisite checking.
+
+        Args:
+            context: Prerequisite service context
+
+        Returns:
+            Context dict suitable for action_registry
+        """
+        # Create a mock session object structure for action_registry
+        completeness = context.get("completeness", 0.0)
+        video_count = context.get("video_count", 0)
+        reports_ready = context.get("reports_available", False)
+
+        # Build mock parent_report object with status attribute
+        # action_graph.yaml checks: session.artifacts.parent_report.status == 'ready'
+        parent_report = None
+        if reports_ready:
+            parent_report = type('obj', (object,), {
+                "status": "ready"
+            })()
+
+        # Build session-like context
+        return {
+            "phase": context.get("phase", "screening"),
+            "session": type('obj', (object,), {
+                "completeness": completeness,
+                "artifacts": type('obj', (object,), {
+                    "parent_report": parent_report,
+                    "videos": [{}] * video_count  # Mock video list
+                })()
+            })(),
+            "completeness": completeness,
+            "uploaded_video_count": video_count,
+            "reports_ready": reports_ready,
+        }
+
+    def _convert_prerequisite_ids_to_enums(
+        self,
+        prerequisite_ids: List[str]
+    ) -> List[PrerequisiteType]:
+        """
+        Convert prerequisite IDs from action_graph.yaml to PrerequisiteType enums.
+
+        Maps config prerequisite names to Python enums for compatibility.
+
+        Args:
+            prerequisite_ids: List of prerequisite IDs from config
+
+        Returns:
+            List of PrerequisiteType enums
+        """
+        # Mapping from config IDs to PrerequisiteType enums
+        id_to_enum = {
+            "interview_complete": PrerequisiteType.INTERVIEW_COMPLETE,
+            "videos_uploaded": PrerequisiteType.VIDEOS_UPLOADED,
+            "minimum_videos": PrerequisiteType.MINIMUM_VIDEOS,
+            "analysis_complete": PrerequisiteType.ANALYSIS_COMPLETE,
+            "reports_available": PrerequisiteType.REPORTS_AVAILABLE,
+        }
+
+        result = []
+        for prereq_id in prerequisite_ids:
+            enum_val = id_to_enum.get(prereq_id)
+            if enum_val:
+                result.append(enum_val)
+            else:
+                logger.warning(f"Unknown prerequisite ID from config: {prereq_id}")
+
+        return result
 
 
 # Singleton instance

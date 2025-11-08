@@ -159,9 +159,19 @@ class ActionRegistry:
             return False
 
         try:
-            # Evaluate check expression
-            # This is a simple eval - in production might want safer evaluation
-            result = eval(prereq.check_expression, {"__builtins__": {}}, context)
+            # Evaluate check expression with safe builtins
+            # Provide essential functions like len(), but restrict dangerous operations
+            safe_builtins = {
+                "len": len,
+                "min": min,
+                "max": max,
+                "abs": abs,
+                "int": int,
+                "float": float,
+                "str": str,
+                "bool": bool,
+            }
+            result = eval(prereq.check_expression, {"__builtins__": safe_builtins}, context)
             return bool(result)
         except Exception as e:
             logger.error(
