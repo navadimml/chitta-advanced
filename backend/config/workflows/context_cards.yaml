@@ -91,7 +91,7 @@ cards:
     display_conditions:
       phase: screening
       completeness: "< 0.80"
-      message_count: "> 2"  # After initial exchange
+      message_count: "> 0"  # After any message (was > 2, caused gap)
 
     # Card content (dynamic based on state)
     content:
