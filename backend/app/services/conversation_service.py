@@ -690,6 +690,10 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             # Extracted data for card content
             "primary_concerns": data.primary_concerns or [],
             "urgent_flags": data.urgent_flags or [],
+            "strengths": data.strengths,  # For strengths_card display
+            "concern_details": data.concern_details,  # For detailed concern info
+            "developmental_history": data.developmental_history,  # For history context
+            "family_context": data.family_context,  # For family context
         }
 
         # 🌟 Use card_generator to get config-driven cards
