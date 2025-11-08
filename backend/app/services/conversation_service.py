@@ -78,7 +78,7 @@ class ConversationService:
         - Categorize information correctly
         - Handle nuanced language
 
-        Uses stronger model (e.g., gemini-2.0-flash-exp) even if conversation
+        Uses stronger model (gemini-flash-latest) even if conversation
         uses weaker model (e.g., flash-lite) for speed.
         """
         import os
@@ -90,10 +90,10 @@ class ConversationService:
             logger.info(f"Using configured extraction model: {extraction_model}")
             return create_llm_provider(model=extraction_model)
 
-        # Otherwise, use a stronger default model for extraction
-        # Default to gemini-2.0-flash-exp (better reasoning than flash-lite)
-        logger.info("Using default stronger model for extraction: gemini-2.0-flash-exp")
-        return create_llm_provider(model="gemini-2.0-flash-exp")
+        # Otherwise, use the latest and most advanced flash model for extraction
+        # gemini-flash-latest: Most current and advanced flash model
+        logger.info("Using default stronger model for extraction: gemini-flash-latest")
+        return create_llm_provider(model="gemini-flash-latest")
 
     async def process_message(
         self,
