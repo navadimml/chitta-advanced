@@ -353,13 +353,12 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
                 f"finish_reason: {llm_response.finish_reason}"
             )
 
-            # Check if response was blocked by safety filters
-            if (not llm_response.content.strip() and
-                llm_response.finish_reason and
-                "PROHIBITED" in llm_response.finish_reason.upper()):
+            # Check if response is empty (blocked, unknown error, or other issue)
+            # Retry with simplified prompt for ANY empty response, not just safety blocks
+            if not llm_response.content.strip():
 
                 logger.warning(
-                    f"⚠️ Response blocked by safety filters ({llm_response.finish_reason}). "
+                    f"⚠️ Empty response (finish_reason: {llm_response.finish_reason}). "
                     f"Retrying with simplified prompt..."
                 )
 
