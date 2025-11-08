@@ -201,7 +201,8 @@ phases:
 │  - action_graph.yaml       ← Available actions     │
 │  - phases.yaml             ← Phase transitions     │
 │  - artifacts.yaml          ← Document lifecycle    │
-│  - context_cards.yaml      ← UI cards (NEW!)       │
+│  - context_cards.yaml      ← UI cards              │
+│  - deep_views.yaml         ← Interaction spaces    │
 └────────────────────────────────────────────────────┘
                       ↓ loaded by
 ┌────────────────────────────────────────────────────┐
@@ -211,6 +212,7 @@ phases:
 │  - action_registry.py  ← Manages action graph      │
 │  - phase_manager.py    ← Manages phase transitions │
 │  - card_generator.py   ← Generates context cards   │
+│  - view_manager.py     ← Routes to deep views      │
 └────────────────────────────────────────────────────┘
                       ↓ used by
 ┌────────────────────────────────────────────────────┐
@@ -218,6 +220,14 @@ phases:
 │  - conversation_service.py                         │
 │  - interview_service.py                            │
 │  - prerequisite_service.py                         │
+└────────────────────────────────────────────────────┘
+                      ↓ rendered by
+┌────────────────────────────────────────────────────┐
+│           UI COMPONENTS (React)                    │
+│  - ConversationTranscript.jsx                      │
+│  - ContextualSurface.jsx                           │
+│  - DeepViewManager.jsx  ← Routes to views          │
+│  - deepviews/           ← 11+ modal components     │
 └────────────────────────────────────────────────────┘
 ```
 
@@ -578,6 +588,385 @@ Reports ready (transition to ongoing phase)
 ├─ [Active] יומן יוני - 2 רשומות השבוע
 ├─ [Action] יש שאלות? - התייעצי איתי בכל עת
 ```
+
+---
+
+## The Deep View System (Interaction Spaces)
+
+Deep views are **where actions happen** - the modal interfaces for specific interactions. They're the **destination** when cards are clicked or actions are requested.
+
+### Current Deep Views
+
+```
+deepviews/
+├── ConsultationView.jsx         # Q&A with Chitta
+├── DocumentUploadView.jsx       # Upload diagnostic reports
+├── DocumentListView.jsx         # Browse uploaded documents
+├── VideoUploadView.jsx          # Upload behavioral videos
+├── VideoGalleryView.jsx         # Browse uploaded videos
+├── FilmingInstructionView.jsx   # How to film videos
+├── JournalView.jsx              # Add/view journal entries
+├── ReportView.jsx               # View parent/professional reports
+├── ExpertProfileView.jsx        # Browse/connect with experts
+├── MeetingSummaryView.jsx       # Pre-meeting preparation
+└── ShareView.jsx                # Share reports with others
+```
+
+### Deep Views Configuration
+
+```yaml
+# deep_views.yaml
+views:
+  # Artifact viewers - show generated content
+  report:
+    component: ReportView
+    type: artifact_viewer
+    title: "מדריך להורים"
+    requires: [reports_generated]
+    data_sources:
+      - artifacts.parent_report
+      - session.child_profile
+    phase: both  # Available in screening and ongoing
+    icon: file-text
+
+  video_gallery:
+    component: VideoGalleryView
+    type: artifact_viewer
+    title: "גלריית סרטונים"
+    requires: [videos_uploaded]
+    data_sources:
+      - artifacts.videos
+      - artifacts.video_analysis_results
+    phase: both
+    icon: film
+
+  # Artifact creators - generate new content
+  video_upload:
+    component: VideoUploadView
+    type: artifact_creator
+    title: "העלאת סרטון"
+    requires: [interview_complete]
+    creates: behavioral_video
+    guidance_artifact: video_guidelines
+    phase: screening
+    icon: video
+    max_uploads: 3
+
+  document_upload:
+    component: DocumentUploadView
+    type: artifact_creator
+    title: "העלאת מסמכים"
+    requires: []  # Can upload anytime
+    creates: diagnostic_report
+    accepted_formats: [pdf, jpg, png, doc, docx]
+    max_size_mb: 10
+    phase: both
+    icon: file-up
+
+  journal_entry:
+    component: JournalView
+    type: artifact_creator
+    title: "יומן התפתחות"
+    requires: []  # Can journal anytime
+    creates: journal_entry
+    categories: [behavior, speech, social, motor, emotional]
+    phase: both
+    icon: book-open
+
+  # Guidance views - help user understand
+  filming_instructions:
+    component: FilmingInstructionView
+    type: guidance
+    title: "הנחיות צילום"
+    requires: [interview_complete]
+    data_sources:
+      - artifacts.video_guidelines
+    phase: screening
+    icon: info
+
+  # Consultation view - interactive conversation
+  consultation:
+    component: ConsultationView
+    type: conversation
+    title: "שאלות ותשובות"
+    requires: []  # Always available
+    mode: qa  # Question-answer mode vs interview mode
+    phase: both
+    icon: message-circle
+
+  # Action views - perform specific actions
+  expert_finder:
+    component: ExpertProfileView
+    type: action
+    title: "מציאת מומחים"
+    requires: []  # Can browse anytime
+    enhanced_by: [reports_generated]  # Better matching with reports
+    data_sources:
+      - artifacts.reports
+      - session.location
+    phase: ongoing
+    icon: users
+
+  share_report:
+    component: ShareView
+    type: action
+    title: "שיתוף דוח"
+    requires: [reports_generated]
+    data_sources:
+      - artifacts.parent_report
+      - artifacts.professional_report
+    phase: ongoing
+    icon: share-2
+```
+
+### How Deep Views Connect to the System
+
+**1. Context Cards → Deep Views**
+```yaml
+# Card triggers view
+context_cards.yaml:
+  video_upload_ready:
+    action:
+      type: open_deep_view
+      view: video_upload  # ← References deep_views.yaml
+
+deep_views.yaml:
+  video_upload:
+    component: VideoUploadView  # ← React component to show
+    requires: [interview_complete]
+```
+
+**2. Actions → Deep Views**
+```yaml
+# Action opens view
+action_graph.yaml:
+  view_report:
+    requires: [reports_generated]
+    opens_view: report  # ← Opens ReportView
+
+deep_views.yaml:
+  report:
+    component: ReportView
+    data_sources: [artifacts.parent_report]
+```
+
+**3. Artifacts → Deep Views**
+```yaml
+# Artifact availability enables view
+artifacts.yaml:
+  parent_report:
+    generated_when: video_analysis_complete
+    viewers: [report]  # ← Can be viewed in ReportView
+
+deep_views.yaml:
+  report:
+    requires: [reports_generated]
+    data_sources: [artifacts.parent_report]
+```
+
+**4. Phases → Deep Views**
+```yaml
+# Phase determines available views
+phases.yaml:
+  screening:
+    available_views:
+      - video_upload
+      - filming_instructions
+      - document_upload
+
+  ongoing:
+    available_views:
+      - journal_entry
+      - consultation
+      - expert_finder
+      - share_report
+```
+
+### View Manager Service
+
+```python
+# view_manager.py
+class ViewManager:
+    """Routes to appropriate deep view based on configuration"""
+
+    def __init__(self, config: ViewConfig):
+        self.config = config
+
+    def can_open_view(self, view_id: str, session: Session) -> bool:
+        """Check if view can be opened given current state"""
+        view_def = self.config.views[view_id]
+
+        # Check phase
+        if view_def.phase not in ['both', session.phase]:
+            return False
+
+        # Check prerequisites
+        for prereq in view_def.requires:
+            if not self._check_prerequisite(prereq, session):
+                return False
+
+        return True
+
+    def get_view_data(self, view_id: str, session: Session) -> Dict:
+        """Gather data needed for view"""
+        view_def = self.config.views[view_id]
+
+        data = {
+            "title": view_def.title,
+            "icon": view_def.icon,
+            "component": view_def.component
+        }
+
+        # Gather data from sources
+        for source in view_def.data_sources:
+            data[source] = self._resolve_data_source(source, session)
+
+        # Add guidance artifact if specified
+        if view_def.guidance_artifact:
+            data["guidance"] = session.artifacts.get(view_def.guidance_artifact)
+
+        return data
+
+    def handle_view_result(self, view_id: str, result: Dict, session: Session):
+        """Process result from view interaction"""
+        view_def = self.config.views[view_id]
+
+        # If view creates artifact, store it
+        if view_def.type == "artifact_creator" and result.get("artifact"):
+            artifact_type = view_def.creates
+            artifact = Artifact(
+                type=artifact_type,
+                content=result["artifact"],
+                session_id=session.id,
+                created_in_view=view_id
+            )
+            session.artifacts.add(artifact)
+
+        # If view is conversation, extract data
+        if view_def.type == "conversation" and result.get("messages"):
+            # Continue extraction from consultation messages
+            self._extract_from_consultation(result["messages"], session)
+```
+
+### View Lifecycle Example
+
+```
+User clicks card → Backend checks prerequisites
+                 ↓
+              ✅ Allowed
+                 ↓
+         Generate view data
+         (gather from artifacts, session, etc.)
+                 ↓
+         Return to frontend:
+         {
+           "view": "video_upload",
+           "component": "VideoUploadView",
+           "title": "העלאת סרטון",
+           "guidance": <video_guidelines_content>,
+           "remaining_uploads": 2
+         }
+                 ↓
+         Frontend shows DeepViewManager
+         → Renders VideoUploadView
+                 ↓
+         User uploads video
+                 ↓
+         Frontend sends result to backend
+                 ↓
+         Backend processes:
+         - Creates video artifact
+         - Checks if analysis should start
+         - Updates session state
+         - Regenerates context cards
+                 ↓
+         New cards appear:
+         [Processing] ניתוח בתהליך...
+```
+
+### Benefits of View Configuration
+
+**1. Add New View Type**
+```yaml
+# Want to add "Schedule Follow-up" view?
+schedule_followup:
+  component: ScheduleFollowupView
+  type: action
+  title: "קביעת פגישת מעקב"
+  requires: [reports_generated]
+  phase: ongoing
+  data_sources:
+    - session.calendar_availability
+    - artifacts.reports
+```
+→ **Add to YAML + create React component**
+
+**2. Change View Prerequisites**
+```yaml
+# Want to allow video upload at 70% completeness?
+video_upload:
+  requires: [interview_complete]  # Already checks completeness >= 80%
+
+# In prerequisites.py config:
+interview_complete:
+  threshold: 0.70  # Changed from 0.80
+```
+
+**3. Phase-Specific Views**
+```yaml
+# Screening phase views
+video_upload: { phase: screening }
+filming_instructions: { phase: screening }
+
+# Ongoing phase views
+journal_entry: { phase: ongoing }
+expert_finder: { phase: ongoing }
+
+# Both phases
+consultation: { phase: both }
+document_upload: { phase: both }
+```
+
+**4. View-to-Artifact Linkage**
+```yaml
+# Clear relationship between views and artifacts
+video_upload:
+  creates: behavioral_video
+  guidance_artifact: video_guidelines
+
+report:
+  requires: [reports_generated]
+  data_sources: [artifacts.parent_report]
+
+journal_entry:
+  creates: journal_entry
+  data_sources: [session.previous_entries]
+```
+
+### The Flow (All Together)
+
+```
+State Changes → Cards Updated → User Clicks Card
+     ↓                                  ↓
+Extraction    →    Action Triggered  → Open Deep View
+     ↓                                  ↓
+Completeness  →    Prerequisites      → View Interaction
+     ↓             Checked                ↓
+Phase         →    View Available?    → Artifact Created/Viewed
+Transition         ↓                      ↓
+     ↓             ✅                     State Updated
+     └──────────────────────────────────────┘
+              Cycle continues...
+```
+
+**Everything is connected:**
+- **Extraction** → Completeness → Phase transitions
+- **Completeness** → Prerequisites → Actions available
+- **Actions** → Cards → Deep views
+- **Deep views** → Artifacts → More cards
+- **Artifacts** → New capabilities → New views
+
+All configured in YAML. All flowing naturally. 🌊
 
 ---
 
