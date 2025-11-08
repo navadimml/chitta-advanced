@@ -55,7 +55,7 @@ class CardGenerator:
         context: Dict[str, Any]
     ) -> bool:
         """
-        Evaluate if a card should be displayed.
+        Evaluate if a card should be displayed based on display_conditions.
 
         Args:
             card_id: Card identifier
@@ -69,6 +69,8 @@ class CardGenerator:
             return False
 
         conditions = card.get("display_conditions", {})
+        if not conditions:
+            return True  # No conditions = always show
 
         # Check phase
         required_phase = conditions.get("phase")
@@ -81,10 +83,86 @@ class CardGenerator:
             elif required_phase != current_phase:
                 return False
 
-        # Check other conditions (simplified for now)
-        # In full implementation, would evaluate all conditions
+        # Behavioral flags that should not be evaluated as context conditions
+        behavioral_flags = {
+            "show_once",
+            "auto_dismiss_when",
+            "re_show_after_days",
+            "updates_dynamically",
+        }
+
+        # Check all other conditions
+        for condition_key, condition_value in conditions.items():
+            if condition_key == "phase":
+                continue  # Already checked above
+
+            # Skip behavioral flags - they control card behavior, not display
+            if condition_key in behavioral_flags:
+                continue
+
+            # Get context value
+            context_value = context.get(condition_key)
+
+            # Handle string conditions with operators (e.g., "< 0.80", ">= 3", "!= ready")
+            if isinstance(condition_value, str):
+                if not self._evaluate_string_condition(condition_value, context_value):
+                    return False
+            # Handle boolean conditions
+            elif isinstance(condition_value, bool):
+                if context_value != condition_value:
+                    return False
+            # Handle numeric conditions
+            elif isinstance(condition_value, (int, float)):
+                if context_value != condition_value:
+                    return False
+            # Handle list conditions (value must be in list)
+            elif isinstance(condition_value, list):
+                if context_value not in condition_value:
+                    return False
 
         return True
+
+    def _evaluate_string_condition(
+        self,
+        condition: str,
+        context_value: Any
+    ) -> bool:
+        """
+        Evaluate a string condition that may contain operators.
+
+        Args:
+            condition: Condition string (e.g., "< 0.80", ">= 3", "!= ready")
+            context_value: Actual value from context
+
+        Returns:
+            True if condition matches
+        """
+        condition = condition.strip()
+
+        # Check for operators
+        if condition.startswith(">="):
+            threshold = float(condition[2:].strip())
+            return context_value is not None and float(context_value) >= threshold
+        elif condition.startswith("<="):
+            threshold = float(condition[2:].strip())
+            return context_value is not None and float(context_value) <= threshold
+        elif condition.startswith(">"):
+            threshold = float(condition[1:].strip())
+            return context_value is not None and float(context_value) > threshold
+        elif condition.startswith("<"):
+            threshold = float(condition[1:].strip())
+            return context_value is not None and float(context_value) < threshold
+        elif condition.startswith("!="):
+            expected = condition[2:].strip()
+            # Try to parse as number if possible
+            try:
+                expected_num = float(expected)
+                return context_value != expected_num
+            except ValueError:
+                return context_value != expected
+        else:
+            # Direct string equality
+            return context_value == condition
 
     def get_visible_cards(
         self,
