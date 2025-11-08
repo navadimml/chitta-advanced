@@ -139,41 +139,185 @@ class CardGenerator:
         }
         return [translations.get(c, c) for c in concerns]
 
+    def _apply_formatters(
+        self,
+        text: str,
+        context: Dict[str, Any]
+    ) -> str:
+        """
+        🌟 Wu Wei: Apply convention-based formatters to placeholders.
+
+        Convention-based suffix formatters:
+        - {concerns_list} → auto-join with ", " and translate
+        - {strengths_preview} → auto-truncate to 150 chars
+        - {concerns_summary} → count + Hebrew plural
+        - {concerns_count} → just the number
+        - {missing_areas} → remove (placeholder for future)
+
+        Args:
+            text: Text with placeholders
+            context: Session context
+
+        Returns:
+            Text with formatters applied
+        """
+        if not text:
+            return text
+
+        import re
+
+        # Find all placeholders {placeholder_name}
+        placeholders = re.findall(r'\{(\w+)\}', text)
+
+        for placeholder in placeholders:
+            # Extract base field name and detect suffix convention
+            field_name = placeholder
+
+            # Check suffix conventions and apply formatters
+            if placeholder.endswith('_list'):
+                # _list → join with commas, translate if needed
+                base_field = placeholder[:-5]  # Remove '_list'
+
+                # Try to find the field in context with smart matching
+                value = None
+                if base_field in context:
+                    value = context.get(base_field)
+                elif f"primary_{base_field}" in context:
+                    value = context.get(f"primary_{base_field}")
+                else:
+                    value = []
+
+                if value:
+                    # Auto-translate concerns
+                    if 'concern' in base_field:
+                        value = self._translate_concerns(value)
+                    # Join with comma
+                    formatted = ", ".join(value[:3]) if isinstance(value, list) else str(value)
+                else:
+                    formatted = ""
+
+                text = text.replace(f"{{{placeholder}}}", formatted)
+
+            elif placeholder.endswith('_preview'):
+                # _preview → truncate to 150 chars at sentence boundary
+                base_field = placeholder[:-8]  # Remove '_preview'
+
+                # Try to find the field in context
+                value = context.get(base_field, "")
+
+                if value:
+                    preview = value[:150]
+                    if len(value) > 150:
+                        # Try to cut at sentence boundary
+                        last_period = preview.rfind(".")
+                        if last_period > 50:
+                            preview = preview[:last_period + 1]
+                        else:
+                            preview = preview + "..."
+                    formatted = preview
+                else:
+                    formatted = ""
+
+                text = text.replace(f"{{{placeholder}}}", formatted)
+
+            elif placeholder.endswith('_summary'):
+                # _summary → count + Hebrew plural
+                base_field = placeholder[:-8]  # Remove '_summary'
+
+                # Try to find the field in context with smart matching
+                value = None
+                if base_field in context:
+                    value = context.get(base_field)
+                elif f"primary_{base_field}" in context:
+                    value = context.get(f"primary_{base_field}")
+                else:
+                    value = []
+
+                if value and isinstance(value, list) and len(value) > 0:
+                    count = len(value)
+                    # Hebrew pluralization for concerns
+                    if 'concern' in base_field:
+                        if count == 1:
+                            formatted = f"{count} תחום התפתחות"
+                        else:
+                            formatted = f"{count} תחומי התפתחות"
+                    else:
+                        formatted = str(count)
+                else:
+                    formatted = ""
+
+                # Smart removal of trailing comma if empty
+                if formatted:
+                    # Has value: just replace placeholder (keeps comma)
+                    text = text.replace(f"{{{placeholder}}}", formatted)
+                else:
+                    # No value: remove placeholder and any preceding comma
+                    text = text.replace(f", {{{placeholder}}}", "")
+                    text = text.replace(f"{{{placeholder}}}", "")
+
+            elif placeholder.endswith('_count'):
+                # _count → just the number
+                base_field = placeholder[:-6]  # Remove '_count'
+
+                # Try to find the field in context with smart matching
+                value = None
+                if base_field in context:
+                    value = context.get(base_field)
+                elif f"primary_{base_field}" in context:
+                    value = context.get(f"primary_{base_field}")
+                else:
+                    value = []
+
+                if isinstance(value, list):
+                    formatted = str(len(value))
+                else:
+                    formatted = "0"
+
+                text = text.replace(f"{{{placeholder}}}", formatted)
+
+            elif placeholder == 'missing_areas':
+                # Placeholder for future - remove for now
+                text = text.replace(f"{{{placeholder}}}", "")
+
+            else:
+                # Simple variable replacement (parent_name, child_name, etc.)
+                value = context.get(placeholder)
+
+                if value is not None:
+                    formatted = str(value)
+                else:
+                    # Check common mappings
+                    if placeholder == "parent_name":
+                        formatted = "הורה"
+                    elif placeholder == "child_name":
+                        formatted = context.get("child_name", "הילד/ה")
+                    elif placeholder == "child_age":
+                        formatted = str(context.get("child_age", ""))
+                    elif placeholder == "completeness_percentage":
+                        formatted = f"{int(context.get('completeness', 0) * 100)}"
+                    elif placeholder == "uploaded_count":
+                        formatted = str(context.get("uploaded_video_count", 0))
+                    elif placeholder == "journal_entry_count":
+                        formatted = str(context.get("journal_entry_count", 0))
+                    elif placeholder == "phase":
+                        formatted = context.get("phase", "screening")
+                    else:
+                        formatted = ""
+
+                text = text.replace(f"{{{placeholder}}}", formatted)
+
+        return text
+
     def _replace_template_vars(
         self,
         text: str,
         context: Dict[str, Any]
     ) -> str:
         """
-        Replace template variables in text with values from context.
-
-        Args:
-            text: Text with template variables like {child_name}
-            context: Session context with values
-
-        Returns:
-            Text with variables replaced
+        DEPRECATED: Use _apply_formatters instead.
+        Kept for backwards compatibility.
         """
-        if not text:
-            return text
-
-        # Build replacement dict
-        replacements = {
-            "parent_name": context.get("parent_name", "הורה"),
-            "child_name": context.get("child_name", "הילד/ה"),
-            "child_age": str(context.get("child_age", "")),
-            "completeness_percentage": f"{int(context.get('completeness', 0) * 100)}",
-            "uploaded_count": str(context.get("uploaded_video_count", 0)),
-            "journal_entry_count": str(context.get("journal_entry_count", 0)),
-            "phase": context.get("phase", "screening"),
-        }
-
-        # Replace all variables
-        result = text
-        for var_name, var_value in replacements.items():
-            result = result.replace(f"{{{var_name}}}", var_value)
-
-        return result
+        return self._apply_formatters(text, context)
 
     def _evaluate_string_condition(
         self,
@@ -285,6 +429,7 @@ class CardGenerator:
                 body = content.get("body", content.get("body_template", ""))
 
                 # Handle progress_description_by_range (for interview_progress_card)
+                # This is a special card-specific feature defined in YAML
                 if "progress_description_by_range" in content:
                     completeness = context.get("completeness", 0)
                     progress_pct = int(completeness * 100)
@@ -301,56 +446,9 @@ class CardGenerator:
                     # Replace {progress_description} in body
                     body = body.replace("{progress_description}", progress_desc)
 
-                # Handle concerns_summary for child_profile_card
-                if "{concerns_summary}" in body:
-                    primary_concerns = context.get("primary_concerns", [])
-                    if primary_concerns:
-                        concerns_hebrew = self._translate_concerns(primary_concerns)
-                        concerns_count = len(concerns_hebrew)
-                        if concerns_count == 1:
-                            summary = f"{concerns_count} תחום התפתחות"
-                        else:
-                            summary = f"{concerns_count} תחומי התפתחות"
-                        body = body.replace("{concerns_summary}", summary)
-                    else:
-                        # Remove concerns_summary and any trailing comma/space
-                        body = body.replace(", {concerns_summary}", "")
-                        body = body.replace("{concerns_summary}", "")
-
-                # Handle concerns_list for concerns_card
-                if "{concerns_list}" in body:
-                    primary_concerns = context.get("primary_concerns", [])
-                    if primary_concerns:
-                        concerns_hebrew = self._translate_concerns(primary_concerns)
-                        concerns_str = ", ".join(concerns_hebrew[:3])  # Show max 3
-                        body = body.replace("{concerns_list}", concerns_str)
-                    else:
-                        body = body.replace("{concerns_list}", "")
-
-                # Handle strengths_preview for strengths_card
-                if "{strengths_preview}" in body:
-                    strengths = context.get("strengths", "")
-                    if strengths:
-                        # Take first 2-3 sentences or first 150 chars
-                        preview = strengths[:150]
-                        if len(strengths) > 150:
-                            # Try to cut at sentence boundary
-                            last_period = preview.rfind(".")
-                            if last_period > 50:  # At least some content
-                                preview = preview[:last_period + 1]
-                            else:
-                                preview = preview + "..."
-                        body = body.replace("{strengths_preview}", preview)
-                    else:
-                        body = body.replace("{strengths_preview}", "")
-
-                # Remove unimplemented placeholders (like {missing_areas})
-                # TODO: Implement full dynamic content generation
-                body = body.replace("{missing_areas}", "")
-
-                # Replace template variables in title and body
-                title = self._replace_template_vars(title, context)
-                body = self._replace_template_vars(body, context)
+                # 🌟 Wu Wei: Apply convention-based formatters to ALL placeholders
+                title = self._apply_formatters(title, context)
+                body = self._apply_formatters(body, context)
 
                 # Use first meaningful line of body as subtitle
                 subtitle = ""
