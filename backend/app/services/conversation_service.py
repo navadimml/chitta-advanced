@@ -642,9 +642,22 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
         🌟 Wu Wei Architecture: Generate context cards using card_generator
 
         Now config-driven from context_cards.yaml instead of hardcoded logic!
+
+        Context is built automatically from all available data - no need to manually
+        list fields when adding new cards in YAML!
         """
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
+
+        # 🌟 Wu Wei: Automatically include ALL extracted data fields
+        # Uses Pydantic's dict() to get all fields without manual listing
+        # This way, new YAML cards can reference any field without code changes!
+        try:
+            # Try Pydantic v2 method first
+            extracted_dict = data.model_dump()
+        except AttributeError:
+            # Fall back to Pydantic v1 method
+            extracted_dict = data.dict()
 
         # Build context for card_generator (matching display_conditions in YAML)
         context = {
@@ -655,10 +668,8 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             "completeness": completeness,
             "message_count": len(session.conversation_history),
 
-            # Child/parent info
+            # Parent info (not in extracted_data)
             "parent_name": "הורה",  # TODO: Get from user profile
-            "child_name": data.child_name or "הילד/ה",
-            "child_age": data.age,
 
             # Video-related state
             "uploaded_video_count": 0,  # TODO: Get from video storage
@@ -687,13 +698,9 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             "action_requested": action_requested,
             "completeness_check": completeness_check,
 
-            # Extracted data for card content
-            "primary_concerns": data.primary_concerns or [],
-            "urgent_flags": data.urgent_flags or [],
-            "strengths": data.strengths,  # For strengths_card display
-            "concern_details": data.concern_details,  # For detailed concern info
-            "developmental_history": data.developmental_history,  # For history context
-            "family_context": data.family_context,  # For family context
+            # 🌟 Wu Wei: Merge in ALL extracted data automatically!
+            # Now new YAML cards can reference any extraction field without code changes
+            **extracted_dict,
         }
 
         # 🌟 Use card_generator to get config-driven cards
