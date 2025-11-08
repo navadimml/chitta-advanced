@@ -97,9 +97,9 @@ def main():
     if cards_high:
         first_card = cards_high[0]
         test_assert(
-            "card_id" in first_card,
-            "Cards have card_id field",
-            f"Card ID: {first_card.get('card_id')}"
+            "type" in first_card,
+            "Cards have type field",
+            f"Card type: {first_card.get('type')}"
         )
 
         test_assert(
@@ -130,13 +130,13 @@ def main():
     )
 
     # Test that different phases return different cards
-    card_ids_screening = {card.get("card_id") for card in cards_high}
-    card_ids_ongoing = {card.get("card_id") for card in cards_ongoing}
+    card_types_screening = {card.get("type") for card in cards_high}
+    card_types_ongoing = {card.get("type") for card in cards_ongoing}
 
     test_assert(
-        card_ids_screening != card_ids_ongoing,
+        card_types_screening != card_types_ongoing,
         "Different phases return different cards",
-        f"Screening: {card_ids_screening}, Ongoing: {card_ids_ongoing}"
+        f"Screening: {card_types_screening}, Ongoing: {card_types_ongoing}"
     )
 
     # ==========================================================================
