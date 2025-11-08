@@ -457,17 +457,25 @@ Continue the conversation naturally."""
 
 - **Basic info:** name, age, gender (if mentioned)
 
-- **Primary concerns:** Categories like 'speech', 'social', 'motor', 'attention', 'sensory', 'emotional', 'behavioral', 'learning', 'sleep', 'eating'
+- **Primary concerns:** ⚠️ **ONLY if parent expresses WORRY, DIFFICULTY, or PROBLEM!**
+  Categories: 'speech', 'social', 'motor', 'attention', 'sensory', 'emotional', 'behavioral', 'learning', 'sleep', 'eating'
 
-  ⚠️ **CRITICAL - Concerns vs Strengths:**
-  - ONLY extract a concern if parent expresses WORRY, DIFFICULTY, or PROBLEM
-  - DO NOT confuse positive behavior with concerns!
+  ⚠️ **CRITICAL - DO NOT MISCATEGORIZE POSITIVE BEHAVIORS AS CONCERNS:**
+  - ONLY extract to primary_concerns if parent expresses WORRY, DIFFICULTY, or PROBLEM
+  - If parent describes positive, successful, or enjoyable behavior → STRENGTH, NOT concern!
+  - "Gets along with children" = STRENGTH | "Struggles with children" = concern
+  - "Talks a lot" = STRENGTH | "Doesn't talk much" = concern
+  - "Behaves well" = STRENGTH | "Behaves poorly" = concern
 
   **Examples of STRENGTHS (NOT concerns):**
   - "משחק עם ילדים אחרים" (plays with other children) → STRENGTH, NOT social concern!
+  - "מסתדרת יפה עם ילדים אחרים" (gets along well with other children) → STRENGTH, NOT social concern!
   - "יש לו הרבה חברים" (has many friends) → STRENGTH, NOT social concern!
+  - "אוהב לשחק עם חברים" (likes to play with friends) → STRENGTH, NOT social concern!
   - "מדבר הרבה" (talks a lot) → STRENGTH, NOT speech concern!
+  - "מתקשר יפה" (communicates well) → STRENGTH, NOT speech concern!
   - "רץ ומטפס" (runs and climbs) → STRENGTH, NOT motor concern!
+  - "מתנהג יפה" (behaves well) → STRENGTH, NOT behavioral concern!
 
   **Examples of CONCERNS (extract these):**
   - "קשה לו להתחבר לילדים" (hard for him to connect with children) → social concern
