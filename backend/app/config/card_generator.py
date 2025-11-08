@@ -122,6 +122,42 @@ class CardGenerator:
 
         return True
 
+    def _replace_template_vars(
+        self,
+        text: str,
+        context: Dict[str, Any]
+    ) -> str:
+        """
+        Replace template variables in text with values from context.
+
+        Args:
+            text: Text with template variables like {child_name}
+            context: Session context with values
+
+        Returns:
+            Text with variables replaced
+        """
+        if not text:
+            return text
+
+        # Build replacement dict
+        replacements = {
+            "parent_name": context.get("parent_name", "הורה"),
+            "child_name": context.get("child_name", "הילד/ה"),
+            "child_age": str(context.get("child_age", "")),
+            "completeness_percentage": f"{int(context.get('completeness', 0) * 100)}",
+            "uploaded_count": str(context.get("uploaded_video_count", 0)),
+            "journal_entry_count": str(context.get("journal_entry_count", 0)),
+            "phase": context.get("phase", "screening"),
+        }
+
+        # Replace all variables
+        result = text
+        for var_name, var_value in replacements.items():
+            result = result.replace(f"{{{var_name}}}", var_value)
+
+        return result
+
     def _evaluate_string_condition(
         self,
         condition: str,
@@ -177,43 +213,107 @@ class CardGenerator:
             max_cards: Maximum number of cards to return
 
         Returns:
-            List of card configurations sorted by priority, with flattened structure
+            List of card configurations in frontend-compatible format
         """
         visible = []
 
+        # Card type to frontend status mapping (for colors/animations)
+        card_type_to_status = {
+            "progress": "processing",
+            "action_needed": "action",
+            "success": "new",
+            "guidance": "instruction",
+            "ongoing_support": "processing",
+        }
+
+        # Card type to icon mapping (from YAML card_types config)
+        card_type_icons = {
+            "progress": "CheckCircle",
+            "action_needed": "AlertCircle",
+            "success": "CheckCircle",
+            "guidance": "Info",
+            "ongoing_support": "Heart",
+        }
+
         for card_id, card in self._cards.items():
             if self.evaluate_display_conditions(card_id, context):
-                # Create flattened card structure for frontend consumption
-                card_data = {
-                    "card_id": card_id,
-                    "name": card.get("name", ""),
-                    "name_en": card.get("name_en", ""),
-                    "card_type": card.get("card_type", ""),
-                    "priority": card.get("priority", 0),
-                }
+                card_type = card.get("card_type", "guidance")
 
-                # Flatten content to top level for easier frontend access
+                # Get content (could be content dict or content_by_state dict)
                 content = card.get("content", {})
-                if isinstance(content, dict):
-                    card_data["title"] = content.get("title", "")
-                    card_data["body"] = content.get("body", "")
-                    card_data["footer"] = content.get("footer", "")
-                    # Keep other content fields as-is
-                    for key, value in content.items():
-                        if key not in ["title", "body", "footer"]:
-                            card_data[f"content_{key}"] = value
 
-                # Add available actions
-                card_data["available_actions"] = card.get("available_actions", [])
+                # Handle content_by_state (like journal_card)
+                if not content and "content_by_state" in card:
+                    # Use first state as default (should be improved to check actual state)
+                    content_by_state = card.get("content_by_state", {})
+                    if content_by_state:
+                        first_state_key = list(content_by_state.keys())[0]
+                        content = content_by_state[first_state_key]
 
-                # Add behavior flags
-                card_data["dismissible"] = card.get("dismissible", True)
-                card_data["auto_dismiss_after_action"] = card.get("auto_dismiss_after_action")
+                # Extract title and subtitle
+                title = content.get("title", card.get("name", ""))
+                body = content.get("body", content.get("body_template", ""))
+
+                # Handle progress_description_by_range (for interview_progress_card)
+                if "progress_description_by_range" in content:
+                    completeness = context.get("completeness", 0)
+                    progress_pct = int(completeness * 100)
+
+                    # Determine which range applies
+                    progress_desc = ""
+                    if progress_pct < 30:
+                        progress_desc = content["progress_description_by_range"].get("0-30", {}).get("text", "")
+                    elif progress_pct < 60:
+                        progress_desc = content["progress_description_by_range"].get("30-60", {}).get("text", "")
+                    else:
+                        progress_desc = content["progress_description_by_range"].get("60-80", {}).get("text", "")
+
+                    # Replace {progress_description} in body
+                    body = body.replace("{progress_description}", progress_desc)
+
+                # Remove unimplemented placeholders (like {missing_areas})
+                # TODO: Implement full dynamic content generation
+                body = body.replace("{missing_areas}", "")
+
+                # Replace template variables in title and body
+                title = self._replace_template_vars(title, context)
+                body = self._replace_template_vars(body, context)
+
+                # Use first meaningful line of body as subtitle
+                subtitle = ""
+                for line in body.split("\n"):
+                    line = line.strip()
+                    # Skip empty lines and markdown headers
+                    if line and not line.startswith("#"):
+                        # Remove markdown formatting
+                        line = line.replace("**", "").replace("*", "")
+                        # Skip bullet points with just placeholders
+                        if not line.startswith("•") and not line.startswith("-"):
+                            subtitle = line
+                            break
+                        elif len(line) > 3:  # Has content after bullet
+                            subtitle = line
+                            break
+
+                # Limit subtitle length
+                if len(subtitle) > 100:
+                    subtitle = subtitle[:97] + "..."
+
+                # Build card in OLD frontend format
+                card_data = {
+                    "type": card_id,  # Card identifier
+                    "title": title,
+                    "subtitle": subtitle,
+                    "icon": card_type_icons.get(card_type, "Info"),
+                    "status": card_type_to_status.get(card_type, "instruction"),
+                    "action": card.get("available_actions", [None])[0] if card.get("available_actions") else None,
+                }
 
                 visible.append(card_data)
 
         # Sort by priority (higher priority first)
-        visible.sort(key=lambda c: c.get("priority", 0), reverse=True)
+        # Get priority from original card config
+        visible.sort(key=lambda c: self._cards.get(c["type"], {}).get("priority", 0), reverse=True)
 
         return visible[:max_cards]
 
