@@ -29,7 +29,12 @@ Edit `backend/.env`:
 ```bash
 # Change from simulated to gemini
 LLM_PROVIDER=gemini
-LLM_MODEL=gemini-2.0-flash-exp
+
+# For conversation: Fast model
+LLM_MODEL=gemini-flash-lite-latest
+
+# For extraction: Strong model with stable function calling
+EXTRACTION_MODEL=gemini-2.5-flash
 
 # Add your real API key
 GEMINI_API_KEY=your_actual_api_key_here
@@ -97,7 +102,7 @@ Start a conversation and observe:
 
 ### ✅ Connection & Basic Functionality
 - [ ] Gemini provider initializes without errors
-- [ ] Server logs show: "✅ Gemini provider initialized: gemini-2.0-flash-exp"
+- [ ] Server logs show: "✅ Gemini provider initialized: gemini-2.5-flash" or "gemini-flash-lite-latest"
 - [ ] Basic chat returns Hebrew responses
 - [ ] No API errors or authentication failures
 
@@ -147,7 +152,7 @@ Expected function call:
 ### Test 1: Basic Chat
 ```
 TEST 1: Basic Chat with Gemini
-✅ Provider initialized: Gemini (gemini-2.0-flash-exp)
+✅ Provider initialized: Gemini (gemini-2.5-flash)
 📝 Response: שלום! אני עובד/ת
 🏁 Finish reason: STOP
 🔧 Function calls: 0
@@ -301,9 +306,12 @@ Once testing confirms function calling works:
 ## Notes
 
 - **Local .env changes**: Keep your API key local, don't commit to git
-- **Model selection**: gemini-2.0-flash-exp is recommended (free, fast, function calling)
+- **Model selection**:
+  - Conversation: `gemini-flash-lite-latest` (fast, free)
+  - Extraction: `gemini-2.5-flash` (stable function calling, accurate)
+  - Analysis/Reports: `gemini-2.5-pro` (most capable)
 - **Rate limits**: Free tier is generous but not unlimited
-- **Hebrew support**: Gemini 2.0 has excellent Hebrew language understanding
+- **Hebrew support**: Gemini 2.5 has excellent Hebrew language understanding
 - **Function calling**: Modern SDK uses `types.Tool` and `types.FunctionDeclaration`
 
 ## Contact

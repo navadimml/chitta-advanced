@@ -18,11 +18,14 @@ Open `backend/.env` and configure:
 LLM_PROVIDER=gemini
 
 # Model Selection - Choose based on your needs:
-# For testing enhancements with Flash:
-LLM_MODEL=gemini-2.0-flash-exp
+# For fast conversation:
+LLM_MODEL=gemini-flash-lite-latest
 
-# For production with better quality:
-# LLM_MODEL=gemini-pro-2.5
+# For extraction (stronger model for accuracy):
+EXTRACTION_MODEL=gemini-2.5-flash
+
+# For analysis and reports (strongest model):
+# LLM_MODEL=gemini-2.5-pro
 
 # Enhanced Mode - Enable fallback extraction (NEW!)
 LLM_USE_ENHANCED=true  # Recommended: true for all models
@@ -36,7 +39,7 @@ GEMINI_API_KEY=your_actual_api_key_here
 ### Quick Test - Basic Function Calling
 ```bash
 # Test with Flash model (uses lite mode + enhancements)
-LLM_MODEL=gemini-2.0-flash-exp python test_gemini_interview_enhanced.py
+LLM_MODEL=gemini-2.5-flash python test_gemini_interview_enhanced.py
 ```
 
 ### Full Test Suite
@@ -59,7 +62,7 @@ LLM_USE_ENHANCED=true python test_gemini_interview_enhanced.py
 You should see output like:
 
 ```
-✅ Provider: Gemini Enhanced (gemini-2.0-flash-exp, LITE)
+✅ Provider: Gemini Enhanced (gemini-2.5-flash, LITE)
    Using: LITE prompt + LITE functions
 
 📝 Response: [Hebrew response]
@@ -84,13 +87,13 @@ You should see output like:
 
 ### LLM_MODEL Options
 
-**For Testing Enhancements:**
-- `gemini-2.0-flash-exp` - Fastest, cheapest, benefits most from enhancements
-- `gemini-1.5-flash` - Older Flash model, also benefits from enhancements
+**For Fast Conversation:**
+- `gemini-flash-lite-latest` - Fastest, great for interactive chat
+- `gemini-2.5-flash` - Current stable Flash model
 
-**For Production:**
-- `gemini-pro-2.5` - Best balance of quality and cost
-- `gemini-2.5-pro` - Highest quality (if available)
+**For Extraction & Analysis:**
+- `gemini-2.5-flash` - Recommended for stable function calling
+- `gemini-2.5-pro` - Highest quality for complex analysis
 
 ### LLM_USE_ENHANCED
 
@@ -131,7 +134,7 @@ When you use enhanced mode with Flash models:
 ### "Low success rate"
 - If using Flash: Lite mode should already be active
 - Check model name in output: Should say "LITE" for Flash models
-- Verify .env has `LLM_MODEL=gemini-2.0-flash-exp`
+- Verify .env has `LLM_MODEL=gemini-2.5-flash` or `gemini-flash-lite-latest`
 
 ## Quick Reference
 

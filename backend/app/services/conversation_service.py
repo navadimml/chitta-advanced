@@ -80,7 +80,7 @@ class ConversationService:
 
         IMPORTANT: Model must have stable function calling support!
         gemini-flash-latest caused MALFORMED_FUNCTION_CALL errors (extraction failed).
-        Using gemini-2.0-flash-exp which is proven stable for function calling.
+        Using gemini-2.5-flash which is the current stable model for function calling.
         """
         import os
 
@@ -91,10 +91,10 @@ class ConversationService:
             logger.info(f"Using configured extraction model: {extraction_model}")
             return create_llm_provider(model=extraction_model)
 
-        # Use gemini-2.0-flash-exp: Best balance of speed, accuracy, and stable function calling
-        # Tested and proven for extraction tasks with function calling
-        logger.info("Using extraction model: gemini-2.0-flash-exp (stable function calling)")
-        return create_llm_provider(model="gemini-2.0-flash-exp")
+        # Use gemini-2.5-flash: Current stable model with excellent function calling support
+        # Best balance of speed, accuracy, and stable function calling for extraction
+        logger.info("Using extraction model: gemini-2.5-flash (stable function calling)")
+        return create_llm_provider(model="gemini-2.5-flash")
 
     async def process_message(
         self,

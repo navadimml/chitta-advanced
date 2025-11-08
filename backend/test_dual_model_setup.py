@@ -4,7 +4,7 @@ Test Dual-Model Setup - Fast Conversation + Strong Extraction
 
 Validates that:
 - Conversation uses fast model (gemini-flash-lite-latest) for speed
-- Extraction uses stronger model (gemini-2.0-flash-exp) for accuracy
+- Extraction uses stronger model (gemini-2.5-flash) for accuracy
 """
 
 import sys
@@ -31,8 +31,8 @@ def main():
     print("-" * 80)
 
     # Show current env vars
-    conversation_model = os.getenv("LLM_MODEL", "gemini-2.0-flash-exp (default)")
-    extraction_model = os.getenv("EXTRACTION_MODEL", "gemini-2.0-flash-exp (default)")
+    conversation_model = os.getenv("LLM_MODEL", "gemini-2.5-flash (default)")
+    extraction_model = os.getenv("EXTRACTION_MODEL", "gemini-2.5-flash (default)")
 
     print(f"LLM_MODEL (conversation): {conversation_model}")
     print(f"EXTRACTION_MODEL: {extraction_model}")
@@ -53,7 +53,7 @@ def main():
 
     print("\nFor optimal performance, use different models:")
     print("  LLM_MODEL=gemini-flash-lite-latest      # Fast conversation")
-    print("  EXTRACTION_MODEL=gemini-2.0-flash-exp   # Strong extraction (stable + accurate)")
+    print("  EXTRACTION_MODEL=gemini-2.5-flash       # Strong extraction (stable + accurate)")
 
     print("\nWhy?")
     print("  ✅ Fast conversation model (flash-lite):")
@@ -61,8 +61,8 @@ def main():
     print("     - Lower cost per conversation turn")
     print("     - Good enough for Hebrew conversation")
 
-    print("\n  ✅ Strong extraction model (flash-exp):")
-    print("     - Proven stable for function calling")
+    print("\n  ✅ Strong extraction model (gemini-2.5-flash):")
+    print("     - Current stable model with excellent function calling")
     print("     - Better reasoning than flash-lite for categorization")
     print("     - Distinguishes concerns vs strengths correctly")
     print("     - Handles nuanced language better")
@@ -80,17 +80,17 @@ def main():
 
     print("\n1. Both use flash-lite (NOT RECOMMENDED - has categorization issues):")
     print("   export LLM_MODEL=gemini-flash-lite-latest")
-    print("   # EXTRACTION_MODEL not set → uses flash-exp by default")
+    print("   # EXTRACTION_MODEL not set → uses gemini-2.5-flash by default")
     print("   # Issue: flash-lite too weak for extraction")
 
-    print("\n2. Both use flash-exp (RECOMMENDED - balanced speed + accuracy):")
-    print("   export LLM_MODEL=gemini-2.0-flash-exp")
-    print("   # EXTRACTION_MODEL not set → defaults to flash-exp")
+    print("\n2. Both use gemini-2.5-flash (RECOMMENDED - balanced speed + accuracy):")
+    print("   export LLM_MODEL=gemini-2.5-flash")
+    print("   # EXTRACTION_MODEL not set → defaults to gemini-2.5-flash")
     print("   # Good all-around choice")
 
     print("\n3. Dual model (OPTIMAL - fastest conversation + accurate extraction):")
     print("   export LLM_MODEL=gemini-flash-lite-latest")
-    print("   export EXTRACTION_MODEL=gemini-2.0-flash-exp")
+    print("   export EXTRACTION_MODEL=gemini-2.5-flash")
     print("   # Best performance/accuracy balance")
 
     print("\n4. Do NOT use flash-latest for extraction:")
@@ -112,12 +112,12 @@ def main():
 
     print("\nSolution:")
     print("  ✅ Improved prompt with explicit examples")
-    print("  ✅ Stronger extraction model: flash-lite → flash-exp")
-    print("     → flash-exp has stable function calling")
+    print("  ✅ Stronger extraction model: flash-lite → gemini-2.5-flash")
+    print("     → gemini-2.5-flash has stable function calling")
     print("     → Better reasoning for concerns vs strengths")
     print("  ❌ Tried flash-latest but it BROKE extraction")
     print("     → MALFORMED_FUNCTION_CALL errors")
-    print("     → Reverted to flash-exp (proven stable)")
+    print("     → Reverted to gemini-2.5-flash (current stable model)")
 
     print("\n" + "=" * 80)
 

@@ -70,7 +70,7 @@ def create_llm_provider(
             logger.error("GEMINI_API_KEY not set, falling back to simulated provider")
             return SimulatedLLMProvider()
 
-        model = model or os.getenv("LLM_MODEL", "gemini-2.0-flash-exp")
+        model = model or os.getenv("LLM_MODEL", "gemini-2.5-flash")
 
         try:
             if use_enhanced:
