@@ -47,6 +47,12 @@ After using different domains as a thinking tool, I see three unchanging pattern
 - Summaries form from accumulated knowledge
 - These aren't "generated" - they **emerge**
 
+### 4. **Context Cards Reflect State**
+- They're the **visible face** of invisible state
+- Show current progress and available actions
+- Change dynamically as state evolves
+- Guide user naturally through the journey
+
 ---
 
 ## What Actually Needs Abstraction?
@@ -191,18 +197,20 @@ phases:
 ```
 ┌────────────────────────────────────────────────────┐
 │           CONFIGURATION (YAML)                     │
-│  - extraction_schema.yaml                          │
-│  - action_graph.yaml                               │
-│  - phases.yaml                                     │
-│  - artifacts.yaml                                  │
+│  - extraction_schema.yaml  ← What to extract       │
+│  - action_graph.yaml       ← Available actions     │
+│  - phases.yaml             ← Phase transitions     │
+│  - artifacts.yaml          ← Document lifecycle    │
+│  - context_cards.yaml      ← UI cards (NEW!)       │
 └────────────────────────────────────────────────────┘
                       ↓ loaded by
 ┌────────────────────────────────────────────────────┐
 │           CONFIGURATION LAYER (Python)             │
-│  - config_loader.py  ← Loads and validates YAML    │
-│  - schema_registry.py ← Manages extraction schema  │
-│  - action_registry.py ← Manages action graph       │
-│  - phase_manager.py   ← Manages phase transitions  │
+│  - config_loader.py    ← Loads and validates YAML  │
+│  - schema_registry.py  ← Manages extraction schema │
+│  - action_registry.py  ← Manages action graph      │
+│  - phase_manager.py    ← Manages phase transitions │
+│  - card_generator.py   ← Generates context cards   │
 └────────────────────────────────────────────────────┘
                       ↓ used by
 ┌────────────────────────────────────────────────────┐
@@ -340,6 +348,236 @@ artifacts:
 - ✅ Explicit dependencies
 - ✅ Easy to add new artifacts
 - ✅ Template-based generation
+
+---
+
+## The Context Card System (The Visible State)
+
+Context cards are **the window into the invisible state**. They should also be configuration-driven:
+
+```yaml
+# context_cards.yaml
+card_templates:
+  # Progress cards - always shown
+  interview_progress:
+    type: progress
+    show_when: phase == "screening"
+    title: "שיחת ההיכרות"
+    subtitle: "התקדמות: {completeness_pct}%"
+    icon: message-circle
+    status:
+      if: completeness >= 0.8
+      then: completed
+      elif: completeness >= 0.5
+      then: processing
+      else: pending
+    priority: 100  # Higher = shown first
+    action: null  # Not clickable
+
+  # Profile card - shown when we have basic info
+  child_profile:
+    type: profile
+    show_when: extracted_data.child_name != null AND extracted_data.age != null
+    title: "פרופיל: {child_name}"
+    subtitle: "גיל {age}, {concerns_count} תחומי התפתחות"
+    icon: user
+    status: active
+    priority: 90
+    action: null
+
+  # Action cards - shown when prerequisites met
+  video_upload_ready:
+    type: action
+    show_when: completeness >= 0.8 AND phase == "screening"
+    title: "העלאת סרטון"
+    subtitle: "מוכן לשלב הבא"
+    icon: video
+    status: action
+    priority: 80
+    action:
+      type: open_deep_view
+      view: video_upload
+
+  # Status cards - dynamic based on activity
+  video_analyzing:
+    type: status
+    show_when: artifacts.videos_uploaded > 0 AND artifacts.analysis_status == "processing"
+    title: "ניתוח בתהליך"
+    subtitle: "בדרך כלל לוקח 24 שעות"
+    icon: loader
+    status: processing
+    priority: 95
+    action: null
+
+  # New artifact available
+  report_ready:
+    type: notification
+    show_when: artifacts.parent_report.status == "ready" AND artifacts.parent_report.viewed == false
+    title: "מדריך להורים מוכן!"
+    subtitle: "הממצאים והמלצות"
+    icon: file-text
+    status: new
+    priority: 100
+    action:
+      type: open_deep_view
+      view: report
+      params:
+        report_id: parent_report
+
+  # Ongoing phase cards
+  journal_activity:
+    type: metric
+    show_when: phase == "ongoing"
+    title: "יומן יוני"
+    subtitle: "{journal_entries_this_week} רשומות השבוע"
+    icon: book-open
+    status: active
+    priority: 70
+    action:
+      type: open_deep_view
+      view: journal
+
+  # Consultation available (always in ongoing)
+  consultation_available:
+    type: support
+    show_when: phase == "ongoing"
+    title: "יש שאלות?"
+    subtitle: "התייעצי איתי בכל עת"
+    icon: message-circle
+    status: action
+    priority: 60
+    action:
+      type: continue_conversation
+```
+
+### Card Generation Logic
+
+```python
+# conversation_service.py - now reads from config
+def generate_context_cards(session: Session, config: CardConfig) -> List[Card]:
+    """Generate cards based on current state and configuration"""
+
+    cards = []
+    context = {
+        "phase": session.phase,
+        "completeness": session.completeness,
+        "completeness_pct": int(session.completeness * 100),
+        "extracted_data": session.extracted_data,
+        "artifacts": session.artifacts,
+        "child_name": session.extracted_data.get("child_name"),
+        "age": session.extracted_data.get("age"),
+        "concerns_count": len(session.extracted_data.get("primary_concerns", [])),
+        "journal_entries_this_week": get_recent_journal_count(session.id, days=7),
+        # ... etc
+    }
+
+    for card_id, card_template in config.card_templates.items():
+        # Evaluate show_when condition
+        if not eval_condition(card_template.show_when, context):
+            continue
+
+        # Build card from template with context interpolation
+        card = Card(
+            id=card_id,
+            type=card_template.type,
+            title=interpolate(card_template.title, context),
+            subtitle=interpolate(card_template.subtitle, context),
+            icon=card_template.icon,
+            status=eval_status(card_template.status, context),
+            priority=card_template.priority,
+            action=card_template.action
+        )
+        cards.append(card)
+
+    # Sort by priority (highest first)
+    cards.sort(key=lambda c: c.priority, reverse=True)
+
+    # Return top 4 cards
+    return cards[:4]
+```
+
+### Benefits of Card Configuration
+
+**1. Easy to Add New Cards**
+```yaml
+# Want to show "Expert Consultation Available" card?
+expert_consultation_ready:
+  show_when: artifacts.reports_generated AND phase == "ongoing"
+  title: "מציאת מומחים"
+  subtitle: "מבוסס על הממצאים"
+  icon: users
+  status: action
+  action:
+    type: open_deep_view
+    view: expert_finder
+```
+→ **Just add to YAML, no code changes!**
+
+**2. Easy to Change Priority**
+```yaml
+# Want interview progress to show first?
+interview_progress:
+  priority: 100  # Change from 80 to 100
+```
+
+**3. Easy to A/B Test**
+```yaml
+# Experiment A: Show video upload at 70% completeness
+video_upload_ready:
+  show_when: completeness >= 0.7  # Changed from 0.8
+
+# Experiment B: Different wording
+  title: "מוכנה לצלם?"  # Instead of "העלאת סרטון"
+```
+
+**4. Phase-Aware Cards**
+```yaml
+# Screening phase cards
+interview_progress: { show_when: phase == "screening" }
+video_upload_ready: { show_when: phase == "screening" }
+
+# Ongoing phase cards
+journal_activity: { show_when: phase == "ongoing" }
+consultation_available: { show_when: phase == "ongoing" }
+
+# Both phases
+child_profile: { show_when: extracted_data.child_name != null }
+```
+
+**5. Dynamic Card Content**
+Cards automatically update as state changes:
+- Completeness increases → progress card updates
+- Videos uploaded → analysis card appears
+- Report ready → notification card appears
+- Phase changes → different cards shown
+
+### Card Lifecycle Example
+
+```
+Initial state (completeness: 0%)
+├─ [Pending] שיחת ההיכרות - התקדמות: 0%
+
+After some conversation (completeness: 35%)
+├─ [Processing] שיחת ההיכרות - התקדמות: 35%
+├─ [Active] פרופיל: יוני - גיל 3.5, 2 תחומי התפתחות
+
+Interview complete (completeness: 85%)
+├─ [Completed] שיחת ההיכרות - התקדמות: 85%
+├─ [Active] פרופיל: יוני - גיל 3.5, 2 תחומי התפתחות
+├─ [Action] העלאת סרטון - מוכן לשלב הבא
+├─ [New] הנחיות צילום - מותאמות במיוחד עבור יוני
+
+Videos uploaded
+├─ [Processing] ניתוח בתהליך - בדרך כלל לוקח 24 שעות
+├─ [Active] פרופיל: יוני
+├─ [Active] יומן יוני - 0 רשומות השבוע
+
+Reports ready (transition to ongoing phase)
+├─ [New] מדריך להורים מוכן! - הממצאים והמלצות
+├─ [Action] מציאת מומחים - מבוסס על הממצאים
+├─ [Active] יומן יוני - 2 רשומות השבוע
+├─ [Action] יש שאלות? - התייעצי איתי בכל עת
+```
 
 ---
 
