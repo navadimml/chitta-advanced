@@ -25,6 +25,8 @@ from ..prompts.interview_functions import INTERVIEW_FUNCTIONS
 from ..prompts.interview_functions_lite import INTERVIEW_FUNCTIONS_LITE
 from ..prompts.prerequisites import Action
 from ..prompts.intent_types import IntentCategory
+# Wu Wei Architecture: Import phase_manager for config-driven phase tracking
+from ..config.phase_manager import get_phase_manager, PhaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +46,14 @@ class ConversationService:
         llm_provider: Optional[BaseLLMProvider] = None,
         interview_service: Optional[InterviewService] = None,
         prerequisite_service: Optional[PrerequisiteService] = None,
-        knowledge_service: Optional[KnowledgeService] = None
+        knowledge_service: Optional[KnowledgeService] = None,
+        phase_manager: Optional[PhaseManager] = None
     ):
         self.llm = llm_provider or create_llm_provider()
         self.interview_service = interview_service or get_interview_service()
         self.prerequisite_service = prerequisite_service or get_prerequisite_service()
         self.knowledge_service = knowledge_service or get_knowledge_service()
+        self.phase_manager = phase_manager or get_phase_manager()  # 🌟 Wu Wei: Config-driven phase management
 
         logger.info(f"ConversationService initialized with {self.llm.get_provider_name()}")
 
@@ -512,6 +516,44 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
                 "status": "new",
                 "action": "view_video_guidelines"
             })
+
+        # 🌟 Wu Wei Architecture: Check for phase transitions
+        session = self.interview_service.get_or_create_session(family_id)
+        current_phase = session.phase
+
+        # Build context for phase transition check
+        transition_context = {
+            "completeness": session.completeness,
+            "child_name": data.child_name or "הילד/ה",
+            "video_count": 0,  # TODO: Get from actual video storage
+            "reports_ready": False,  # TODO: Get from actual report status
+            "user_requested_re_assessment": False,  # TODO: Track from user intent
+            "updated_reports_ready": False  # TODO: Track from re-assessment flow
+        }
+
+        # Check if phase transition should occur
+        phase_transition = self.phase_manager.check_transition_trigger(
+            current_phase,
+            transition_context
+        )
+
+        if phase_transition:
+            # Update session phase
+            session.phase = phase_transition.to_phase
+            session.updated_at = datetime.now()
+
+            logger.info(
+                f"🌟 Phase transition: {phase_transition.from_phase} → "
+                f"{phase_transition.to_phase} (trigger: {phase_transition.trigger})"
+            )
+
+            # Get transition message
+            transition_message = self.phase_manager.get_transition_message(
+                phase_transition,
+                transition_context
+            )
+
+            logger.info(f"Transition message: {transition_message[:100]}...")
 
         # 10. Return comprehensive response
         return {
