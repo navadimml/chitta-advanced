@@ -183,6 +183,30 @@ cards:
     dismissible: false
     updates_dynamically: true
 
+  strengths_card:
+    name: "חוזקות ותכונות חיוביות"
+    name_en: "Strengths"
+    card_type: success
+    priority: 75
+
+    # When to show - when we have strengths info
+    display_conditions:
+      phase: screening
+      strengths: "!= None"  # Has strengths
+
+    # Card content
+    content:
+      title: "חוזקות של {child_name} 💪"
+      body: "{strengths_preview}"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+
   interview_complete_card:
     name: "הראיון הושלם"
     name_en: "Interview Complete"

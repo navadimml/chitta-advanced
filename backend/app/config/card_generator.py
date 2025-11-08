@@ -210,7 +210,13 @@ class CardGenerator:
 
             # Handle special cases
             if expected == "None":
-                return context_value is not None
+                # Check if value exists and is not empty
+                if context_value is None:
+                    return False
+                # Also check for empty strings
+                if isinstance(context_value, str) and not context_value.strip():
+                    return False
+                return True
             elif expected == "[]":
                 return context_value != [] and context_value is not None and len(context_value) > 0
 
@@ -320,6 +326,23 @@ class CardGenerator:
                         body = body.replace("{concerns_list}", concerns_str)
                     else:
                         body = body.replace("{concerns_list}", "")
+
+                # Handle strengths_preview for strengths_card
+                if "{strengths_preview}" in body:
+                    strengths = context.get("strengths", "")
+                    if strengths:
+                        # Take first 2-3 sentences or first 150 chars
+                        preview = strengths[:150]
+                        if len(strengths) > 150:
+                            # Try to cut at sentence boundary
+                            last_period = preview.rfind(".")
+                            if last_period > 50:  # At least some content
+                                preview = preview[:last_period + 1]
+                            else:
+                                preview = preview + "..."
+                        body = body.replace("{strengths_preview}", preview)
+                    else:
+                        body = body.replace("{strengths_preview}", "")
 
                 # Remove unimplemented placeholders (like {missing_areas})
                 # TODO: Implement full dynamic content generation
