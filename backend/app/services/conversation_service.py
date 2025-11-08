@@ -770,19 +770,24 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
         return cards
 
     def _translate_concerns(self, concerns: List[str]) -> List[str]:
-        """Translate concern categories to Hebrew"""
+        """
+        Translate concern categories to Hebrew using observational language.
+
+        Chitta is NOT a diagnostic tool - we use descriptive, observational
+        language that focuses on what parents observe, not clinical categories.
+        """
         translations = {
-            "speech": "דיבור",
-            "social": "חברתי",
-            "attention": "קשב",
-            "motor": "מוטורי",
-            "sensory": "חושי",
-            "emotional": "רגשי",
-            "behavioral": "התנהגות",
-            "learning": "למידה",
-            "sleep": "שינה",
-            "eating": "אכילה",
-            "other": "אחר"
+            "speech": "שפה ותקשורת",           # Language and communication (not just "speech")
+            "social": "קשרים עם אחרים",        # Connections with others (observational)
+            "attention": "ריכוז וקשב",         # Focus and attention
+            "motor": "תנועה ותיאום",            # Movement and coordination (descriptive)
+            "sensory": "חוויות חושיות",        # Sensory experiences (not diagnostic)
+            "emotional": "ויסות רגשי",          # Emotional regulation (functional, not diagnostic)
+            "behavioral": "תגובות והסתגלות",   # Reactions and adjustment (observational)
+            "learning": "למידה והבנה",         # Learning and understanding
+            "sleep": "שגרות שינה",             # Sleep routines (observational)
+            "eating": "הרגלי אכילה",           # Eating habits (observational)
+            "other": "נושאים נוספים"          # Additional topics
         }
         return [translations.get(c, c) for c in concerns]
 
