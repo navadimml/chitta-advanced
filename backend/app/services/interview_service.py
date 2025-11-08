@@ -46,6 +46,7 @@ class InterviewState(BaseModel):
     completeness: float = 0.0  # 0.0 to 1.0
     conversation_history: List[Dict[str, str]] = []  # List of {role, content}
     video_guidelines_generated: bool = False
+    phase: str = "screening"  # 🌟 Wu Wei: Current workflow phase (screening, ongoing, re_assessment)
     created_at: datetime = datetime.now()
     updated_at: datetime = datetime.now()
 
