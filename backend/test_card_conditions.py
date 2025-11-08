@@ -40,7 +40,7 @@ def main():
     }
 
     cards_start = card_generator.get_visible_cards(context_start)
-    card_ids_start = [card["card_id"] for card in cards_start]
+    card_ids_start = [card["type"] for card in cards_start]
 
     print(f"Visible cards: {card_ids_start}")
 
@@ -83,7 +83,7 @@ def main():
     }
 
     cards_mid = card_generator.get_visible_cards(context_mid)
-    card_ids_mid = [card["card_id"] for card in cards_mid]
+    card_ids_mid = [card["type"] for card in cards_mid]
 
     print(f"Visible cards: {card_ids_mid}")
 
@@ -115,7 +115,7 @@ def main():
     }
 
     cards_complete = card_generator.get_visible_cards(context_complete)
-    card_ids_complete = [card["card_id"] for card in cards_complete]
+    card_ids_complete = [card["type"] for card in cards_complete]
 
     print(f"Visible cards: {card_ids_complete}")
 
@@ -147,7 +147,7 @@ def main():
     }
 
     cards_reports = card_generator.get_visible_cards(context_reports)
-    card_ids_reports = [card["card_id"] for card in cards_reports]
+    card_ids_reports = [card["type"] for card in cards_reports]
 
     print(f"Visible cards: {card_ids_reports}")
 
@@ -178,7 +178,7 @@ def main():
     }
 
     cards_ongoing = card_generator.get_visible_cards(context_ongoing)
-    card_ids_ongoing = [card["card_id"] for card in cards_ongoing]
+    card_ids_ongoing = [card["type"] for card in cards_ongoing]
 
     print(f"Visible cards: {card_ids_ongoing}")
 
