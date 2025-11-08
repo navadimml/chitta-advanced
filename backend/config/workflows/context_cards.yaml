@@ -124,11 +124,11 @@ cards:
 
       footer: "אין צורך למהר - נעשה את זה בקצב שנוח לך 💙"
 
-    # Available actions
-    available_actions:
-      - continue_interview
-      - add_journal_entry
-      - take_break  # Save and come back later
+    # Available actions - removed to make card informational only
+    # available_actions:
+    #   - continue_interview
+    #   - add_journal_entry
+    #   - take_break  # Save and come back later
 
     # Behavior
     dismissible: false  # Always visible during interview
