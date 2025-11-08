@@ -93,22 +93,29 @@ Analyze what developmental areas have ACTUALLY been discussed (read the content 
 - Mark those areas as ✅ COVERED (don't need investigation)
 - Suggest focusing on: diagnosis context, interventions, NEW concerns, other areas, strengths
 
-**Format your response as INTERNAL GUIDANCE - these are YOUR strategic thoughts, NOT what parent said!**
+**Format your response as INTERNAL DATA ANALYSIS - these are observations about the EXTRACTED DATA, NOT what parent said in conversation!**
+
+**CRITICAL DISTINCTION:**
+- You're analyzing EXTRACTED DATA (fields: concern_details, strengths, etc.)
+- This data was INFERRED from conversation, not necessarily directly stated
+- Example: Data shows "not shouting usually" in concern_details → This was EXTRACTED/INFERRED, NOT necessarily "parent mentioned worries about shouting"
+- NEVER use phrases like "parent mentioned" or "they said" - you're analyzing data fields, not conversation!
 
 Write 2-4 bullet points in this format:
-- ✅ COVERED WELL: [area] - has rich detail, don't ask again
-- ⚠️ NEEDS MORE: [area] - mentioned but needs concrete examples
-- ❌ NOT EXPLORED: [area] - hasn't been discussed yet, consider exploring
-- 🏥 DIAGNOSED: [area] - existing diagnosis, focus on context/support not investigation
+- ✅ COVERED WELL: [area] - substantial data in fields, thorough
+- ⚠️ NEEDS MORE: [area] - data exists but lacks concrete examples
+- ❌ NOT EXPLORED: [area] - no data in relevant fields yet
+- 🏥 DIAGNOSED: [area] - existing diagnosis found in data
 
 **CRITICAL**:
-- Only list areas as "COVERED WELL" if you see substantial text about them
-- Don't assume areas were discussed just because they SHOULD be
-- If concern_details mentions speech issues, mark SPEECH as covered, not all areas
+- Only mark "COVERED WELL" if you see substantial text in the relevant fields
+- Don't confuse what's IN THE DATA with what the parent SAID in conversation
+- If concern_details contains speech information, mark SPEECH as covered, not all areas
 - Be ACCURATE - this prevents repeating questions
-- If diagnosis mentioned, mark those areas as DIAGNOSED not NOT EXPLORED
+- If diagnosis found in data, mark those areas as DIAGNOSED not NOT EXPLORED
+- Use language about DATA and FIELDS, never "parent mentioned" or "they said"
 
-Be VERY concise. This is internal strategic awareness, not a conversation script."""
+Be VERY concise. This is internal data coverage analysis, not conversation attribution."""
 
     messages = [Message(role="user", content=analysis_prompt)]
 
