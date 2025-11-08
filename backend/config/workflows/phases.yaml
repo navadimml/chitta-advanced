@@ -1,0 +1,240 @@
+# Phases - Workflow stages over time
+# Defines the journey from initial screening through long-term ongoing support
+
+version: "1.0"
+workflow_name: "child_development_journey"
+description: "Child development assessment phases - from screening to ongoing support"
+
+# Phase definitions
+phases:
+  # ========================================
+  # SCREENING PHASE (Weeks 1-2)
+  # Intensive data collection and analysis
+  # ========================================
+  screening:
+    name: "שלב סינון וניתוח"
+    name_en: "Screening and Analysis Phase"
+    description: "Intensive assessment period - interview, video analysis, initial reports"
+    focus: "intensive_data_collection"
+    duration_estimate: "1-2 weeks"
+    order: 1
+
+    # Behavior during this phase
+    extraction_priority: high  # Aggressive data extraction
+    completeness_threshold: 0.80  # 80% to complete interview
+    conversation_mode: interview  # Interview mode (structured extraction)
+
+    # What's enabled in this phase
+    available_actions:
+      - continue_interview
+      - complete_interview
+      - view_video_guidelines
+      - upload_video
+      - analyze_videos
+      - consultation  # Always available
+      - add_journal_entry  # Always available
+      - view_journal  # Always available
+
+    # Goals of this phase
+    goals:
+      - "Complete in-depth interview"
+      - "Collect 3 behavioral videos"
+      - "Analyze videos"
+      - "Generate initial reports"
+
+    # Artifacts produced
+    produces_artifacts:
+      - video_guidelines  # When interview complete
+      - behavioral_videos  # User uploads
+      - video_analysis_results  # After analysis
+      - parent_report  # Main output
+      - professional_report  # For clinicians
+
+    # Transition conditions
+    transitions_to: ongoing
+    transition_trigger:
+      type: artifact_available
+      artifact: parent_report
+      description: "Phase transitions when parent report is ready"
+
+    # UI behavior
+    ui_focus: progress_tracking
+    show_completeness_percentage: true
+
+  # ========================================
+  # ONGOING PHASE (Months/Years)
+  # Long-term support and consultation
+  # ========================================
+  ongoing:
+    name: "ליווי מתמשך"
+    name_en: "Ongoing Support Phase"
+    description: "Long-term consultation, journal tracking, expert connection"
+    focus: "consultation_and_support"
+    duration_estimate: "ongoing"
+    order: 2
+
+    # Behavior during this phase
+    extraction_priority: low  # Less structured, conversational
+    completeness_threshold: null  # No threshold
+    conversation_mode: consultation  # Q&A mode, not interview
+
+    # What's enabled in this phase
+    available_actions:
+      - consultation  # Primary mode
+      - add_journal_entry
+      - view_journal
+      - view_report
+      - download_report
+      - find_experts
+      - contact_expert
+      - share_report
+
+    # Goals of this phase
+    goals:
+      - "Answer parent questions"
+      - "Track developmental progress via journal"
+      - "Connect with experts as needed"
+      - "Support long-term development"
+
+    # Artifacts produced
+    produces_artifacts:
+      - journal_entries
+      - follow_up_summaries  # Periodic summaries of journal
+      - expert_recommendations
+
+    # Transition conditions
+    transitions_to: re_assessment
+    transition_trigger:
+      type: user_request_or_concern
+      description: "User requests re-assessment or new major concerns arise"
+
+    # UI behavior
+    ui_focus: support_and_guidance
+    show_completeness_percentage: false  # No completion tracking
+
+  # ========================================
+  # RE-ASSESSMENT PHASE (Optional)
+  # Targeted re-evaluation
+  # ========================================
+  re_assessment:
+    name: "הערכה מחודשת"
+    name_en: "Re-assessment Phase"
+    description: "Targeted re-evaluation of specific areas or overall development"
+    focus: "focused_re_evaluation"
+    duration_estimate: "1-2 weeks"
+    order: 3
+
+    # Behavior during this phase
+    extraction_priority: medium  # Focused on specific areas
+    completeness_threshold: 0.60  # Lower threshold - targeted
+    conversation_mode: interview  # Back to interview mode
+
+    # What's enabled in this phase
+    available_actions:
+      - continue_interview  # Focused interview
+      - upload_video  # New videos if needed
+      - analyze_videos
+      - consultation
+      - add_journal_entry
+      - view_journal
+
+    # Goals of this phase
+    goals:
+      - "Re-evaluate specific developmental areas"
+      - "Update baseline understanding"
+      - "Generate updated reports"
+
+    # Artifacts produced
+    produces_artifacts:
+      - updated_video_guidelines
+      - re_assessment_videos
+      - updated_analysis
+      - updated_parent_report
+      - updated_professional_report
+
+    # Transition conditions
+    transitions_to: ongoing
+    transition_trigger:
+      type: artifact_available
+      artifact: updated_parent_report
+      description: "Returns to ongoing phase after re-assessment complete"
+
+    # UI behavior
+    ui_focus: progress_tracking
+    show_completeness_percentage: true
+    notes: "Like screening but focused on specific areas, not full assessment"
+
+# Initial phase
+initial_phase: screening
+
+# Phase transition events
+transition_events:
+  screening_to_ongoing:
+    from: screening
+    to: ongoing
+    trigger: reports_generated
+    actions_on_transition:
+      - generate_welcome_to_ongoing_message
+      - update_ui_mode
+      - change_conversation_mode
+    message_to_user: |
+      הערכה הראשונית הושלמה! 🎉
+
+      מעכשיו אני כאן כדי ללוות אותך לאורך הדרך:
+      - לענות על שאלות
+      - לעקוב אחרי התפתחות דרך היומן
+      - לעזור לך למצוא מומחים
+
+      בכל שאלה - אני כאן בשבילך. 💙
+
+  ongoing_to_re_assessment:
+    from: ongoing
+    to: re_assessment
+    trigger: user_requests_re_assessment
+    actions_on_transition:
+      - create_focused_extraction_schema
+      - generate_re_assessment_questions
+    message_to_user: |
+      בואי נעדכן את ההבנה שלנו על ההתפתחות של {child_name}.
+
+      אשאל כמה שאלות ממוקדות ואם צריך, נעלה סרטונים חדשים.
+
+  re_assessment_to_ongoing:
+    from: re_assessment
+    to: ongoing
+    trigger: re_assessment_complete
+    actions_on_transition:
+      - generate_updated_reports
+      - compare_with_baseline
+      - update_recommendations
+    message_to_user: |
+      ההערכה המחודשת הושלמה!
+
+      הדוח המעודכן מוכן לצפייה. מעכשיו נמשיך בליווי השוטף.
+
+# Metadata
+metadata:
+  designed_for: "long-term_developmental_journey"
+  supports_cycles: true  # Can go ongoing → re-assessment → ongoing multiple times
+  last_updated: "2025-11-08"
+  notes: |
+    Phases represent the natural evolution of the relationship:
+
+    1. SCREENING (intensive)
+       - Get to know the child
+       - Collect rich data
+       - Generate initial assessment
+
+    2. ONGOING (supportive)
+       - Answer questions as they arise
+       - Track progress via journal
+       - Connect with resources
+       - Long-term relationship
+
+    3. RE-ASSESSMENT (targeted)
+       - Update understanding
+       - Focused on specific areas or overall progress
+       - Can happen multiple times
+       - Returns to ongoing after completion
+
+    The journey is not linear - it's a cycle of assessment and support.

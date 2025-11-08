@@ -1,0 +1,214 @@
+# Action Graph - What actions are available and their prerequisites
+# This configuration mirrors the current PREREQUISITES dict from prerequisites.py
+
+version: "1.0"
+graph_name: "child_development_actions"
+description: "Available actions in child development workflow with dependency rules"
+
+# Prerequisite types that actions can depend on
+prerequisite_types:
+  interview_complete:
+    description: "Interview has reached completeness threshold (80%)"
+    check: "session.completeness >= 0.80"
+
+  videos_uploaded:
+    description: "At least one video has been uploaded"
+    check: "len(session.artifacts.videos) > 0"
+
+  minimum_videos:
+    description: "Minimum number of videos uploaded"
+    check: "len(session.artifacts.videos) >= 3"
+    params:
+      min_count: 3
+
+  analysis_complete:
+    description: "Video analysis has been completed"
+    check: "session.artifacts.video_analysis_status == 'complete'"
+
+  reports_available:
+    description: "Reports have been generated"
+    check: "session.artifacts.parent_report.status == 'ready'"
+
+# Actions available in the system
+actions:
+  # ========================================
+  # INTERVIEW ACTIONS
+  # ========================================
+  continue_interview:
+    description: "Continue the interview - always available"
+    category: interview
+    requires: []
+    phase: screening
+    explanation_to_user: null
+
+  complete_interview:
+    description: "Complete interview when sufficient information gathered"
+    category: interview
+    requires: []  # LLM decides when enough data collected
+    phase: screening
+    explanation_to_user: null
+    notes: "LLM decides based on conversation richness, not hard rule"
+
+  # ========================================
+  # VIDEO GUIDELINES & UPLOAD
+  # ========================================
+  view_video_guidelines:
+    description: "View personalized video filming guidelines"
+    category: video
+    requires:
+      - interview_complete
+    phase: screening
+    explanation_to_user: "כדי ליצור הנחיות צילום מותאמות אישית, אני צריכה קודם לסיים את הראיון. בואי נמשיך בשיחה - נשארו עוד כמה דברים שחשוב לי לדעת."
+    triggers_artifact: video_guidelines
+
+  upload_video:
+    description: "Upload behavioral observation video"
+    category: video
+    requires:
+      - interview_complete
+    phase: screening
+    explanation_to_user: "נהדר שאת מוכנה להעלות סרטונים! בואי נסיים קודם את הראיון, ואז אוכל ליצור עבורך הנחיות צילום מדויקות שמתאימות ל{child_name}."
+    max_uploads: 3
+    creates_artifact: behavioral_video
+
+  # ========================================
+  # VIDEO ANALYSIS
+  # ========================================
+  analyze_videos:
+    description: "Analyze uploaded videos"
+    category: video
+    requires:
+      - interview_complete
+      - videos_uploaded
+      - minimum_videos
+    phase: screening
+    explanation_to_user: "כדי לנתח את הסרטונים, אני צריכה לפחות 3 סרטונים שמציגים את {child_name} במצבים שונים. עד כה יש {video_count} סרטונים. בואי נעלה עוד {remaining} סרטונים."
+    triggers_artifact: video_analysis_results
+    params:
+      minimum_videos: 3
+
+  # ========================================
+  # REPORTS
+  # ========================================
+  view_report:
+    description: "View comprehensive assessment report"
+    category: reports
+    requires:
+      - reports_available
+    phase: both  # Available in screening (after analysis) and ongoing
+    explanation_to_user: "הדוח עדיין בהכנה. אני מנתחת את הסרטונים של {child_name} ומכינה עבורך סיכום מקיף. זה לוקח קצת זמן - אני רוצה לתת לך מידע מדויק ושימושי. 💙"
+    opens_view: report
+
+  download_report:
+    description: "Download report as PDF"
+    category: reports
+    requires:
+      - reports_available
+    phase: both
+    explanation_to_user: null
+
+  # ========================================
+  # EXPERTS
+  # ========================================
+  find_experts:
+    description: "Browse and find developmental experts"
+    category: experts
+    requires: []  # Can browse anytime
+    enhanced_by:
+      - reports_available  # Better matching with reports
+    phase: ongoing
+    explanation_to_user: "את יכולה לעיין במומחים כבר עכשיו. אבל אם נחכה עד שהדוח יהיה מוכן, אוכל להמליץ לך על מומחים שמתאימים בדיוק לצרכים של {child_name}."
+    opens_view: expert_finder
+
+  contact_expert:
+    description: "Contact a specific expert"
+    category: experts
+    requires:
+      - reports_available
+    phase: ongoing
+    explanation_to_user: "מומלץ לחכות עד שהדוח יהיה מוכן לפני פניה למומחים. ככה יהיה להם כבר מידע מקדים ויוכלו לעזור לך טוב יותר."
+
+  # ========================================
+  # SHARING
+  # ========================================
+  share_report:
+    description: "Share report with others (experts, family)"
+    category: sharing
+    requires:
+      - reports_available
+    phase: ongoing
+    explanation_to_user: "ברגע שהדוח יהיה מוכן, תוכלי לשתף אותו בצורה מאובטחת עם מומחים או בני משפחה."
+    opens_view: share
+
+  # ========================================
+  # ALWAYS AVAILABLE (Support actions)
+  # ========================================
+  consultation:
+    description: "Ask questions about child development or the process"
+    category: support
+    requires: []
+    phase: both
+    explanation_to_user: null
+    opens_view: consultation
+    notes: "Consultation mode available anytime - different from interview mode"
+
+  add_journal_entry:
+    description: "Add observation to developmental journal"
+    category: support
+    requires: []
+    phase: both
+    explanation_to_user: null
+    opens_view: journal
+    creates_artifact: journal_entry
+
+  view_journal:
+    description: "View previous journal entries"
+    category: support
+    requires: []
+    phase: both
+    explanation_to_user: null
+    opens_view: journal
+
+# Action categories for organization
+categories:
+  interview:
+    description: "Interview and data collection actions"
+    icon: "message-circle"
+
+  video:
+    description: "Video-related actions"
+    icon: "video"
+
+  reports:
+    description: "Report viewing and management"
+    icon: "file-text"
+
+  experts:
+    description: "Expert finding and connection"
+    icon: "users"
+
+  sharing:
+    description: "Sharing reports and information"
+    icon: "share-2"
+
+  support:
+    description: "Always-available support features"
+    icon: "help-circle"
+
+# Metadata
+metadata:
+  language: "he"
+  designed_for: "child_development_workflow"
+  last_updated: "2025-11-08"
+  notes: |
+    This action graph defines:
+    1. What actions exist in the system
+    2. What prerequisites each action requires
+    3. What explanations to give users when blocked
+    4. Which views or artifacts each action relates to
+
+    Key principles:
+    - Some actions always available (consultation, journal)
+    - Most actions gated by logical prerequisites
+    - "enhanced_by" means action works better with prerequisite, but not blocked
+    - Explanations in Hebrew, warm and guiding

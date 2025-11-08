@@ -1,0 +1,278 @@
+# Extraction Schema - What data to extract from conversation
+# This configuration mirrors the current ExtractedData class and completeness calculation
+
+version: "1.0"
+schema_name: "child_development_extraction"
+description: "Child development assessment data extraction schema"
+
+# Entity being assessed
+entity:
+  type: "child"
+  identifier_field: "child_name"
+
+# Fields to extract from conversation
+fields:
+  # ========================================
+  # BASIC INFORMATION (5% total weight)
+  # Quick start - just getting to know who we're talking about
+  # ========================================
+  child_name:
+    type: string
+    description: "שם הילד/ה"
+    required: false
+    weight: 0.01
+    category: basic_info
+    examples:
+      - "יוני"
+      - "שרה"
+      - "דניאל"
+
+  age:
+    type: number
+    description: "גיל בשנים (יכול להיות עם חלקים עשרוניים)"
+    required: false
+    weight: 0.03  # Most critical basic field
+    category: basic_info
+    validation:
+      min: 0
+      max: 18
+    examples:
+      - 3.5
+      - 2
+      - 4.75
+
+  gender:
+    type: string
+    description: "מגדר"
+    required: false
+    weight: 0.01
+    category: basic_info
+    options:
+      - male
+      - female
+      - unknown
+    default: unknown
+
+  # ========================================
+  # PRIMARY CONCERNS (50% total weight)
+  # THIS IS THE MAIN INTERVIEW CONTENT
+  # ========================================
+  primary_concerns:
+    type: array
+    description: "תחומי דאגה עיקריים - קטגוריות"
+    required: false
+    weight_per_item: 0.05  # Up to 0.10 for having concerns
+    max_weight: 0.10
+    category: concerns
+    options:
+      - speech        # דיבור
+      - social        # חברתי
+      - attention     # קשב
+      - motor         # מוטורי
+      - sensory       # חושי
+      - emotional     # רגשי
+      - behavioral    # התנהגות
+      - learning      # למידה
+      - sleep         # שינה
+      - eating        # אכילה
+    examples:
+      - ["speech", "social"]
+      - ["motor"]
+      - ["attention", "behavioral", "emotional"]
+
+  concern_details:
+    type: longtext
+    description: "פירוט מפורט של הדאגות עם דוגמאות קונקרטיות"
+    required: false
+    category: concerns
+    weight_calculation:
+      type: length_based
+      thresholds:
+        - length: 200
+          weight: 0.20  # Substantial detail
+        - length: 100
+          weight: 0.12  # Some detail
+        - length: 50
+          weight: 0.07  # Basic detail
+        - length: 0
+          weight: 0.00  # No detail
+    target_length: 500  # What we aim for in a good interview
+    extraction_priority: high  # Extract aggressively
+    prompt_guidance: |
+      Extract rich details including:
+      - Specific examples of concerning behaviors
+      - When and where they occur
+      - Frequency and duration
+      - Impact on daily life
+      - Parent's observations and worries
+      - Comparisons to peers or developmental expectations
+
+  # Additional concern scoring (part of the 50%)
+  multiple_concerns_bonus:
+    type: computed
+    description: "Bonus for exploring multiple concern areas"
+    required: false
+    weight: 0.10  # Maximum bonus for comprehensive exploration
+    category: concerns
+    notes: "Awarded when multiple areas explored in depth"
+
+  urgent_flags:
+    type: array
+    description: "דגלים דחופים שמצריכים תשומת לב מיידית"
+    required: false
+    weight_calculation:
+      type: count_items
+      weight_per_item: 0.05
+      max_items_counted: 2  # Cap at 2 flags for 0.10 total
+    category: concerns
+    examples:
+      - ["no_eye_contact", "regression", "safety_concerns"]
+
+  # ========================================
+  # STRENGTHS (10% weight)
+  # ========================================
+  strengths:
+    type: text
+    description: "חוזקות והתנהגויות חיוביות של הילד/ה"
+    required: false
+    category: context
+    weight_calculation:
+      type: length_based
+      thresholds:
+        - length: 30
+          weight: 0.10
+        - length: 0
+          weight: 0.00
+    target_length: 150
+    extraction_priority: medium
+    prompt_guidance: |
+      Extract positive information:
+      - What the child enjoys
+      - What they're good at
+      - Interests and hobbies
+      - Positive behaviors
+      - Areas of strength
+
+  # ========================================
+  # DEVELOPMENTAL CONTEXT (15% weight)
+  # ========================================
+  developmental_history:
+    type: text
+    description: "היסטוריה התפתחותית - אבני דרך, הריון, לידה"
+    required: false
+    category: context
+    weight_calculation:
+      type: length_based
+      thresholds:
+        - length: 30
+          weight: 0.08
+        - length: 0
+          weight: 0.00
+    target_length: 200
+    extraction_priority: medium
+    prompt_guidance: |
+      Extract developmental milestones:
+      - When did child reach key milestones?
+      - Pregnancy and birth history
+      - Medical history
+      - Previous assessments or diagnoses
+
+  family_context:
+    type: text
+    description: "הקשר משפחתי - אחים, דינמיקה משפחתית, סביבה"
+    required: false
+    category: context
+    weight_calculation:
+      type: length_based
+      thresholds:
+        - length: 30
+          weight: 0.07
+        - length: 0
+          weight: 0.00
+    target_length: 150
+    extraction_priority: medium
+    prompt_guidance: |
+      Extract family context:
+      - Siblings and their ages
+      - Family dynamics
+      - Family history of developmental issues
+      - Educational setting (daycare, kindergarten)
+      - Language(s) spoken at home
+
+  # ========================================
+  # DAILY LIFE AND GOALS (20% weight)
+  # ========================================
+  daily_routines:
+    type: text
+    description: "שגרת יום טיפוסית, דפוסי שינה, הרגלי אכילה"
+    required: false
+    category: context
+    weight_calculation:
+      type: length_based
+      thresholds:
+        - length: 30
+          weight: 0.10
+        - length: 0
+          weight: 0.00
+    target_length: 200
+    extraction_priority: medium
+    prompt_guidance: |
+      Extract daily life information:
+      - Typical day structure
+      - Sleep patterns
+      - Eating habits
+      - Activities throughout the day
+      - Behaviors at different times
+
+  parent_goals:
+    type: text
+    description: "מטרות ההורים - מה הם מקווים להשיג או להבין"
+    required: false
+    category: context
+    weight_calculation:
+      type: length_based
+      thresholds:
+        - length: 30
+          weight: 0.10
+        - length: 0
+          weight: 0.00
+    target_length: 150
+    extraction_priority: medium
+    prompt_guidance: |
+      Extract parent goals:
+      - What they hope to achieve
+      - What they want to improve
+      - What they want to understand better
+      - Their concerns about the future
+
+# Completeness calculation
+completeness:
+  total_possible: 1.05  # Slightly over 100% to allow flexibility
+  cap_at: 1.0
+  threshold_for_complete: 0.80  # 80% = ready for next phase
+
+  # Calculation notes
+  notes: |
+    Completeness is NOT a rigid checklist.
+    It's a measure of conversation richness and depth.
+
+    Breakdown:
+    - Basic info (5%): Quick start
+    - Concerns (50%): MAIN content - detailed examples and exploration
+    - Strengths (10%): Positive aspects
+    - Developmental context (15%): History and background
+    - Daily life & goals (20%): Practical impact and aspirations
+
+    A "complete" interview (80%+) should have:
+    - Basic who/what/how old
+    - Rich concern details with specific examples
+    - Multiple concern areas explored
+    - Some context about development, family, daily life
+    - Clear sense of what parents hope for
+
+# Metadata
+metadata:
+  designed_for: "30-minute in-depth conversational interview"
+  extraction_mode: "opportunistic"  # Extract whenever relevant info appears
+  language: "he"  # Hebrew
+  last_updated: "2025-11-08"

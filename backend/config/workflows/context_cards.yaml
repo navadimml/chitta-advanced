@@ -1,0 +1,715 @@
+# Context Cards - UI cards that reflect invisible state
+# Cards guide users through the workflow by showing progress, next steps, and available actions
+
+version: "1.0"
+card_system_name: "child_development_context_cards"
+description: "Dynamic UI cards that adapt to session state, phase, and progress"
+
+# Card display rules
+display_rules:
+  max_cards_visible: 4  # Don't overwhelm user
+  priority_ordering: true  # Show highest priority cards first
+  auto_dismiss: true  # Some cards auto-dismiss after action
+  animation: fade_in_out
+
+# Card types for styling
+card_types:
+  progress:
+    icon: "progress-bar"
+    color: "blue"
+    style: "informational"
+
+  action_needed:
+    icon: "alert-circle"
+    color: "orange"
+    style: "call-to-action"
+
+  success:
+    icon: "check-circle"
+    color: "green"
+    style: "celebration"
+
+  guidance:
+    icon: "lightbulb"
+    color: "purple"
+    style: "helpful"
+
+  ongoing_support:
+    icon: "heart"
+    color: "pink"
+    style: "supportive"
+
+# Cards in the system
+cards:
+  # ========================================
+  # SCREENING PHASE CARDS
+  # ========================================
+
+  welcome_card:
+    name: "ברוכה הבאה"
+    name_en: "Welcome"
+    card_type: guidance
+    priority: 100  # Highest - show first
+
+    # When to show this card
+    display_conditions:
+      phase: screening
+      message_count: 0
+      show_once: true
+
+    # Card content
+    content:
+      title: "שלום {parent_name}, נעים להכיר! 💙"
+      body: |
+        אני כאן כדי לעזור לך להבין טוב יותר את ההתפתחות של {child_name}.
+
+        **איך זה עובד?**
+        1. נדבר על {child_name} - השיחה חופשית ונעימה
+        2. את תעלי 3 סרטונים קצרים
+        3. אנתח ואכין עבורך דוח מקיף
+
+        **הכל פרטי ומאובטח.** אפשר להתחיל מתי שנוח לך.
+
+      footer: "בואי נתחיל - ספרי לי קצת על {child_name} 😊"
+
+    # Available actions from this card
+    available_actions:
+      - continue_interview
+      - view_privacy_policy
+
+    # Behavior
+    dismissible: true
+    auto_dismiss_after_action: true
+
+  interview_progress_card:
+    name: "התקדמות הראיון"
+    name_en: "Interview Progress"
+    card_type: progress
+    priority: 90
+
+    # When to show
+    display_conditions:
+      phase: screening
+      completeness: "< 0.80"
+      message_count: "> 2"  # After initial exchange
+
+    # Card content (dynamic based on state)
+    content:
+      title: "איפה אנחנו בתהליך?"
+      body_template: |
+        **השלמנו {completeness_percentage}% מהראיון** 📊
+
+        {progress_description}
+
+        **עוד כמה דברים שחשוב לי לדעת:**
+        {missing_areas}
+
+      # Dynamic sections
+      progress_description_by_range:
+        "0-30":
+          text: "אנחנו בהתחלה - מכירים לאט לאט את {child_name}."
+          tone: "patient"
+        "30-60":
+          text: "מתקדמים יפה! אני כבר מתחילה להבין את {child_name}."
+          tone: "encouraging"
+        "60-80":
+          text: "כמעט סיימנו! יש לי תמונה די טובה."
+          tone: "excited"
+
+      # What's missing (generated from schema weights)
+      missing_areas_generation:
+        source: extraction_schema
+        show_top_n: 3
+        format: "• {field_description_he}"
+
+      footer: "אין צורך למהר - נעשה את זה בקצב שנוח לך 💙"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+      - add_journal_entry
+      - take_break  # Save and come back later
+
+    # Behavior
+    dismissible: false  # Always visible during interview
+    updates_dynamically: true  # Re-render when completeness changes
+
+  interview_complete_card:
+    name: "הראיון הושלם"
+    name_en: "Interview Complete"
+    card_type: success
+    priority: 95
+
+    # When to show
+    display_conditions:
+      phase: screening
+      completeness: ">= 0.80"
+      video_guidelines_status: "!= ready"  # Not shown yet
+
+    # Card content
+    content:
+      title: "סיימנו את הראיון! 🎉"
+      body: |
+        תודה שחלקת איתי כל כך הרבה על {child_name}.
+
+        **הצעד הבא: סרטוני התנהגות**
+
+        אני מכינה עבורך הנחיות צילום מותאמות אישית - מה כדאי לצלם ואיך.
+
+        הסרטונים יעזרו לי לראות את {child_name} בפעולה ולתת לך תמונה מדויקת יותר.
+
+      footer: "לוחצים על 'הצג הנחיות צילום' כשאת מוכנה 📹"
+
+    # Available actions
+    available_actions:
+      - view_video_guidelines
+      - continue_interview  # Can add more info
+      - consultation  # Ask questions
+
+    # Behavior
+    dismissible: false
+    auto_dismiss_after_action: view_video_guidelines
+
+  video_guidelines_card:
+    name: "הנחיות צילום"
+    name_en: "Video Guidelines"
+    card_type: action_needed
+    priority: 85
+
+    # When to show
+    display_conditions:
+      phase: screening
+      video_guidelines_status: ready
+      uploaded_video_count: "< 3"
+
+    # Card content
+    content:
+      title: "הנחיות הצילום מוכנות! 📹"
+      body: |
+        הכנתי עבורך הנחיות מותאמות אישית על סמך מה שסיפרת לי.
+
+        **מה לצלם:**
+        {guidelines_summary}
+
+        **כמה סרטונים?**
+        צריכים 3 סרטונים קצרים (2-5 דקות כל אחד) במצבים שונים.
+
+        {upload_progress}
+
+      # Dynamic sections
+      guidelines_summary:
+        source: video_guidelines_artifact
+        extract: situations_to_capture
+        format: "• {situation}"
+        max_items: 3
+
+      upload_progress:
+        template: "**עד כה הועלו: {uploaded_count}/3 סרטונים** {progress_emoji}"
+        progress_emoji_by_count:
+          0: "⬜⬜⬜"
+          1: "✅⬜⬜"
+          2: "✅✅⬜"
+          3: "✅✅✅"
+
+      footer_by_upload_count:
+        0: "אפשר להעלות את הסרטון הראשון 🎬"
+        1: "יופי! בואי נעלה עוד 2 סרטונים"
+        2: "כמעט סיימנו! עוד סרטון אחד"
+
+    # Available actions
+    available_actions:
+      - upload_video
+      - view_video_guidelines  # See full guidelines
+      - consultation
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+    auto_dismiss_when: "uploaded_video_count >= 3"
+
+  video_analysis_card:
+    name: "ניתוח סרטונים"
+    name_en: "Video Analysis"
+    card_type: progress
+    priority: 88
+
+    # When to show
+    display_conditions:
+      phase: screening
+      uploaded_video_count: ">= 3"
+      video_analysis_status: ["pending", "analyzing"]
+      reports_status: "!= ready"
+
+    # Card content varies by analysis state
+    content_by_status:
+      pending:
+        title: "מוכנים לניתוח! 🎥"
+        body: |
+          3 הסרטונים הועלו בהצלחה.
+
+          **מה קורה עכשיו?**
+          אני הולכת לנתח את הסרטונים - לצפות בהם בעיון ולחפש דפוסים, חוזקות, ואתגרים.
+
+          זה לוקח כמה זמן (בדרך כלל 10-15 דקות), אבל שווה את ההמתנה 💙
+
+        actions: [analyze_videos, consultation]
+
+      analyzing:
+        title: "מנתחת את הסרטונים... 🔍"
+        body: |
+          **התהליך בעיצומו!**
+
+          אני צופה בסרטונים של {child_name} ומחפשת:
+          • דרכי תקשורת
+          • אינטראקציות חברתיות
+          • משחק ויצירתיות
+          • תגובות חושיות
+          • ויסות רגשי
+
+          {analysis_progress}
+
+        analysis_progress:
+          show_spinner: true
+          estimated_time_remaining: "{minutes} דקות"
+
+        actions: [consultation, add_journal_entry]
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+    auto_dismiss_when: "video_analysis_status == complete"
+
+  reports_ready_card:
+    name: "הדוח מוכן"
+    name_en: "Report Ready"
+    card_type: success
+    priority: 100
+
+    # When to show
+    display_conditions:
+      phase: [screening, ongoing]  # Can show in both
+      reports_status: ready
+      user_viewed_report: false
+
+    # Card content
+    content:
+      title: "הדוח שלך מוכן! 📄✨"
+      body: |
+        **הערכה הושלמה!**
+
+        הכנתי עבורך דוח מקיף על {child_name}:
+        • חוזקות ותכונות ייחודיות
+        • תצפיות התפתחותיות
+        • המלצות מעשיות
+        • צעדים הבאים
+
+        הדוח כתוב בשפה נגישה, עם דגש על החוזקות של {child_name} והאפשרויות לתמיכה.
+
+      footer: "לחצי על 'הצג דוח' כשאת מוכנה לקרוא 💙"
+
+    # Available actions
+    available_actions:
+      - view_report
+      - download_report
+      - consultation
+
+    # Behavior
+    dismissible: true
+    celebration_animation: true
+    auto_dismiss_after_action: view_report
+
+  # ========================================
+  # ONGOING PHASE CARDS
+  # ========================================
+
+  ongoing_welcome_card:
+    name: "שלב הליווי המתמשך"
+    name_en: "Ongoing Support Phase"
+    card_type: ongoing_support
+    priority: 85
+
+    # When to show
+    display_conditions:
+      phase: ongoing
+      phase_entry_message_shown: false  # Show once when entering phase
+
+    # Card content
+    content:
+      title: "ברוכה הבאה לשלב הליווי! 💙"
+      body: |
+        **הערכה הראשונית הושלמה - מה עכשיו?**
+
+        מעכשיו אני כאן בשבילך לאורך זמן:
+
+        📖 **יומן התפתחות** - תיעדי תצפיות ואני אעזור לך לעקוב אחרי ההתקדמות
+
+        💬 **שאלות ותמיכה** - בכל זמן שיש לך שאלה, אני כאן
+
+        🔍 **חיבור למומחים** - אעזור לך למצוא את האנשים המתאימים
+
+        🔄 **הערכה מחודשת** - כשנרצה, נוכל לעשות הערכה מעודכנת
+
+      footer: "אין מטרה קבועה - זה תהליך. אני כאן איתך 🌟"
+
+    # Available actions
+    available_actions:
+      - add_journal_entry
+      - view_report
+      - find_experts
+      - consultation
+
+    # Behavior
+    dismissible: true
+    show_once: true
+
+  journal_card:
+    name: "יומן התפתחות"
+    name_en: "Development Journal"
+    card_type: guidance
+    priority: 70
+
+    # When to show
+    display_conditions:
+      phase: [screening, ongoing, re_assessment]  # Always available
+      journal_entry_count: "< 100"  # Don't nag forever
+
+    # Card content varies by journal state
+    content_by_state:
+      empty_journal:
+        title: "התחילי יומן התפתחות 📖"
+        body: |
+          **למה יומן?**
+
+          תיעוד רגעים, תצפיות, ושאלות עוזר:
+          • לעקוב אחרי התפתחות לאורך זמן
+          • לזהות דפוסים
+          • להכין שאלות למומחים
+          • לראות את הצמיחה
+
+          אפשר לכתוב כל דבר - אין "נכון" או "לא נכון" 💙
+
+        actions: [add_journal_entry]
+
+      has_entries:
+        title: "יומן ההתפתחות שלך 📖"
+        body: |
+          **{journal_entry_count} רשומות עד כה**
+
+          {recent_entry_preview}
+
+          תיעוד רציף עוזר לראות את התמונה הגדולה ולעקוב אחרי שינויים.
+
+        recent_entry_preview:
+          source: latest_journal_entry
+          format: |
+            **אחרון:**
+            📅 {entry_date}
+            "{entry_content_preview}..."
+
+        actions: [add_journal_entry, view_journal]
+
+    # Behavior
+    dismissible: true
+    re_show_after_days: 7  # Gentle reminder
+
+  follow_up_summary_ready_card:
+    name: "סיכום מעקב מוכן"
+    name_en: "Follow-up Summary Ready"
+    card_type: success
+    priority: 80
+
+    # When to show
+    display_conditions:
+      phase: ongoing
+      has_new_follow_up_summary: true
+      user_viewed_summary: false
+
+    # Card content
+    content:
+      title: "סיכום התקופה האחרונה 📊"
+      body: |
+        ניתחתי את רשומות היומן שלך מ-{days_covered} הימים האחרונים.
+
+        **בסיכום:**
+        • תצפיות מרכזיות
+        • דפוסים שזיהיתי
+        • התקדמות ביחס לבסיס
+        • המלצות לצעדים הבאים
+
+        {summary_preview}
+
+      summary_preview:
+        source: latest_follow_up_summary
+        extract: key_observations.progress_areas
+        format: "✨ {progress_area}"
+        max_items: 2
+
+      footer: "כדאי להעיף מבט 💙"
+
+    # Available actions
+    available_actions:
+      - view_follow_up_summary
+      - download_summary
+      - consultation
+
+    # Behavior
+    dismissible: true
+    auto_dismiss_after_action: view_follow_up_summary
+
+  expert_finder_card:
+    name: "מציאת מומחים"
+    name_en: "Find Experts"
+    card_type: guidance
+    priority: 65
+
+    # When to show
+    display_conditions:
+      phase: ongoing
+      reports_status: ready
+      expert_search_count: "< 3"  # Don't show forever
+
+    # Card content
+    content:
+      title: "צריכה עזרה מקצועית? 👥"
+      body: |
+        **אפשר לעזור לך למצוא מומחים**
+
+        בהתבסס על הדוח של {child_name}, אוכל להמליץ על:
+        • מטפלים בעיסוק
+        • קלינאי תקשורת
+        • פסיכולוגים התפתחותיים
+        • יועצים חינוכיים
+        • {additional_specialist}
+
+        ההמלצות מותאמות לצרכים ולמיקום שלך.
+
+      additional_specialist:
+        source: professional_report
+        extract: recommendations.specialist_referrals
+        format: "{specialist_type}"
+
+      footer: "לוחצים על 'מצא מומחים' להתחיל"
+
+    # Available actions
+    available_actions:
+      - find_experts
+      - consultation
+
+    # Behavior
+    dismissible: true
+    re_show_after_days: 30
+
+  # ========================================
+  # RE-ASSESSMENT PHASE CARDS
+  # ========================================
+
+  re_assessment_welcome_card:
+    name: "הערכה מחודשת"
+    name_en: "Re-assessment"
+    card_type: progress
+    priority: 90
+
+    # When to show
+    display_conditions:
+      phase: re_assessment
+      phase_entry_message_shown: false
+
+    # Card content
+    content:
+      title: "בואי נעדכן את ההבנה שלנו 🔄"
+      body: |
+        **הערכה מחודשת של {child_name}**
+
+        זה הזמן לראות איך {child_name} התפתח/ה מאז ההערכה הראשונית.
+
+        **התהליך:**
+        1. שיחה ממוקדת על השינויים והתפתחות
+        2. סרטונים חדשים (אם נחוץ)
+        3. דוח מעודכן עם השוואה לבסיס
+
+        {focus_areas}
+
+      focus_areas:
+        source: re_assessment_configuration
+        extract: areas_to_re_evaluate
+        format: "• {area}"
+
+      footer: "בואי נתחיל - מה השתנה מאז הפעם הקודמת?"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+      - view_journal  # Review what was documented
+      - consultation
+
+    # Behavior
+    dismissible: false
+    show_once: true
+
+  re_assessment_progress_card:
+    name: "התקדמות הערכה מחודשת"
+    name_en: "Re-assessment Progress"
+    card_type: progress
+    priority: 85
+
+    # When to show
+    display_conditions:
+      phase: re_assessment
+      completeness: "< 0.60"  # Lower threshold for re-assessment
+
+    # Card content
+    content:
+      title: "התקדמות ההערכה המחודשת 🔄"
+      body: |
+        **השלמנו {completeness_percentage}% מההערכה**
+
+        {comparison_to_baseline}
+
+        **עוד כמה דברים לבדוק:**
+        {missing_areas}
+
+      comparison_to_baseline:
+        source: baseline_parent_report
+        format: |
+          **בהשוואה לבסיס ({baseline_date}):**
+          {initial_concerns} ← מה שדאג אז
+          {current_state} ← איפה אנחנו עכשיו
+
+      footer: "ממוקדים על מה שחשוב 💙"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+      - upload_video
+      - view_journal
+      - consultation
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+
+  updated_report_ready_card:
+    name: "דוח מעודכן מוכן"
+    name_en: "Updated Report Ready"
+    card_type: success
+    priority: 95
+
+    # When to show
+    display_conditions:
+      phase: re_assessment
+      updated_reports_status: ready
+      user_viewed_updated_report: false
+
+    # Card content
+    content:
+      title: "הדוח המעודכן מוכן! 📊✨"
+      body: |
+        **ההערכה המחודשת הושלמה!**
+
+        הדוח החדש כולל:
+        • תמונה מעודכנת של {child_name}
+        • השוואה להערכה הקודמת
+        • התקדמות ושינויים
+        • המלצות מעודכנות
+
+        {progress_highlight}
+
+      progress_highlight:
+        source: updated_parent_report
+        extract: comparison_to_baseline.progress_made
+        format: "🌟 {progress_item}"
+        max_items: 2
+
+      footer: "חוזרים לליווי השוטף מעכשיו 💙"
+
+    # Available actions
+    available_actions:
+      - view_report
+      - download_report
+      - compare_reports  # Side-by-side
+      - consultation
+
+    # Behavior
+    dismissible: false
+    celebration_animation: true
+    auto_dismiss_after_action: view_report
+    on_dismiss:
+      transition_to_phase: ongoing
+
+# Card generation logic
+card_generation:
+  evaluation_order:
+    - "Check phase"
+    - "Check artifact statuses"
+    - "Check user state (viewed_report, journal_count, etc.)"
+    - "Evaluate display_conditions"
+    - "Sort by priority"
+    - "Take top N cards based on max_cards_visible"
+
+  dynamic_content:
+    variable_resolution:
+      source_priority:
+        - extracted_data  # From interview
+        - artifacts  # From generated reports
+        - session_state  # Current phase, completeness
+        - user_preferences  # Language, tone
+
+      available_variables:
+        - "{parent_name}"
+        - "{child_name}"
+        - "{child_age}"
+        - "{completeness_percentage}"
+        - "{uploaded_count}"
+        - "{journal_entry_count}"
+        - "{days_since_baseline}"
+        - "{phase}"
+        - And more from context
+
+  template_engine:
+    syntax: jinja2_compatible
+    filters:
+      - format_date
+      - format_percentage
+      - truncate
+      - pluralize_he  # Hebrew pluralization
+    functions:
+      - calculate_time_since
+      - extract_from_artifact
+      - count_by_status
+
+# Metadata
+metadata:
+  designed_for: "child_development_workflow"
+  language: "he"
+  last_updated: "2025-11-08"
+  notes: |
+    Context cards are the UI reflection of invisible state:
+
+    1. They GUIDE users through the workflow
+       - Show what's next
+       - Explain current state
+       - Offer clear actions
+
+    2. They ADAPT to phase and progress
+       - Screening phase: progress-focused
+       - Ongoing phase: support-focused
+       - Re-assessment: comparison-focused
+
+    3. They CONNECT to system state
+       - Artifacts (reports ready?)
+       - Phase (where are we?)
+       - Actions (what can user do?)
+       - Completeness (how far along?)
+
+    4. They COMMUNICATE with warmth
+       - Hebrew, empathetic tone
+       - Strength-based language
+       - Clear next steps
+       - No pressure
+
+    Key principles:
+    - Cards appear/disappear based on conditions
+    - Priority determines order when multiple shown
+    - Dynamic content from session state
+    - Actions directly connected to user intent
+    - Phase-aware everything
