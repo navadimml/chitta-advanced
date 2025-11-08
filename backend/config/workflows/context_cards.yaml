@@ -149,7 +149,7 @@ cards:
     # Card content
     content:
       title: "פרופיל: {child_name}"
-      body: "גיל {age}, {concerns_summary}"
+      body: "גיל {age}"
 
     # No actions - this is informational only, not clickable
     # available_actions: []
@@ -159,20 +159,20 @@ cards:
     updates_dynamically: true
 
   concerns_card:
-    name: "תחומים לתשומת לב"
-    name_en: "Areas of Focus"
+    name: "מה שחשוב לך"
+    name_en: "What Matters to You"
     card_type: guidance  # Informational card, not progress
     priority: 80
 
     # When to show - when we have concerns
     display_conditions:
       phase: screening
-      primary_concerns: "!= []"  # Has at least one concern
+      concern_details: "!= None"  # Has concern details (parent's words)
 
-    # Card content
+    # Card content - show parent's actual words, not clinical categories
     content:
-      title: "תחומים לתשומת לב"
-      body: "{concerns_list}"
+      title: "מה שחשוב לך"
+      body: "{concern_details_preview}"
 
     # No actions - this is informational only, not clickable
     # available_actions: []
