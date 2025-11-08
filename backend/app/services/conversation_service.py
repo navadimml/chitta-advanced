@@ -492,15 +492,22 @@ Continue the conversation naturally."""
   * Parent's observations and worries
   * Comparisons to peers or developmental expectations
 
-- **strengths:** EVERYTHING positive about the child:
-  * Interests and hobbies ("אוהב לצייר", "אוהב מכוניות")
+- **strengths:** EVERYTHING positive about the child - USE PARENT'S EXACT WORDS:
+  ⚠️ **CRITICAL - Copy parent's actual words, NOT clinical categories!**
+  - Parent says "הוא רץ ומטפס כל הזמן" → Extract: "רץ ומטפס כל הזמן" ✅
+  - DO NOT write: "יכולות מוטוריות טובות" ❌ (clinical jargon)
+  - Parent says "אוהב לצייר ולבנות" → Extract: "אוהב לצייר ולבנות" ✅
+  - DO NOT write: "יצירתי" ❌ (categorization)
+
+  What to extract (using parent's words):
+  * Interests and hobbies
   * What child enjoys doing
   * What child is good at
   * Activities that engage them
   * Positive behaviors or traits
-  * Social successes ("משחק עם חברים", "יש חברים")
-  * Physical abilities ("רץ טוב", "מטפס")
-  * Communication successes ("מדבר הרבה", "מבין טוב")
+  * Social successes
+  * Physical abilities
+  * Communication successes
 
 - **developmental_history:** Milestones, pregnancy, birth, medical history, when did child reach milestones
 
