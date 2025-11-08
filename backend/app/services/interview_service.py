@@ -107,18 +107,16 @@ class InterviewService:
             details_preview = (new_data['concern_details'][:100] if new_data['concern_details'] else 'None')
             logger.info(f"📝 Normalized 'concern_description' → 'concern_details': {details_preview}")
 
-        # Normalize: other_info → concern_details (append if concern_details exists)
+        # Discard other_info (LITE field for miscellaneous demographic data)
+        # This is usually redundant info already captured in other fields (age, gender, etc.)
+        # DO NOT put it in concern_details - that's for actual concerns only!
         if 'other_info' in new_data:
             other_text = new_data.pop('other_info')
             other_preview = (other_text[:100] if other_text else 'None')
             logger.info(f"📝 Got 'other_info' (LITE field): {other_preview}")
-            if 'concern_details' not in new_data or not new_data['concern_details']:
-                new_data['concern_details'] = other_text
-                logger.info("   → Moved to 'concern_details'")
-            else:
-                # Append to existing concern_details
-                new_data['concern_details'] += f". {other_text}"
-                logger.info("   → Appended to existing 'concern_details'")
+            logger.info("   → Discarded (usually redundant demographic data)")
+            # Note: other_info is intentionally NOT stored anywhere
+            # It contains misc demographic info that's already in name/age/gender fields
 
         # Update scalar fields
         for field in ['child_name', 'age', 'gender']:
