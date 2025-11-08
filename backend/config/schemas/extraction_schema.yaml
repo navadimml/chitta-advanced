@@ -61,8 +61,15 @@ fields:
     type: array
     description: "תחומי דאגה עיקריים - קטגוריות"
     required: false
-    weight_per_item: 0.05  # Up to 0.10 for having concerns
-    max_weight: 0.10
+    weight_calculation:
+      type: count_items
+      weight_per_item: 0.05  # 5% per concern
+      max_items_counted: 4   # Up to 4 concerns counted
+      # Total weight calculation:
+      # 1 concern: 5%
+      # 2 concerns: 10%
+      # 3 concerns: 15%
+      # 4+ concerns: 20% (includes bonus for comprehensive exploration)
     category: concerns
     options:
       - speech        # דיבור
@@ -107,15 +114,7 @@ fields:
       - Parent's observations and worries
       - Comparisons to peers or developmental expectations
 
-  # Additional concern scoring (part of the 50%)
-  multiple_concerns_bonus:
-    type: computed
-    description: "Bonus for exploring multiple concern areas"
-    required: false
-    weight: 0.10  # Maximum bonus for comprehensive exploration
-    category: concerns
-    notes: "Awarded when multiple areas explored in depth"
-
+  # Additional urgent flags
   urgent_flags:
     type: array
     description: "דגלים דחופים שמצריכים תשומת לב מיידית"

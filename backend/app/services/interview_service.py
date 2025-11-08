@@ -3,7 +3,7 @@ Interview Service - Manages interview state and completeness calculation
 
 This service:
 1. Stores extracted interview data per family
-2. Calculates interview completeness
+2. Calculates interview completeness (now using schema_registry!)
 3. Tracks conversation history
 4. Determines which prompt/functions to use
 5. Generates video guidelines when ready
@@ -13,6 +13,9 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pydantic import BaseModel
+
+# Wu Wei Architecture: Import schema registry for config-driven completeness
+from app.config.schema_registry import get_schema_registry, calculate_completeness as config_calculate_completeness
 
 logger = logging.getLogger(__name__)
 
@@ -166,11 +169,20 @@ class InterviewService:
         """
         Calculate interview completeness (0.0 to 1.0)
 
-        For 30-minute in-depth interview, basic info is just the start.
+        🌟 Wu Wei Architecture: Now uses schema_registry for config-driven calculation!
 
-        Weighting (designed for ~30 min deep conversation):
-        - Basic info (name, age, gender): 5% (quick start)
-        - Primary concerns with details: 50% (MAIN focus - multiple concerns, examples, impact)
+        Previously hardcoded weights are now defined in:
+        backend/config/schemas/extraction_schema.yaml
+
+        This means:
+        - Weights can be adjusted without code changes
+        - Easy to experiment with different weightings
+        - Consistent with other services using the same schema
+        - Documented in YAML (human-readable)
+
+        Weighting (defined in extraction_schema.yaml):
+        - Basic info (name, age, gender): 5%
+        - Primary concerns with details: 50% (MAIN focus)
         - Strengths: 10%
         - Developmental context: 15%
         - Family/routines/goals: 20%
@@ -178,64 +190,30 @@ class InterviewService:
         session = self.get_or_create_session(family_id)
         data = session.extracted_data
 
-        score = 0.0
+        # Convert ExtractedData to dict for schema_registry
+        extracted_dict = {
+            "child_name": data.child_name,
+            "age": data.age,
+            "gender": data.gender,
+            "primary_concerns": data.primary_concerns,
+            "concern_details": data.concern_details,
+            "strengths": data.strengths,
+            "developmental_history": data.developmental_history,
+            "family_context": data.family_context,
+            "daily_routines": data.daily_routines,
+            "parent_goals": data.parent_goals,
+            "urgent_flags": data.urgent_flags,
+        }
 
-        # Basic information (5 points) - just getting started
-        if data.child_name:
-            score += 0.01
-        if data.age:
-            score += 0.03  # Age is most critical of basics
-        if data.gender and data.gender != "unknown":
-            score += 0.01
+        # Use config-driven completeness calculation
+        completeness = config_calculate_completeness(extracted_dict)
 
-        # Primary concerns (50 points) - THIS IS THE MAIN INTERVIEW
-        # This should take most of the 30 minutes
-        if data.primary_concerns:
-            # Having concerns mentioned: 10%
-            concerns_score = min(len(data.primary_concerns) * 0.05, 0.10)
-            score += concerns_score
+        logger.debug(
+            f"Calculated completeness for {family_id}: {completeness:.1%} "
+            f"(using schema_registry)"
+        )
 
-            # Detailed description with examples: 20%
-            if data.concern_details:
-                detail_length = len(data.concern_details)
-                if detail_length > 200:  # Substantial detail
-                    score += 0.20
-                elif detail_length > 100:  # Some detail
-                    score += 0.12
-                elif detail_length > 50:  # Basic detail
-                    score += 0.07
-
-            # Multiple concerns explored: 10%
-            if len(data.primary_concerns) >= 2:
-                score += 0.05
-            if len(data.primary_concerns) >= 3:
-                score += 0.05
-
-            # Urgent flags identified: 10%
-            if data.urgent_flags:
-                score += min(len(data.urgent_flags) * 0.05, 0.10)
-
-        # Strengths (10 points)
-        if data.strengths and len(data.strengths) > 30:
-            score += 0.10
-
-        # Developmental context (15 points)
-        context_score = 0.0
-        if data.developmental_history and len(data.developmental_history) > 30:
-            context_score += 0.08
-        if data.family_context and len(data.family_context) > 30:
-            context_score += 0.07
-        score += context_score
-
-        # Daily life and goals (20 points)
-        life_score = 0.0
-        if data.daily_routines and len(data.daily_routines) > 30:
-            life_score += 0.10
-        if data.parent_goals and len(data.parent_goals) > 30:
-            life_score += 0.10
-        score += life_score
-
-        return min(1.0, score)
+        return completeness
 
     def add_conversation_turn(
         self,
