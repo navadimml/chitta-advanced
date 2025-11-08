@@ -32,7 +32,7 @@ def main():
 
     # Show current env vars
     conversation_model = os.getenv("LLM_MODEL", "gemini-2.0-flash-exp (default)")
-    extraction_model = os.getenv("EXTRACTION_MODEL", "gemini-2.0-flash-exp (default)")
+    extraction_model = os.getenv("EXTRACTION_MODEL", "gemini-flash-latest (default)")
 
     print(f"LLM_MODEL (conversation): {conversation_model}")
     print(f"EXTRACTION_MODEL: {extraction_model}")
@@ -53,7 +53,7 @@ def main():
 
     print("\nFor optimal performance, use different models:")
     print("  LLM_MODEL=gemini-flash-lite-latest      # Fast conversation")
-    print("  EXTRACTION_MODEL=gemini-2.0-flash-exp   # Strong extraction")
+    print("  EXTRACTION_MODEL=gemini-flash-latest    # Strong extraction (latest & most advanced)")
 
     print("\nWhy?")
     print("  ✅ Fast conversation model (flash-lite):")
@@ -61,7 +61,8 @@ def main():
     print("     - Lower cost per conversation turn")
     print("     - Good enough for Hebrew conversation")
 
-    print("\n  ✅ Strong extraction model (flash-exp or pro):")
+    print("\n  ✅ Strong extraction model (flash-latest):")
+    print("     - Latest and most advanced flash model")
     print("     - Better reasoning for categorization")
     print("     - Distinguishes concerns vs strengths correctly")
     print("     - Handles nuanced language better")
@@ -75,16 +76,16 @@ def main():
     print("   export LLM_MODEL=gemini-flash-lite-latest")
     print("   # EXTRACTION_MODEL not set → defaults to same model")
 
-    print("\n2. Both use flash-exp (slower but accurate):")
-    print("   export LLM_MODEL=gemini-2.0-flash-exp")
-    print("   # EXTRACTION_MODEL not set → defaults to flash-exp")
+    print("\n2. Both use flash-latest (balanced - accurate + fast):")
+    print("   export LLM_MODEL=gemini-flash-latest")
+    print("   # EXTRACTION_MODEL not set → defaults to flash-latest")
 
-    print("\n3. Dual model (RECOMMENDED - fast + accurate):")
+    print("\n3. Dual model (RECOMMENDED - fastest conversation + accurate extraction):")
     print("   export LLM_MODEL=gemini-flash-lite-latest")
-    print("   export EXTRACTION_MODEL=gemini-2.0-flash-exp")
+    print("   export EXTRACTION_MODEL=gemini-flash-latest")
 
     print("\n4. Maximum accuracy (slower, higher cost):")
-    print("   export LLM_MODEL=gemini-2.0-flash-exp")
+    print("   export LLM_MODEL=gemini-flash-latest")
     print("   export EXTRACTION_MODEL=gemini-pro")
 
     print("\n" + "=" * 80)
@@ -102,7 +103,7 @@ def main():
     print("\nSolution:")
     print("  ✅ Improved prompt (already done)")
     print("  ✅ Stronger extraction model (this change)")
-    print("     → Now uses gemini-2.0-flash-exp for extraction")
+    print("     → Now uses gemini-flash-latest for extraction (most advanced)")
     print("     → Better reasoning for concerns vs strengths")
 
     print("\n" + "=" * 80)
