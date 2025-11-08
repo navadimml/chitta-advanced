@@ -49,7 +49,7 @@ Don't wait - extract whatever information is available right now!""",
                     "type": "string",
                     "enum": ["speech", "social", "attention", "motor", "sensory", "emotional", "behavioral", "learning", "sleep", "eating", "other"]
                 },
-                "description": "List of concern categories ONLY if parent EXPLICITLY mentioned them. Don't infer! If parent says 'speech problems', only add 'speech'. If they don't mention behavior, don't add 'behavioral'."
+                "description": "ONLY if parent expresses WORRY/DIFFICULTY/PROBLEM! Categories of concerns. DO NOT extract positive behaviors (like 'plays well with kids') as concerns - those are strengths!"
             },
             "concern_description": {
                 "type": "string",
@@ -57,11 +57,11 @@ Don't wait - extract whatever information is available right now!""",
             },
             "strengths": {
                 "type": "string",
-                "description": "What child is good at, likes to do, interests"
+                "description": "ONLY positive things: what child is good at, enjoys, likes to do, interests, positive behaviors. Examples: 'plays with friends', 'loves drawing', 'communicates well'"
             },
             "other_info": {
                 "type": "string",
-                "description": "Any other important information mentioned (history, family, routines, goals)"
+                "description": "ONLY for: developmental milestones (when walked/talked), family info (siblings, daycare), daily routines, parent goals. DO NOT put concerns or strengths here - use their dedicated fields!"
             }
         },
         "required": []  # Nothing required - extract what's available
