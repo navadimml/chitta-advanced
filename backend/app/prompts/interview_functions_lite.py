@@ -57,7 +57,7 @@ Don't wait - extract whatever information is available right now!""",
             },
             "strengths": {
                 "type": "string",
-                "description": "ONLY positive things: what child is good at, enjoys, likes to do, interests, positive behaviors. Examples: 'plays with friends', 'loves drawing', 'communicates well'"
+                "description": "COPY PARENT'S EXACT WORDS about positive things! Parent says 'רץ ומטפס' → write 'רץ ומטפס'. DO NOT categorize (like 'יכולות מוטוריות') - use their actual words!"
             },
             "other_info": {
                 "type": "string",
