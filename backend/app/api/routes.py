@@ -846,12 +846,21 @@ async def get_available_views(family_id: str):
     session = interview_service.get_or_create_session(family_id)
     data = session.extracted_data
 
+    # 🌟 Wu Wei: Build artifacts for view availability checks
+    artifacts = {}
+    for artifact_id, artifact in session.artifacts.items():
+        artifacts[artifact_id] = {
+            "exists": artifact.exists,
+            "status": artifact.status
+        }
+
     # Build context for view availability checks
     context = {
         "phase": session.phase,
         "completeness": session.completeness,
         "child_name": data.child_name,
-        "reports_ready": False,  # TODO: Get from artifacts
+        "artifacts": artifacts,  # 🌟 Wu Wei: Include artifacts
+        "reports_ready": session.has_artifact("baseline_parent_report"),  # DEPRECATED: for backwards compatibility
         "video_count": 0,  # TODO: Get from video storage
     }
 
@@ -888,12 +897,22 @@ async def get_view_content(view_id: str, family_id: str):
     session = interview_service.get_or_create_session(family_id)
     data = session.extracted_data
 
+    # 🌟 Wu Wei: Build artifacts for view availability check
+    artifacts = {}
+    for artifact_id, artifact in session.artifacts.items():
+        artifacts[artifact_id] = {
+            "exists": artifact.exists,
+            "status": artifact.status,
+            "content": artifact.content if artifact.is_ready else None
+        }
+
     # Build context for availability check
     context = {
         "phase": session.phase,
         "completeness": session.completeness,
         "child_name": data.child_name,
-        "reports_ready": False,  # TODO: Get from artifacts
+        "artifacts": artifacts,  # 🌟 Wu Wei: Include artifacts
+        "reports_ready": session.has_artifact("baseline_parent_report"),  # DEPRECATED
         "video_count": 0,  # TODO: Get from video storage
     }
 
@@ -901,12 +920,46 @@ async def get_view_content(view_id: str, family_id: str):
     is_available = view_manager.check_view_availability(view_id, context)
 
     if is_available:
+        # 🌟 Wu Wei: Enrich view content with artifact data
+        view_content = view.copy()
+
+        # Map view data sources to artifacts
+        data_sources = view.get("data_sources", {})
+        primary_source = data_sources.get("primary")
+
+        if primary_source:
+            # Map artifact names to actual artifact IDs
+            artifact_map = {
+                "video_guidelines": "baseline_video_guidelines",
+                "parent_report": "baseline_parent_report",
+                "professional_report": "baseline_professional_report",
+                "updated_parent_report": "updated_parent_report"
+            }
+
+            artifact_id = artifact_map.get(primary_source, primary_source)
+            artifact = session.get_artifact(artifact_id)
+
+            if artifact and artifact.is_ready:
+                # Include artifact content in view
+                view_content["artifact_content"] = artifact.content
+                view_content["artifact_metadata"] = {
+                    "created_at": artifact.created_at.isoformat(),
+                    "ready_at": artifact.ready_at.isoformat() if artifact.ready_at else None
+                }
+
+        # Enrich with context variables
+        view_content["context"] = {
+            "child_name": data.child_name,
+            "phase": session.phase,
+            "artifacts_available": list(artifacts.keys())
+        }
+
         return ViewContentResponse(
             view_id=view_id,
             view_name=view.get("name", ""),
             view_name_en=view.get("name_en", ""),
             available=True,
-            content=view
+            content=view_content
         )
     else:
         return ViewContentResponse(
