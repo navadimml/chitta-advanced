@@ -80,11 +80,11 @@ class CardGenerator:
         if not conditions:
             return True  # No conditions = always show
 
-        # Check phase
+        # DEPRECATED: Phase-based conditions (keeping for backwards compatibility)
+        # 🌟 Wu Wei: Cards now use artifact-based prerequisites instead of phases
         required_phase = conditions.get("phase")
-        current_phase = context.get("phase", "screening")
-
         if required_phase:
+            current_phase = context.get("phase", "screening")
             if isinstance(required_phase, list):
                 if current_phase not in required_phase:
                     return False
@@ -97,19 +97,20 @@ class CardGenerator:
             "auto_dismiss_when",
             "re_show_after_days",
             "updates_dynamically",
+            "phase",  # DEPRECATED: phase is no longer a display condition
         }
 
-        # Check all other conditions
+        # 🌟 Wu Wei: Check all prerequisite conditions
         for condition_key, condition_value in conditions.items():
-            if condition_key == "phase":
-                continue  # Already checked above
-
             # Skip behavioral flags - they control card behavior, not display
             if condition_key in behavioral_flags:
                 continue
 
-            # Get context value
-            context_value = context.get(condition_key)
+            # Handle dotted notation for nested attributes (e.g., "baseline_parent_report.exists")
+            if "." in condition_key:
+                context_value = self._get_nested_value(context, condition_key)
+            else:
+                context_value = context.get(condition_key)
 
             # Handle string conditions with operators (e.g., "< 0.80", ">= 3", "!= ready")
             if isinstance(condition_value, str):
@@ -129,6 +130,30 @@ class CardGenerator:
                     return False
 
         return True
+
+    def _get_nested_value(self, context: Dict[str, Any], key_path: str) -> Any:
+        """
+        🌟 Wu Wei: Get value from nested dictionary using dot notation.
+
+        Args:
+            context: Context dictionary
+            key_path: Dotted path like "baseline_parent_report.exists" or "artifacts.video_guidelines.status"
+
+        Returns:
+            Value at the path, or None if not found
+        """
+        keys = key_path.split(".")
+        value = context
+
+        for key in keys:
+            if isinstance(value, dict):
+                value = value.get(key)
+                if value is None:
+                    return None
+            else:
+                return None
+
+        return value
 
     def _translate_concerns(self, concerns: List[str]) -> List[str]:
         """
@@ -364,6 +389,8 @@ class CardGenerator:
                     elif placeholder == "journal_entry_count":
                         formatted = str(context.get("journal_entry_count", 0))
                     elif placeholder == "phase":
+                        # DEPRECATED: Phase is no longer used in Wu Wei architecture
+                        # Keeping for backwards compatibility only
                         formatted = context.get("phase", "screening")
                     else:
                         formatted = ""
