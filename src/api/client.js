@@ -118,6 +118,55 @@ class ChittaAPIClient {
     const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
     return response.json();
   }
+
+  /**
+   * 🎬 Demo Mode: Get next demo step
+   */
+  async getNextDemoStep(demoFamilyId) {
+    const response = await fetch(`${API_BASE_URL}/demo/${demoFamilyId}/next`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * 🎬 Demo Mode: Stop demo
+   */
+  async stopDemo(demoFamilyId) {
+    const response = await fetch(`${API_BASE_URL}/demo/${demoFamilyId}/stop`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * 🎬 Demo Mode: Start demo manually
+   */
+  async startDemo(scenarioId = 'language_concerns') {
+    const response = await fetch(`${API_BASE_URL}/demo/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scenario_id: scenarioId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 }
 
 // Singleton instance

@@ -34,6 +34,11 @@ function App() {
   const [childName, setChildName] = useState('');
   const [videoGuidelines, setVideoGuidelines] = useState(null);
 
+  // 🎬 Demo Mode State
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoFamilyId, setDemoFamilyId] = useState(null);
+  const [demoPaused, setDemoPaused] = useState(false);
+
   // Initial greeting on mount
   useEffect(() => {
     setMessages([{
@@ -42,6 +47,75 @@ function App() {
       timestamp: new Date().toISOString()
     }]);
   }, []);
+
+  // 🎬 Demo Mode: Auto-play next message
+  const playNextDemoStep = async () => {
+    if (!demoMode || !demoFamilyId || demoPaused) return;
+
+    try {
+      const response = await api.getNextDemoStep(demoFamilyId);
+
+      // Wait for delay
+      await new Promise(resolve => setTimeout(resolve, response.message.delay_ms));
+
+      // Add message to UI
+      const newMessage = {
+        sender: response.message.role === 'user' ? 'user' : 'chitta',
+        text: response.message.content,
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+
+      // Update demo card
+      if (response.demo_card) {
+        setCards([response.demo_card]);
+      }
+
+      // Check if artifact was generated
+      if (response.artifact_generated) {
+        console.log('🌟 Artifact generated:', response.artifact_generated);
+      }
+
+      // Continue to next step if not complete
+      if (!response.is_complete) {
+        // Recursive call after a short pause
+        setTimeout(() => playNextDemoStep(), 100);
+      } else {
+        // Demo complete!
+        setDemoMode(false);
+        setDemoFamilyId(null);
+      }
+    } catch (error) {
+      console.error('Error playing demo step:', error);
+      setDemoMode(false);
+    }
+  };
+
+  // 🎬 Demo Mode: Stop demo
+  const stopDemo = async () => {
+    if (!demoFamilyId) return;
+
+    try {
+      await api.stopDemo(demoFamilyId);
+      setDemoMode(false);
+      setDemoFamilyId(null);
+      setDemoPaused(false);
+
+      // Add exit message
+      const exitMessage = {
+        sender: 'chitta',
+        text: 'Demo stopped. Ready to start your real conversation! 💙',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, exitMessage]);
+
+      // Clear demo card
+      setCards([]);
+    } catch (error) {
+      console.error('Error stopping demo:', error);
+    }
+  };
 
   // Handle sending a message
   const handleSend = async (message) => {
@@ -73,6 +147,29 @@ function App() {
 
       // Update UI from backend response
       if (response.ui_data) {
+        // 🎬 Check if demo mode was triggered
+        if (response.ui_data.demo_mode) {
+          setDemoMode(true);
+          setDemoFamilyId(response.ui_data.demo_family_id);
+
+          // Set demo card
+          if (response.ui_data.cards) {
+            setCards(response.ui_data.cards);
+          }
+
+          // Set demo suggestions
+          if (response.ui_data.suggestions) {
+            setSuggestions(response.ui_data.suggestions.map(s =>
+              typeof s === 'string' ? { text: s, action: null } : s
+            ));
+          }
+
+          // Start auto-play after a short delay
+          setTimeout(() => playNextDemoStep(), 1000);
+
+          return; // Don't process normal flow
+        }
+
         if (response.ui_data.suggestions) {
           setSuggestions(response.ui_data.suggestions.map(s =>
             typeof s === 'string' ? { text: s, action: null } : s
@@ -111,6 +208,20 @@ function App() {
   // Handle card click
   const handleCardClick = async (action) => {
     if (!action) return; // Status cards have no action
+
+    // 🎬 Demo Mode Actions
+    if (action === 'stop_demo') {
+      await stopDemo();
+      return;
+    } else if (action === 'pause_demo') {
+      setDemoPaused(!demoPaused);
+      return;
+    } else if (action === 'skip_step') {
+      if (demoMode && demoFamilyId) {
+        playNextDemoStep();
+      }
+      return;
+    }
 
     if (action === 'upload') {
       setActiveDeepView('upload');
