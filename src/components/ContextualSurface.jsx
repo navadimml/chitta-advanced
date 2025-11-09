@@ -58,19 +58,16 @@ export default function ContextualSurface({ cards, onCardClick }) {
           const isGuidance = card.card_type === 'guidance' || card.status === 'instruction';
           const isProgress = card.card_type === 'progress' || card.status === 'processing';
           const isSuccess = card.card_type === 'success' || card.status === 'new';
-          const isDemoCard = card.card_type === 'demo_mode';
 
           return (
             <div
               key={idx}
-              onClick={() => !isDemoCard && card.action && onCardClick(card.action)}
+              onClick={() => card.action && onCardClick(card.action)}
               className={`${cardColor} ${
                 isGuidance ? 'border-2 p-4' : 'border p-3'
               } rounded-xl ${
-                !isDemoCard && card.action ? 'cursor-pointer hover:shadow-lg hover:scale-[1.03] active:scale-[0.99]' : ''
-              } ${isProgress || isDemoCard ? 'animate-pulse-subtle' : ''} transition-all duration-300 ease-out group relative overflow-hidden ${
-                isDemoCard ? 'border-4 border-orange-400' : ''
-              }`}
+                card.action ? 'cursor-pointer hover:shadow-lg hover:scale-[1.03] active:scale-[0.99]' : ''
+              } ${isProgress ? 'animate-pulse-subtle' : ''} transition-all duration-300 ease-out group relative overflow-hidden`}
               style={{
                 animation: `cardSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.08}s both`,
               }}
@@ -107,22 +104,6 @@ export default function ContextualSurface({ cards, onCardClick }) {
                     <div className={`opacity-90 leading-relaxed ${
                       isGuidance ? 'text-base mt-1' : 'text-sm opacity-80'
                     }`}>{card.subtitle}</div>
-
-                    {/* 🎬 Demo Mode: Progress Indicator */}
-                    {isDemoCard && card.progress !== undefined && (
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between text-xs text-orange-600 mb-1">
-                          <span>{card.step_indicator || 'בהדגמה...'}</span>
-                          <span className="font-medium">{card.progress}%</span>
-                        </div>
-                        <div className="w-full bg-orange-200 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-gradient-to-r from-orange-500 to-orange-600 h-full transition-all duration-500 ease-out"
-                            style={{ width: `${card.progress}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Breadcrumbs - ברור ובולט */}
                     {isStatusCard && (
@@ -188,43 +169,10 @@ export default function ContextualSurface({ cards, onCardClick }) {
                     )}
                   </div>
                 </div>
-                {!isDemoCard && card.action && (
+                {card.action && (
                   <Icons.ChevronRight className="w-5 h-5 opacity-50 group-hover:opacity-100 transition" />
                 )}
               </div>
-
-              {/* 🎬 Demo Mode: Action Buttons */}
-              {isDemoCard && card.actions && (
-                <div className="mt-3 pt-3 border-t border-orange-300 flex gap-2 justify-end">
-                  {card.actions.map((action, actionIdx) => {
-                    const actionLabels = {
-                      stop_demo: 'עצור דמו',
-                      pause_demo: 'השהה',
-                      skip_step: 'דלג'
-                    };
-                    const actionIcons = {
-                      stop_demo: 'XCircle',
-                      pause_demo: 'PauseCircle',
-                      skip_step: 'SkipForward'
-                    };
-                    const ActionIcon = Icons[actionIcons[action]];
-
-                    return (
-                      <button
-                        key={actionIdx}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCardClick(action);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-orange-100 border border-orange-300 hover:border-orange-400 rounded-lg text-sm font-medium text-orange-700 transition-all duration-200 hover:shadow-md"
-                      >
-                        {ActionIcon && <ActionIcon className="w-4 h-4" />}
-                        {actionLabels[action]}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           );
         })}
