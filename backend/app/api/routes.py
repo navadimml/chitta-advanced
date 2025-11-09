@@ -14,6 +14,8 @@ from app.services.interview_service import get_interview_service
 # Wu Wei Architecture: Import config-driven UI components
 from app.config.card_generator import get_card_generator
 from app.config.view_manager import get_view_manager
+# Demo Mode: Import demo orchestrator
+from app.services.demo_orchestrator_service import get_demo_orchestrator
 
 router = APIRouter()
 
@@ -88,6 +90,34 @@ class ArtifactActionRequest(BaseModel):
     family_id: str
     action: str  # "view", "download", "decline"
 
+# === Demo Mode Response Models ===
+
+class DemoStartRequest(BaseModel):
+    """Request to start demo mode"""
+    scenario_id: Optional[str] = "language_concerns"
+
+class DemoStartResponse(BaseModel):
+    """Response when starting demo"""
+    demo_family_id: str
+    scenario: dict
+    first_message: dict
+    demo_card: dict
+
+class DemoNextResponse(BaseModel):
+    """Response for next demo step"""
+    step: int
+    total_steps: int
+    message: dict
+    artifact_generated: Optional[dict] = None
+    card_hint: Optional[str] = None
+    demo_card: dict
+    is_complete: bool
+
+class DemoStopResponse(BaseModel):
+    """Response when stopping demo"""
+    success: bool
+    message: str
+
 # === Endpoints ===
 
 @router.get("/")
@@ -102,6 +132,27 @@ async def send_message(request: SendMessageRequest):
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
+
+    # 🎬 Demo Mode: Check if user wants to start demo
+    demo_orchestrator = get_demo_orchestrator()
+    scenario_id = demo_orchestrator.detect_demo_intent(request.message)
+
+    if scenario_id:
+        # Start demo mode
+        demo_result = await demo_orchestrator.start_demo(scenario_id)
+
+        return SendMessageResponse(
+            response=demo_result["first_message"]["content"],
+            stage="demo",
+            ui_data={
+                "demo_mode": True,
+                "demo_family_id": demo_result["demo_family_id"],
+                "demo_scenario": demo_result["scenario"],
+                "cards": [demo_result["demo_card"]],
+                "suggestions": ["המשך דמו", "עצור דמו", "דלג לשלב הבא"],
+                "progress": 0
+            }
+        )
 
     # Get conversation service (singleton)
     conversation_service = get_conversation_service()
@@ -1090,3 +1141,94 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
         "action": request.action,
         "tracked_at": datetime.now().isoformat()
     }
+
+
+# === Demo Mode Endpoints ===
+
+@router.post("/demo/start", response_model=DemoStartResponse)
+async def start_demo(request: DemoStartRequest):
+    """
+    🎬 Demo Mode: Start interactive demo
+
+    Starts a scripted demo conversation that runs in the real UI.
+    Demo sessions use a special family_id prefix (demo_*) and showcase
+    the full Chitta journey with pre-written scenarios.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    demo_orchestrator = get_demo_orchestrator()
+
+    try:
+        result = await demo_orchestrator.start_demo(request.scenario_id)
+
+        return DemoStartResponse(
+            demo_family_id=result["demo_family_id"],
+            scenario=result["scenario"],
+            first_message=result["first_message"],
+            demo_card=result["demo_card"]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.error(f"Error starting demo: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to start demo")
+
+
+@router.get("/demo/{demo_family_id}/next", response_model=DemoNextResponse)
+async def get_next_demo_step(demo_family_id: str):
+    """
+    🎬 Demo Mode: Get next message in demo flow
+
+    Advances the demo to the next step, returns the next message,
+    and triggers artifact generation if needed.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    demo_orchestrator = get_demo_orchestrator()
+
+    try:
+        result = await demo_orchestrator.get_next_step(demo_family_id)
+
+        return DemoNextResponse(
+            step=result["step"],
+            total_steps=result["total_steps"],
+            message=result["message"],
+            artifact_generated=result.get("artifact_generated"),
+            card_hint=result.get("card_hint"),
+            demo_card=result["demo_card"],
+            is_complete=result.get("is_complete", False)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.error(f"Error getting next demo step: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get next demo step")
+
+
+@router.post("/demo/{demo_family_id}/stop", response_model=DemoStopResponse)
+async def stop_demo(demo_family_id: str):
+    """
+    🎬 Demo Mode: Stop demo and return to normal mode
+
+    Ends the demo session and allows user to start their real conversation.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    demo_orchestrator = get_demo_orchestrator()
+
+    try:
+        result = await demo_orchestrator.stop_demo(demo_family_id)
+
+        return DemoStopResponse(
+            success=result["success"],
+            message=result["message"]
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Error stopping demo: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to stop demo")
