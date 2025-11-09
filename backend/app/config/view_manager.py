@@ -75,10 +75,27 @@ class ViewManager:
         if phases and current_phase not in phases:
             return False
 
-        # Check requires (simplified)
+        # 🌟 Wu Wei: Check requires (artifact-based)
         requires = availability.get("requires", [])
         for req in requires:
-            if req == "reports_available":
+            # Handle artifact requirements
+            if req == "interview_complete":
+                # Check if video guidelines artifact exists
+                artifacts = context.get("artifacts", {})
+                if not artifacts.get("baseline_video_guidelines", {}).get("exists", False):
+                    return False
+            elif req == "reports_available":
+                # Check if parent report artifact exists
+                artifacts = context.get("artifacts", {})
+                if not artifacts.get("baseline_parent_report", {}).get("exists", False):
+                    return False
+            elif req == "updated_reports_available":
+                # Check if updated report artifact exists
+                artifacts = context.get("artifacts", {})
+                if not artifacts.get("updated_parent_report", {}).get("exists", False):
+                    return False
+            # Legacy: old field-based checks
+            elif req == "reports_ready":
                 if not context.get("reports_ready", False):
                     return False
 
