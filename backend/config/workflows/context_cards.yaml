@@ -137,51 +137,15 @@ cards:
     dismissible: false
     updates_dynamically: true
 
-  concerns_card:
-    name: "מה שחשוב לך"
-    name_en: "What Matters to You"
-    card_type: guidance  # Informational card, not progress
-    priority: 80
+  # REMOVED: concerns_card and strengths_card
+  # These informational cards were redundant during active conversation.
+  # The parent already knows what they said - no need to show it back to them.
+  # These might be useful later in ongoing phase as summaries, but for now they're removed.
 
-    # When to show - when we have concerns
-    display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
-      concern_details: "!= None"  # Has concern details (parent's words)
-
-    # Card content - show parent's actual words, not clinical categories
-    content:
-      title: "מה שחשוב לך"
-      body: "{concern_details_preview}"
-
-    # No actions - this is informational only, not clickable
-    # available_actions: []
-
-    # Behavior
-    dismissible: false
-    updates_dynamically: true
-
-  strengths_card:
-    name: "חוזקות ותכונות חיוביות"
-    name_en: "Strengths"
-    card_type: success
-    priority: 75
-
-    # When to show - when we have strengths info
-    display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
-      strengths: "!= None"  # Has strengths
-
-    # Card content
-    content:
-      title: "חוזקות של {child_name} 💪"
-      body: "{strengths_preview}"
-
-    # No actions - this is informational only, not clickable
-    # available_actions: []
-
-    # Behavior
-    dismissible: false
-    updates_dynamically: true
+  # If needed in future, these cards could show in ongoing phase:
+  # display_conditions:
+  #   baseline_parent_report.exists: true  # Only in ongoing, not during conversation
+  #   re_assessment.active: false
 
   guidelines_offer_card:
     name: "הצעה להכנת הנחיות"
