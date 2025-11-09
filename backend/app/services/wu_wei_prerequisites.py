@@ -69,7 +69,7 @@ class WuWeiPrerequisites:
         has_concerns = len(concerns) >= 2
 
         # Check for developmental history in concern_description
-        concern_description = context.get("concern_description", "")
+        concern_description = context.get("concern_description") or ""
         has_developmental_history = len(concern_description) > 50  # Has substantial concern details
 
         # Strengths
@@ -79,7 +79,7 @@ class WuWeiPrerequisites:
         has_strengths = len(strengths) >= 2
 
         # Contextual info
-        other_info = context.get("other_info", "")
+        other_info = context.get("other_info") or ""
         has_context = len(other_info) > 30  # Has some context
 
         # Message count
