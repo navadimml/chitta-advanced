@@ -106,7 +106,31 @@ class CardGenerator:
             if condition_key in behavioral_flags:
                 continue
 
-            # Handle dotted notation for nested attributes (e.g., "baseline_parent_report.exists")
+            # 🌟 Wu Wei: Special handling for .exists checks (artifact existence)
+            # When checking "baseline_parent_report.exists: false", if artifact is missing,
+            # treat it as exists=False (not None)
+            if ".exists" in condition_key:
+                artifact_path = condition_key.replace(".exists", "")
+                artifact_value = self._get_nested_value(context, artifact_path)
+
+                # Determine if artifact exists
+                # If artifact is missing (None) or has no "exists" field, consider exists=False
+                if artifact_value is None:
+                    actual_exists = False
+                elif isinstance(artifact_value, dict) and "exists" in artifact_value:
+                    actual_exists = bool(artifact_value.get("exists"))
+                else:
+                    # Artifact object exists but no explicit "exists" field
+                    actual_exists = True
+
+                expected_exists = bool(condition_value)
+
+                if actual_exists != expected_exists:
+                    return False
+
+                continue  # Condition checked, move to next
+
+            # Handle dotted notation for nested attributes (e.g., "artifacts.video_guidelines.status")
             if "." in condition_key:
                 context_value = self._get_nested_value(context, condition_key)
             else:
@@ -285,6 +309,13 @@ class CardGenerator:
                 value = context.get(base_field, "")
 
                 if value:
+                    # Convert lists to string (join with newlines)
+                    if isinstance(value, list):
+                        value = "\n".join(str(item) for item in value)
+
+                    # Ensure value is string
+                    value = str(value)
+
                     preview = value[:150]
                     if len(value) > 150:
                         # Try to cut at sentence boundary
