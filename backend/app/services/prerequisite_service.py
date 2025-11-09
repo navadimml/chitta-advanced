@@ -7,12 +7,18 @@ This service implements the "conversation over prerequisite graph" architecture:
 - Provides contextual explanations when actions aren't possible
 - No stages - just dependencies and current capabilities
 
-🌟 Wu Wei Architecture: Now uses action_registry for config-driven prerequisite checks!
+🌟 Wu Wei Architecture: Now uses pure dependency graph evaluation!
 """
 
 import logging
 from typing import Dict, Any, Tuple, List, Optional
 from dataclasses import dataclass
+
+# 🌟 Wu Wei: Import pure dependency graph evaluator
+from app.services.wu_wei_prerequisites import (
+    get_wu_wei_prerequisites,
+    PrerequisiteEvaluation
+)
 
 # Wu Wei Architecture: Import config-driven action registry
 from app.config.action_registry import (
@@ -50,15 +56,202 @@ class PrerequisiteService:
     """
 
     def __init__(self):
-        logger.info("PrerequisiteService initialized")
+        self.wu_wei = get_wu_wei_prerequisites()
+        logger.info("PrerequisiteService initialized with Wu Wei dependency graph")
+
+    # ========================================
+    # 🌟 Wu Wei Methods (Pure Dependency Graph)
+    # ========================================
+
+    def check_knowledge_richness(self, context: Dict[str, Any]) -> PrerequisiteEvaluation:
+        """
+        🌟 Wu Wei: Check if knowledge is rich enough for guidelines generation
+
+        This is a QUALITATIVE check, not quantitative (no "completeness >= 80%")
+
+        Args:
+            context: Session context with extracted data
+
+        Returns:
+            PrerequisiteEvaluation with met=True/False
+        """
+        return self.wu_wei.evaluate_knowledge_richness(context)
+
+    def check_artifact_prerequisites(
+        self,
+        prerequisites: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> PrerequisiteEvaluation:
+        """
+        🌟 Wu Wei: Check if prerequisites from lifecycle_events.yaml are met
+
+        Supports all prerequisite types:
+        - knowledge_is_rich: true
+        - baseline_parent_report.exists: false
+        - artifacts.video_guidelines.status: "ready"
+        - uploaded_video_count: ">= 3"
+        - OR/AND logic
+
+        Args:
+            prerequisites: Prerequisites dict from lifecycle_events.yaml
+            context: Session context
+
+        Returns:
+            PrerequisiteEvaluation combining all checks
+        """
+        return self.wu_wei.evaluate_prerequisites(prerequisites, context)
+
+    def check_capability_available(
+        self,
+        capability_name: str,
+        capability_prerequisites: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> Tuple[bool, List[str]]:
+        """
+        🌟 Wu Wei: Check if a capability is currently available
+
+        Args:
+            capability_name: Capability name from lifecycle_events.yaml
+            capability_prerequisites: Prerequisites dict for this capability
+            context: Session context
+
+        Returns:
+            Tuple of (available, missing_prerequisites)
+        """
+        if not capability_prerequisites:
+            # No prerequisites = always available
+            return (True, [])
+
+        result = self.check_artifact_prerequisites(capability_prerequisites, context)
+
+        logger.info(
+            f"Capability '{capability_name}' check: "
+            f"available={result.met}, missing={result.missing}"
+        )
+
+        return (result.met, result.missing)
+
+    def get_context_for_cards(self, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        🌟 Wu Wei: Build context dict for card_generator to evaluate display_conditions
+
+        This transforms session data into the format that cards expect for
+        checking prerequisites like "baseline_parent_report.exists: false"
+
+        Args:
+            session_data: Raw session data from database
+
+        Returns:
+            Context dict with artifacts, flags, and extracted data
+        """
+        # Extract core info
+        extracted_data = session_data.get("extracted_data", {})
+        message_count = session_data.get("message_count", 0)
+
+        # Build artifacts structure from session
+        artifacts = {}
+
+        # Check if baseline_parent_report exists
+        if session_data.get("parent_report_id"):
+            artifacts["baseline_parent_report"] = {
+                "exists": True,
+                "status": "ready",
+                "artifact_id": session_data.get("parent_report_id")
+            }
+
+        # Check if video_guidelines exist
+        if session_data.get("video_guidelines"):
+            artifacts["video_guidelines"] = {
+                "exists": True,
+                "status": session_data.get("video_guidelines_status", "ready"),
+                "content": session_data.get("video_guidelines")
+            }
+
+        # Build flags
+        re_assessment_active = session_data.get("re_assessment_active", False)
+
+        # Build comprehensive context
+        context = {
+            # Extracted data fields
+            "child_name": extracted_data.get("child_name"),
+            "age": extracted_data.get("age") or extracted_data.get("child_age"),
+            "primary_concerns": extracted_data.get("primary_concerns"),
+            "concerns": extracted_data.get("concerns"),
+            "concern_description": extracted_data.get("concern_description"),
+            "strengths": extracted_data.get("strengths"),
+            "other_info": extracted_data.get("other_info"),
+
+            # Conversation state
+            "message_count": message_count,
+
+            # Artifacts (for prerequisite checking)
+            "artifacts": artifacts,
+
+            # Flags
+            "re_assessment": {
+                "active": re_assessment_active
+            },
+
+            # Video counts
+            "uploaded_video_count": session_data.get("uploaded_video_count", 0),
+
+            # User actions tracking
+            "user_actions": {
+                "viewed_guidelines": session_data.get("viewed_guidelines", False),
+                "declined_guidelines_offer": session_data.get("declined_guidelines_offer", False),
+            },
+
+            # Report status
+            "reports_status": "ready" if session_data.get("parent_report_id") else "pending",
+
+            # Video analysis status
+            "video_analysis_status": session_data.get("video_analysis_status", "pending"),
+
+            # DEPRECATED: Phase (for backwards compatibility)
+            "phase": self._infer_emergent_state(session_data),
+        }
+
+        # Add knowledge depth indicator using Wu Wei evaluator
+        knowledge_eval = self.check_knowledge_richness(context)
+        context["knowledge_is_rich"] = knowledge_eval.met
+
+        return context
+
+    def _infer_emergent_state(self, session_data: Dict[str, Any]) -> str:
+        """
+        🌟 Wu Wei: Infer emergent state from artifacts (for backwards compatibility)
+
+        States are NOT enforced - they're just detected based on what exists.
+
+        Returns:
+            "screening" | "ongoing" | "re_assessment" (legacy phase names)
+        """
+        has_baseline_report = bool(session_data.get("parent_report_id"))
+        re_assessment_active = session_data.get("re_assessment_active", False)
+
+        if re_assessment_active:
+            return "re_assessment"
+        elif has_baseline_report:
+            return "ongoing"
+        else:
+            return "screening"
+
+    # ========================================
+    # DEPRECATED Methods (Backwards Compatibility)
+    # ========================================
+    # These methods use the OLD phase-based, completeness-threshold logic.
+    # They're kept for backwards compatibility but should NOT be used in new code.
+    # Use Wu Wei methods above instead.
 
     def check_state(self, context: Dict[str, Any]) -> Dict[PrerequisiteType, bool]:
         """
-        Check which prerequisites are currently met
+        DEPRECATED: Check which prerequisites are currently met (old completeness-based logic)
+
+        🌟 Wu Wei Alternative: Use check_knowledge_richness() or check_artifact_prerequisites()
 
         Args:
             context: Current interview/family state with:
-                - completeness: float (0.0 to 1.0)
+                - completeness: float (0.0 to 1.0)  # DEPRECATED
                 - video_count: int
                 - analysis_complete: bool
                 - reports_available: bool
@@ -66,20 +259,25 @@ class PrerequisiteService:
         Returns:
             Dict mapping each PrerequisiteType to True/False
         """
+        logger.warning(
+            "check_state() is DEPRECATED - uses completeness thresholds. "
+            "Use Wu Wei methods (check_knowledge_richness, check_artifact_prerequisites) instead."
+        )
+
         completeness = context.get("completeness", 0.0)
         video_count = context.get("video_count", 0)
         analysis_complete = context.get("analysis_complete", False)
         reports_available = context.get("reports_available", False)
 
         state = {
-            PrerequisiteType.INTERVIEW_COMPLETE: completeness >= 0.80,  # 80%+ = complete
+            PrerequisiteType.INTERVIEW_COMPLETE: completeness >= 0.80,  # DEPRECATED: Quantitative threshold
             PrerequisiteType.VIDEOS_UPLOADED: video_count > 0,
             PrerequisiteType.MINIMUM_VIDEOS: video_count >= 3,
             PrerequisiteType.ANALYSIS_COMPLETE: analysis_complete,
             PrerequisiteType.REPORTS_AVAILABLE: reports_available,
         }
 
-        logger.debug(f"Current state: {state}")
+        logger.debug(f"[DEPRECATED] Current state: {state}")
         return state
 
     def check_action_feasible(
