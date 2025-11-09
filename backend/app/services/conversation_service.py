@@ -632,61 +632,32 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             completeness_check
         )
 
-        # 9. Check if video guidelines should be generated
-        if (session.completeness >= 0.80 and
-            not session.video_guidelines_generated and
-            completeness_check and
-            completeness_check.get("ready_to_complete")):
+        # 9. 🌟 Wu Wei: Check if knowledge is rich enough to offer guidelines
+        # This is a QUALITATIVE check, not quantitative (no "completeness >= 80%")
+        if not session.video_guidelines_generated:
+            # Build session data for prerequisite check
+            session_data = self._build_session_data_dict(family_id, session)
 
-            # Mark as generated (actual generation would happen here)
-            self.interview_service.mark_video_guidelines_generated(family_id)
+            # Check if knowledge is rich using Wu Wei evaluator
+            knowledge_check = self.prerequisite_service.check_knowledge_richness(session_data)
 
-            # Add video upload card
-            context_cards.append({
-                "title": "הנחיות צילום מוכנות",
-                "subtitle": "מותאמות במיוחד עבור הצרכים שסיפרת לי",
-                "icon": "video",
-                "status": "new",
-                "action": "view_video_guidelines"
-            })
+            if knowledge_check.met:
+                logger.info(
+                    f"🌟 Wu Wei: Knowledge is rich! Ready to offer guidelines. "
+                    f"Details: {knowledge_check.details}"
+                )
 
-        # 🌟 Wu Wei Architecture: Check for phase transitions
-        session = self.interview_service.get_or_create_session(family_id)
-        current_phase = session.phase
+                # Mark as generated (actual generation would happen here)
+                self.interview_service.mark_video_guidelines_generated(family_id)
 
-        # Build context for phase transition check
-        transition_context = {
-            "completeness": session.completeness,
-            "child_name": data.child_name or "הילד/ה",
-            "video_count": 0,  # TODO: Get from actual video storage
-            "reports_ready": False,  # TODO: Get from actual report status
-            "user_requested_re_assessment": False,  # TODO: Track from user intent
-            "updated_reports_ready": False  # TODO: Track from re-assessment flow
-        }
+                # Add guidelines offer card (will appear through card system automatically)
+                logger.info("Guidelines offer card will appear through dependency-based card system")
 
-        # Check if phase transition should occur
-        phase_transition = self.phase_manager.check_transition_trigger(
-            current_phase,
-            transition_context
-        )
-
-        if phase_transition:
-            # Update session phase
-            session.phase = phase_transition.to_phase
-            session.updated_at = datetime.now()
-
-            logger.info(
-                f"🌟 Phase transition: {phase_transition.from_phase} → "
-                f"{phase_transition.to_phase} (trigger: {phase_transition.trigger})"
-            )
-
-            # Get transition message
-            transition_message = self.phase_manager.get_transition_message(
-                phase_transition,
-                transition_context
-            )
-
-            logger.info(f"Transition message: {transition_message[:100]}...")
+            else:
+                logger.debug(
+                    f"Knowledge not yet rich for guidelines. "
+                    f"Missing: {knowledge_check.missing}"
+                )
 
         # 10. Return comprehensive response
         return {
@@ -701,6 +672,43 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             "stats": self.interview_service.get_session_stats(family_id)
         }
 
+    def _build_session_data_dict(
+        self,
+        family_id: str,
+        session: 'InterviewState'
+    ) -> Dict[str, Any]:
+        """
+        🌟 Wu Wei: Build session_data dict for prerequisite_service
+
+        Transforms InterviewState → session_data format expected by
+        prerequisite_service.get_context_for_cards()
+
+        Args:
+            family_id: Family identifier
+            session: InterviewState object
+
+        Returns:
+            Session data dict with extracted_data, artifacts, flags, etc.
+        """
+        # Get extracted data as dict
+        try:
+            extracted_dict = session.extracted_data.model_dump()
+        except AttributeError:
+            extracted_dict = session.extracted_data.dict()
+
+        return {
+            "family_id": family_id,
+            "extracted_data": extracted_dict,
+            "message_count": len(session.conversation_history),
+            "video_guidelines": session.video_guidelines_generated,
+            "video_guidelines_status": "ready" if session.video_guidelines_generated else "pending",
+            "parent_report_id": None,  # TODO: Track when report is generated
+            "uploaded_video_count": 0,  # TODO: Get from video storage
+            "re_assessment_active": False,  # TODO: Track from flags
+            "viewed_guidelines": False,  # TODO: Track user actions
+            "declined_guidelines_offer": False,  # TODO: Track user actions
+        }
+
     def _generate_context_cards(
         self,
         family_id: str,
@@ -709,69 +717,32 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
         completeness_check: Optional[Dict]
     ) -> List[Dict[str, Any]]:
         """
-        🌟 Wu Wei Architecture: Generate context cards using card_generator
+        🌟 Wu Wei Architecture: Generate context cards using prerequisite_service
 
-        Now config-driven from context_cards.yaml instead of hardcoded logic!
+        Now uses prerequisite_service.get_context_for_cards() which builds context
+        with artifacts, flags, and prerequisites - all aligned with lifecycle_events.yaml!
 
-        Context is built automatically from all available data - no need to manually
-        list fields when adding new cards in YAML!
+        Args:
+            family_id: Family identifier
+            completeness: DEPRECATED (kept for compatibility)
+            action_requested: Action user requested (if any)
+            completeness_check: DEPRECATED (kept for compatibility)
+
+        Returns:
+            List of card dicts for frontend
         """
         session = self.interview_service.get_or_create_session(family_id)
-        data = session.extracted_data
 
-        # 🌟 Wu Wei: Automatically include ALL extracted data fields
-        # Uses Pydantic's dict() to get all fields without manual listing
-        # This way, new YAML cards can reference any field without code changes!
-        try:
-            # Try Pydantic v2 method first
-            extracted_dict = data.model_dump()
-        except AttributeError:
-            # Fall back to Pydantic v1 method
-            extracted_dict = data.dict()
+        # 🌟 Wu Wei: Build session_data and let prerequisite_service build context
+        session_data = self._build_session_data_dict(family_id, session)
 
-        # Build context for card_generator (matching display_conditions in YAML)
-        context = {
-            # Phase information
-            "phase": session.phase,
+        # Get Wu Wei context (includes artifacts, flags, knowledge_is_rich, etc.)
+        context = self.prerequisite_service.get_context_for_cards(session_data)
 
-            # Interview progress
-            "completeness": completeness,
-            "message_count": len(session.conversation_history),
-
-            # Parent info (not in extracted_data)
-            "parent_name": "הורה",  # TODO: Get from user profile
-
-            # Video-related state
-            "uploaded_video_count": 0,  # TODO: Get from video storage
-            "video_guidelines_status": "ready" if session.video_guidelines_generated else "not_ready",
-            "video_analysis_status": "pending",  # TODO: Get from analysis service
-
-            # Reports state
-            "reports_status": "not_ready",  # TODO: Get from report service
-            "reports_available": False,  # TODO: Get from artifacts
-            "user_viewed_report": False,  # TODO: Track user actions
-
-            # Journal state (for future)
-            "journal_entry_count": 0,  # TODO: Get from journal service
-
-            # Ongoing phase state
-            "has_new_follow_up_summary": False,  # TODO: Get from analysis
-            "user_viewed_summary": False,  # TODO: Track user actions
-            "expert_search_count": 0,  # TODO: Track searches
-
-            # Re-assessment state
-            "updated_reports_status": "not_ready",  # TODO: Get from re-assessment
-            "user_viewed_updated_report": False,  # TODO: Track user actions
-            "phase_entry_message_shown": False,  # TODO: Track phase transitions
-
-            # Current interaction context
-            "action_requested": action_requested,
-            "completeness_check": completeness_check,
-
-            # 🌟 Wu Wei: Merge in ALL extracted data automatically!
-            # Now new YAML cards can reference any extraction field without code changes
-            **extracted_dict,
-        }
+        # Add current interaction context (not in prerequisite_service)
+        context["action_requested"] = action_requested
+        context["completeness_check"] = completeness_check
+        context["completeness"] = completeness  # DEPRECATED but may be used by old cards
 
         # 🌟 Use card_generator to get config-driven cards
         cards = self.card_generator.get_visible_cards(context)
