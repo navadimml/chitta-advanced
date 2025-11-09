@@ -151,17 +151,32 @@ class PrerequisiteService:
         # Build artifacts structure from session
         artifacts = {}
 
-        # Check if baseline_parent_report exists
-        if session_data.get("parent_report_id"):
+        # 🌟 Wu Wei: Check actual artifact objects from session
+        session_artifacts = session_data.get("artifacts", {})
+
+        # Build artifact references for card evaluation
+        for artifact_id, artifact_obj in session_artifacts.items():
+            if hasattr(artifact_obj, 'exists'):
+                # It's an Artifact object
+                artifacts[artifact_id] = {
+                    "exists": artifact_obj.exists,
+                    "status": artifact_obj.status,
+                    "artifact_id": artifact_obj.artifact_id
+                }
+            elif isinstance(artifact_obj, dict):
+                # It's already a dict reference
+                artifacts[artifact_id] = artifact_obj
+
+        # DEPRECATED: Backwards compatibility - check old field names
+        if session_data.get("parent_report_id") and "baseline_parent_report" not in artifacts:
             artifacts["baseline_parent_report"] = {
                 "exists": True,
                 "status": "ready",
                 "artifact_id": session_data.get("parent_report_id")
             }
 
-        # Check if video_guidelines exist
-        if session_data.get("video_guidelines"):
-            artifacts["video_guidelines"] = {
+        if session_data.get("video_guidelines") and "baseline_video_guidelines" not in artifacts:
+            artifacts["baseline_video_guidelines"] = {
                 "exists": True,
                 "status": session_data.get("video_guidelines_status", "ready"),
                 "content": session_data.get("video_guidelines")

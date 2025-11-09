@@ -18,6 +18,7 @@ from .llm.factory import create_llm_provider
 from .interview_service import get_interview_service, InterviewService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
+from .artifact_generation_service import ArtifactGenerationService
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.dynamic_interview_prompt import build_dynamic_interview_prompt
 from ..prompts.strategic_advisor import get_strategic_guidance
@@ -50,7 +51,8 @@ class ConversationService:
         prerequisite_service: Optional[PrerequisiteService] = None,
         knowledge_service: Optional[KnowledgeService] = None,
         phase_manager: Optional[PhaseManager] = None,
-        card_generator: Optional[CardGenerator] = None
+        card_generator: Optional[CardGenerator] = None,
+        artifact_generation_service: Optional[ArtifactGenerationService] = None
     ):
         self.llm = llm_provider or create_llm_provider()
 
@@ -64,6 +66,7 @@ class ConversationService:
         self.knowledge_service = knowledge_service or get_knowledge_service()
         self.phase_manager = phase_manager or get_phase_manager()  # 🌟 Wu Wei: Config-driven phase management
         self.card_generator = card_generator or get_card_generator()  # 🌟 Wu Wei: Config-driven UI cards
+        self.artifact_service = artifact_generation_service or ArtifactGenerationService()  # 🌟 Wu Wei: Artifact generation
 
         logger.info(f"ConversationService initialized:")
         logger.info(f"  - Conversation LLM: {self.llm.get_provider_name()}")
@@ -634,7 +637,7 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
 
         # 9. 🌟 Wu Wei: Check if knowledge is rich enough to offer guidelines
         # This is a QUALITATIVE check, not quantitative (no "completeness >= 80%")
-        if not session.video_guidelines_generated:
+        if not session.has_artifact("baseline_video_guidelines"):
             # Build session data for prerequisite check
             session_data = self._build_session_data_dict(family_id, session)
 
@@ -643,15 +646,26 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
 
             if knowledge_check.met:
                 logger.info(
-                    f"🌟 Wu Wei: Knowledge is rich! Ready to offer guidelines. "
+                    f"🌟 Wu Wei: Knowledge is rich! Generating video guidelines. "
                     f"Details: {knowledge_check.details}"
                 )
 
-                # Mark as generated (actual generation would happen here)
-                self.interview_service.mark_video_guidelines_generated(family_id)
+                # 🎬 Generate video guidelines artifact
+                guidelines_artifact = await self.artifact_service.generate_video_guidelines(session_data)
 
-                # Add guidelines offer card (will appear through card system automatically)
-                logger.info("Guidelines offer card will appear through dependency-based card system")
+                # Store artifact in session
+                session.add_artifact(guidelines_artifact)
+
+                if guidelines_artifact.is_ready:
+                    logger.info(
+                        f"✅ Video guidelines artifact created successfully! "
+                        f"Content length: {len(guidelines_artifact.content)} chars"
+                    )
+                    # Guidelines offer card will appear through dependency-based card system
+                else:
+                    logger.error(
+                        f"❌ Video guidelines generation failed: {guidelines_artifact.error_message}"
+                    )
 
             else:
                 logger.debug(
@@ -700,9 +714,16 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             "family_id": family_id,
             "extracted_data": extracted_dict,
             "message_count": len(session.conversation_history),
+
+            # 🌟 Wu Wei: Include actual artifacts from session
+            "artifacts": session.artifacts,  # Dict[str, Artifact]
+
+            # DEPRECATED: Old field names (for backwards compatibility)
             "video_guidelines": session.video_guidelines_generated,
             "video_guidelines_status": "ready" if session.video_guidelines_generated else "pending",
-            "parent_report_id": None,  # TODO: Track when report is generated
+            "parent_report_id": session.get_artifact("baseline_parent_report").artifact_id if session.has_artifact("baseline_parent_report") else None,
+
+            # TODO fields
             "uploaded_video_count": 0,  # TODO: Get from video storage
             "re_assessment_active": False,  # TODO: Track from flags
             "viewed_guidelines": False,  # TODO: Track user actions
