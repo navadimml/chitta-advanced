@@ -152,6 +152,47 @@ class CardGenerator:
         }
         return [translations.get(c, c) for c in concerns]
 
+    def _get_knowledge_depth_indicator(self, context: Dict[str, Any]) -> tuple[str, str]:
+        """
+        🌟 Wu Wei: Calculate qualitative knowledge depth indicator.
+
+        Returns qualitative text based on conversation richness, NOT percentages.
+        This respects Wu Wei principle of flow without rigid measurement.
+
+        Args:
+            context: Session context with extracted data
+
+        Returns:
+            Tuple of (emoji, text_in_hebrew)
+        """
+        # Check what information we have
+        has_basic_info = bool(context.get("child_name") and context.get("age"))
+        has_concerns = bool(context.get("primary_concerns") or context.get("concerns"))
+        has_strengths = bool(context.get("strengths"))
+        has_context = bool(context.get("other_info"))
+        message_count = context.get("message_count", 0)
+
+        # Qualitative assessment based on knowledge richness
+        if not has_basic_info:
+            return ("👋", "מתחילים להכיר")
+        elif has_basic_info and not has_concerns and message_count < 5:
+            return ("💬", "השיחה מתחילה")
+        elif has_concerns and not has_strengths and message_count < 10:
+            return ("🌱", "השיחה מתפתחת")
+        elif has_concerns and has_strengths and not has_context:
+            return ("💭", "השיחה מתעמקת")
+        elif has_concerns and has_strengths and has_context:
+            return ("✨", "השיחה עשירה")
+        else:
+            # Default based on message count
+            if message_count < 5:
+                return ("💬", "השיחה מתחילה")
+            elif message_count < 10:
+                return ("🌱", "השיחה מתפתחת")
+            else:
+                return ("💭", "השיחה מתעמקת")
+
+
     def _apply_formatters(
         self,
         text: str,
@@ -306,7 +347,17 @@ class CardGenerator:
                         formatted = context.get("child_name", "הילד/ה")
                     elif placeholder == "child_age":
                         formatted = str(context.get("child_age", ""))
+                    elif placeholder == "knowledge_depth_indicator_emoji":
+                        # 🌟 Wu Wei: Qualitative depth indicator (emoji only)
+                        emoji, _ = self._get_knowledge_depth_indicator(context)
+                        formatted = emoji
+                    elif placeholder == "knowledge_depth_indicator_text":
+                        # 🌟 Wu Wei: Qualitative depth indicator (text only)
+                        _, text = self._get_knowledge_depth_indicator(context)
+                        formatted = text
                     elif placeholder == "completeness_percentage":
+                        # DEPRECATED: Legacy support for old templates
+                        # Wu Wei prefers qualitative indicators
                         formatted = f"{int(context.get('completeness', 0) * 100)}"
                     elif placeholder == "uploaded_count":
                         formatted = str(context.get("uploaded_video_count", 0))
