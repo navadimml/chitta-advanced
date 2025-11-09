@@ -12,10 +12,13 @@ This service:
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Wu Wei Architecture: Import schema registry for config-driven completeness
 from app.config.schema_registry import get_schema_registry, calculate_completeness as config_calculate_completeness
+
+# Wu Wei Architecture: Import artifact models
+from app.models.artifact import Artifact
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +48,34 @@ class InterviewState(BaseModel):
     extracted_data: ExtractedData = ExtractedData()
     completeness: float = 0.0  # 0.0 to 1.0
     conversation_history: List[Dict[str, str]] = []  # List of {role, content}
+
+    # 🌟 Wu Wei: Artifact storage (replaces boolean flags)
+    artifacts: Dict[str, Artifact] = Field(default_factory=dict, description="Generated artifacts keyed by artifact_id")
+
+    # DEPRECATED: Use artifacts["video_guidelines"].exists instead
     video_guidelines_generated: bool = False
+
     phase: str = "screening"  # 🌟 Wu Wei: Current workflow phase (screening, ongoing, re_assessment)
     created_at: datetime = datetime.now()
     updated_at: datetime = datetime.now()
+
+    def get_artifact(self, artifact_id: str) -> Optional[Artifact]:
+        """Get artifact by ID, return None if doesn't exist."""
+        return self.artifacts.get(artifact_id)
+
+    def has_artifact(self, artifact_id: str) -> bool:
+        """Check if artifact exists and is ready."""
+        artifact = self.get_artifact(artifact_id)
+        return artifact is not None and artifact.is_ready
+
+    def add_artifact(self, artifact: Artifact):
+        """Add or update an artifact."""
+        self.artifacts[artifact.artifact_id] = artifact
+        self.updated_at = datetime.now()
+
+        # DEPRECATED: Maintain backwards compatibility
+        if artifact.artifact_id == "baseline_video_guidelines" and artifact.is_ready:
+            self.video_guidelines_generated = True
 
 
 class InterviewService:
