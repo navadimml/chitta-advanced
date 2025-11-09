@@ -10,6 +10,7 @@ import ContextualSurface from './components/ContextualSurface';
 import InputArea from './components/InputArea';
 import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
+import DemoBanner from './components/DemoBanner';
 
 // Generate unique family ID (in real app, from auth)
 const FAMILY_ID = 'family_' + Math.random().toString(36).substr(2, 9);
@@ -38,6 +39,7 @@ function App() {
   const [demoMode, setDemoMode] = useState(false);
   const [demoFamilyId, setDemoFamilyId] = useState(null);
   const [demoPaused, setDemoPaused] = useState(false);
+  const [demoCard, setDemoCard] = useState(null);
 
   // Initial greeting on mount
   useEffect(() => {
@@ -50,13 +52,44 @@ function App() {
 
   // 🎬 Demo Mode: Auto-play next message
   const playNextDemoStep = async () => {
-    if (!demoMode || !demoFamilyId || demoPaused) return;
+    if (!demoMode || !demoFamilyId || demoPaused) {
+      console.log('🎬 Skipping step:', { demoMode, demoFamilyId, demoPaused });
+      return;
+    }
 
     try {
+      console.log('🎬 Getting next demo step...');
       const response = await api.getNextDemoStep(demoFamilyId);
 
-      // Wait for delay
-      await new Promise(resolve => setTimeout(resolve, response.message.delay_ms));
+      console.log('🎬 Demo step received:', response.step, '/', response.total_steps);
+
+      // Update demo card (separate from normal cards!)
+      if (response.demo_card) {
+        setDemoCard(response.demo_card);
+      }
+
+      // Check if artifact was generated
+      if (response.artifact_generated) {
+        console.log('🌟 Artifact generated:', response.artifact_generated);
+
+        // Add artifact card to cards array
+        const artifactCard = {
+          card_type: 'artifact',
+          status: 'new',
+          icon: 'FileText',
+          title: 'הנחיות צילום מוכנות!',
+          subtitle: 'לחץ לצפייה בהנחיות מותאמות אישית',
+          action: 'view_guidelines',
+          color: 'green'
+        };
+        setCards(prev => [...prev, artifactCard]);
+      }
+
+      // Wait for delay BEFORE showing message
+      if (response.message.delay_ms > 0) {
+        console.log(`🎬 Waiting ${response.message.delay_ms}ms...`);
+        await new Promise(resolve => setTimeout(resolve, response.message.delay_ms));
+      }
 
       // Add message to UI
       const newMessage = {
@@ -67,28 +100,21 @@ function App() {
 
       setMessages(prev => [...prev, newMessage]);
 
-      // Update demo card
-      if (response.demo_card) {
-        setCards([response.demo_card]);
-      }
-
-      // Check if artifact was generated
-      if (response.artifact_generated) {
-        console.log('🌟 Artifact generated:', response.artifact_generated);
-      }
-
       // Continue to next step if not complete
       if (!response.is_complete) {
-        // Recursive call after a short pause
+        // Schedule next step
         setTimeout(() => playNextDemoStep(), 100);
       } else {
         // Demo complete!
+        console.log('🎬 Demo completed!');
         setDemoMode(false);
         setDemoFamilyId(null);
+        setDemoCard(null);
       }
     } catch (error) {
-      console.error('Error playing demo step:', error);
+      console.error('🎬 Error playing demo step:', error);
       setDemoMode(false);
+      setDemoCard(null);
     }
   };
 
@@ -101,19 +127,38 @@ function App() {
       setDemoMode(false);
       setDemoFamilyId(null);
       setDemoPaused(false);
+      setDemoCard(null);
 
       // Add exit message
       const exitMessage = {
         sender: 'chitta',
-        text: 'Demo stopped. Ready to start your real conversation! 💙',
+        text: 'הדמו הופסק. מוכנה להתחיל את השיחה האמיתית שלך! 💙',
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, exitMessage]);
 
-      // Clear demo card
+      // Clear cards
       setCards([]);
     } catch (error) {
       console.error('Error stopping demo:', error);
+    }
+  };
+
+  // 🎬 Demo Mode: Handle demo actions
+  const handleDemoAction = async (action) => {
+    console.log('🎬 Demo action:', action);
+
+    if (action === 'stop_demo') {
+      await stopDemo();
+    } else if (action === 'pause_demo') {
+      setDemoPaused(true);
+    } else if (action === 'resume_demo') {
+      setDemoPaused(false);
+      // Resume auto-play
+      setTimeout(() => playNextDemoStep(), 100);
+    } else if (action === 'skip_step') {
+      // Skip current delay and play next
+      playNextDemoStep();
     }
   };
 
@@ -149,12 +194,13 @@ function App() {
       if (response.ui_data) {
         // 🎬 Check if demo mode was triggered
         if (response.ui_data.demo_mode) {
+          console.log('🎬 Demo mode triggered!', response.ui_data);
           setDemoMode(true);
           setDemoFamilyId(response.ui_data.demo_family_id);
 
-          // Set demo card
-          if (response.ui_data.cards) {
-            setCards(response.ui_data.cards);
+          // Set demo card (separate state!)
+          if (response.ui_data.cards && response.ui_data.cards.length > 0) {
+            setDemoCard(response.ui_data.cards[0]);
           }
 
           // Set demo suggestions
@@ -164,8 +210,15 @@ function App() {
             ));
           }
 
-          // Start auto-play after a short delay
-          setTimeout(() => playNextDemoStep(), 1000);
+          // Clear normal cards to start fresh
+          setCards([]);
+
+          // Start auto-play immediately
+          console.log('🎬 Starting auto-play in 500ms...');
+          setTimeout(() => {
+            console.log('🎬 Triggering first step...');
+            playNextDemoStep();
+          }, 500);
 
           return; // Don't process normal flow
         }
@@ -208,20 +261,6 @@ function App() {
   // Handle card click
   const handleCardClick = async (action) => {
     if (!action) return; // Status cards have no action
-
-    // 🎬 Demo Mode Actions
-    if (action === 'stop_demo') {
-      await stopDemo();
-      return;
-    } else if (action === 'pause_demo') {
-      setDemoPaused(!demoPaused);
-      return;
-    } else if (action === 'skip_step') {
-      if (demoMode && demoFamilyId) {
-        playNextDemoStep();
-      }
-      return;
-    }
 
     if (action === 'upload') {
       setActiveDeepView('upload');
@@ -432,6 +471,15 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* 🎬 Demo Mode Banner */}
+      {demoMode && demoCard && (
+        <DemoBanner
+          demoCard={demoCard}
+          onAction={handleDemoAction}
+          isPaused={demoPaused}
+        />
+      )}
 
       {/* Conversation Transcript */}
       <ConversationTranscript messages={messages} isTyping={isTyping} />
