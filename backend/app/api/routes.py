@@ -65,6 +65,29 @@ class ViewContentResponse(BaseModel):
     content: Optional[dict] = None
     reason_unavailable: Optional[str] = None
 
+# === Wu Wei: Artifact Response Models ===
+
+class ArtifactResponse(BaseModel):
+    """Response model for artifact"""
+    artifact_id: str
+    artifact_type: str
+    status: str  # pending, generating, ready, error
+    content: Optional[str] = None
+    content_format: str = "markdown"
+    created_at: str
+    ready_at: Optional[str] = None
+    error_message: Optional[str] = None
+
+class SessionArtifactsResponse(BaseModel):
+    """Response model for session artifacts list"""
+    family_id: str
+    artifacts: List[dict]
+
+class ArtifactActionRequest(BaseModel):
+    """Request model for artifact user actions"""
+    family_id: str
+    action: str  # "view", "download", "decline"
+
 # === Endpoints ===
 
 @router.get("/")
@@ -100,13 +123,28 @@ async def send_message(request: SendMessageRequest):
         else:
             session["current_stage"] = "interview"
 
+        # 🌟 Wu Wei: Get artifacts for frontend
+        interview_service = get_interview_service()
+        interview_session = interview_service.get_or_create_session(request.family_id)
+
+        # Convert artifacts to simplified format for UI
+        artifacts_for_ui = {}
+        for artifact_id, artifact in interview_session.artifacts.items():
+            artifacts_for_ui[artifact_id] = {
+                "exists": artifact.exists,
+                "status": artifact.status,
+                "artifact_type": artifact.artifact_type,
+                "ready_at": artifact.ready_at.isoformat() if artifact.ready_at else None
+            }
+
         # Build UI data with real data from conversation service
         ui_data = {
             "suggestions": _generate_suggestions_from_state(result),
             "cards": result.get("context_cards", []),
             "progress": result["completeness"] / 100,  # Convert to 0-1 scale
             "extracted_data": result.get("extracted_data", {}),
-            "stats": result.get("stats", {})
+            "stats": result.get("stats", {}),
+            "artifacts": artifacts_for_ui  # 🌟 Wu Wei: Include artifacts
         }
 
         return SendMessageResponse(
@@ -878,3 +916,124 @@ async def get_view_content(view_id: str, family_id: str):
             available=False,
             reason_unavailable="View not available in current phase or missing required data"
         )
+
+
+# === Wu Wei Architecture: Artifact Endpoints ===
+
+@router.get("/session/{family_id}/artifacts", response_model=SessionArtifactsResponse)
+async def get_session_artifacts(family_id: str):
+    """
+    🌟 Wu Wei: Get all artifacts for a session
+
+    Returns list of all artifacts (guidelines, reports, etc.) that have been
+    generated for this family session.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    interview_service = get_interview_service()
+    session = interview_service.get_or_create_session(family_id)
+
+    # Convert artifacts to dict format for response
+    artifacts_list = []
+    for artifact_id, artifact in session.artifacts.items():
+        artifacts_list.append({
+            "artifact_id": artifact.artifact_id,
+            "artifact_type": artifact.artifact_type,
+            "status": artifact.status,
+            "content_format": artifact.content_format,
+            "created_at": artifact.created_at.isoformat(),
+            "ready_at": artifact.ready_at.isoformat() if artifact.ready_at else None,
+            "exists": artifact.exists,
+            "is_ready": artifact.is_ready,
+            "has_error": artifact.has_error,
+            "error_message": artifact.error_message
+        })
+
+    return SessionArtifactsResponse(
+        family_id=family_id,
+        artifacts=artifacts_list
+    )
+
+
+@router.get("/artifacts/{artifact_id}", response_model=ArtifactResponse)
+async def get_artifact(artifact_id: str, family_id: str):
+    """
+    🌟 Wu Wei: Get specific artifact content
+
+    Returns the full artifact including content if it's ready.
+    Artifact IDs: baseline_video_guidelines, baseline_parent_report, etc.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    interview_service = get_interview_service()
+    session = interview_service.get_or_create_session(family_id)
+
+    # Get artifact
+    artifact = session.get_artifact(artifact_id)
+    if not artifact:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Artifact '{artifact_id}' not found for family {family_id}"
+        )
+
+    return ArtifactResponse(
+        artifact_id=artifact.artifact_id,
+        artifact_type=artifact.artifact_type,
+        status=artifact.status,
+        content=artifact.content if artifact.is_ready else None,
+        content_format=artifact.content_format,
+        created_at=artifact.created_at.isoformat(),
+        ready_at=artifact.ready_at.isoformat() if artifact.ready_at else None,
+        error_message=artifact.error_message
+    )
+
+
+@router.post("/artifacts/{artifact_id}/action")
+async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
+    """
+    🌟 Wu Wei: Track user actions on artifacts
+
+    Actions: "view", "download", "decline"
+    This tracks user engagement with generated artifacts.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    interview_service = get_interview_service()
+    session = interview_service.get_or_create_session(request.family_id)
+
+    # Verify artifact exists
+    artifact = session.get_artifact(artifact_id)
+    if not artifact:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Artifact '{artifact_id}' not found"
+        )
+
+    # Track action in metadata
+    if "user_actions" not in artifact.metadata:
+        artifact.metadata["user_actions"] = []
+
+    artifact.metadata["user_actions"].append({
+        "action": request.action,
+        "timestamp": datetime.now().isoformat()
+    })
+
+    # Update artifact
+    session.add_artifact(artifact)
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"📊 Artifact action tracked: {request.action} on {artifact_id} "
+        f"for family {request.family_id}"
+    )
+
+    return {
+        "success": True,
+        "artifact_id": artifact_id,
+        "action": request.action,
+        "tracked_at": datetime.now().isoformat()
+    }
