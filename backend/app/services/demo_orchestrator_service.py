@@ -96,18 +96,11 @@ class DemoOrchestratorService:
             },
 
             messages=[
-                # Opening - Parent initiates (as they do in real sessions)
-                DemoMessage(
-                    role="user",
-                    content="שלום, אני רוצה לדבר על הבן שלי",
-                    delay_ms=0
-                ),
-
-                # Chitta welcomes and asks for name
+                # Opening - Chitta greets FIRST (exactly like real app!)
                 DemoMessage(
                     role="assistant",
-                    content="שלום! אני צ'יטה 🌟 אשמח מאוד להכיר ולעזור. מה שמו?",
-                    delay_ms=2000
+                    content="שלום! אני צ'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?",
+                    delay_ms=0  # First message appears immediately
                 ),
 
                 # Parent shares name and age
@@ -214,7 +207,7 @@ class DemoOrchestratorService:
                 ),
             ],
 
-            artifact_trigger_at_step=12  # After parent shares goals
+            artifact_trigger_at_step=11  # After parent shares goals (step 11 now)
         )
 
         return scenarios
