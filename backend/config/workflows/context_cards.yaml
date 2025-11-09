@@ -81,58 +81,35 @@ cards:
     dismissible: true
     auto_dismiss_after_action: true
 
-  interview_progress_card:
-    name: "התקדמות הראיון"
-    name_en: "Interview Progress"
-    card_type: progress
+  conversation_depth_card:
+    name: "עומק השיחה"
+    name_en: "Conversation Depth"
+    card_type: guidance
     priority: 90
 
-    # When to show
+    # When to show - during active conversation
     display_conditions:
       phase: screening
-      completeness: "< 0.80"
-      message_count: "> 0"  # After any message (was > 2, caused gap)
+      message_count: "> 0"
+      artifacts.video_guidelines.exists: false  # Before guidelines ready
 
-    # Card content (dynamic based on state)
+    # Card content (qualitative, not percentage!)
     content:
-      title: "איפה אנחנו בתהליך?"
-      body_template: |
-        **השלמנו {completeness_percentage}% מהראיון** 📊
+      # Uses knowledge_depth_indicator formatter (calculated dynamically)
+      # Returns: {emoji, text} based on conversation richness
+      # Examples:
+      #   "👋 התחלנו להכיר"
+      #   "💭 מכירים את {child_name}..."
+      #   "💭 השיחה מתעמקת"
+      #   "💙 הכרנו את {child_name}"
+      title: "{knowledge_depth_indicator_emoji} {knowledge_depth_indicator_text}"
+      body: "תודה על השיתוף 💙"
 
-        {progress_description}
-
-        **עוד כמה דברים שחשוב לי לדעת:**
-        {missing_areas}
-
-      # Dynamic sections
-      progress_description_by_range:
-        "0-30":
-          text: "אנחנו בהתחלה - מכירים לאט לאט את {child_name}."
-          tone: "patient"
-        "30-60":
-          text: "מתקדמים יפה! אני כבר מתחילה להבין את {child_name}."
-          tone: "encouraging"
-        "60-80":
-          text: "כמעט סיימנו! יש לי תמונה די טובה."
-          tone: "excited"
-
-      # What's missing (generated from schema weights)
-      missing_areas_generation:
-        source: extraction_schema
-        show_top_n: 3
-        format: "• {field_description_he}"
-
-      footer: "אין צורך למהר - נעשה את זה בקצב שנוח לך 💙"
-
-    # Available actions - removed to make card informational only
-    # available_actions:
-    #   - continue_interview
-    #   - add_journal_entry
-    #   - take_break  # Save and come back later
+      footer: "אפשר לשתף עוד או לשאול כל שאלה"
 
     # Behavior
-    dismissible: false  # Always visible during interview
-    updates_dynamically: true  # Re-render when completeness changes
+    dismissible: true
+    updates_dynamically: true  # Re-render when knowledge changes
 
   child_profile_card:
     name: "פרופיל הילד/ה"
@@ -204,41 +181,141 @@ cards:
     dismissible: false
     updates_dynamically: true
 
-  interview_complete_card:
-    name: "הראיון הושלם"
-    name_en: "Interview Complete"
-    card_type: success
+  guidelines_offer_card:
+    name: "הצעה להכנת הנחיות"
+    name_en: "Guidelines Offer"
+    card_type: suggestion
     priority: 95
 
-    # When to show
+    # When to show - prerequisites met but not generated yet
     display_conditions:
       phase: screening
-      completeness: ">= 0.80"
-      video_guidelines_status: "!= ready"  # Not shown yet
+      artifacts.video_guidelines.prerequisites_met: true
+      artifacts.video_guidelines.exists: false
+      user_actions.declined_guidelines_offer: false
 
     # Card content
     content:
-      title: "סיימנו את הראיון! 🎉"
+      title: "מוכנ/ה להנחיות צילום? 🎬"
       body: |
-        תודה שחלקת איתי כל כך הרבה על {child_name}.
+        יש לי מספיק מידע כדי להכין לך הנחיות צילום
+        מותאמות במיוחד ל{child_name}.
 
-        **הצעד הבא: סרטוני התנהגות**
+        ההנחיות יעזרו לך לדעת מה לצלם ואיך.
 
-        אני מכינה עבורך הנחיות צילום מותאמות אישית - מה כדאי לצלם ואיך.
-
-        הסרטונים יעזרו לי לראות את {child_name} בפעולה ולתת לך תמונה מדויקת יותר.
-
-      footer: "לוחצים על 'הצג הנחיות צילום' כשאת מוכנה 📹"
+      footer: "רוצה שאכין?"
 
     # Available actions
     available_actions:
-      - view_video_guidelines
-      - continue_interview  # Can add more info
-      - consultation  # Ask questions
+      - name: "כן, תכיני"
+        action: generate_guidelines
+      - name: "עוד רגע"
+        action: dismiss_card
+        sets: user_actions.declined_guidelines_offer = true
+
+    # Behavior
+    dismissible: true
+    auto_dismiss_after_action: generate_guidelines
+
+  guidelines_preparing_card:
+    name: "מכינה הנחיות"
+    name_en: "Preparing Guidelines"
+    card_type: loading
+    priority: 100
+
+    # When to show - while generating
+    display_conditions:
+      phase: screening
+      artifacts.video_guidelines.status: "generating"
+
+    # Card content
+    content:
+      title: "מכינה עבורך... ⏳"
+      body: |
+        ✨ הנחיות צילום מותאמות ל{child_name}
+
+        רגע קטן...
 
     # Behavior
     dismissible: false
-    auto_dismiss_after_action: view_video_guidelines
+    auto_replaces_with: guidelines_ready_card  # When status → ready
+
+  guidelines_ready_card:
+    name: "הנחיות מוכנות"
+    name_en: "Guidelines Ready"
+    card_type: success
+    priority: 100
+
+    # When to show - generated but not viewed yet
+    display_conditions:
+      phase: screening
+      artifacts.video_guidelines.exists: true
+      artifacts.video_guidelines.status: "ready"
+      user_actions.viewed_guidelines: false
+
+    # Card content
+    content:
+      title: "ההנחיות מוכנות! 🎬"
+      body: |
+        הכנתי לך הנחיות צילום מותאמות ל{child_name}.
+
+        לחצי כדי לקרוא את ההנחיות.
+
+    # Available actions
+    available_actions:
+      - name: "לחצי לצפייה"
+        action: view_guidelines
+        tracks: user_actions.viewed_guidelines = true
+
+    # Behavior
+    dismissible: false
+    auto_dismiss_after_action: view_guidelines
+
+  upload_available_card:
+    name: "מוכנ/ה להעלות סרטונים"
+    name_en: "Ready to Upload Videos"
+    card_type: action_needed
+    priority: 86
+
+    # When to show - after viewing guidelines, before first upload
+    display_conditions:
+      phase: screening
+      artifacts.video_guidelines.exists: true
+      user_actions.viewed_guidelines: true
+      uploaded_video_count: 0
+
+    # Card content
+    content:
+      title: "מוכנ/ה להעלות סרטונים? 📹"
+      body: |
+        קראת את ההנחיות - אפשר להתחיל! ✨
+
+        **מה אני מחפשת:**
+        {guidelines_brief_summary}
+
+        **כמה סרטונים צריך?**
+        3 סרטונים קצרים (2-5 דקות כל אחד) במצבים שונים.
+
+        **איך מעלים?**
+        לחצי על "העלי סרטונים" ובחרי את הסרטונים מהגלריה או צלמי חדשים.
+
+      guidelines_brief_summary:
+        source: video_guidelines_artifact
+        extract: situations_to_capture
+        format: "• {situation}"
+        max_items: 3
+
+      footer: "בואי נתחיל! 🎬"
+
+    # Available actions
+    available_actions:
+      - upload_video  # Primary action
+      - view_video_guidelines  # Review if needed
+      - consultation
+
+    # Behavior
+    dismissible: false
+    auto_dismiss_after_action: upload_video
 
   video_guidelines_card:
     name: "הנחיות צילום"
@@ -625,18 +702,17 @@ cards:
     # When to show
     display_conditions:
       phase: re_assessment
-      completeness: "< 0.60"  # Lower threshold for re-assessment
+      artifacts.updated_video_guidelines.exists: false
+      message_count: "> 0"
 
     # Card content
     content:
-      title: "התקדמות ההערכה המחודשת 🔄"
+      title: "{knowledge_depth_indicator_emoji} {knowledge_depth_indicator_text}"
       body: |
-        **השלמנו {completeness_percentage}% מההערכה**
-
         {comparison_to_baseline}
 
-        **עוד כמה דברים לבדוק:**
-        {missing_areas}
+        **ממוקדים על:**
+        {focus_areas}
 
       comparison_to_baseline:
         source: baseline_parent_report
@@ -645,7 +721,7 @@ cards:
           {initial_concerns} ← מה שדאג אז
           {current_state} ← איפה אנחנו עכשיו
 
-      footer: "ממוקדים על מה שחשוב 💙"
+      footer: "תודה על השיתוף 💙"
 
     # Available actions
     available_actions:
@@ -728,7 +804,8 @@ card_generation:
         - "{parent_name}"
         - "{child_name}"
         - "{age}"
-        - "{completeness_percentage}"
+        - "{knowledge_depth_indicator_emoji}"
+        - "{knowledge_depth_indicator_text}"
         - "{uploaded_count}"
         - "{journal_entry_count}"
         - "{days_since_baseline}"
