@@ -96,12 +96,14 @@ class LifecycleManager:
         # 🌟 Wu Wei: Iterate through ALL artifacts defined in YAML
         artifacts_config = self.config.get("artifacts", {})
 
+        logger.info(f"🔍 Wu Wei: Checking {len(artifacts_config)} artifacts for {family_id}")
+
         for artifact_id, artifact_def in artifacts_config.items():
-            logger.debug(f"🔍 Checking artifact: {artifact_id}")
+            logger.info(f"🔍 Checking artifact: {artifact_id}")
 
             # Skip if artifact already exists
             if session.has_artifact(artifact_id):
-                logger.debug(f"  ↳ Already exists, skipping")
+                logger.info(f"  ↳ Already exists, skipping")
                 current_state[artifact_id] = True
                 continue
 
@@ -109,17 +111,35 @@ class LifecycleManager:
             prerequisites = artifact_def.get("prerequisites")
 
             if not prerequisites:
-                logger.debug(f"  ↳ No prerequisites defined")
+                logger.info(f"  ↳ No prerequisites defined")
                 current_state[artifact_id] = False
                 continue
+
+            # Log what we're evaluating
+            logger.info(f"  ↳ Evaluating prerequisites: {prerequisites}")
+            logger.info(f"  ↳ Context keys available: {list(context.keys())}")
+
+            # For baseline_video_guidelines, log detailed context
+            if artifact_id == "baseline_video_guidelines":
+                logger.info(f"  ↳ BASELINE_VIDEO_GUIDELINES CHECK:")
+                logger.info(f"     - knowledge_is_rich in context: {context.get('knowledge_is_rich')}")
+                logger.info(f"     - child_name: {context.get('child_name')}")
+                logger.info(f"     - age: {context.get('age')}")
+                logger.info(f"     - concerns: {context.get('primary_concerns')}")
+                logger.info(f"     - strengths: {context.get('strengths')[:100] if context.get('strengths') else None}")
+                logger.info(f"     - message_count: {context.get('message_count')}")
 
             # Evaluate prerequisites using Wu Wei evaluator
             prereqs_met = self._evaluate_prerequisites(prerequisites, context)
             current_state[artifact_id] = prereqs_met
 
+            logger.info(f"  ↳ Prerequisites met: {prereqs_met}")
+
             # Detect TRANSITION: false → true
             was_met = previous_state.get(artifact_id, False)
             just_became_ready = prereqs_met and not was_met
+
+            logger.info(f"  ↳ Was previously met: {was_met}, Just became ready: {just_became_ready}")
 
             if just_became_ready:
                 logger.info(

@@ -227,8 +227,11 @@ class PrerequisiteService:
         }
 
         # Add knowledge depth indicator using Wu Wei evaluator
+        logger.info(f"🔍 PrerequisiteService: Evaluating knowledge richness for context building...")
         knowledge_eval = self.check_knowledge_richness(context)
         context["knowledge_is_rich"] = knowledge_eval.met
+        logger.info(f"🔍 PrerequisiteService: knowledge_is_rich = {knowledge_eval.met}")
+        logger.info(f"🔍 PrerequisiteService: Context built with {len(context)} keys")
 
         return context
 
