@@ -641,8 +641,13 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             # Build session data for prerequisite check
             session_data = self._build_session_data_dict(family_id, session)
 
+            # CRITICAL: Use get_context_for_cards to flatten extracted_data fields
+            # check_knowledge_richness expects flattened format (child_name at top level)
+            # but session_data has them nested in extracted_data
+            context = self.prerequisite_service.get_context_for_cards(session_data)
+
             # Check if knowledge is rich using Wu Wei evaluator
-            knowledge_check = self.prerequisite_service.check_knowledge_richness(session_data)
+            knowledge_check = self.prerequisite_service.check_knowledge_richness(context)
 
             if knowledge_check.met:
                 logger.info(
@@ -651,7 +656,8 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
                 )
 
                 # 🎬 Generate video guidelines artifact
-                guidelines_artifact = await self.artifact_service.generate_video_guidelines(session_data)
+                # Use flattened context (not nested session_data)
+                guidelines_artifact = await self.artifact_service.generate_video_guidelines(context)
 
                 # Store artifact in session
                 session.add_artifact(guidelines_artifact)
