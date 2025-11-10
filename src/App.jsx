@@ -7,6 +7,9 @@ import { api } from './api/client';
 // Demo Orchestrator
 import { demoOrchestrator } from './services/DemoOrchestrator.jsx';
 
+// Test Mode Orchestrator
+import { testModeOrchestrator } from './services/TestModeOrchestrator.jsx';
+
 // UI Components
 import ConversationTranscript from './components/ConversationTranscript';
 import ContextualSurface from './components/ContextualSurface';
@@ -14,6 +17,7 @@ import InputArea from './components/InputArea';
 import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
 import VideoGuidelinesView from './components/VideoGuidelinesView';
+import { TestModeBannerPortal } from './components/TestModeBannerPortal.jsx';
 
 // Generate unique family ID (in real app, from auth)
 const FAMILY_ID = 'family_' + Math.random().toString(36).substr(2, 9);
@@ -116,7 +120,39 @@ function App() {
     demoOrchestrator.messageInjector = messageInjector;
     demoOrchestrator.cardInjector = cardInjector;
     demoOrchestrator.guidelinesInjector = guidelinesInjector;
+
+    // 🧪 Setup test mode orchestrator callbacks
+    testModeOrchestrator.onMessageGenerated = (message) => {
+      setMessages(prev => [...prev, message]);
+    };
+
+    testModeOrchestrator.onError = (error) => {
+      console.error('🧪 Test mode error:', error);
+      const errorMessage = {
+        sender: 'chitta',
+        text: 'שגיאה במצב בדיקה. בודק...',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    };
   }, []);
+
+  // 🧪 Monitor messages and trigger next response in test mode
+  useEffect(() => {
+    if (!testModeOrchestrator.isActive() || !testModeOrchestrator.isAutoRunning()) {
+      return;
+    }
+
+    // Find last Chitta message
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.sender === 'chitta') {
+      console.log('🧪 Chitta responded, triggering next parent response');
+      // Trigger next response after a small delay
+      setTimeout(() => {
+        testModeOrchestrator.generateNextResponse(messages, handleSend);
+      }, 500);
+    }
+  }, [messages]);
 
   // Handle sending a message
   const handleSend = async (message) => {
@@ -493,6 +529,9 @@ function App() {
         />
       )}
 
+      {/* 🧪 Test Mode Banner (shows when test mode is active) */}
+      <TestModeBannerPortal />
+
       {/* 🧪 Test Mode: Persona Selector */}
       {showPersonaSelector && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -523,7 +562,18 @@ function App() {
                       // Mark test mode as active
                       setTestMode(true);
 
-                      // TODO: Start auto-conversation
+                      // 🧪 Start test mode orchestrator with this persona
+                      const testFamilyId = result.family_id;
+                      await testModeOrchestrator.start(
+                        persona.id,
+                        persona,
+                        testFamilyId
+                      );
+
+                      // Start auto-conversation flow
+                      console.log('🧪 Starting auto-conversation');
+                      testModeOrchestrator.startAutoConversation(messages, handleSend);
+
                     } catch (error) {
                       console.error('Error starting test:', error);
                     }
