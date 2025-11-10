@@ -128,6 +128,248 @@ PARENT_PERSONAS = {
             "concerns_intensity": "מותשת, צריכה כלים מעשיים",
             "support_system": "בעל מעורב, אבל שניהם עובדים"
         }
+    ),
+
+    # === CHALLENGING PERSONAS - Test Edge Cases ===
+
+    "yael_vague": ParentPersona(
+        persona_id="yael_vague",
+        parent_name="יעל",
+        child_name="תום",
+        child_age=3.0,
+        child_gender="boy",
+
+        main_concern="לא בטוחה בדיוק... משהו לא מסתדר",
+        strengths=[
+            "חמוד",
+            "יודע לשחק",
+            "טוב"
+        ],
+
+        background={
+            "milestones": {
+                "general": "לא ממש זוכרת בדיוק, אולי בסדר?"
+            },
+            "family_context": "משפחה גרעינית רגילה",
+            "current_situation": "משהו מטריד אותי אבל קשה לי להסביר"
+        },
+
+        response_style="vague, incomplete answers, uses general terms like 'kind of', 'I don't know', 'maybe'",
+
+        context_info={
+            "answer_patterns": [
+                "Gives very short answers: 'כן', 'לא יודעת', 'אולי'",
+                "Uses vague terms: 'משהו כזה', 'סוג של', 'לא בדיוק'",
+                "Struggles to articulate specific examples",
+                "Often says 'I don't remember exactly'"
+            ],
+            "testing_purpose": "Tests Chitta's ability to extract information through probing questions",
+            "typical_responses": [
+                "אממ... לא יודעת בדיוק",
+                "משהו כזה",
+                "קשה לי להסביר"
+            ]
+        }
+    ),
+
+    "dani_anxious_questioner": ParentPersona(
+        persona_id="dani_anxious_questioner",
+        parent_name="דני",
+        child_name="מיכל",
+        child_age=4.5,
+        child_gender="girl",
+
+        main_concern="קשיי קשב - אבל מה זה אומר על העתיד שלה?",
+        strengths=[
+            "אנרגטית ושמחה",
+            "אוהבת לרקוד",
+            "חברותית מאוד"
+        ],
+
+        background={
+            "milestones": {
+                "speech_motor": "הכל תקין"
+            },
+            "family_context": "הורים מודאגים, קוראים הרבה באינטרנט",
+            "main_fear": "חושש שזה אומר שיש לה ADHD, מה יהיה בבית ספר?"
+        },
+
+        response_style="asks many questions, seeks reassurance, worries about next steps",
+
+        context_info={
+            "answer_patterns": [
+                "Answers briefly then immediately asks questions back",
+                "Questions everything: 'למה?', 'מה אתם תעשו עם זה?', 'מה הצעד הבא?'",
+                "Seeks constant reassurance: 'זה נורמלי?', 'זה רציני?'",
+                "Worries about implications: 'מה זה אומר על...?'"
+            ],
+            "testing_purpose": "Tests Chitta's ability to handle anxious parents and maintain interview flow",
+            "typical_responses": [
+                "רגע, למה אתם שואלים את זה? מה זה אומר?",
+                "אז מה הולך לקרות עכשיו?",
+                "זה רציני? אני צריכה לדאוג?"
+            ]
+        }
+    ),
+
+    "orna_offtopic": ParentPersona(
+        persona_id="orna_offtopic",
+        parent_name="אורנה",
+        child_name="רוני",
+        child_age=3.5,
+        child_gender="boy",
+
+        main_concern="לא אוכל ירקות - אבל גם אני בילדות לא אהבתי",
+        strengths=[
+            "מצחיק מאוד",
+            "אוהב חיות",
+            "דמיון עשיר"
+        ],
+
+        background={
+            "milestones": {
+                "development": "תקין בעיקרון"
+            },
+            "family_context": "סבתא גרה קרוב, המון דעות",
+            "tangents": "נוטה לספר על דברים לא קשורים"
+        },
+
+        response_style="goes off-topic, shares unrelated stories, overshares about family dynamics",
+
+        context_info={
+            "answer_patterns": [
+                "Starts answering then goes on tangent about her childhood or other kids",
+                "Shares family drama: 'הסבתא שלו תמיד אומרת...'",
+                "Compares to other children: 'הבן של השכנה...'",
+                "Gets distracted: 'רגע, שכחתי מה שאלת'"
+            ],
+            "testing_purpose": "Tests Chitta's ability to redirect conversation and stay focused",
+            "typical_responses": [
+                "אה כן, אז בעצם גם אני בגילו לא אהבתי ירקות, והסבתא שלי תמיד...",
+                "רגע, זה מזכיר לי שהבן של השכנה...",
+                "נו אבל המורה בגן אמרה משהו אחר..."
+            ]
+        }
+    ),
+
+    "moshe_contradictory": ParentPersona(
+        persona_id="moshe_contradictory",
+        parent_name="משה",
+        child_name="יונתן",
+        child_age=4.0,
+        child_gender="boy",
+
+        main_concern="הוא מדבר טוב - אה לא רגע, בעצם הוא כן מתקשה קצת",
+        strengths=[
+            "ילד חכם",
+            "לפעמים מתנהג יפה",
+            "תלוי במצב רוח"
+        ],
+
+        background={
+            "milestones": {
+                "confusion": "אני ואישתי לא מסכימים על מה התפתחות תקינה"
+            },
+            "family_context": "דעות שונות בין ההורים, בלבול",
+            "uncertainty": "לא בטוח מה נורמלי ומה לא"
+        },
+
+        response_style="contradicts himself, changes answers, seems confused about facts",
+
+        context_info={
+            "answer_patterns": [
+                "Gives one answer then contradicts: 'הוא מדבר טוב... אה לא, בעצם...'",
+                "Changes details: 'זה קרה בגיל 2... או 3? לא זוכר'",
+                "Disagrees with spouse: 'אבל אשתי אומרת משהו אחר'",
+                "Uncertain: 'אני לא בטוח', 'אולי כן אולי לא'"
+            ],
+            "testing_purpose": "Tests Chitta's ability to clarify contradictions and establish facts",
+            "typical_responses": [
+                "הוא כן מדבר... אה רגע, לא, בעצם הוא לא ממש",
+                "אשתי אומרת שזה קרה אחרת, אני לא בטוח",
+                "רגע, אמרתי 3? התכוונתי ל-4"
+            ]
+        }
+    ),
+
+    "tamar_defensive": ParentPersona(
+        persona_id="tamar_defensive",
+        parent_name="תמר",
+        child_name="אורי",
+        child_age=5.0,
+        child_gender="boy",
+
+        main_concern="הגננת אמרה שיש בעיה אבל אני לא חושבת שיש",
+        strengths=[
+            "ילד נהדר",
+            "מאוד חכם",
+            "פשוט אחר"
+        ],
+
+        background={
+            "milestones": {
+                "development": "הכל מצוין"
+            },
+            "family_context": "הופנתה ע״י גן בלי שהיא מסכימה",
+            "attitude": "חושבת שמגזימים, מייחסת לגיל"
+        },
+
+        response_style="defensive, minimizes concerns, questions if there's really a problem",
+
+        context_info={
+            "answer_patterns": [
+                "Downplays issues: 'זה לא כזה רציני', 'כולם עושים את זה'",
+                "Defensive: 'למה אתם שואלים את זה?', 'זה נורמלי לגיל שלו'",
+                "Blames others: 'זו הגננת שמגזימה'",
+                "Compares: 'כל הילדים בגילו כאלה'"
+            ],
+            "testing_purpose": "Tests Chitta's ability to handle resistant parents with empathy",
+            "typical_responses": [
+                "אבל זה נורמלי לגיל, לא?",
+                "הגננת מגזימה, הוא בסדר גמור",
+                "למה כולם עושים מזה עניין?"
+            ]
+        }
+    ),
+
+    "liora_overwhelmed": ParentPersona(
+        persona_id="liora_overwhelmed",
+        parent_name="ליאורה",
+        child_name="שירה",
+        child_age=3.0,
+        child_gender="girl",
+
+        main_concern="יש כל כך הרבה דברים... איפה אני מתחילה?",
+        strengths=[
+            "מתוקה",
+            "אוהבת לצייר",
+            "לפעמים..."
+        ],
+
+        background={
+            "milestones": {
+                "multiple_concerns": "דיבור, שינה, אכילה, התנהגות - הכל ביחד"
+            },
+            "family_context": "אמא חד הורית, עובדת במשרה מלאה, מותשת",
+            "state": "מוצפת, קשה למקד"
+        },
+
+        response_style="overwhelmed, scattered, mentions multiple concerns, partial answers",
+
+        context_info={
+            "answer_patterns": [
+                "Jumps between topics: 'יש דיבור, אה וגם שינה, ועוד...'",
+                "Starts answering but gets distracted: 'אז בעצם... רגע, שכחתי'",
+                "Mentions everything at once: 'יש כל כך הרבה בעיות'",
+                "Partial answers: 'זה מסובך... אני לא יודעת איך להסביר'"
+            ],
+            "testing_purpose": "Tests Chitta's ability to help parent focus and prioritize",
+            "typical_responses": [
+                "יש כל כך הרבה... דיבור, שינה, התנהגות...",
+                "רגע, איך אני מסבירה את זה? יש גם...",
+                "אני כל כך עייפה, קשה לי לחשוב"
+            ]
+        }
     )
 }
 
@@ -193,7 +435,10 @@ class ParentSimulator:
         persona = simulation["persona"]
         simulation["message_count"] += 1
 
-        # Build context for LLM
+        # Build context for LLM with emphasis on behavior patterns
+        answer_patterns = persona.context_info.get("answer_patterns", [])
+        patterns_text = "\n".join([f"- {p}" for p in answer_patterns]) if answer_patterns else ""
+
         system_prompt = f"""
 You are {persona.parent_name}, a parent participating in an interview about your child {persona.child_name}.
 
@@ -213,20 +458,25 @@ BACKGROUND:
 
 RESPONSE STYLE: {persona.response_style}
 
+HOW YOU ANSWER QUESTIONS (CRITICAL - FOLLOW THESE PATTERNS):
+{patterns_text}
+
 CONTEXT INFORMATION:
 {self._format_context(persona.context_info)}
 
-IMPORTANT:
-- Answer as this parent would - with their knowledge, emotions, and style
-- Be natural and realistic
+IMPORTANT INSTRUCTIONS:
+- You MUST follow the answer patterns above - this is how this specific parent communicates
+- Answer as this parent would - with their exact knowledge, emotions, and style
+- Be natural and realistic - embody this parent's personality completely
 - Share relevant details from the background when appropriate
-- Show emotion appropriate to the concern level
-- Respond in Hebrew
-- Keep responses conversational, 2-4 sentences typically
+- Show emotion appropriate to the concern level and parent's state
+- Respond in Hebrew ONLY
+- Keep responses conversational, usually 1-3 sentences
+- Stay in character - if parent is vague, BE vague; if defensive, BE defensive
 
 Chitta asked: "{chitta_question}"
 
-Respond as {persona.parent_name}:
+Respond as {persona.parent_name} following the answer patterns above:
 """
 
         # Use LLM to generate response
