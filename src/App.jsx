@@ -530,13 +530,16 @@ function App() {
                       // Start test with this persona
                       const result = await api.startTest(persona.id);
 
-                      // Show confirmation
-                      const confirmMessage = {
+                      // Show Chitta's initial greeting (same as real conversation)
+                      const greetingMessage = {
                         sender: 'chitta',
-                        text: `התחלתי סימולציה עם ${persona.parent}.\nהילד: ${persona.child}\nדאגה עיקרית: ${persona.concern}\n\nעכשיו אני אשאל שאלות, והמערכת תייצר תשובות מציאותיות.`,
+                        text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
                         timestamp: new Date().toISOString()
                       };
-                      setMessages(prev => [...prev, confirmMessage]);
+
+                      // Set messages with greeting
+                      const newMessages = [...messages, greetingMessage];
+                      setMessages(newMessages);
 
                       // Mark test mode as active
                       setTestMode(true);
@@ -552,9 +555,9 @@ function App() {
                         testFamilyId
                       );
 
-                      // Start auto-conversation flow
-                      console.log('🧪 Starting auto-conversation');
-                      testModeOrchestrator.startAutoConversation(messages, handleSend);
+                      // Start auto-conversation flow with updated messages
+                      console.log('🧪 Starting auto-conversation with Chitta greeting');
+                      testModeOrchestrator.startAutoConversation(newMessages, handleSend);
 
                     } catch (error) {
                       console.error('Error starting test:', error);
