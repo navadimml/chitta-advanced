@@ -163,6 +163,39 @@ async def send_message(request: SendMessageRequest):
             }
         )
 
+    # 🧪 Test Mode: Check if user wants to enter test mode
+    message_lower = request.message.lower().strip()
+    test_triggers = [
+        "עבור לבדיקה",
+        "מצב בדיקה",
+        "תצב בדיקה",
+        "test mode",
+        "start test"
+    ]
+
+    if any(trigger in message_lower for trigger in test_triggers):
+        # List available test personas
+        simulator = get_parent_simulator()
+        personas = simulator.list_personas()
+
+        # Build persona list
+        persona_list = "\n".join([
+            f"- {p['parent']}: {p['child']} - {p['concern']}"
+            for p in personas[:5]  # Show first 5
+        ])
+
+        return SendMessageResponse(
+            response=f"🧪 מצב בדיקה\n\nהבנתי שאת רוצה לבדוק את המערכת! יש לי {len(personas)} פרסונות הורים מוכנות:\n\n{persona_list}\n\nכדי להתחיל, השתמשי ב-API של מצב הבדיקה או בממשק המיוחד למפתחים.",
+            stage="interview",
+            ui_data={
+                "test_mode_available": True,
+                "personas": personas,
+                "suggestions": ["המשך שיחה רגילה"],
+                "cards": [],
+                "progress": 0
+            }
+        )
+
     # Get services
     conversation_service = get_conversation_service()
     graphiti = get_mock_graphiti()
