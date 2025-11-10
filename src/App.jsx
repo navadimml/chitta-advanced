@@ -11,6 +11,7 @@ import InputArea from './components/InputArea';
 import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
 import DemoBanner from './components/DemoBanner';
+import VideoGuidelinesView from './components/VideoGuidelinesView';
 
 // Generate unique family ID (in real app, from auth)
 const FAMILY_ID = 'family_' + Math.random().toString(36).substr(2, 9);
@@ -41,6 +42,8 @@ function App() {
   const [demoPaused, setDemoPaused] = useState(false);
   const [demoCard, setDemoCard] = useState(null);
   const [demoStarted, setDemoStarted] = useState(false);
+  const [showGuidelinesView, setShowGuidelinesView] = useState(false);
+  const [demoGuidelines, setDemoGuidelines] = useState(null);
 
   // Initial greeting on mount
   useEffect(() => {
@@ -73,7 +76,61 @@ function App() {
       if (response.artifact_generated) {
         console.log('🌟 Artifact generated:', response.artifact_generated);
 
-        // Store artifact info but DON'T show card yet
+        // Store demo guidelines (for demo mode, use mock data)
+        setDemoGuidelines({
+          introduction: "הסרטונים יעזרו לי להבין את ההתפתחות של דניאל בצורה מעמיקה ומדויקת. זה כמו שאלך איתך הביתה ואראה אותו בפעולה - רק שאת קובעת מתי ואיך.",
+          estimated_duration: "2-3 דקות לסרטון",
+          scenarios: [
+            {
+              title: "משחק חופשי",
+              context: "דניאל משחק עם הצעצועים האהובים עליו",
+              duration: "2-3 דקות",
+              what_to_film: "צלמי את דניאל משחק בחופשיות עם הצעצועים שלו. אל תכווני אותו - רק תתבונני. האם הוא מדבר לעצמו? איך הוא מבטא רצונות? האם הוא מזמין אותך להצטרף?",
+              what_to_look_for: [
+                "האם הוא משתמש במילים במהלך המשחק?",
+                "איך הוא מבקש עזרה אם צריך?",
+                "האם יש תקשורת לא מילולית (מחוות, הצבעה)?",
+                "מה קורה כשהוא רוצה משהו שלא בהישג יד?"
+              ],
+              why_matters: "המשחק החופשי חושף את דפוסי התקשורת הטבעיים של דניאל כשהוא נינוח ומרוכז."
+            },
+            {
+              title: "אוכל משותף",
+              context: "ארוחה או חטיף עם דניאל",
+              duration: "2-3 דקות",
+              what_to_film: "צלמי את דניאל בזמן ארוחה. איך הוא מבקש דברים? האם הוא משתף מה הוא אוהב/לא אוהב? תגיבי באופן טבעי ותראי איך הוא מגיב.",
+              what_to_look_for: [
+                "איך הוא מבקש עוד אוכל?",
+                "מה קורה כשמציעים לו משהו שהוא לא רוצה?",
+                "האם יש שיחה קטנה על האוכל?",
+                "איך הוא מבטא העדפות?"
+              ],
+              why_matters: "מצבים יומיומיים כמו אוכל מראים תקשורת פונקציונלית - איך דניאל מבטא צרכים ורצונות בסיטואציה אמיתית."
+            },
+            {
+              title: "משחק עם ילד אחר",
+              context: "אם אפשר - דניאל עם אח, חבר או בן משפחה",
+              duration: "2-3 דקות",
+              what_to_film: "אם יש אפשרות, צלמי את דניאל משחק עם ילד אחר (אח, חבר, בן דוד). איך הם מתקשרים? מי מוביל? האם יש שיתוף פעולה?",
+              what_to_look_for: [
+                "איך דניאל פונה לילד האחר?",
+                "האם יש עין-קשר או תקשורת גופנית?",
+                "מה קורה בקונפליקט (כמו רצון באותו צעצוע)?",
+                "האם יש משחק משותף או משחק מקביל?"
+              ],
+              why_matters: "המשחק החברתי מראה את התקשורת של דניאל עם בני גילו - זה שונה מאינטראקציה עם מבוגרים."
+            }
+          ],
+          general_tips: [
+            "צלמי בגובה עיניים של דניאל - לא מלמעלה",
+            "תנועה טבעית עדיפה על 'פוזה' - תראי את דניאל כמו שהוא",
+            "אורך משוער: 2-3 דקות לכל תרחיש, לא יותר מ-5 דקות",
+            "אין צורך באיכות מושלמת - תוכן חשוב יותר מטכניקה",
+            "אפשר לצלם במשך כמה ימים - לא הכל באותו היום",
+            "אם דניאל לא משתף פעולה ביום מסוים - אין בעיה לנסות מחר"
+          ]
+        });
+
         // Card will appear when Chitta mentions guidelines are ready
       }
 
@@ -282,6 +339,12 @@ function App() {
   // Handle card click
   const handleCardClick = async (action) => {
     if (!action) return; // Status cards have no action
+
+    // 🎬 Demo: Show guidelines view
+    if (action === 'view_guidelines') {
+      setShowGuidelinesView(true);
+      return;
+    }
 
     if (action === 'upload') {
       setActiveDeepView('upload');
@@ -540,6 +603,15 @@ function App() {
         onCreateVideo={handleCreateVideo}
         onDeleteVideo={handleDeleteVideo}
       />
+
+      {/* 🎬 Demo: Video Guidelines View */}
+      {showGuidelinesView && demoGuidelines && (
+        <VideoGuidelinesView
+          guidelines={demoGuidelines}
+          childName="דניאל"
+          onClose={() => setShowGuidelinesView(false)}
+        />
+      )}
 
       {/* Global Styles */}
       <style>{`
