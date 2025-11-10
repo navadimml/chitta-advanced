@@ -19,6 +19,7 @@ from .interview_service import get_interview_service, InterviewService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
 from .artifact_generation_service import ArtifactGenerationService
+from .lifecycle_manager import get_lifecycle_manager, LifecycleManager  # 🌟 Wu Wei: Core dependency graph processor
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.dynamic_interview_prompt import build_dynamic_interview_prompt
 from ..prompts.strategic_advisor import get_strategic_guidance
@@ -52,7 +53,8 @@ class ConversationService:
         knowledge_service: Optional[KnowledgeService] = None,
         phase_manager: Optional[PhaseManager] = None,
         card_generator: Optional[CardGenerator] = None,
-        artifact_generation_service: Optional[ArtifactGenerationService] = None
+        artifact_generation_service: Optional[ArtifactGenerationService] = None,
+        lifecycle_manager: Optional[LifecycleManager] = None
     ):
         self.llm = llm_provider or create_llm_provider()
 
@@ -67,6 +69,7 @@ class ConversationService:
         self.phase_manager = phase_manager or get_phase_manager()  # 🌟 Wu Wei: Config-driven phase management
         self.card_generator = card_generator or get_card_generator()  # 🌟 Wu Wei: Config-driven UI cards
         self.artifact_service = artifact_generation_service or ArtifactGenerationService()  # 🌟 Wu Wei: Artifact generation
+        self.lifecycle_manager = lifecycle_manager or get_lifecycle_manager()  # 🌟 Wu Wei: CORE - dependency graph processor
 
         logger.info(f"ConversationService initialized:")
         logger.info(f"  - Conversation LLM: {self.llm.get_provider_name()}")
@@ -635,49 +638,27 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             completeness_check
         )
 
-        # 9. 🌟 Wu Wei: Check if knowledge is rich enough to offer guidelines
-        # This is a QUALITATIVE check, not quantitative (no "completeness >= 80%")
-        if not session.has_artifact("baseline_video_guidelines"):
-            # Build session data for prerequisite check
-            session_data = self._build_session_data_dict(family_id, session)
+        # 9. 🌟 Wu Wei: Process lifecycle events (dependency graph magic!)
+        # This replaces ALL hardcoded artifact generation logic
+        # Everything emerges from lifecycle_events.yaml configuration
+        session_data = self._build_session_data_dict(family_id, session)
 
-            # CRITICAL: Use get_context_for_cards to flatten extracted_data fields
-            # check_knowledge_richness expects flattened format (child_name at top level)
-            # but session_data has them nested in extracted_data
-            context = self.prerequisite_service.get_context_for_cards(session_data)
+        # Flatten extracted_data for prerequisite evaluation
+        context = self.prerequisite_service.get_context_for_cards(session_data)
 
-            # Check if knowledge is rich using Wu Wei evaluator
-            knowledge_check = self.prerequisite_service.check_knowledge_richness(context)
+        # Let lifecycle manager check dependency graph and auto-generate artifacts
+        lifecycle_result = await self.lifecycle_manager.process_lifecycle_events(
+            family_id=family_id,
+            context=context,
+            session=session
+        )
 
-            if knowledge_check.met:
-                logger.info(
-                    f"🌟 Wu Wei: Knowledge is rich! Generating video guidelines. "
-                    f"Details: {knowledge_check.details}"
-                )
-
-                # 🎬 Generate video guidelines artifact
-                # Use flattened context (not nested session_data)
-                guidelines_artifact = await self.artifact_service.generate_video_guidelines(context)
-
-                # Store artifact in session
-                session.add_artifact(guidelines_artifact)
-
-                if guidelines_artifact.is_ready:
-                    logger.info(
-                        f"✅ Video guidelines artifact created successfully! "
-                        f"Content length: {len(guidelines_artifact.content)} chars"
-                    )
-                    # Guidelines offer card will appear through dependency-based card system
-                else:
-                    logger.error(
-                        f"❌ Video guidelines generation failed: {guidelines_artifact.error_message}"
-                    )
-
-            else:
-                logger.debug(
-                    f"Knowledge not yet rich for guidelines. "
-                    f"Missing: {knowledge_check.missing}"
-                )
+        # Log what emerged
+        if lifecycle_result["artifacts_generated"]:
+            logger.info(
+                f"🌟 Wu Wei: Artifacts emerged from dependency graph: "
+                f"{lifecycle_result['artifacts_generated']}"
+            )
 
         # 10. Return comprehensive response
         return {
