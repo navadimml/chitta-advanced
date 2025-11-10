@@ -431,11 +431,18 @@ class ParentSimulator:
         self,
         family_id: str,
         chitta_question: str,
-        llm_provider
+        llm_provider,
+        graphiti=None
     ) -> Optional[str]:
         """
         Generate realistic parent response using LLM.
         The LLM acts as the parent persona.
+
+        Args:
+            family_id: Family ID for this simulation
+            chitta_question: Current question from Chitta
+            llm_provider: LLM provider for generating responses
+            graphiti: Optional graphiti instance to retrieve conversation history
 
         Returns:
             str: Parent's response
@@ -538,10 +545,25 @@ Respond as {persona.parent_name} ({phase}):
 
         # Use LLM to generate response
         from app.services.llm.base import Message
-        messages = [
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=chitta_question)
-        ]
+
+        # Build messages list with conversation history
+        messages = [Message(role="system", content=system_prompt)]
+
+        # Add recent conversation history if available (last 8 messages)
+        # This gives the LLM context about what it said before
+        if graphiti:
+            state = graphiti.get_or_create_state(family_id)
+            recent_messages = state.conversation[-8:] if len(state.conversation) > 8 else state.conversation
+
+            for msg in recent_messages:
+                # Convert graphiti messages to LLM messages
+                messages.append(Message(
+                    role="assistant" if msg.role == "user" else "user",  # Flip roles: user is Chitta, assistant is parent
+                    content=msg.content
+                ))
+
+        # Add current question
+        messages.append(Message(role="user", content=chitta_question))
 
         response = await llm_provider.chat(messages=messages, temperature=0.8)
 
