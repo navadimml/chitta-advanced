@@ -161,16 +161,30 @@ def should_use_lite_functions(model_name: str) -> bool:
     Determine if we should use lite functions based on model
 
     Use lite functions for:
-    - Gemini Flash models
-    - Smaller/faster models
-    - Models known to have weaker function calling
+    - Gemini Flash models (ONLY if LLM_USE_ENHANCED is true)
+    - Smaller/faster models (ONLY if LLM_USE_ENHANCED is true)
+    - Models known to have weaker function calling (ONLY if LLM_USE_ENHANCED is true)
+
+    If LLM_USE_ENHANCED=false, ALWAYS use full functions regardless of model.
 
     Use full functions for:
     - Gemini Pro 2.0
     - GPT-4
     - Claude Opus/Sonnet
     - Other high-capability models
+    - ANY model when LLM_USE_ENHANCED=false
     """
+    import os
+
+    # Check if enhanced mode is enabled
+    use_enhanced_env = os.getenv("LLM_USE_ENHANCED", "true").lower()
+    use_enhanced = use_enhanced_env in ["true", "1", "yes"]
+
+    # If enhanced mode is disabled, NEVER use lite functions
+    if not use_enhanced:
+        return False
+
+    # Only check model indicators if enhanced mode is on
     model_lower = model_name.lower()
 
     # Models that should use lite functions

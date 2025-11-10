@@ -300,16 +300,27 @@ class InterviewService:
         Determine if lite mode should be used
 
         Lite mode for:
-        - Flash models (always)
-        - Early in conversation (< 20% complete)
+        - Flash models (ONLY if LLM_USE_ENHANCED is true)
+        - Early in conversation (< 20% complete, ONLY if LLM_USE_ENHANCED is true)
+
+        If LLM_USE_ENHANCED=false, NEVER use lite mode regardless of model.
         """
+        import os
         from .llm.gemini_provider_enhanced import GeminiProviderEnhanced
 
-        # Check model name
+        # Check if enhanced mode is enabled
+        use_enhanced_env = os.getenv("LLM_USE_ENHANCED", "true").lower()
+        use_enhanced = use_enhanced_env in ["true", "1", "yes"]
+
+        # If enhanced mode is disabled, NEVER use lite mode
+        if not use_enhanced:
+            return False
+
+        # Check model name (only if enhanced mode is on)
         if "flash" in model_name.lower():
             return True
 
-        # Check conversation progress
+        # Check conversation progress (only if enhanced mode is on)
         session = self.get_or_create_session(family_id)
         if session.completeness < 0.20:
             # Early conversation - use simpler prompts
