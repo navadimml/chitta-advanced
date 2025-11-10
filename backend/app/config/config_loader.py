@@ -245,6 +245,20 @@ class WorkflowConfigLoader(ConfigLoader):
 
         return self._cache["deep_views"]
 
+    @lru_cache(maxsize=1)
+    def load_lifecycle_events(self) -> Dict[str, Any]:
+        """Load lifecycle events configuration (Wu Wei dependency graph)."""
+        if "lifecycle_events" not in self._cache:
+            config = self.load_yaml(f"{self.workflows_path}/lifecycle_events.yaml")
+            self.validate_required_fields(
+                config,
+                ["version", "workflow_name", "artifacts", "capabilities"],
+                "lifecycle_events.yaml"
+            )
+            self._cache["lifecycle_events"] = config
+
+        return self._cache["lifecycle_events"]
+
     def load_all(self) -> Dict[str, Dict[str, Any]]:
         """
         Load all workflow configurations.
@@ -259,6 +273,7 @@ class WorkflowConfigLoader(ConfigLoader):
             "artifacts": self.load_artifacts(),
             "context_cards": self.load_context_cards(),
             "deep_views": self.load_deep_views(),
+            "lifecycle_events": self.load_lifecycle_events(),
         }
 
     def clear_cache(self) -> None:
@@ -270,6 +285,7 @@ class WorkflowConfigLoader(ConfigLoader):
         self.load_artifacts.cache_clear()
         self.load_context_cards.cache_clear()
         self.load_deep_views.cache_clear()
+        self.load_lifecycle_events.cache_clear()
         logger.info("Configuration cache cleared")
 
 
@@ -321,3 +337,8 @@ def load_context_cards() -> Dict[str, Any]:
 def load_deep_views() -> Dict[str, Any]:
     """Load deep views configuration."""
     return get_workflow_config_loader().load_deep_views()
+
+
+def load_lifecycle_events() -> Dict[str, Any]:
+    """Load lifecycle events configuration (Wu Wei dependency graph)."""
+    return get_workflow_config_loader().load_lifecycle_events()
