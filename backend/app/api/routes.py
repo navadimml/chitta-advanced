@@ -23,6 +23,8 @@ from app.services.state_derivation import (
     derive_contextual_greeting,
     derive_suggestions
 )
+# Parent Simulator (Test Mode)
+from app.services.parent_simulator import get_parent_simulator
 
 router = APIRouter()
 
@@ -1285,3 +1287,82 @@ async def get_family_state(family_id: str):
             "suggestions": suggestions
         }
     }
+
+
+# === Test Mode Endpoints (Parent Simulator) ===
+
+@router.get("/test/personas")
+async def list_test_personas():
+    """
+    List available parent personas for testing.
+    Each persona represents a realistic test case.
+    """
+    simulator = get_parent_simulator()
+    return {
+        "personas": simulator.list_personas()
+    }
+
+
+class StartTestRequest(BaseModel):
+    """Request to start test mode"""
+    persona_id: str
+    family_id: Optional[str] = None  # If not provided, generate one
+
+
+@router.post("/test/start")
+async def start_test_mode(request: StartTestRequest):
+    """
+    Start test mode with a parent persona.
+    System will simulate this parent interacting with real backend.
+    """
+    simulator = get_parent_simulator()
+
+    # Generate family ID if not provided
+    family_id = request.family_id or f"test_{request.persona_id}_{int(datetime.now().timestamp())}"
+
+    try:
+        result = simulator.start_simulation(request.persona_id, family_id)
+
+        return {
+            "success": True,
+            "family_id": family_id,
+            "persona": result["persona"],
+            "message": f"Test mode started with persona: {result['persona']['parent_name']}"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+class GenerateResponseRequest(BaseModel):
+    """Request to generate parent response"""
+    family_id: str
+    chitta_question: str
+
+
+@router.post("/test/generate-response")
+async def generate_parent_response(request: GenerateResponseRequest):
+    """
+    Generate realistic parent response using LLM.
+    The LLM acts as the parent persona.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    simulator = get_parent_simulator()
+
+    try:
+        response = await simulator.generate_response(
+            family_id=request.family_id,
+            chitta_question=request.chitta_question,
+            llm_provider=app_state.llm
+        )
+
+        return {
+            "parent_response": response
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.error(f"Error generating parent response: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate response")
