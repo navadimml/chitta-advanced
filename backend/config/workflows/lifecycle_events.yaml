@@ -25,6 +25,7 @@ artifacts:
       knowledge_is_rich: true  # Qualitative: has concerns, strengths, context
     unlocks:
       - video_upload_capability
+    event: guidelines_ready  # Trigger this lifecycle event when artifact is generated
 
   baseline_videos:
     description: "3 behavioral videos from parent"

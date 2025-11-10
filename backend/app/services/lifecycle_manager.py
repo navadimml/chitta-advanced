@@ -160,21 +160,24 @@ class LifecycleManager:
                             capabilities_unlocked.extend(unlocked)
                             logger.info(f"🔓 Unlocked capabilities: {unlocked}")
 
-                        # Trigger lifecycle event if defined
-                        event_name = f"{artifact_id}_ready"
-                        lifecycle_events = self.config.get("lifecycle_events", {})
-                        if event_name in lifecycle_events:
-                            event_config = lifecycle_events[event_name]
-                            # Format message with context variables
-                            message = event_config.get("message", "").format(
-                                child_name=context.get("child_name", "הילד/ה")
-                            )
-                            events_triggered.append({
-                                "event_name": event_name,
-                                "action": event_config.get("action"),
-                                "message": message
-                            })
-                            logger.info(f"🎉 Triggered lifecycle event: {event_name}")
+                        # Trigger lifecycle event if defined in artifact config
+                        event_name = artifact_def.get("event")  # Get event name from YAML
+                        if event_name:
+                            lifecycle_events = self.config.get("lifecycle_events", {})
+                            if event_name in lifecycle_events:
+                                event_config = lifecycle_events[event_name]
+                                # Format message with context variables
+                                message = event_config.get("message", "").format(
+                                    child_name=context.get("child_name", "הילד/ה")
+                                )
+                                events_triggered.append({
+                                    "event_name": event_name,
+                                    "action": event_config.get("action"),
+                                    "message": message
+                                })
+                                logger.info(f"🎉 Triggered lifecycle event: {event_name}")
+                            else:
+                                logger.warning(f"⚠️ Event '{event_name}' not found in lifecycle_events")
 
                     else:
                         logger.error(
