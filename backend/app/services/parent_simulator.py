@@ -464,6 +464,35 @@ class ParentSimulator:
         guidelines_ready = session.has_artifact("baseline_video_guidelines")
         acknowledgment_count = simulation.get("completion_acknowledgments", 0)
 
+        # Check for goodbye loop (both sides saying goodbye repeatedly)
+        goodbye_loop_detected = False
+        if graphiti:
+            state = graphiti.get_or_create_state(family_id)
+            recent_messages = state.conversation[-6:] if len(state.conversation) >= 6 else state.conversation
+
+            # Check if recent messages are all short farewells
+            if len(recent_messages) >= 4:
+                goodbye_keywords = ["להתראות", "bye", "goodbye", "שלום", "ביי"]
+                recent_are_goodbyes = all(
+                    any(keyword in msg.content.lower() for keyword in goodbye_keywords) and len(msg.content) < 50
+                    for msg in recent_messages[-4:]
+                )
+                if recent_are_goodbyes:
+                    goodbye_loop_detected = True
+                    logger.warning(f"🔁 Goodbye loop detected for {family_id} - forcing completion")
+
+        # Force completion if:
+        # 1. Guidelines ready AND acknowledged 2+ times, OR
+        # 2. Goodbye loop detected
+        if (guidelines_ready and acknowledgment_count >= 2) or goodbye_loop_detected:
+            logger.info(
+                f"🛑 Forcing completion for {family_id}: "
+                f"guidelines_ready={guidelines_ready}, "
+                f"acknowledgments={acknowledgment_count}, "
+                f"goodbye_loop={goodbye_loop_detected}"
+            )
+            return None  # Force stop - don't rely on LLM
+
         # Build context for LLM with emphasis on behavior patterns
         answer_patterns = persona.context_info.get("answer_patterns", [])
         patterns_text = "\n".join([f"- {p}" for p in answer_patterns]) if answer_patterns else ""

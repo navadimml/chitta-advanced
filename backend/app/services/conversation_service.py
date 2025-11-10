@@ -130,6 +130,33 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
+        # 🛑 EARLY EXIT: Detect goodbye loop when guidelines are ready
+        # If video guidelines ready AND recent messages are short farewells, don't respond
+        if session.has_artifact("baseline_video_guidelines"):
+            recent_msgs = session.conversation_history[-6:] if len(session.conversation_history) >= 6 else session.conversation_history
+
+            # Check if recent conversation is just goodbyes (last 4 messages)
+            if len(recent_msgs) >= 4:
+                goodbye_keywords = ["להתראות", "bye", "goodbye", "שלום", "ביי", "תודה"]
+                recent_are_goodbyes = all(
+                    any(keyword in msg.content.lower() for keyword in goodbye_keywords) and len(msg.content) < 80
+                    for msg in recent_msgs[-4:]
+                )
+
+                if recent_are_goodbyes:
+                    logger.info(
+                        f"🛑 Goodbye loop detected for {family_id} - "
+                        f"guidelines ready and both sides saying goodbye. Ending conversation."
+                    )
+                    return {
+                        "response": "",  # Empty response signals conversation end
+                        "function_calls": [],
+                        "completeness": session.completeness * 100,
+                        "extracted_data": {},
+                        "context_cards": self._generate_context_cards(family_id, session.completeness, None, None),
+                        "conversation_complete": True
+                    }
+
         # 2. UNIFIED INTENT DETECTION
         # Single LLM call detects: (a) information request, (b) action request, or (c) conversation
         # This saves one LLM call compared to sequential detection
