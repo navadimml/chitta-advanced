@@ -447,30 +447,6 @@ class ParentSimulator:
 
         persona = simulation["persona"]
         message_count = simulation["message_count"]
-
-        # CRITICAL: Detect if interview has completed
-        # After 10+ messages and Chitta mentions guidelines/next steps, STOP responding
-        chitta_lower = chitta_question.lower()
-        completion_signals = [
-            "הנחיות", "צילום", "וידאו", "סרטון",  # Hebrew: guidelines, filming, video
-            "guidelines", "video", "filming",
-            "next stage", "השלב הבא", "בהצלחה",
-            "להתראות", "goodbye", "יום טוב"
-        ]
-
-        has_completion_signal = any(signal in chitta_lower for signal in completion_signals)
-        has_acknowledged = simulation.get("acknowledged_completion", False)
-
-        # If Chitta mentioned completion and we've already acknowledged once, STOP
-        if has_completion_signal and has_acknowledged and message_count >= 10:
-            logger.info(f"🛑 Test mode: Interview complete for {family_id}. Stopping parent responses.")
-            return None
-
-        # If this is the first time seeing completion signal, mark it and respond once
-        if has_completion_signal and not has_acknowledged and message_count >= 10:
-            simulation["acknowledged_completion"] = True
-            logger.info(f"✓ Test mode: Parent acknowledging completion (message #{message_count + 1})")
-
         simulation["message_count"] += 1
 
         # Build context for LLM with emphasis on behavior patterns
@@ -543,16 +519,18 @@ This ensures the interview can conclude naturally after 8-10 quality exchanges.
 CONTEXT INFORMATION:
 {self._format_context(persona.context_info)}
 
-WHEN CHITTA SIGNALS NEXT STEP:
-If Chitta mentions anything like "video guidelines", "next stage", "filming instructions", "ready to move forward":
-- Show readiness: "כן, בטח" / "אוקי, אני מוכנה" / "נשמע טוב"
-- Express positive cooperation
-- DON'T ask more questions about the concern at this point
-- Signal you understand it's time to proceed
+INTERVIEW COMPLETION (After 10+ messages):
+If Chitta indicates the interview is complete and next steps are ready:
+- First acknowledgment: Respond naturally with enthusiasm ("כן, בטח! אני מוכנה")
+- Second acknowledgment: Respond briefly ("תודה רבה, נשמע טוב")
+- Third acknowledgment or more: Output ONLY "###COMPLETE###" (this ends the simulation)
+
+Use your understanding of the conversation context to determine if you've already acknowledged completion.
+Current message: #{message_count + 1} in the conversation.
 
 Chitta asked: "{chitta_question}"
 
-Respond as {persona.parent_name} (Message #{message_count + 1}, being {phase}):
+Respond as {persona.parent_name} ({phase}):
 """
 
         # Use LLM to generate response
@@ -564,7 +542,14 @@ Respond as {persona.parent_name} (Message #{message_count + 1}, being {phase}):
 
         response = await llm_provider.chat(messages=messages, temperature=0.8)
 
-        return response.content.strip()
+        response_text = response.content.strip()
+
+        # Let the LLM signal completion naturally
+        if "###COMPLETE###" in response_text:
+            logger.info(f"🛑 Test mode: LLM signaled interview complete for {family_id}")
+            return None
+
+        return response_text
 
     def _format_background(self, background: dict) -> str:
         """Format background dict into readable text"""
