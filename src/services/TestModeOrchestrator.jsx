@@ -7,8 +7,13 @@
  * Architecture:
  * 1. Monitors for Chitta's questions (last assistant message)
  * 2. Calls ParentSimulator API to generate realistic response
- * 3. Auto-submits response with configurable timing
+ * 3. Auto-submits response via handleSend (which adds to UI naturally)
  * 4. Repeats until conversation naturally completes
+ *
+ * Race Condition Prevention:
+ * - processing flag: Prevents overlapping API calls
+ * - lastProcessedMessageTimestamp: Prevents re-processing same message
+ * - These work with App.jsx's lastProcessedMessageRef for double protection
  */
 
 import { api } from '../api/client.js';
@@ -26,9 +31,7 @@ class TestModeOrchestrator {
     this.lastProcessedMessageTimestamp = null; // NEW: Track last processed message
 
     // Callbacks
-    this.onMessageGenerated = null; // (message) => void
-    this.onError = null; // (error) => void
-    this.onComplete = null; // () => void
+    this.onError = null; // (error) => void - called when response generation fails
   }
 
   /**
@@ -138,15 +141,8 @@ class TestModeOrchestrator {
       const parentResponse = result.parent_response;
       console.log('🧪 Generated response:', parentResponse);
 
-      // Notify callback
-      if (this.onMessageGenerated) {
-        this.onMessageGenerated({
-          sender: 'user',
-          text: parentResponse,
-          timestamp: new Date().toISOString(),
-          testMode: true
-        });
-      }
+      // Don't inject the message here - let handleSend add it naturally
+      // This prevents duplicate messages
 
       // Auto-submit the response
       await this._sleep(500); // Small delay before submitting

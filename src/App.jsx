@@ -104,10 +104,6 @@ function App() {
     loadJourney();
 
     // 🧪 Setup test mode orchestrator callbacks
-    testModeOrchestrator.onMessageGenerated = (message) => {
-      setMessages(prev => [...prev, message]);
-    };
-
     testModeOrchestrator.onError = (error) => {
       console.error('🧪 Test mode error:', error);
       const errorMessage = {
