@@ -202,6 +202,16 @@ async def send_message(request: SendMessageRequest):
         interview_service = get_interview_service()
         interview_session = interview_service.get_or_create_session(request.family_id)
 
+        # Sync artifacts to graphiti state (CRITICAL FIX!)
+        # The state derivation checks state.artifacts, so we must sync them
+        for artifact_id, artifact in interview_session.artifacts.items():
+            if artifact.is_ready:  # Only sync ready artifacts
+                await graphiti.add_artifact(
+                    family_id=request.family_id,
+                    artifact_type=artifact_id,
+                    content={"status": "ready", "content": artifact.content}
+                )
+
         # Convert artifacts to simplified format for UI
         artifacts_for_ui = {}
         for artifact_id, artifact in interview_session.artifacts.items():
