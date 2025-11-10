@@ -44,6 +44,7 @@ function App() {
   const [testMode, setTestMode] = useState(false);
   const [testPersonas, setTestPersonas] = useState([]);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
+  const [testFamilyId, setTestFamilyId] = useState(null); // Track test mode family ID
 
   // Ref to track last processed message (prevent duplicate triggers)
   const lastProcessedMessageRef = useRef(null);
@@ -193,8 +194,9 @@ function App() {
         return;
       }
 
-      // Call backend API
-      const response = await api.sendMessage(FAMILY_ID, message);
+      // Call backend API (use test family ID if in test mode)
+      const activeFamilyId = testMode && testFamilyId ? testFamilyId : FAMILY_ID;
+      const response = await api.sendMessage(activeFamilyId, message);
 
       // Add assistant response (normal flow)
       const assistantMessage = {
@@ -547,12 +549,15 @@ function App() {
                       // Reset tracking ref
                       lastProcessedMessageRef.current = null;
 
-                      // 🧪 Start test mode orchestrator with this persona
-                      const testFamilyId = result.family_id;
+                      // 🧪 Store test family ID and start orchestrator
+                      const testFamId = result.family_id;
+                      setTestFamilyId(testFamId); // Store for API calls
+                      console.log('🧪 Test mode using family ID:', testFamId);
+
                       await testModeOrchestrator.start(
                         persona.id,
                         persona,
-                        testFamilyId
+                        testFamId
                       );
 
                       // Start auto-conversation flow with updated messages
