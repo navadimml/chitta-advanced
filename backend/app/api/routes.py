@@ -1288,12 +1288,14 @@ async def generate_parent_response(request: GenerateResponseRequest):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     simulator = get_parent_simulator()
+    graphiti = get_mock_graphiti()
 
     try:
         response = await simulator.generate_response(
             family_id=request.family_id,
             chitta_question=request.chitta_question,
-            llm_provider=app_state.llm
+            llm_provider=app_state.llm,
+            graphiti=graphiti
         )
 
         # If response is None, interview has completed - parent stops responding
