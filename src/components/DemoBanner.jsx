@@ -1,5 +1,5 @@
 import React from 'react';
-import { XCircle, PauseCircle, PlayCircle, SkipForward } from 'lucide-react';
+import { XCircle, PauseCircle, PlayCircle, SkipForward, Play } from 'lucide-react';
 
 /**
  * 🎬 Demo Mode Banner
@@ -8,7 +8,7 @@ import { XCircle, PauseCircle, PlayCircle, SkipForward } from 'lucide-react';
  * Semi-transparent to not block the view.
  * Shows progress and control buttons.
  */
-export default function DemoBanner({ demoCard, onAction, isPaused }) {
+export default function DemoBanner({ demoCard, onAction, isPaused, isStarted }) {
   if (!demoCard) return null;
 
   return (
@@ -35,24 +35,38 @@ export default function DemoBanner({ demoCard, onAction, isPaused }) {
 
               {/* Action Buttons */}
               <div className="flex gap-2 mr-2">
-                <button
-                  onClick={() => onAction(isPaused ? 'resume_demo' : 'pause_demo')}
-                  className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all duration-200 hover:scale-110"
-                  title={isPaused ? 'המשך' : 'השהה'}
-                >
-                  {isPaused ? (
-                    <PlayCircle className="w-5 h-5" />
-                  ) : (
-                    <PauseCircle className="w-5 h-5" />
-                  )}
-                </button>
-                <button
-                  onClick={() => onAction('skip_step')}
-                  className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all duration-200 hover:scale-110"
-                  title="דלג"
-                >
-                  <SkipForward className="w-5 h-5" />
-                </button>
+                {!isStarted ? (
+                  /* START Button - Large and prominent */
+                  <button
+                    onClick={() => onAction('start_demo')}
+                    className="px-6 py-2 bg-white text-orange-600 font-bold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 flex items-center gap-2"
+                  >
+                    <Play className="w-5 h-5" />
+                    התחל הדגמה
+                  </button>
+                ) : (
+                  /* Normal controls when started */
+                  <>
+                    <button
+                      onClick={() => onAction(isPaused ? 'resume_demo' : 'pause_demo')}
+                      className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all duration-200 hover:scale-110"
+                      title={isPaused ? 'המשך' : 'השהה'}
+                    >
+                      {isPaused ? (
+                        <PlayCircle className="w-5 h-5" />
+                      ) : (
+                        <PauseCircle className="w-5 h-5" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => onAction('skip_step')}
+                      className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all duration-200 hover:scale-110"
+                      title="דלג"
+                    >
+                      <SkipForward className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => onAction('stop_demo')}
                   className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all duration-200 hover:scale-110"
