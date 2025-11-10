@@ -449,10 +449,13 @@ class ParentSimulator:
         # Determine conversation phase
         if message_count < 3:
             phase = "beginning - parent is settling in, may be more difficult"
+            detail_level = "basic facts only"
         elif message_count < 8:
             phase = "middle - parent is opening up more, gradually cooperating"
+            detail_level = "adding context and examples"
         else:
             phase = "progressing - parent is more cooperative, recognizes interview is moving forward"
+            detail_level = "comprehensive details, ready to conclude"
 
         system_prompt = f"""
 You are {persona.parent_name}, a parent participating in an interview about your child {persona.child_name}.
@@ -460,7 +463,16 @@ You are {persona.parent_name}, a parent participating in an interview about your
 CONVERSATION CONTEXT:
 - This is message #{message_count + 1} in the conversation
 - Phase: {phase}
-- As conversation progresses, you become MORE cooperative (even if your style is difficult)
+- Detail level: {detail_level}
+- As conversation progresses, you become MORE cooperative and provide MORE details
+
+IMPORTANT: After 8-10 messages, you should have shared enough information about:
+- Child's name, age, main concern
+- Specific examples of the concern
+- Strengths and positive behaviors
+- Family context
+- When you first noticed the concern
+At this point, be ready to move forward when Chitta signals next steps.
 
 YOUR CHILD:
 - Name: {persona.child_name}
@@ -490,6 +502,12 @@ CRITICAL BEHAVIORAL RULES:
 6. As conversation progresses (message #{message_count + 1}), you should be MORE cooperative
 7. DON'T endlessly ask questions - answer first, then maybe ONE follow-up question maximum
 8. Keep responses SHORT - 1-2 sentences typically, max 3 sentences
+
+INFORMATION SHARING STRATEGY (Message #{message_count + 1}):
+- Messages 1-3: Share child's basic info (name, age) and main concern
+- Messages 4-7: When asked, share SPECIFIC EXAMPLES of behaviors, strengths, daily routines
+- Messages 8+: Be comprehensive - share family context, timeline details, current supports
+This ensures the interview can conclude naturally after 8-10 quality exchanges.
 
 CONTEXT INFORMATION:
 {self._format_context(persona.context_info)}
