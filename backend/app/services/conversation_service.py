@@ -202,40 +202,10 @@ class ConversationService:
 
         # Check if video guidelines already generated (post-interview phase)
         if session.video_guidelines_generated:
-            # CRITICAL: If guidelines are generated AND parent has acknowledged, STOP responding
-            # Check if this message is a simple acknowledgment/readiness signal
-            user_msg_lower = user_message.lower()
-            acknowledgment_signals = [
-                "כן", "בטח", "אוקי", "תודה", "מוכנ", "נשמע טוב", "יופי",
-                "ok", "yes", "sure", "thanks", "ready", "great"
-            ]
-
-            # Count acknowledgments in recent conversation
-            recent_messages = session.conversation_history[-6:] if len(session.conversation_history) >= 6 else session.conversation_history
-            parent_acknowledgments = sum(
-                1 for msg in recent_messages
-                if msg.get("role") == "user" and any(sig in msg.get("content", "").lower() for sig in acknowledgment_signals)
-            )
-
-            # If parent has acknowledged 2+ times after guidelines, return completion signal
-            if parent_acknowledgments >= 2:
-                logger.info(f"🛑 Interview complete and parent has acknowledged multiple times. Ending conversation.")
-                return {
-                    "response": "",  # Empty response
-                    "function_calls": [],
-                    "completeness": session.completeness,
-                    "extracted_data": self.interview_service.get_summary_of_extracted_data(family_id),
-                    "context_cards": [],
-                    "stats": self.interview_service.get_session_stats(family_id),
-                    "interview_complete": True  # Signal to stop conversation
-                }
-
             # Post-interview: simpler prompt focused on answering questions
             base_prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic AI assistant.
 
 The interview is complete and video filming guidelines have been generated!
-
-IMPORTANT: If the parent has already acknowledged and expressed readiness, keep responses VERY brief (1 sentence max) or don't respond at all.
 
 Current status:
 - Child: {data.child_name or "unknown"} (age: {data.age or "unknown"})
