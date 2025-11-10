@@ -63,7 +63,23 @@ class GeminiProviderEnhanced(GeminiProvider):
             logger.info(f"🔔 Using LITE mode for {model} - enhanced function calling enabled")
 
     def _is_lite_model(self, model: str) -> bool:
-        """Check if this is a less capable model that needs extra help"""
+        """
+        Check if this is a less capable model that needs extra help
+
+        Only returns True if LLM_USE_ENHANCED is true.
+        If LLM_USE_ENHANCED=false, this always returns False.
+        """
+        import os
+
+        # Check if enhanced mode is enabled
+        use_enhanced_env = os.getenv("LLM_USE_ENHANCED", "true").lower()
+        use_enhanced = use_enhanced_env in ["true", "1", "yes"]
+
+        # If enhanced mode is disabled, never treat as lite model
+        if not use_enhanced:
+            return False
+
+        # Only check model indicators if enhanced mode is on
         lite_indicators = ["flash", "1.5-flash", "2.0-flash"]
         model_lower = model.lower()
         return any(indicator in model_lower for indicator in lite_indicators)
