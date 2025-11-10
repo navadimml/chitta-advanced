@@ -509,68 +509,31 @@ Output ONLY this marker, nothing else: ###COMPLETE###
             detail_level = "comprehensive details, ready to conclude"
             completion_instruction = ""
 
-        system_prompt = f"""
-You are {persona.parent_name}, a parent participating in an interview about your child {persona.child_name}.
+        # Build natural character description
+        background_text = self._format_background_naturally(persona.background)
 
-CONVERSATION CONTEXT:
-- This is message #{message_count + 1} in the conversation
-- Phase: {phase}
-- Detail level: {detail_level}
-- As conversation progresses, you become MORE cooperative and provide MORE details
+        system_prompt = f"""
+You are {persona.parent_name}. You have a child named {persona.child_name} who is {persona.child_age} years old.
+
+You're talking with Chitta, a child development guide, because you're concerned about {persona.main_concern.lower()}
+
+About {persona.child_name}:
+{persona.child_name} has some wonderful qualities - {', '.join(persona.strengths[:2]).lower()}, and you've noticed {persona.strengths[2].lower() if len(persona.strengths) > 2 else 'other positive traits'}.
+
+{background_text}
 
 {completion_instruction}
 
-IMPORTANT: After 8-10 messages, you should have shared enough information about:
-- Child's name, age, main concern
-- Specific examples of the concern
-- Strengths and positive behaviors
-- Family context
-- When you first noticed the concern
-At this point, be ready to move forward when Chitta signals next steps.
+Remember:
+- Talk naturally, like a real parent would - not in lists or bullet points
+- Keep it brief - 1-2 sentences, maybe 3 at most
+- You're {persona.response_style.lower()}
+- Some things you remember clearly, some things are fuzzy
+- Don't overthink it - just respond naturally to what Chitta is asking
 
-YOUR CHILD:
-- Name: {persona.child_name}
-- Age: {persona.child_age} years old
-- Gender: {persona.child_gender}
+Chitta: "{chitta_question}"
 
-YOUR MAIN CONCERN:
-{persona.main_concern}
-
-YOUR CHILD'S STRENGTHS:
-{', '.join(persona.strengths)}
-
-BACKGROUND:
-{self._format_background(persona.background)}
-
-RESPONSE STYLE: {persona.response_style}
-
-HOW YOU ANSWER QUESTIONS (APPLY THOUGHTFULLY - VARY YOUR RESPONSES):
-{patterns_text}
-
-CRITICAL BEHAVIORAL RULES:
-1. VARY your responses - don't be difficult on EVERY question, mix clear and unclear answers
-2. Some topics you know well (child's name, age, favorites) - answer these CLEARLY
-3. Other topics you struggle with (timelines, comparisons) - here show your characteristic difficulty
-4. RECOGNIZE when Chitta signals next steps (mentions "video guidelines", "next stage", etc.)
-5. When Chitta mentions next steps: Show readiness, express agreement/eagerness to proceed
-6. As conversation progresses (message #{message_count + 1}), you should be MORE cooperative
-7. DON'T endlessly ask questions - answer first, then maybe ONE follow-up question maximum
-8. Keep responses SHORT - 1-2 sentences typically, max 3 sentences
-
-INFORMATION SHARING STRATEGY (Message #{message_count + 1}):
-- Messages 1-3: Share child's basic info (name, age) and main concern
-- Messages 4-7: When asked, share SPECIFIC EXAMPLES of behaviors, strengths, daily routines
-- Messages 8+: Be comprehensive - share family context, timeline details, current supports
-This ensures the interview can conclude naturally after 8-10 quality exchanges.
-
-CONTEXT INFORMATION:
-{self._format_context(persona.context_info)}
-
-Current message: #{message_count + 1} in the conversation.
-
-Chitta asked: "{chitta_question}"
-
-Respond as {persona.parent_name} ({phase}):
+{persona.parent_name}:
 """
 
         # Use LLM to generate response
@@ -595,7 +558,7 @@ Respond as {persona.parent_name} ({phase}):
         # Add current question
         messages.append(Message(role="user", content=chitta_question))
 
-        response = await llm_provider.chat(messages=messages, temperature=0.8)
+        response = await llm_provider.chat(messages=messages, temperature=0.6)  # Lower temp for more consistent character
 
         response_text = response.content.strip()
 
@@ -614,7 +577,7 @@ Respond as {persona.parent_name} ({phase}):
         return response_text
 
     def _format_background(self, background: dict) -> str:
-        """Format background dict into readable text"""
+        """Format background dict into readable text (DEPRECATED - use _format_background_naturally)"""
         lines = []
         for key, value in background.items():
             if isinstance(value, dict):
@@ -624,6 +587,35 @@ Respond as {persona.parent_name} ({phase}):
             else:
                 lines.append(f"{key}: {value}")
         return "\n".join(lines)
+
+    def _format_background_naturally(self, background: dict) -> str:
+        """Format background as natural conversational text, not bullet points"""
+        parts = []
+
+        # Handle milestones
+        if "milestones" in background:
+            milestones = background["milestones"]
+            if isinstance(milestones, dict):
+                milestone_texts = []
+                for key, value in milestones.items():
+                    if value and str(value).lower() not in ["n/a", "unknown", "לא רלוונטי"]:
+                        milestone_texts.append(str(value))
+                if milestone_texts:
+                    parts.append(f"התפתחותית: {', '.join(milestone_texts[:2])}")
+
+        # Handle family context
+        if "family_context" in background:
+            ctx = background["family_context"]
+            if ctx:
+                parts.append(f"במשפחה: {ctx}")
+
+        # Handle other background info
+        for key, value in background.items():
+            if key not in ["milestones", "family_context"] and value:
+                if isinstance(value, str):
+                    parts.append(f"{value}")
+
+        return ". ".join(parts) + "." if parts else ""
 
     def _format_context(self, context: dict) -> str:
         """Format context dict into readable text"""
