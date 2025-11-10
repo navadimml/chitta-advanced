@@ -520,12 +520,15 @@ CONTEXT INFORMATION:
 {self._format_context(persona.context_info)}
 
 INTERVIEW COMPLETION (After 10+ messages):
-If Chitta indicates the interview is complete and next steps are ready:
-- First acknowledgment: Respond naturally with enthusiasm ("כן, בטח! אני מוכנה")
-- Second acknowledgment: Respond briefly ("תודה רבה, נשמע טוב")
-- Third acknowledgment or more: Output ONLY "###COMPLETE###" (this ends the simulation)
+When Chitta indicates the interview is complete and guidelines are ready:
 
-Use your understanding of the conversation context to determine if you've already acknowledged completion.
+1. **First time** - Acknowledge with enthusiasm: "כן, בטח! אני מוכנה לעבור לשלב הבא"
+2. **Second time** - Acknowledge briefly, NO QUESTIONS: "תודה רבה, נשמע טוב"
+3. **Third time or more** - Output ONLY: "###COMPLETE###"
+
+CRITICAL: After acknowledging twice, DO NOT ask more questions. DO NOT respond further except with the marker.
+If Chitta keeps encouraging you, that means you should output ###COMPLETE###.
+
 Current message: #{message_count + 1} in the conversation.
 
 Chitta asked: "{chitta_question}"
