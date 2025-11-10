@@ -3,6 +3,8 @@
  * מתחבר ל-FastAPI backend
  */
 
+import { demoOrchestrator } from '../services/DemoOrchestrator.jsx';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 class ChittaAPIClient {
@@ -10,6 +12,37 @@ class ChittaAPIClient {
    * שליחת הודעה לצ'יטה
    */
   async sendMessage(familyId, message, parentName = 'הורה') {
+    // 🎬 Demo Mode: Check if demo trigger detected
+    if (this._isDemoTrigger(message) && !demoOrchestrator.isActive()) {
+      // Start demo mode - orchestrator will inject messages
+      const scenario = demoOrchestrator.getScenario();
+
+      // Return first message as if it came from backend
+      return {
+        response: scenario.messages[0].content,
+        stage: 'demo',
+        ui_data: {
+          demo_mode: true,
+          cards: []
+        }
+      };
+    }
+
+    // 🎬 Demo Mode: If demo is active, don't make real API calls
+    if (demoOrchestrator.isActive()) {
+      // Demo orchestrator handles everything
+      // Return empty response - orchestrator will inject messages
+      return {
+        response: '',
+        stage: 'demo',
+        ui_data: {
+          demo_mode: true,
+          cards: []
+        }
+      };
+    }
+
+    // Normal flow: Real API call
     const response = await fetch(`${API_BASE_URL}/chat/send`, {
       method: 'POST',
       headers: {
@@ -27,6 +60,24 @@ class ChittaAPIClient {
     }
 
     return response.json();
+  }
+
+  /**
+   * Detect if message is a demo trigger
+   */
+  _isDemoTrigger(message) {
+    const triggers = [
+      'show me a demo',
+      'start demo',
+      'demo mode',
+      'הראה לי דמו',
+      'דמו',
+      'הדגמה',
+      'התחל הדגמה'
+    ];
+
+    const lowerMessage = message.toLowerCase();
+    return triggers.some(trigger => lowerMessage.includes(trigger));
   }
 
   /**
