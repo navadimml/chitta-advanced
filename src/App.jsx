@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Menu, MessageCircle } from 'lucide-react';
 
 // API Client
@@ -44,6 +44,9 @@ function App() {
   const [testMode, setTestMode] = useState(false);
   const [testPersonas, setTestPersonas] = useState([]);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
+
+  // Ref to track last processed message (prevent duplicate triggers)
+  const lastProcessedMessageRef = useRef(null);
 
   // Load journey state on mount
   useEffect(() => {
@@ -125,7 +128,15 @@ function App() {
     // Find last Chitta message
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.sender === 'chitta') {
-      console.log('🧪 Chitta responded, triggering next parent response');
+      // CRITICAL: Prevent duplicate triggers by checking if we already processed this message
+      if (lastProcessedMessageRef.current === lastMessage.timestamp) {
+        console.log('🧪 [App] Already triggered for this message, skipping...');
+        return;
+      }
+
+      console.log('🧪 [App] Chitta responded, triggering next parent response');
+      lastProcessedMessageRef.current = lastMessage.timestamp;
+
       // Trigger next response after a small delay
       setTimeout(() => {
         testModeOrchestrator.generateNextResponse(messages, handleSend);
@@ -533,6 +544,9 @@ function App() {
 
                       // Mark test mode as active
                       setTestMode(true);
+
+                      // Reset tracking ref
+                      lastProcessedMessageRef.current = null;
 
                       // 🧪 Start test mode orchestrator with this persona
                       const testFamilyId = result.family_id;

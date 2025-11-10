@@ -22,6 +22,8 @@ class TestModeOrchestrator {
     this.speed = 1.0; // 1x = normal speed
     this.paused = false;
     this.autoRunning = false;
+    this.processing = false; // NEW: Track if currently processing a response
+    this.lastProcessedMessageTimestamp = null; // NEW: Track last processed message
 
     // Callbacks
     this.onMessageGenerated = null; // (message) => void
@@ -41,6 +43,8 @@ class TestModeOrchestrator {
     this.personaInfo = personaInfo;
     this.paused = false;
     this.autoRunning = false;
+    this.processing = false; // Reset processing flag
+    this.lastProcessedMessageTimestamp = null; // Reset tracking
 
     return {
       success: true,
@@ -79,13 +83,16 @@ class TestModeOrchestrator {
       return;
     }
 
+    // CRITICAL: Prevent duplicate processing
+    if (this.processing) {
+      console.log('🧪 Already processing a response, skipping...');
+      return;
+    }
+
     // Wait for pause to be lifted
     if (this.paused) {
       console.log('🧪 Auto-conversation paused, waiting...');
-      setTimeout(() => {
-        this._scheduleNextResponse(messages, sendMessageCallback);
-      }, 500);
-      return;
+      return; // Don't schedule when paused
     }
 
     // Find last Chitta message
@@ -96,7 +103,17 @@ class TestModeOrchestrator {
       return;
     }
 
+    // CRITICAL: Check if we already processed this message
+    if (this.lastProcessedMessageTimestamp === lastChittaMessage.timestamp) {
+      console.log('🧪 Already processed this message, skipping...');
+      return;
+    }
+
     console.log('🧪 Found Chitta question:', lastChittaMessage.text);
+
+    // Mark as processing and track this message
+    this.processing = true;
+    this.lastProcessedMessageTimestamp = lastChittaMessage.timestamp;
 
     try {
       // Calculate delay based on speed (base delay: 2 seconds)
@@ -144,6 +161,10 @@ class TestModeOrchestrator {
       if (this.onError) {
         this.onError(error);
       }
+    } finally {
+      // CRITICAL: Always reset processing flag when done
+      this.processing = false;
+      console.log('🧪 Response processing complete');
     }
   }
 
@@ -191,6 +212,8 @@ class TestModeOrchestrator {
     this.active = false;
     this.autoRunning = false;
     this.paused = false;
+    this.processing = false; // Reset processing flag
+    this.lastProcessedMessageTimestamp = null; // Reset tracking
     this.familyId = null;
     this.personaId = null;
     this.personaInfo = null;
