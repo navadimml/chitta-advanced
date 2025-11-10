@@ -96,15 +96,22 @@ class GeminiProvider(BaseLLMProvider):
 
         # Prepare tools if functions provided
         tools = None
+        automatic_function_calling_config = None
         if functions:
             tools = self._convert_functions_to_tools(functions)
+            # Disable automatic function calling since we handle function calls manually
+            # This is critical for manual function declaration handling per Gemini API docs
+            automatic_function_calling_config = types.AutomaticFunctionCallingConfig(
+                disable=True
+            )
 
         # Create configuration
         config = types.GenerateContentConfig(
             temperature=temp,
             max_output_tokens=max_tokens,
             safety_settings=self.safety_settings,
-            tools=tools
+            tools=tools,
+            automatic_function_calling=automatic_function_calling_config
         )
 
         try:
