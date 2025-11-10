@@ -130,33 +130,6 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 🛑 EARLY EXIT: Detect goodbye loop when guidelines are ready
-        # If video guidelines ready AND recent messages are short farewells, don't respond
-        if session.has_artifact("baseline_video_guidelines"):
-            recent_msgs = session.conversation_history[-6:] if len(session.conversation_history) >= 6 else session.conversation_history
-
-            # Check if recent conversation is just goodbyes (last 4 messages)
-            if len(recent_msgs) >= 4:
-                goodbye_keywords = ["להתראות", "bye", "goodbye", "שלום", "ביי", "תודה"]
-                recent_are_goodbyes = all(
-                    any(keyword in msg.content.lower() for keyword in goodbye_keywords) and len(msg.content) < 80
-                    for msg in recent_msgs[-4:]
-                )
-
-                if recent_are_goodbyes:
-                    logger.info(
-                        f"🛑 Goodbye loop detected for {family_id} - "
-                        f"guidelines ready and both sides saying goodbye. Ending conversation."
-                    )
-                    return {
-                        "response": "",  # Empty response signals conversation end
-                        "function_calls": [],
-                        "completeness": session.completeness * 100,
-                        "extracted_data": {},
-                        "context_cards": self._generate_context_cards(family_id, session.completeness, None, None),
-                        "conversation_complete": True
-                    }
-
         # 2. UNIFIED INTENT DETECTION
         # Single LLM call detects: (a) information request, (b) action request, or (c) conversation
         # This saves one LLM call compared to sequential detection
@@ -686,6 +659,32 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
                 f"🌟 Wu Wei: Artifacts emerged from dependency graph: "
                 f"{lifecycle_result['artifacts_generated']}"
             )
+
+        # 🎯 CRITICAL: If guidelines were JUST generated, override LLM response
+        # The LLM response was generated with active interview prompt (before artifact existed)
+        # We need to give a brief completion message instead
+        if "baseline_video_guidelines" in lifecycle_result["artifacts_generated"]:
+            logger.info("🎬 Guidelines just generated - overriding LLM response with completion message")
+
+            child_name = data.child_name or "הילד/ה"
+            completion_response = f"""תודה רבה! יש לי הבנה טובה עכשיו על {child_name}. 💙
+
+הכנתי לך הנחיות צילום מותאמות - תראי אותן בכרטיס למעלה.
+
+כשתהיי מוכנה, אפשר להתחיל לצלם את הסרטונים. אני כאן לכל שאלה! 🎬"""
+
+            return {
+                "response": completion_response,
+                "function_calls": [
+                    {"name": fc.name, "arguments": fc.arguments}
+                    for fc in llm_response.function_calls
+                ],
+                "completeness": completeness_pct,
+                "extracted_data": extraction_summary,
+                "context_cards": context_cards,
+                "stats": self.interview_service.get_session_stats(family_id),
+                "interview_phase_complete": True  # Signal to frontend
+            }
 
         # 10. Return comprehensive response
         return {
