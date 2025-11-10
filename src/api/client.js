@@ -63,21 +63,27 @@ class ChittaAPIClient {
   }
 
   /**
-   * Detect if message is a demo trigger
+   * Detect if message is a test mode trigger
    */
-  _isDemoTrigger(message) {
+  _isTestModeTrigger(message) {
     const triggers = [
-      'show me a demo',
-      'start demo',
-      'demo mode',
-      'הראה לי דמו',
-      'דמו',
-      'הדגמה',
-      'התחל הדגמה'
+      'test mode',
+      'start test',
+      'מצב בדיקה',
+      'התחל בדיקה',
+      'טסט'
     ];
 
     const lowerMessage = message.toLowerCase();
     return triggers.some(trigger => lowerMessage.includes(trigger));
+  }
+
+  /**
+   * Detect if message is a demo trigger (DEPRECATED - use test mode)
+   */
+  _isDemoTrigger(message) {
+    // Demo mode disabled - use test mode instead
+    return false;
   }
 
   /**
@@ -175,6 +181,63 @@ class ChittaAPIClient {
    */
   async getState(familyId) {
     const response = await fetch(`${API_BASE_URL}/state/${familyId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * 🧪 Test Mode: Get available personas
+   */
+  async getTestPersonas() {
+    const response = await fetch(`${API_BASE_URL}/test/personas`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * 🧪 Test Mode: Start test with persona
+   */
+  async startTest(personaId, familyId = null) {
+    const response = await fetch(`${API_BASE_URL}/test/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        persona_id: personaId,
+        family_id: familyId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * 🧪 Test Mode: Generate parent response
+   */
+  async generateParentResponse(familyId, chittaQuestion) {
+    const response = await fetch(`${API_BASE_URL}/test/generate-response`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        family_id: familyId,
+        chitta_question: chittaQuestion
+      })
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);

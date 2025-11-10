@@ -39,6 +39,11 @@ function App() {
   const [videoGuidelines, setVideoGuidelines] = useState(null);
   const [showGuidelinesView, setShowGuidelinesView] = useState(false);
 
+  // Test mode state
+  const [testMode, setTestMode] = useState(false);
+  const [testPersonas, setTestPersonas] = useState([]);
+  const [showPersonaSelector, setShowPersonaSelector] = useState(false);
+
   // Load journey state on mount
   useEffect(() => {
     async function loadJourney() {
@@ -129,23 +134,51 @@ function App() {
     setIsTyping(true);
 
     try {
-      // Call backend API (API client handles demo detection and orchestrator start)
-      const response = await api.sendMessage(FAMILY_ID, message);
+      // 🧪 Check for test mode trigger
+      const testTriggers = ['test mode', 'start test', 'מצב בדיקה', 'התחל בדיקה', 'טסט'];
+      const isTestTrigger = testTriggers.some(trigger =>
+        message.toLowerCase().includes(trigger)
+      );
 
-      // 🎭 Check if demo mode was triggered
-      if (response.ui_data && response.ui_data.demo_mode) {
-        console.log('🎭 Demo mode triggered - orchestrator will take over');
+      if (isTestTrigger) {
+        console.log('🧪 Test mode triggered - loading personas');
+        setIsTyping(true);
 
-        // Start demo orchestrator with scenario
-        const scenario = demoOrchestrator.getScenario();
-        await demoOrchestrator.start(
-          scenario,
-          demoOrchestrator.messageInjector,
-          demoOrchestrator.cardInjector
-        );
+        try {
+          // Load available personas
+          const { personas } = await api.getTestPersonas();
+          setTestPersonas(personas);
+          setShowPersonaSelector(true);
+
+          // Show Chitta's response
+          const assistantMessage = {
+            sender: 'chitta',
+            text: 'מצוין! 🧪\n\nנכנסנו למצב בדיקה. בחרי אחת מהפרסונות לסימולציה:',
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+        } catch (error) {
+          console.error('Error loading test personas:', error);
+          const errorMessage = {
+            sender: 'chitta',
+            text: 'שגיאה בטעינת פרסונות בדיקה.',
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
 
         setIsTyping(false);
-        return; // Orchestrator handles everything from here
+        return;
+      }
+
+      // Call backend API
+      const response = await api.sendMessage(FAMILY_ID, message);
+
+      // 🎭 Check if demo mode was triggered (disabled)
+      if (response.ui_data && response.ui_data.demo_mode) {
+        console.log('🎭 Demo mode is disabled - use test mode instead');
+        setIsTyping(false);
+        return;
       }
 
       // Add assistant response (normal flow)
@@ -458,6 +491,63 @@ function App() {
           childName={childName || "דניאל"}
           onClose={() => setShowGuidelinesView(false)}
         />
+      )}
+
+      {/* 🧪 Test Mode: Persona Selector */}
+      {showPersonaSelector && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">בחר פרסונה לבדיקה</h2>
+            <p className="text-gray-600 mb-6">כל פרסונה מייצגת מקרה בדיקה מציאותי עם רקע מפורט</p>
+
+            <div className="space-y-4">
+              {testPersonas.map((persona) => (
+                <button
+                  key={persona.id}
+                  onClick={async () => {
+                    setShowPersonaSelector(false);
+                    setIsTyping(true);
+
+                    try {
+                      // Start test with this persona
+                      const result = await api.startTest(persona.id);
+
+                      // Show confirmation
+                      const confirmMessage = {
+                        sender: 'chitta',
+                        text: `התחלתי סימולציה עם ${persona.parent}.\nהילד: ${persona.child}\nדאגה עיקרית: ${persona.concern}\n\nעכשיו אני אשאל שאלות, והמערכת תייצר תשובות מציאותיות.`,
+                        timestamp: new Date().toISOString()
+                      };
+                      setMessages(prev => [...prev, confirmMessage]);
+
+                      // Mark test mode as active
+                      setTestMode(true);
+
+                      // TODO: Start auto-conversation
+                    } catch (error) {
+                      console.error('Error starting test:', error);
+                    }
+
+                    setIsTyping(false);
+                  }}
+                  className="w-full p-4 bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 border-2 border-purple-200 rounded-xl transition-all duration-200 hover:scale-105 text-right"
+                >
+                  <div className="font-bold text-lg text-gray-800 mb-1">
+                    {persona.parent} - {persona.child}
+                  </div>
+                  <div className="text-sm text-gray-600">{persona.concern}</div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowPersonaSelector(false)}
+              className="mt-6 w-full py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition"
+            >
+              ביטול
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Global Styles */}
