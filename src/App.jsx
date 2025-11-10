@@ -40,6 +40,7 @@ function App() {
   const [demoFamilyId, setDemoFamilyId] = useState(null);
   const [demoPaused, setDemoPaused] = useState(false);
   const [demoCard, setDemoCard] = useState(null);
+  const [demoStarted, setDemoStarted] = useState(false);
 
   // Initial greeting on mount
   useEffect(() => {
@@ -72,12 +73,19 @@ function App() {
       if (response.artifact_generated) {
         console.log('🌟 Artifact generated:', response.artifact_generated);
 
-        // Add artifact card to cards array
+        // Store artifact info but DON'T show card yet
+        // Card will appear when Chitta mentions guidelines are ready
+      }
+
+      // Check if we should show artifact card (based on card_hint or message content)
+      if (response.card_hint === 'guidelines_ready_card' ||
+          (response.message.role === 'assistant' && response.message.content.includes('ההנחיות מוכנות'))) {
+        // NOW show the artifact card
         const artifactCard = {
           card_type: 'artifact',
           status: 'new',
           icon: 'FileText',
-          title: 'הנחיות צילום מוכנות!',
+          title: 'הנחיות צילום מוכנות! 📋',
           subtitle: 'לחץ לצפייה בהנחיות מותאמות אישית',
           action: 'view_guidelines',
           color: 'green'
@@ -107,9 +115,17 @@ function App() {
       } else {
         // Demo complete!
         console.log('🎬 Demo completed!');
-        setDemoMode(false);
-        setDemoFamilyId(null);
-        setDemoCard(null);
+
+        // Update demo card to show completion but DON'T remove it
+        setDemoCard({
+          ...response.demo_card,
+          title: '🎉 ההדגמה הושלמה!',
+          body: 'ראית את כל התהליך - מראיון ועד להנחיות מותאמות',
+          progress: 100
+        });
+
+        // Stop auto-play but keep banner visible
+        setDemoPaused(true);
       }
     } catch (error) {
       console.error('🎬 Error playing demo step:', error);
@@ -128,6 +144,7 @@ function App() {
       setDemoFamilyId(null);
       setDemoPaused(false);
       setDemoCard(null);
+      setDemoStarted(false);
 
       // Add exit message
       const exitMessage = {
@@ -148,7 +165,13 @@ function App() {
   const handleDemoAction = async (action) => {
     console.log('🎬 Demo action:', action);
 
-    if (action === 'stop_demo') {
+    if (action === 'start_demo') {
+      // Start the demo!
+      setDemoStarted(true);
+      console.log('🎬 Starting demo auto-play...');
+      // Start immediately
+      setTimeout(() => playNextDemoStep(), 100);
+    } else if (action === 'stop_demo') {
       await stopDemo();
     } else if (action === 'pause_demo') {
       setDemoPaused(true);
@@ -181,7 +204,36 @@ function App() {
       // Call backend API
       const response = await api.sendMessage(FAMILY_ID, message);
 
-      // Add assistant response
+      // 🎬 Check if demo mode was triggered (BEFORE adding messages!)
+      if (response.ui_data && response.ui_data.demo_mode) {
+        console.log('🎬 Demo mode triggered!', response.ui_data);
+        setDemoMode(true);
+        setDemoFamilyId(response.ui_data.demo_family_id);
+
+        // Set demo card (separate state!)
+        if (response.ui_data.cards && response.ui_data.cards.length > 0) {
+          setDemoCard(response.ui_data.cards[0]);
+        }
+
+        // Set demo suggestions
+        if (response.ui_data.suggestions) {
+          setSuggestions(response.ui_data.suggestions.map(s =>
+            typeof s === 'string' ? { text: s, action: null } : s
+          ));
+        }
+
+        // Clear normal cards to start fresh
+        setCards([]);
+
+        // DON'T add assistant message - first message is already shown
+        // Start demo immediately with button click
+        console.log('🎬 Demo ready - waiting for start button...');
+
+        setIsTyping(false);
+        return; // Don't process normal flow
+      }
+
+      // Add assistant response (normal flow only)
       const assistantMessage = {
         sender: 'chitta',
         text: response.response,
@@ -192,37 +244,6 @@ function App() {
 
       // Update UI from backend response
       if (response.ui_data) {
-        // 🎬 Check if demo mode was triggered
-        if (response.ui_data.demo_mode) {
-          console.log('🎬 Demo mode triggered!', response.ui_data);
-          setDemoMode(true);
-          setDemoFamilyId(response.ui_data.demo_family_id);
-
-          // Set demo card (separate state!)
-          if (response.ui_data.cards && response.ui_data.cards.length > 0) {
-            setDemoCard(response.ui_data.cards[0]);
-          }
-
-          // Set demo suggestions
-          if (response.ui_data.suggestions) {
-            setSuggestions(response.ui_data.suggestions.map(s =>
-              typeof s === 'string' ? { text: s, action: null } : s
-            ));
-          }
-
-          // Clear normal cards to start fresh
-          setCards([]);
-
-          // Start auto-play immediately
-          console.log('🎬 Starting auto-play in 500ms...');
-          setTimeout(() => {
-            console.log('🎬 Triggering first step...');
-            playNextDemoStep();
-          }, 500);
-
-          return; // Don't process normal flow
-        }
-
         if (response.ui_data.suggestions) {
           setSuggestions(response.ui_data.suggestions.map(s =>
             typeof s === 'string' ? { text: s, action: null } : s
@@ -478,6 +499,7 @@ function App() {
           demoCard={demoCard}
           onAction={handleDemoAction}
           isPaused={demoPaused}
+          isStarted={demoStarted}
         />
       )}
 
