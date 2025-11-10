@@ -30,6 +30,10 @@ class TestModeOrchestrator {
     this.processing = false; // NEW: Track if currently processing a response
     this.lastProcessedMessageTimestamp = null; // NEW: Track last processed message
 
+    // Store messages and callback for resume
+    this.currentMessages = null;
+    this.currentSendCallback = null;
+
     // Callbacks
     this.onError = null; // (error) => void - called when response generation fails
   }
@@ -48,6 +52,8 @@ class TestModeOrchestrator {
     this.autoRunning = false;
     this.processing = false; // Reset processing flag
     this.lastProcessedMessageTimestamp = null; // Reset tracking
+    this.currentMessages = null; // Reset stored messages
+    this.currentSendCallback = null; // Reset stored callback
 
     return {
       success: true,
@@ -73,6 +79,10 @@ class TestModeOrchestrator {
 
     console.log('🧪 Starting auto-conversation');
     this.autoRunning = true;
+
+    // Store for resume functionality
+    this.currentMessages = messages;
+    this.currentSendCallback = sendMessageCallback;
 
     // Wait for next Chitta question and respond
     this._scheduleNextResponse(messages, sendMessageCallback);
@@ -172,6 +182,10 @@ class TestModeOrchestrator {
       return;
     }
 
+    // Update stored messages and callback
+    this.currentMessages = messages;
+    this.currentSendCallback = sendMessageCallback;
+
     // Schedule next response
     this._scheduleNextResponse(messages, sendMessageCallback);
   }
@@ -190,6 +204,12 @@ class TestModeOrchestrator {
   resume() {
     console.log('🧪 Resuming auto-conversation');
     this.paused = false;
+
+    // Restart the conversation flow with stored messages
+    if (this.currentMessages && this.currentSendCallback) {
+      console.log('🧪 Restarting conversation flow after resume');
+      this._scheduleNextResponse(this.currentMessages, this.currentSendCallback);
+    }
   }
 
   /**
@@ -210,6 +230,8 @@ class TestModeOrchestrator {
     this.paused = false;
     this.processing = false; // Reset processing flag
     this.lastProcessedMessageTimestamp = null; // Reset tracking
+    this.currentMessages = null; // Clear stored messages
+    this.currentSendCallback = null; // Clear stored callback
     this.familyId = null;
     this.personaId = null;
     this.personaInfo = null;
