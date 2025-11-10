@@ -203,8 +203,18 @@ class LifecycleManager:
         - knowledge_is_rich: true
         - baseline_video_guidelines.exists: true
         - uploaded_video_count: ">= 3"
-        - OR: [...] (any condition in list)
-        - AND: [...] (all conditions in list)
+        - OR: {condition} (alternative path to satisfy prerequisites)
+        - AND: {conditions} (all conditions in dict must be met)
+
+        YAML Structure Interpretation:
+        prerequisites:
+          A: true
+          B: true
+          OR:
+            C: true
+
+        Means: (A AND B) OR (C)
+        The OR provides an alternative path to satisfy prerequisites.
 
         Args:
             prerequisites: Prerequisites dict from YAML
@@ -213,23 +223,44 @@ class LifecycleManager:
         Returns:
             True if all prerequisites met
         """
-        # Handle OR conditions
-        if "OR" in prerequisites:
-            or_conditions = prerequisites["OR"]
-            # At least one must be true
-            for condition in or_conditions:
-                if self._evaluate_prerequisites(condition, context):
-                    return True
+        if not isinstance(prerequisites, dict):
+            logger.error(f"Prerequisites must be dict, got {type(prerequisites)}: {prerequisites}")
             return False
+
+        # Handle OR conditions - provides alternative path
+        if "OR" in prerequisites:
+            or_condition = prerequisites["OR"]
+            non_or_conditions = {k: v for k, v in prerequisites.items() if k != "OR"}
+
+            # Evaluate OR condition (it's a dict representing alternative prerequisites)
+            if isinstance(or_condition, dict):
+                or_met = self._evaluate_prerequisites(or_condition, context)
+            else:
+                # Fallback for unexpected structure
+                or_met = False
+                logger.warning(f"OR condition has unexpected type: {type(or_condition)}")
+
+            if or_met:
+                return True  # Alternative path satisfied!
+
+            # OR not met, check if all non-OR conditions met
+            if not non_or_conditions:
+                return False  # Only had OR, and it's not met
+
+            # Evaluate non-OR conditions
+            for key, expected_value in non_or_conditions.items():
+                if not self._evaluate_single_prerequisite(key, expected_value, context):
+                    return False
+            return True
 
         # Handle AND conditions (explicit)
         if "AND" in prerequisites:
             and_conditions = prerequisites["AND"]
-            # All must be true
-            for condition in and_conditions:
-                if not self._evaluate_prerequisites(condition, context):
-                    return False
-            return True
+            if isinstance(and_conditions, dict):
+                return self._evaluate_prerequisites(and_conditions, context)
+            else:
+                logger.warning(f"AND condition has unexpected type: {type(and_conditions)}")
+                return False
 
         # Default: All key-value pairs must be met (implicit AND)
         for key, expected_value in prerequisites.items():
