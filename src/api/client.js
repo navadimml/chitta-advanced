@@ -3,8 +3,6 @@
  * מתחבר ל-FastAPI backend
  */
 
-import { demoOrchestrator } from '../services/DemoOrchestrator.jsx';
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 class ChittaAPIClient {
@@ -12,37 +10,7 @@ class ChittaAPIClient {
    * שליחת הודעה לצ'יטה
    */
   async sendMessage(familyId, message, parentName = 'הורה') {
-    // 🎬 Demo Mode: Check if demo trigger detected
-    if (this._isDemoTrigger(message) && !demoOrchestrator.isActive()) {
-      // Start demo mode - orchestrator will inject messages
-      const scenario = demoOrchestrator.getScenario();
-
-      // Return first message as if it came from backend
-      return {
-        response: scenario.messages[0].content,
-        stage: 'demo',
-        ui_data: {
-          demo_mode: true,
-          cards: []
-        }
-      };
-    }
-
-    // 🎬 Demo Mode: If demo is active, don't make real API calls
-    if (demoOrchestrator.isActive()) {
-      // Demo orchestrator handles everything
-      // Return empty response - orchestrator will inject messages
-      return {
-        response: '',
-        stage: 'demo',
-        ui_data: {
-          demo_mode: true,
-          cards: []
-        }
-      };
-    }
-
-    // Normal flow: Real API call
+    // Real API call
     const response = await fetch(`${API_BASE_URL}/chat/send`, {
       method: 'POST',
       headers: {
@@ -60,30 +28,6 @@ class ChittaAPIClient {
     }
 
     return response.json();
-  }
-
-  /**
-   * Detect if message is a test mode trigger
-   */
-  _isTestModeTrigger(message) {
-    const triggers = [
-      'test mode',
-      'start test',
-      'מצב בדיקה',
-      'התחל בדיקה',
-      'טסט'
-    ];
-
-    const lowerMessage = message.toLowerCase();
-    return triggers.some(trigger => lowerMessage.includes(trigger));
-  }
-
-  /**
-   * Detect if message is a demo trigger (DEPRECATED - use test mode)
-   */
-  _isDemoTrigger(message) {
-    // Demo mode disabled - use test mode instead
-    return false;
   }
 
   /**
@@ -246,54 +190,6 @@ class ChittaAPIClient {
     return response.json();
   }
 
-  /**
-   * 🎬 Demo Mode: Get next demo step
-   */
-  async getNextDemoStep(demoFamilyId) {
-    const response = await fetch(`${API_BASE_URL}/demo/${demoFamilyId}/next`);
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  /**
-   * 🎬 Demo Mode: Stop demo
-   */
-  async stopDemo(demoFamilyId) {
-    const response = await fetch(`${API_BASE_URL}/demo/${demoFamilyId}/stop`, {
-      method: 'POST'
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  /**
-   * 🎬 Demo Mode: Start demo manually
-   */
-  async startDemo(scenarioId = 'language_concerns') {
-    const response = await fetch(`${API_BASE_URL}/demo/start`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        scenario_id: scenarioId
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
 }
 
 // Singleton instance

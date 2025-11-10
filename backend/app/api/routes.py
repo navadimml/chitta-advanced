@@ -1172,95 +1172,24 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
     }
 
 
-# === Demo Mode Endpoints ===
+# === Demo Mode Endpoints (DEPRECATED - Use Test Mode Instead) ===
+# Demo mode has been replaced with Test Mode which uses real backend processing
+# Old demo endpoints are disabled to prevent confusion
 
-@router.post("/demo/start", response_model=DemoStartResponse)
-async def start_demo(request: DemoStartRequest):
-    """
-    🎬 Demo Mode: Start interactive demo
+# @router.post("/demo/start", response_model=DemoStartResponse)
+# async def start_demo(request: DemoStartRequest):
+#     """🎬 DEPRECATED: Use /test/start instead"""
+#     raise HTTPException(status_code=410, detail="Demo mode deprecated. Use test mode instead.")
 
-    Starts a scripted demo conversation that runs in the real UI.
-    Demo sessions use a special family_id prefix (demo_*) and showcase
-    the full Chitta journey with pre-written scenarios.
-    """
-    if not app_state.initialized:
-        raise HTTPException(status_code=500, detail="App not initialized")
+# @router.get("/demo/{demo_family_id}/next", response_model=DemoNextResponse)
+# async def get_next_demo_step(demo_family_id: str):
+#     """🎬 DEPRECATED: Use test mode instead"""
+#     raise HTTPException(status_code=410, detail="Demo mode deprecated. Use test mode instead.")
 
-    demo_orchestrator = get_demo_orchestrator()
-
-    try:
-        result = await demo_orchestrator.start_demo(request.scenario_id)
-
-        return DemoStartResponse(
-            demo_family_id=result["demo_family_id"],
-            scenario=result["scenario"],
-            first_message=result["first_message"],
-            demo_card=result["demo_card"]
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        import logging
-        logging.error(f"Error starting demo: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to start demo")
-
-
-@router.get("/demo/{demo_family_id}/next", response_model=DemoNextResponse)
-async def get_next_demo_step(demo_family_id: str):
-    """
-    🎬 Demo Mode: Get next message in demo flow
-
-    Advances the demo to the next step, returns the next message,
-    and triggers artifact generation if needed.
-    """
-    if not app_state.initialized:
-        raise HTTPException(status_code=500, detail="App not initialized")
-
-    demo_orchestrator = get_demo_orchestrator()
-
-    try:
-        result = await demo_orchestrator.get_next_step(demo_family_id)
-
-        return DemoNextResponse(
-            step=result["step"],
-            total_steps=result["total_steps"],
-            message=result["message"],
-            artifact_generated=result.get("artifact_generated"),
-            card_hint=result.get("card_hint"),
-            demo_card=result["demo_card"],
-            is_complete=result.get("is_complete", False)
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        import logging
-        logging.error(f"Error getting next demo step: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to get next demo step")
-
-
-@router.post("/demo/{demo_family_id}/stop", response_model=DemoStopResponse)
-async def stop_demo(demo_family_id: str):
-    """
-    🎬 Demo Mode: Stop demo and return to normal mode
-
-    Ends the demo session and allows user to start their real conversation.
-    """
-    if not app_state.initialized:
-        raise HTTPException(status_code=500, detail="App not initialized")
-
-    demo_orchestrator = get_demo_orchestrator()
-
-    try:
-        result = await demo_orchestrator.stop_demo(demo_family_id)
-
-        return DemoStopResponse(
-            success=result["success"],
-            message=result["message"]
-        )
-    except Exception as e:
-        import logging
-        logging.error(f"Error stopping demo: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to stop demo")
+# @router.post("/demo/{demo_family_id}/stop", response_model=DemoStopResponse)
+# async def stop_demo(demo_family_id: str):
+#     """🎬 DEPRECATED: Use test mode instead"""
+#     raise HTTPException(status_code=410, detail="Demo mode deprecated. Use test mode instead.")
 
 
 # === State-Based Endpoints (Wu Wei Architecture) ===

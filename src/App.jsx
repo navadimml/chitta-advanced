@@ -4,9 +4,6 @@ import { Menu, MessageCircle } from 'lucide-react';
 // API Client
 import { api } from './api/client';
 
-// Demo Orchestrator
-import { demoOrchestrator } from './services/DemoOrchestrator.jsx';
-
 // Test Mode Orchestrator
 import { testModeOrchestrator } from './services/TestModeOrchestrator.jsx';
 
@@ -103,24 +100,6 @@ function App() {
 
     loadJourney();
 
-    // 🎭 Register injectors with DemoOrchestrator (app doesn't control demo!)
-    const messageInjector = (message) => {
-      setMessages(prev => [...prev, message]);
-    };
-
-    const cardInjector = (card) => {
-      setCards(prev => [...prev, card]);
-    };
-
-    const guidelinesInjector = (guidelines) => {
-      setVideoGuidelines(guidelines);
-    };
-
-    // Demo orchestrator can now inject messages/cards/guidelines as if they were real
-    demoOrchestrator.messageInjector = messageInjector;
-    demoOrchestrator.cardInjector = cardInjector;
-    demoOrchestrator.guidelinesInjector = guidelinesInjector;
-
     // 🧪 Setup test mode orchestrator callbacks
     testModeOrchestrator.onMessageGenerated = (message) => {
       setMessages(prev => [...prev, message]);
@@ -209,13 +188,6 @@ function App() {
 
       // Call backend API
       const response = await api.sendMessage(FAMILY_ID, message);
-
-      // 🎭 Check if demo mode was triggered (disabled)
-      if (response.ui_data && response.ui_data.demo_mode) {
-        console.log('🎭 Demo mode is disabled - use test mode instead');
-        setIsTyping(false);
-        return;
-      }
 
       // Add assistant response (normal flow)
       const assistantMessage = {
