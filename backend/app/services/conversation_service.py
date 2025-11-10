@@ -660,21 +660,17 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
                 f"{lifecycle_result['artifacts_generated']}"
             )
 
-        # 🎯 CRITICAL: If guidelines were JUST generated, override LLM response
-        # The LLM response was generated with active interview prompt (before artifact existed)
-        # We need to give a brief completion message instead
-        if "baseline_video_guidelines" in lifecycle_result["artifacts_generated"]:
-            logger.info("🎬 Guidelines just generated - overriding LLM response with completion message")
-
-            child_name = data.child_name or "הילד/ה"
-            completion_response = f"""תודה רבה! יש לי הבנה טובה עכשיו על {child_name}. 💙
-
-הכנתי לך הנחיות צילום מותאמות - תראי אותן בכרטיס למעלה.
-
-כשתהיי מוכנה, אפשר להתחיל לצלם את הסרטונים. אני כאן לכל שאלה! 🎬"""
+        # 🌟 Wu Wei: If lifecycle events were triggered, use their messages from YAML
+        # Events have already-formatted messages from lifecycle_events.yaml
+        if lifecycle_result["events_triggered"]:
+            # Use the first event's message (usually only one per turn)
+            event = lifecycle_result["events_triggered"][0]
+            logger.info(
+                f"🎉 Wu Wei: Using event message from lifecycle_events.yaml: {event['event_name']}"
+            )
 
             return {
-                "response": completion_response,
+                "response": event["message"],  # Use message from YAML!
                 "function_calls": [
                     {"name": fc.name, "arguments": fc.arguments}
                     for fc in llm_response.function_calls
@@ -683,7 +679,7 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
                 "extracted_data": extraction_summary,
                 "context_cards": context_cards,
                 "stats": self.interview_service.get_session_stats(family_id),
-                "interview_phase_complete": True  # Signal to frontend
+                "lifecycle_event": event["event_name"]  # Signal which event occurred
             }
 
         # 10. Return comprehensive response
