@@ -1296,8 +1296,17 @@ async def generate_parent_response(request: GenerateResponseRequest):
             llm_provider=app_state.llm
         )
 
+        # If response is None, interview has completed - parent stops responding
+        if response is None:
+            return {
+                "parent_response": None,
+                "interview_complete": True,
+                "message": "Interview complete - parent has acknowledged and conversation should end"
+            }
+
         return {
-            "parent_response": response
+            "parent_response": response,
+            "interview_complete": False
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
