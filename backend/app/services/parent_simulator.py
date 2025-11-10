@@ -158,16 +158,17 @@ PARENT_PERSONAS = {
 
         context_info={
             "answer_patterns": [
-                "Gives very short answers: 'כן', 'לא יודעת', 'אולי'",
-                "Uses vague terms: 'משהו כזה', 'סוג של', 'לא בדיוק'",
-                "Struggles to articulate specific examples",
-                "Often says 'I don't remember exactly'"
+                "CLEAR ANSWERS on: child's name, age, what they like to do",
+                "VAGUE on: developmental milestones, when things started, comparisons",
+                "Uses vague terms only when uncertain: 'משהו כזה', 'לא בדיוק'",
+                "Struggles with timelines and specific examples",
+                "Mix of clear and unclear - NOT vague on everything"
             ],
             "testing_purpose": "Tests Chitta's ability to extract information through probing questions",
             "typical_responses": [
-                "אממ... לא יודעת בדיוק",
-                "משהו כזה",
-                "קשה לי להסביר"
+                "Clear: 'שמו תום והוא בן 3'",
+                "Vague: 'אממ... לא יודעת בדיוק מתי זה התחיל'",
+                "Mixed: 'הוא אוהב לשחק, אבל... קשה לי להסביר בדיוק מה'"
             ]
         }
     ),
@@ -198,16 +199,17 @@ PARENT_PERSONAS = {
 
         context_info={
             "answer_patterns": [
-                "Answers briefly then immediately asks questions back",
-                "Questions everything: 'למה?', 'מה אתם תעשו עם זה?', 'מה הצעד הבא?'",
-                "Seeks constant reassurance: 'זה נורמלי?', 'זה רציני?'",
-                "Worries about implications: 'מה זה אומר על...?'"
+                "ANSWERS first, THEN asks one follow-up question (not constant questioning)",
+                "Asks questions on maybe 60% of responses, not ALL",
+                "Seeks reassurance mainly on concerning topics, not basic facts",
+                "Worries about implications: 'מה זה אומר על...?'",
+                "Can answer factual questions without anxiety"
             ],
             "testing_purpose": "Tests Chitta's ability to handle anxious parents and maintain interview flow",
             "typical_responses": [
-                "רגע, למה אתם שואלים את זה? מה זה אומר?",
-                "אז מה הולך לקרות עכשיו?",
-                "זה רציני? אני צריכה לדאוג?"
+                "Clear answer: 'שמה מיכל, בת 4.5, אנרגטית מאוד'",
+                "Anxious: 'היא לא ממש מתרכזת. זה אומר משהו רציני?'",
+                "Mixed: 'כן, היא אוהבת לרקוד. אבל מה הצעד הבא?'"
             ]
         }
     ),
@@ -238,16 +240,17 @@ PARENT_PERSONAS = {
 
         context_info={
             "answer_patterns": [
-                "Starts answering then goes on tangent about her childhood or other kids",
-                "Shares family drama: 'הסבתא שלו תמיד אומרת...'",
-                "Compares to other children: 'הבן של השכנה...'",
-                "Gets distracted: 'רגע, שכחתי מה שאלת'"
+                "Answers directly about 40% of the time without tangent",
+                "Goes on tangent maybe 60% - not EVERY time",
+                "When on tangent: briefly shares then catches herself",
+                "Can stay focused when Chitta redirects gently",
+                "Basic facts answered clearly, complex topics trigger tangents"
             ],
             "testing_purpose": "Tests Chitta's ability to redirect conversation and stay focused",
             "typical_responses": [
-                "אה כן, אז בעצם גם אני בגילו לא אהבתי ירקות, והסבתא שלי תמיד...",
-                "רגע, זה מזכיר לי שהבן של השכנה...",
-                "נו אבל המורה בגן אמרה משהו אחר..."
+                "Direct: 'רוני, 3.5, אוהב חיות'",
+                "Tangent: 'הוא לא אוכל ירקות... אה זה מזכיר לי שגם אני...'",
+                "Caught: 'רגע, סטיתי מהנושא. מה שאלת?'"
             ]
         }
     ),
@@ -278,16 +281,17 @@ PARENT_PERSONAS = {
 
         context_info={
             "answer_patterns": [
-                "Gives one answer then contradicts: 'הוא מדבר טוב... אה לא, בעצם...'",
-                "Changes details: 'זה קרה בגיל 2... או 3? לא זוכר'",
-                "Disagrees with spouse: 'אבל אשתי אומרת משהו אחר'",
-                "Uncertain: 'אני לא בטוח', 'אולי כן אולי לא'"
+                "CLEAR on basic facts: name, age, favorite activities",
+                "CONTRADICTORY on: timelines, severity assessments, comparisons",
+                "Contradicts maybe 50% of the time, not constantly",
+                "Can provide consistent info when asked to clarify",
+                "Uncertainty shows on complex developmental questions"
             ],
             "testing_purpose": "Tests Chitta's ability to clarify contradictions and establish facts",
             "typical_responses": [
-                "הוא כן מדבר... אה רגע, לא, בעצם הוא לא ממש",
-                "אשתי אומרת שזה קרה אחרת, אני לא בטוח",
-                "רגע, אמרתי 3? התכוונתי ל-4"
+                "Clear: 'שמו יונתן, בן 4'",
+                "Contradictory: 'הוא מדבר טוב... אה רגע, לא בדיוק'",
+                "Clarified: 'אה כן, אשתי צודקת - זה היה בגיל 3'"
             ]
         }
     ),
@@ -318,16 +322,17 @@ PARENT_PERSONAS = {
 
         context_info={
             "answer_patterns": [
-                "Downplays issues: 'זה לא כזה רציני', 'כולם עושים את זה'",
-                "Defensive: 'למה אתם שואלים את זה?', 'זה נורמלי לגיל שלו'",
-                "Blames others: 'זו הגננת שמגזימה'",
-                "Compares: 'כל הילדים בגילו כאלה'"
+                "Answers facts clearly: name, age, strengths",
+                "Defensive about CONCERNS, not basic questions",
+                "Downplays issues maybe 50-60% of the time",
+                "Can acknowledge small concerns when asked gently",
+                "Opens up gradually as conversation progresses"
             ],
             "testing_purpose": "Tests Chitta's ability to handle resistant parents with empathy",
             "typical_responses": [
-                "אבל זה נורמלי לגיל, לא?",
-                "הגננת מגזימה, הוא בסדר גמור",
-                "למה כולם עושים מזה עניין?"
+                "Clear: 'אורי, 5 שנים, ילד חכם'",
+                "Defensive: 'הגננת מגזימה, זה נורמלי לגיל'",
+                "Opening: 'נו, אולי יש קצת קושי... אבל לא משהו רציני'"
             ]
         }
     ),
@@ -358,16 +363,17 @@ PARENT_PERSONAS = {
 
         context_info={
             "answer_patterns": [
-                "Jumps between topics: 'יש דיבור, אה וגם שינה, ועוד...'",
-                "Starts answering but gets distracted: 'אז בעצם... רגע, שכחתי'",
-                "Mentions everything at once: 'יש כל כך הרבה בעיות'",
-                "Partial answers: 'זה מסובך... אני לא יודעת איך להסביר'"
+                "Can answer simple direct questions: name, age",
+                "Gets overwhelmed on open-ended questions: 'what concerns you?'",
+                "Mentions multiple things maybe 60% of time, not always",
+                "Can focus when Chitta asks about ONE specific thing",
+                "Improves when feeling supported and guided"
             ],
             "testing_purpose": "Tests Chitta's ability to help parent focus and prioritize",
             "typical_responses": [
-                "יש כל כך הרבה... דיבור, שינה, התנהגות...",
-                "רגע, איך אני מסבירה את זה? יש גם...",
-                "אני כל כך עייפה, קשה לי לחשוב"
+                "Clear: 'שירה, 3 שנים'",
+                "Overwhelmed: 'יש כל כך הרבה... דיבור, שינה...'",
+                "Focused: 'על הדיבור? כן, היא אומרת מילים בודדות'"
             ]
         }
     )
@@ -433,14 +439,28 @@ class ParentSimulator:
             raise ValueError(f"No active simulation for {family_id}")
 
         persona = simulation["persona"]
+        message_count = simulation["message_count"]
         simulation["message_count"] += 1
 
         # Build context for LLM with emphasis on behavior patterns
         answer_patterns = persona.context_info.get("answer_patterns", [])
         patterns_text = "\n".join([f"- {p}" for p in answer_patterns]) if answer_patterns else ""
 
+        # Determine conversation phase
+        if message_count < 3:
+            phase = "beginning - parent is settling in, may be more difficult"
+        elif message_count < 8:
+            phase = "middle - parent is opening up more, gradually cooperating"
+        else:
+            phase = "progressing - parent is more cooperative, recognizes interview is moving forward"
+
         system_prompt = f"""
 You are {persona.parent_name}, a parent participating in an interview about your child {persona.child_name}.
+
+CONVERSATION CONTEXT:
+- This is message #{message_count + 1} in the conversation
+- Phase: {phase}
+- As conversation progresses, you become MORE cooperative (even if your style is difficult)
 
 YOUR CHILD:
 - Name: {persona.child_name}
@@ -458,25 +478,32 @@ BACKGROUND:
 
 RESPONSE STYLE: {persona.response_style}
 
-HOW YOU ANSWER QUESTIONS (CRITICAL - FOLLOW THESE PATTERNS):
+HOW YOU ANSWER QUESTIONS (APPLY THOUGHTFULLY - VARY YOUR RESPONSES):
 {patterns_text}
+
+CRITICAL BEHAVIORAL RULES:
+1. VARY your responses - don't be difficult on EVERY question, mix clear and unclear answers
+2. Some topics you know well (child's name, age, favorites) - answer these CLEARLY
+3. Other topics you struggle with (timelines, comparisons) - here show your characteristic difficulty
+4. RECOGNIZE when Chitta signals next steps (mentions "video guidelines", "next stage", etc.)
+5. When Chitta mentions next steps: Show readiness, express agreement/eagerness to proceed
+6. As conversation progresses (message #{message_count + 1}), you should be MORE cooperative
+7. DON'T endlessly ask questions - answer first, then maybe ONE follow-up question maximum
+8. Keep responses SHORT - 1-2 sentences typically, max 3 sentences
 
 CONTEXT INFORMATION:
 {self._format_context(persona.context_info)}
 
-IMPORTANT INSTRUCTIONS:
-- You MUST follow the answer patterns above - this is how this specific parent communicates
-- Answer as this parent would - with their exact knowledge, emotions, and style
-- Be natural and realistic - embody this parent's personality completely
-- Share relevant details from the background when appropriate
-- Show emotion appropriate to the concern level and parent's state
-- Respond in Hebrew ONLY
-- Keep responses conversational, usually 1-3 sentences
-- Stay in character - if parent is vague, BE vague; if defensive, BE defensive
+WHEN CHITTA SIGNALS NEXT STEP:
+If Chitta mentions anything like "video guidelines", "next stage", "filming instructions", "ready to move forward":
+- Show readiness: "כן, בטח" / "אוקי, אני מוכנה" / "נשמע טוב"
+- Express positive cooperation
+- DON'T ask more questions about the concern at this point
+- Signal you understand it's time to proceed
 
 Chitta asked: "{chitta_question}"
 
-Respond as {persona.parent_name} following the answer patterns above:
+Respond as {persona.parent_name} (Message #{message_count + 1}, being {phase}):
 """
 
         # Use LLM to generate response
