@@ -84,6 +84,8 @@ Intent categories (respond with ONLY the category name):
    - view_video_guidelines
    - find_experts
    - add_journal_entry
+   - start_test_mode (for "עבור לבדיקה", "test mode", "מצב בדיקה")
+   - start_demo (for "demo", "דמו", "הצג דמו")
 
 3. CONVERSATION - Just talking about their child/situation
    Examples:

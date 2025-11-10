@@ -37,6 +37,10 @@ class Action(str, Enum):
     ADD_JOURNAL_ENTRY = "add_journal_entry"
     VIEW_JOURNAL = "view_journal"
 
+    # System/Developer actions
+    START_TEST_MODE = "start_test_mode"
+    START_DEMO = "start_demo"
+
 
 class PrerequisiteType(str, Enum):
     """Types of prerequisites"""
