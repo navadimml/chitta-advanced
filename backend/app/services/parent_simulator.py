@@ -456,20 +456,58 @@ class ParentSimulator:
         message_count = simulation["message_count"]
         simulation["message_count"] += 1
 
+        # Check if interview artifacts have been generated (indicates completion)
+        from app.services.interview_service import get_interview_service
+        interview_service = get_interview_service()
+        session = interview_service.get_or_create_session(family_id)
+
+        guidelines_ready = session.has_artifact("baseline_video_guidelines")
+        acknowledgment_count = simulation.get("completion_acknowledgments", 0)
+
         # Build context for LLM with emphasis on behavior patterns
         answer_patterns = persona.context_info.get("answer_patterns", [])
         patterns_text = "\n".join([f"- {p}" for p in answer_patterns]) if answer_patterns else ""
 
-        # Determine conversation phase
-        if message_count < 3:
+        # Determine conversation phase and completion status
+        if guidelines_ready:
+            # Guidelines have been generated - interview is complete!
+            if acknowledgment_count == 0:
+                phase = "INTERVIEW COMPLETE - video guidelines generated! Acknowledge with enthusiasm"
+                detail_level = "comprehensive - interview successful"
+                completion_instruction = """
+🎯 CRITICAL: The interview is COMPLETE. Video guidelines have been generated.
+This is your FIRST acknowledgment. Respond with enthusiasm and readiness to proceed.
+Example: "כן, בטח! אני מוכנה לעבור לשלב הבא" or "מעולה! אשמח לקבל את ההנחיות"
+DO NOT ask more questions. Just acknowledge positively.
+"""
+            elif acknowledgment_count == 1:
+                phase = "INTERVIEW COMPLETE - second acknowledgment"
+                detail_level = "comprehensive - wrapping up"
+                completion_instruction = """
+🎯 CRITICAL: This is your SECOND acknowledgment. Be brief and positive.
+Example: "תודה רבה, נשמע טוב" or "אוקיי, ממתינה"
+DO NOT ask questions. DO NOT continue conversation.
+"""
+            else:
+                # Third time or more - force completion
+                phase = "INTERVIEW COMPLETE - must end now"
+                detail_level = "done"
+                completion_instruction = """
+🎯 CRITICAL: You have acknowledged twice already. Interview must end now.
+Output ONLY this marker, nothing else: ###COMPLETE###
+"""
+        elif message_count < 3:
             phase = "beginning - parent is settling in, may be more difficult"
             detail_level = "basic facts only"
+            completion_instruction = ""
         elif message_count < 8:
             phase = "middle - parent is opening up more, gradually cooperating"
             detail_level = "adding context and examples"
+            completion_instruction = ""
         else:
             phase = "progressing - parent is more cooperative, recognizes interview is moving forward"
             detail_level = "comprehensive details, ready to conclude"
+            completion_instruction = ""
 
         system_prompt = f"""
 You are {persona.parent_name}, a parent participating in an interview about your child {persona.child_name}.
@@ -479,6 +517,8 @@ CONVERSATION CONTEXT:
 - Phase: {phase}
 - Detail level: {detail_level}
 - As conversation progresses, you become MORE cooperative and provide MORE details
+
+{completion_instruction}
 
 IMPORTANT: After 8-10 messages, you should have shared enough information about:
 - Child's name, age, main concern
@@ -526,16 +566,6 @@ This ensures the interview can conclude naturally after 8-10 quality exchanges.
 CONTEXT INFORMATION:
 {self._format_context(persona.context_info)}
 
-INTERVIEW COMPLETION (After 10+ messages):
-When Chitta indicates the interview is complete and guidelines are ready:
-
-1. **First time** - Acknowledge with enthusiasm: "כן, בטח! אני מוכנה לעבור לשלב הבא"
-2. **Second time** - Acknowledge briefly, NO QUESTIONS: "תודה רבה, נשמע טוב"
-3. **Third time or more** - Output ONLY: "###COMPLETE###"
-
-CRITICAL: After acknowledging twice, DO NOT ask more questions. DO NOT respond further except with the marker.
-If Chitta keeps encouraging you, that means you should output ###COMPLETE###.
-
 Current message: #{message_count + 1} in the conversation.
 
 Chitta asked: "{chitta_question}"
@@ -569,9 +599,16 @@ Respond as {persona.parent_name} ({phase}):
 
         response_text = response.content.strip()
 
+        # Track acknowledgments when guidelines are ready
+        if guidelines_ready and "###COMPLETE###" not in response_text:
+            simulation["completion_acknowledgments"] = acknowledgment_count + 1
+            logger.info(
+                f"📝 Parent acknowledged completion #{acknowledgment_count + 1} for {family_id}"
+            )
+
         # Let the LLM signal completion naturally
         if "###COMPLETE###" in response_text:
-            logger.info(f"🛑 Test mode: LLM signaled interview complete for {family_id}")
+            logger.info(f"🛑 Test mode: Interview complete for {family_id} (guidelines ready: {guidelines_ready})")
             return None
 
         return response_text
