@@ -171,6 +171,19 @@ class ChittaAPIClient {
   }
 
   /**
+   * קבלת מצב המשפחה (State)
+   */
+  async getState(familyId) {
+    const response = await fetch(`${API_BASE_URL}/state/${familyId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * 🎬 Demo Mode: Get next demo step
    */
   async getNextDemoStep(demoFamilyId) {

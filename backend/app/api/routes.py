@@ -16,6 +16,13 @@ from app.config.card_generator import get_card_generator
 from app.config.view_manager import get_view_manager
 # Demo Mode: Import demo orchestrator
 from app.services.demo_orchestrator_service import get_demo_orchestrator
+# State-based architecture
+from app.services.mock_graphiti import get_mock_graphiti
+from app.services.state_derivation import (
+    derive_active_cards,
+    derive_contextual_greeting,
+    derive_suggestions
+)
 
 router = APIRouter()
 
@@ -154,8 +161,16 @@ async def send_message(request: SendMessageRequest):
             }
         )
 
-    # Get conversation service (singleton)
+    # Get services
     conversation_service = get_conversation_service()
+    graphiti = get_mock_graphiti()
+
+    # Save user message to state
+    await graphiti.add_message(
+        family_id=request.family_id,
+        role="user",
+        content=request.message
+    )
 
     try:
         # Process message with real LLM and function calling
@@ -163,6 +178,13 @@ async def send_message(request: SendMessageRequest):
             family_id=request.family_id,
             user_message=request.message,
             temperature=0.7
+        )
+
+        # Save assistant response to state
+        await graphiti.add_message(
+            family_id=request.family_id,
+            role="assistant",
+            content=result["response"]
         )
 
         # Get or create session for backward compatibility
@@ -188,10 +210,15 @@ async def send_message(request: SendMessageRequest):
                 "ready_at": artifact.ready_at.isoformat() if artifact.ready_at else None
             }
 
-        # Build UI data with real data from conversation service
+        # Get current state and derive UI elements
+        state = graphiti.get_or_create_state(request.family_id)
+        derived_cards = derive_active_cards(state)
+        derived_suggestions = derive_suggestions(state)
+
+        # Build UI data with real data from conversation service + derived UI
         ui_data = {
-            "suggestions": _generate_suggestions_from_state(result),
-            "cards": result.get("context_cards", []),
+            "suggestions": derived_suggestions,  # Derived from state
+            "cards": derived_cards,  # Derived from state
             "progress": result["completeness"] / 100,  # Convert to 0-1 scale
             "extracted_data": result.get("extracted_data", {}),
             "stats": result.get("stats", {}),
@@ -1232,3 +1259,29 @@ async def stop_demo(demo_family_id: str):
         import logging
         logging.error(f"Error stopping demo: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to stop demo")
+
+
+# === State-Based Endpoints (Wu Wei Architecture) ===
+
+@router.get("/state/{family_id}")
+async def get_family_state(family_id: str):
+    """
+    Get complete family state - the DNA of the system.
+    Everything (cards, greeting, suggestions) derives from this.
+    """
+    graphiti = get_mock_graphiti()
+    state = graphiti.get_or_create_state(family_id)
+
+    # Derive UI elements from state
+    greeting = derive_contextual_greeting(state)
+    cards = derive_active_cards(state)
+    suggestions = derive_suggestions(state)
+
+    return {
+        "state": state.dict(),
+        "ui": {
+            "greeting": greeting,
+            "cards": cards,
+            "suggestions": suggestions
+        }
+    }

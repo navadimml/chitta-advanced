@@ -39,13 +39,60 @@ function App() {
   const [videoGuidelines, setVideoGuidelines] = useState(null);
   const [showGuidelinesView, setShowGuidelinesView] = useState(false);
 
-  // Initial greeting on mount + register demo injectors
+  // Load journey state on mount
   useEffect(() => {
-    setMessages([{
-      sender: 'chitta',
-      text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
-      timestamp: new Date().toISOString()
-    }]);
+    async function loadJourney() {
+      try {
+        // Load complete state from backend
+        const response = await api.getState(FAMILY_ID);
+        const { state, ui } = response;
+
+        // Reconstruct UI from state - everything derives!
+        const conversationMessages = state.conversation.map(msg => ({
+          sender: msg.role === 'user' ? 'user' : 'chitta',
+          text: msg.content,
+          timestamp: msg.timestamp
+        }));
+
+        // Add greeting message
+        setMessages([
+          ...conversationMessages,
+          {
+            sender: 'chitta',
+            text: ui.greeting,
+            timestamp: new Date().toISOString()
+          }
+        ]);
+
+        // Set derived UI elements
+        setCards(ui.cards);
+        setSuggestions(ui.suggestions);
+
+        // Set state data
+        if (state.child) {
+          setChildName(state.child.name || '');
+        }
+
+        if (state.artifacts.baseline_video_guidelines) {
+          setVideoGuidelines(state.artifacts.baseline_video_guidelines.content);
+        }
+
+        // Set activities
+        setVideos(state.videos_uploaded || []);
+        setJournalEntries(state.journal_entries || []);
+
+      } catch (error) {
+        console.error('Error loading journey:', error);
+        // Fallback to default greeting
+        setMessages([{
+          sender: 'chitta',
+          text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
+          timestamp: new Date().toISOString()
+        }]);
+      }
+    }
+
+    loadJourney();
 
     // 🎭 Register injectors with DemoOrchestrator (app doesn't control demo!)
     const messageInjector = (message) => {
