@@ -4,13 +4,15 @@ import { Menu, MessageCircle } from 'lucide-react';
 // API Client
 import { api } from './api/client';
 
+// Demo Orchestrator
+import { demoOrchestrator } from './services/DemoOrchestrator.jsx';
+
 // UI Components
 import ConversationTranscript from './components/ConversationTranscript';
 import ContextualSurface from './components/ContextualSurface';
 import InputArea from './components/InputArea';
 import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
-import DemoBanner from './components/DemoBanner';
 import VideoGuidelinesView from './components/VideoGuidelinesView';
 
 // Generate unique family ID (in real app, from auth)
@@ -35,212 +37,34 @@ function App() {
   const [journalEntries, setJournalEntries] = useState([]);
   const [childName, setChildName] = useState('');
   const [videoGuidelines, setVideoGuidelines] = useState(null);
-
-  // 🎬 Demo Mode State
-  const [demoMode, setDemoMode] = useState(false);
-  const [demoFamilyId, setDemoFamilyId] = useState(null);
-  const [demoPaused, setDemoPaused] = useState(false);
-  const [demoCard, setDemoCard] = useState(null);
-  const [demoStarted, setDemoStarted] = useState(false);
   const [showGuidelinesView, setShowGuidelinesView] = useState(false);
-  const [demoGuidelines, setDemoGuidelines] = useState(null);
 
-  // Initial greeting on mount
+  // Initial greeting on mount + register demo injectors
   useEffect(() => {
     setMessages([{
       sender: 'chitta',
       text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
       timestamp: new Date().toISOString()
     }]);
+
+    // 🎭 Register injectors with DemoOrchestrator (app doesn't control demo!)
+    const messageInjector = (message) => {
+      setMessages(prev => [...prev, message]);
+    };
+
+    const cardInjector = (card) => {
+      setCards(prev => [...prev, card]);
+    };
+
+    const guidelinesInjector = (guidelines) => {
+      setVideoGuidelines(guidelines);
+    };
+
+    // Demo orchestrator can now inject messages/cards/guidelines as if they were real
+    demoOrchestrator.messageInjector = messageInjector;
+    demoOrchestrator.cardInjector = cardInjector;
+    demoOrchestrator.guidelinesInjector = guidelinesInjector;
   }, []);
-
-  // 🎬 Demo Mode: Auto-play next message
-  const playNextDemoStep = async () => {
-    if (!demoMode || !demoFamilyId || demoPaused) {
-      console.log('🎬 Skipping step:', { demoMode, demoFamilyId, demoPaused });
-      return;
-    }
-
-    try {
-      console.log('🎬 Getting next demo step...');
-      const response = await api.getNextDemoStep(demoFamilyId);
-
-      console.log('🎬 Demo step received:', response.step, '/', response.total_steps);
-
-      // Update demo card (separate from normal cards!)
-      if (response.demo_card) {
-        setDemoCard(response.demo_card);
-      }
-
-      // Check if artifact was generated
-      if (response.artifact_generated) {
-        console.log('🌟 Artifact generated:', response.artifact_generated);
-
-        // Store demo guidelines (for demo mode, use mock data)
-        setDemoGuidelines({
-          introduction: "הסרטונים יעזרו לי להבין את ההתפתחות של דניאל בצורה מעמיקה ומדויקת. זה כמו שאלך איתך הביתה ואראה אותו בפעולה - רק שאת קובעת מתי ואיך.",
-          estimated_duration: "2-3 דקות לסרטון",
-          scenarios: [
-            {
-              title: "משחק חופשי",
-              context: "דניאל משחק עם הצעצועים האהובים עליו",
-              duration: "2-3 דקות",
-              what_to_film: "צלמי את דניאל משחק בחופשיות עם הצעצועים שלו. אל תכווני אותו - רק תתבונני. האם הוא מדבר לעצמו? איך הוא מבטא רצונות? האם הוא מזמין אותך להצטרף?",
-              what_to_look_for: [
-                "האם הוא משתמש במילים במהלך המשחק?",
-                "איך הוא מבקש עזרה אם צריך?",
-                "האם יש תקשורת לא מילולית (מחוות, הצבעה)?",
-                "מה קורה כשהוא רוצה משהו שלא בהישג יד?"
-              ],
-              why_matters: "המשחק החופשי חושף את דפוסי התקשורת הטבעיים של דניאל כשהוא נינוח ומרוכז."
-            },
-            {
-              title: "אוכל משותף",
-              context: "ארוחה או חטיף עם דניאל",
-              duration: "2-3 דקות",
-              what_to_film: "צלמי את דניאל בזמן ארוחה. איך הוא מבקש דברים? האם הוא משתף מה הוא אוהב/לא אוהב? תגיבי באופן טבעי ותראי איך הוא מגיב.",
-              what_to_look_for: [
-                "איך הוא מבקש עוד אוכל?",
-                "מה קורה כשמציעים לו משהו שהוא לא רוצה?",
-                "האם יש שיחה קטנה על האוכל?",
-                "איך הוא מבטא העדפות?"
-              ],
-              why_matters: "מצבים יומיומיים כמו אוכל מראים תקשורת פונקציונלית - איך דניאל מבטא צרכים ורצונות בסיטואציה אמיתית."
-            },
-            {
-              title: "משחק עם ילד אחר",
-              context: "אם אפשר - דניאל עם אח, חבר או בן משפחה",
-              duration: "2-3 דקות",
-              what_to_film: "אם יש אפשרות, צלמי את דניאל משחק עם ילד אחר (אח, חבר, בן דוד). איך הם מתקשרים? מי מוביל? האם יש שיתוף פעולה?",
-              what_to_look_for: [
-                "איך דניאל פונה לילד האחר?",
-                "האם יש עין-קשר או תקשורת גופנית?",
-                "מה קורה בקונפליקט (כמו רצון באותו צעצוע)?",
-                "האם יש משחק משותף או משחק מקביל?"
-              ],
-              why_matters: "המשחק החברתי מראה את התקשורת של דניאל עם בני גילו - זה שונה מאינטראקציה עם מבוגרים."
-            }
-          ],
-          general_tips: [
-            "צלמי בגובה עיניים של דניאל - לא מלמעלה",
-            "תנועה טבעית עדיפה על 'פוזה' - תראי את דניאל כמו שהוא",
-            "אורך משוער: 2-3 דקות לכל תרחיש, לא יותר מ-5 דקות",
-            "אין צורך באיכות מושלמת - תוכן חשוב יותר מטכניקה",
-            "אפשר לצלם במשך כמה ימים - לא הכל באותו היום",
-            "אם דניאל לא משתף פעולה ביום מסוים - אין בעיה לנסות מחר"
-          ]
-        });
-
-        // Card will appear when Chitta mentions guidelines are ready
-      }
-
-      // Check if we should show artifact card (based on card_hint or message content)
-      if (response.card_hint === 'guidelines_ready_card' ||
-          (response.message.role === 'assistant' && response.message.content.includes('ההנחיות מוכנות'))) {
-        // NOW show the artifact card
-        const artifactCard = {
-          card_type: 'artifact',
-          status: 'new',
-          icon: 'FileText',
-          title: 'הנחיות צילום מוכנות! 📋',
-          subtitle: 'לחץ לצפייה בהנחיות מותאמות אישית',
-          action: 'view_guidelines',
-          color: 'green'
-        };
-        setCards(prev => [...prev, artifactCard]);
-      }
-
-      // Wait for delay BEFORE showing message
-      if (response.message.delay_ms > 0) {
-        console.log(`🎬 Waiting ${response.message.delay_ms}ms...`);
-        await new Promise(resolve => setTimeout(resolve, response.message.delay_ms));
-      }
-
-      // Add message to UI
-      const newMessage = {
-        sender: response.message.role === 'user' ? 'user' : 'chitta',
-        text: response.message.content,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => [...prev, newMessage]);
-
-      // Continue to next step if not complete
-      if (!response.is_complete) {
-        // Schedule next step
-        setTimeout(() => playNextDemoStep(), 100);
-      } else {
-        // Demo complete!
-        console.log('🎬 Demo completed!');
-
-        // Update demo card to show completion but DON'T remove it
-        setDemoCard({
-          ...response.demo_card,
-          title: '🎉 ההדגמה הושלמה!',
-          body: 'ראית את כל התהליך - מראיון ועד להנחיות מותאמות',
-          progress: 100
-        });
-
-        // Stop auto-play but keep banner visible
-        setDemoPaused(true);
-      }
-    } catch (error) {
-      console.error('🎬 Error playing demo step:', error);
-      setDemoMode(false);
-      setDemoCard(null);
-    }
-  };
-
-  // 🎬 Demo Mode: Stop demo
-  const stopDemo = async () => {
-    if (!demoFamilyId) return;
-
-    try {
-      await api.stopDemo(demoFamilyId);
-      setDemoMode(false);
-      setDemoFamilyId(null);
-      setDemoPaused(false);
-      setDemoCard(null);
-      setDemoStarted(false);
-
-      // Add exit message
-      const exitMessage = {
-        sender: 'chitta',
-        text: 'הדמו הופסק. מוכנה להתחיל את השיחה האמיתית שלך! 💙',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, exitMessage]);
-
-      // Clear cards
-      setCards([]);
-    } catch (error) {
-      console.error('Error stopping demo:', error);
-    }
-  };
-
-  // 🎬 Demo Mode: Handle demo actions
-  const handleDemoAction = async (action) => {
-    console.log('🎬 Demo action:', action);
-
-    if (action === 'start_demo') {
-      // Start the demo!
-      setDemoStarted(true);
-      console.log('🎬 Starting demo auto-play...');
-      // Start immediately
-      setTimeout(() => playNextDemoStep(), 100);
-    } else if (action === 'stop_demo') {
-      await stopDemo();
-    } else if (action === 'pause_demo') {
-      setDemoPaused(true);
-    } else if (action === 'resume_demo') {
-      setDemoPaused(false);
-      // Resume auto-play
-      setTimeout(() => playNextDemoStep(), 100);
-    } else if (action === 'skip_step') {
-      // Skip current delay and play next
-      playNextDemoStep();
-    }
-  };
 
   // Handle sending a message
   const handleSend = async (message) => {
@@ -258,39 +82,26 @@ function App() {
     setIsTyping(true);
 
     try {
-      // Call backend API
+      // Call backend API (API client handles demo detection and orchestrator start)
       const response = await api.sendMessage(FAMILY_ID, message);
 
-      // 🎬 Check if demo mode was triggered (BEFORE adding messages!)
+      // 🎭 Check if demo mode was triggered
       if (response.ui_data && response.ui_data.demo_mode) {
-        console.log('🎬 Demo mode triggered!', response.ui_data);
-        setDemoMode(true);
-        setDemoFamilyId(response.ui_data.demo_family_id);
+        console.log('🎭 Demo mode triggered - orchestrator will take over');
 
-        // Set demo card (separate state!)
-        if (response.ui_data.cards && response.ui_data.cards.length > 0) {
-          setDemoCard(response.ui_data.cards[0]);
-        }
-
-        // Set demo suggestions
-        if (response.ui_data.suggestions) {
-          setSuggestions(response.ui_data.suggestions.map(s =>
-            typeof s === 'string' ? { text: s, action: null } : s
-          ));
-        }
-
-        // Clear normal cards to start fresh
-        setCards([]);
-
-        // DON'T add assistant message - first message is already shown
-        // Start demo immediately with button click
-        console.log('🎬 Demo ready - waiting for start button...');
+        // Start demo orchestrator with scenario
+        const scenario = demoOrchestrator.getScenario();
+        await demoOrchestrator.start(
+          scenario,
+          demoOrchestrator.messageInjector,
+          demoOrchestrator.cardInjector
+        );
 
         setIsTyping(false);
-        return; // Don't process normal flow
+        return; // Orchestrator handles everything from here
       }
 
-      // Add assistant response (normal flow only)
+      // Add assistant response (normal flow)
       const assistantMessage = {
         sender: 'chitta',
         text: response.response,
@@ -340,7 +151,6 @@ function App() {
   const handleCardClick = async (action) => {
     if (!action) return; // Status cards have no action
 
-    // 🎬 Demo: Show guidelines view
     if (action === 'view_guidelines') {
       setShowGuidelinesView(true);
       return;
@@ -556,16 +366,6 @@ function App() {
         </div>
       </div>
 
-      {/* 🎬 Demo Mode Banner */}
-      {demoMode && demoCard && (
-        <DemoBanner
-          demoCard={demoCard}
-          onAction={handleDemoAction}
-          isPaused={demoPaused}
-          isStarted={demoStarted}
-        />
-      )}
-
       {/* Conversation Transcript */}
       <ConversationTranscript messages={messages} isTyping={isTyping} />
 
@@ -604,11 +404,11 @@ function App() {
         onDeleteVideo={handleDeleteVideo}
       />
 
-      {/* 🎬 Demo: Video Guidelines View */}
-      {showGuidelinesView && demoGuidelines && (
+      {/* Video Guidelines View (works for both demo and real mode) */}
+      {showGuidelinesView && videoGuidelines && (
         <VideoGuidelinesView
-          guidelines={demoGuidelines}
-          childName="דניאל"
+          guidelines={videoGuidelines}
+          childName={childName || "דניאל"}
           onClose={() => setShowGuidelinesView(false)}
         />
       )}
