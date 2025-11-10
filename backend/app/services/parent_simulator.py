@@ -5,6 +5,9 @@ Uses real backend processing to test entire system
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ParentPersona(BaseModel):
@@ -429,10 +432,14 @@ class ParentSimulator:
         family_id: str,
         chitta_question: str,
         llm_provider
-    ) -> str:
+    ) -> Optional[str]:
         """
         Generate realistic parent response using LLM.
         The LLM acts as the parent persona.
+
+        Returns:
+            str: Parent's response
+            None: If conversation should end (interview complete)
         """
         simulation = self.active_simulations.get(family_id)
         if not simulation:
@@ -440,6 +447,30 @@ class ParentSimulator:
 
         persona = simulation["persona"]
         message_count = simulation["message_count"]
+
+        # CRITICAL: Detect if interview has completed
+        # After 10+ messages and Chitta mentions guidelines/next steps, STOP responding
+        chitta_lower = chitta_question.lower()
+        completion_signals = [
+            "הנחיות", "צילום", "וידאו", "סרטון",  # Hebrew: guidelines, filming, video
+            "guidelines", "video", "filming",
+            "next stage", "השלב הבא", "בהצלחה",
+            "להתראות", "goodbye", "יום טוב"
+        ]
+
+        has_completion_signal = any(signal in chitta_lower for signal in completion_signals)
+        has_acknowledged = simulation.get("acknowledged_completion", False)
+
+        # If Chitta mentioned completion and we've already acknowledged once, STOP
+        if has_completion_signal and has_acknowledged and message_count >= 10:
+            logger.info(f"🛑 Test mode: Interview complete for {family_id}. Stopping parent responses.")
+            return None
+
+        # If this is the first time seeing completion signal, mark it and respond once
+        if has_completion_signal and not has_acknowledged and message_count >= 10:
+            simulation["acknowledged_completion"] = True
+            logger.info(f"✓ Test mode: Parent acknowledging completion (message #{message_count + 1})")
+
         simulation["message_count"] += 1
 
         # Build context for LLM with emphasis on behavior patterns
