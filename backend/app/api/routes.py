@@ -142,63 +142,62 @@ async def send_message(request: SendMessageRequest):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    # 🎬 Demo Mode: Check if user wants to start demo
-    demo_orchestrator = get_demo_orchestrator()
-    scenario_id = demo_orchestrator.detect_demo_intent(request.message)
-
-    if scenario_id:
-        # Start demo mode
-        demo_result = await demo_orchestrator.start_demo(scenario_id)
-
-        return SendMessageResponse(
-            response=demo_result["first_message"]["content"],
-            stage="demo",
-            ui_data={
-                "demo_mode": True,
-                "demo_family_id": demo_result["demo_family_id"],
-                "demo_scenario": demo_result["scenario"],
-                "cards": [demo_result["demo_card"]],
-                "suggestions": ["המשך דמו", "עצור דמו", "דלג לשלב הבא"],
-                "progress": 0
-            }
-        )
-
-    # 🧪 Test Mode: Check if user wants to enter test mode
-    message_lower = request.message.lower().strip()
-    test_triggers = [
-        "עבור לבדיקה",
-        "מצב בדיקה",
-        "תצב בדיקה",
-        "test mode",
-        "start test"
-    ]
-
-    if any(trigger in message_lower for trigger in test_triggers):
-        # List available test personas
-        simulator = get_parent_simulator()
-        personas = simulator.list_personas()
-
-        # Build persona list
-        persona_list = "\n".join([
-            f"- {p['parent']}: {p['child']} - {p['concern']}"
-            for p in personas[:5]  # Show first 5
-        ])
-
-        return SendMessageResponse(
-            response=f"🧪 מצב בדיקה\n\nהבנתי שאת רוצה לבדוק את המערכת! יש לי {len(personas)} פרסונות הורים מוכנות:\n\n{persona_list}\n\nכדי להתחיל, השתמשי ב-API של מצב הבדיקה או בממשק המיוחד למפתחים.",
-            stage="interview",
-            ui_data={
-                "test_mode_available": True,
-                "personas": personas,
-                "suggestions": ["המשך שיחה רגילה"],
-                "cards": [],
-                "progress": 0
-            }
-        )
-
     # Get services
     conversation_service = get_conversation_service()
     graphiti = get_mock_graphiti()
+    knowledge_service = conversation_service.knowledge_service
+
+    # 🎯 LLM-based Intent Detection: Check for system actions (test/demo mode)
+    # Use the intelligent intent detector instead of primitive string matching
+    from app.prompts.intent_types import IntentCategory
+    detected_intent = await knowledge_service.detect_unified_intent(request.message)
+
+    # Handle system/developer actions
+    if detected_intent.category == IntentCategory.ACTION_REQUEST:
+        action = detected_intent.specific_action
+
+        # 🎬 Demo Mode
+        if action == "start_demo":
+            demo_orchestrator = get_demo_orchestrator()
+            # Use demo orchestrator's logic to pick scenario
+            scenario_id = "language_delay"  # Default scenario
+            demo_result = await demo_orchestrator.start_demo(scenario_id)
+
+            return SendMessageResponse(
+                response=demo_result["first_message"]["content"],
+                stage="demo",
+                ui_data={
+                    "demo_mode": True,
+                    "demo_family_id": demo_result["demo_family_id"],
+                    "demo_scenario": demo_result["scenario"],
+                    "cards": [demo_result["demo_card"]],
+                    "suggestions": ["המשך דמו", "עצור דמו", "דלג לשלב הבא"],
+                    "progress": 0
+                }
+            )
+
+        # 🧪 Test Mode
+        elif action == "start_test_mode":
+            simulator = get_parent_simulator()
+            personas = simulator.list_personas()
+
+            # Build persona list
+            persona_list = "\n".join([
+                f"- {p['parent']}: {p['child']} - {p['concern']}"
+                for p in personas[:5]  # Show first 5
+            ])
+
+            return SendMessageResponse(
+                response=f"🧪 מצב בדיקה\n\nהבנתי שאת רוצה לבדוק את המערכת! יש לי {len(personas)} פרסונות הורים מוכנות:\n\n{persona_list}\n\nכדי להתחיל, השתמשי ב-API של מצב הבדיקה (/test/start) או בממשק המיוחד למפתחים.",
+                stage="interview",
+                ui_data={
+                    "test_mode_available": True,
+                    "personas": personas,
+                    "suggestions": ["המשך שיחה רגילה"],
+                    "cards": [],
+                    "progress": 0
+                }
+            )
 
     # Save user message to state
     await graphiti.add_message(
