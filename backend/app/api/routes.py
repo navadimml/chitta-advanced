@@ -1333,9 +1333,10 @@ async def generate_parent_response(request: GenerateResponseRequest):
         # If response is None, interview has completed - parent stops responding
         if response is None:
             return {
-                "parent_response": None,
+                "parent_response": "",  # Empty string, not None (None triggers frontend error)
                 "interview_complete": True,
-                "message": "Interview complete - parent has acknowledged and conversation should end"
+                "conversation_ended": True,  # Clear flag for frontend
+                "message": "השיחה הסתיימה - תמר סיימה את השיחה"
             }
 
         return {
