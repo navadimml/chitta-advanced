@@ -18,6 +18,7 @@ from .llm.factory import create_llm_provider
 from .interview_service import get_interview_service, InterviewService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
+from .consultation_service import get_consultation_service, ConsultationService
 from .artifact_generation_service import ArtifactGenerationService
 from .lifecycle_manager import get_lifecycle_manager, LifecycleManager  # 🌟 Wu Wei: Core dependency graph processor
 from ..prompts.interview_prompt import build_interview_prompt
@@ -51,6 +52,7 @@ class ConversationService:
         interview_service: Optional[InterviewService] = None,
         prerequisite_service: Optional[PrerequisiteService] = None,
         knowledge_service: Optional[KnowledgeService] = None,
+        consultation_service: Optional[ConsultationService] = None,
         phase_manager: Optional[PhaseManager] = None,
         card_generator: Optional[CardGenerator] = None,
         artifact_generation_service: Optional[ArtifactGenerationService] = None,
@@ -66,6 +68,7 @@ class ConversationService:
         self.interview_service = interview_service or get_interview_service()
         self.prerequisite_service = prerequisite_service or get_prerequisite_service()
         self.knowledge_service = knowledge_service or get_knowledge_service()
+        self.consultation_service = consultation_service or get_consultation_service()  # 🌟 Universal consultation handler
         self.phase_manager = phase_manager or get_phase_manager()  # 🌟 Wu Wei: Config-driven phase management
         self.card_generator = card_generator or get_card_generator()  # 🌟 Wu Wei: Config-driven UI cards
         self.artifact_service = artifact_generation_service or ArtifactGenerationService()  # 🌟 Wu Wei: Artifact generation
@@ -160,6 +163,41 @@ class ConversationService:
                 context
             )
             logger.info(f"Injecting domain knowledge about {information_request} for LLM to use")
+
+        # Handle consultation questions (Wu Wei: Universal consultation handler)
+        elif detected_intent.category == IntentCategory.CONSULTATION:
+            logger.info(f"✓ Consultation question detected: {user_message[:50]}...")
+
+            # Use universal consultation service - handles ALL consultation types
+            recent_history = self.interview_service.get_conversation_history(
+                family_id,
+                last_n=10  # Last 5 exchanges for context
+            )
+
+            consultation_result = await self.consultation_service.handle_consultation(
+                family_id=family_id,
+                question=user_message,
+                conversation_history=recent_history
+            )
+
+            # Return consultation response directly (already saved to history by consultation service)
+            return {
+                "response": consultation_result["response"],
+                "function_calls": [],
+                "completeness": session.completeness * 100,
+                "extracted_data": {},
+                "context_cards": self._generate_context_cards(
+                    family_id,
+                    session.completeness,
+                    None,
+                    None
+                ),
+                "stats": self.interview_service.get_session_stats(family_id),
+                "consultation": {
+                    "sources_used": consultation_result["sources_used"],
+                    "timestamp": consultation_result["timestamp"]
+                }
+            }
 
         # Handle action requests
         elif detected_intent.category == IntentCategory.ACTION_REQUEST:
