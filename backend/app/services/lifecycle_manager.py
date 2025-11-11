@@ -172,7 +172,7 @@ class LifecycleManager:
                                 )
 
                                 # 🌟 Wu Wei: Include ui_context to prevent hallucinations
-                                # This guides Chitta about actual UI elements (cards, locations, actions)
+                                # This guides Chitta about actual UI elements (cards, buttons, modals, etc.)
                                 event_data = {
                                     "event_name": event_name,
                                     "action": event_config.get("action"),
@@ -183,7 +183,7 @@ class LifecycleManager:
                                 ui_context = event_config.get("ui_context")
                                 if ui_context:
                                     event_data["ui_context"] = ui_context
-                                    logger.info(f"  📍 UI Context: {ui_context.get('card_title')} at {ui_context.get('card_location')}")
+                                    logger.info(f"  📍 UI Context ({ui_context.get('type')}): {ui_context.get('default')[:50]}...")
 
                                 events_triggered.append(event_data)
                                 logger.info(f"🎉 Triggered lifecycle event: {event_name}")

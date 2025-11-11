@@ -225,22 +225,28 @@ prerequisite_rules:
 # LIFECYCLE EVENTS (Moments to celebrate)
 # ============================================
 #
-# 🌟 Wu Wei UI Context Pattern
-# -----------------------------
+# 🌟 Wu Wei UI Context Pattern (פשוט - נטול חלקים עודפים)
+# ---------------------------------------------------------
 # Each event can include a `ui_context` section to guide users to actual UI elements,
 # preventing Chitta from hallucinating about non-existent UI ("above", "email", etc.)
 #
 # ui_context structure:
-#   card_location: Where the card appears (e.g., "active_now_section_below")
-#   card_title: Exact title of the card (e.g., "הנחיות צילום")
-#   card_action: What happens when clicked (e.g., "click_to_view_full_content")
-#   guidance: Natural language explanation of UI element location and behavior
+#   type: UI element type (card, button, modal, banner, tab, floating_action, etc.)
+#   default: Guidance text for default/desktop platform
+#   mobile: Optional guidance text when mobile UI differs (only include if different)
 #
-# This pattern ensures:
-# 1. Consistency - All events use same structure
-# 2. Reusability - Easy to add ui_context to any event
-# 3. No hallucinations - Chitta knows actual UI elements
-# 4. Configuration-driven - No hardcoded UI guidance in code
+# Example:
+#   ui_context:
+#     type: "card"
+#     default: "לחצי על הכרטיס 'הנחיות צילום' ב'פעיל עכשיו' למטה"
+#     mobile: "לחצי על 'הנחיות' בתפריט התחתון"  # Only when mobile differs
+#
+# Benefits:
+# 1. Simple - flat structure, no nested objects
+# 2. Flexible - supports any UI element type, not just cards
+# 3. Platform-aware - handles mobile/desktop/tablet differences
+# 4. No redundancy - single guidance text per platform
+# 5. Future-proof - easy to add new platforms or element types
 #
 lifecycle_events:
   first_message:
@@ -263,13 +269,9 @@ lifecycle_events:
     action: show_guidelines_card
     message: |
       ההנחיות מוכנות! 📹
-
-      תראי את הכרטיס "הנחיות צילום" ב"פעיל עכשיו" למטה - לחצי עליו כדי לקרוא את ההנחיות המלאות.
     ui_context:
-      card_location: "active_now_section_below"
-      card_title: "הנחיות צילום"
-      card_action: "click_to_view_full_content"
-      guidance: "הכרטיס נמצא בסקשן 'פעיל עכשיו' מתחת לחלון השיחה. לחיצה על הכרטיס תפתח תצוגה מלאה השולפת מלמטה."
+      type: "card"
+      default: "תראי את הכרטיס 'הנחיות צילום' ב'פעיל עכשיו' למטה - לחצי עליו כדי לקרוא את ההנחיות המלאות"
 
   videos_uploaded:
     trigger: uploaded_video_count == 3
@@ -278,10 +280,8 @@ lifecycle_events:
       מעולה! 3 הסרטונים הועלו.
       אני מוכנה לנתח אותם - זה ייקח כ-10-15 דקות. בינתיים, תמיד אפשר לשאול שאלות או להוסיף ליומן. 💙
     ui_context:
-      card_location: "active_now_section_below"
-      card_title: "ניתוח סרטונים"
-      card_action: "click_to_start_analysis"
-      guidance: "הכרטיס 'ניתוח סרטונים' מופיע בסקשן 'פעיל עכשיו' מתחת לחלון השיחה. לחצי עליו כדי להתחיל את תהליך הניתוח."
+      type: "card"
+      default: "לחצי על הכרטיס 'ניתוח סרטונים' ב'פעיל עכשיו' למטה כדי להתחיל את הניתוח"
 
   analysis_complete:
     trigger: baseline_video_analysis.exists transitions to true
@@ -290,10 +290,8 @@ lifecycle_events:
       הניתוח הושלם! 🎉
       מצאתי דפוסים מעניינים. בואי נסכם את כל מה שלמדתי על {child_name} בדוח מסודר.
     ui_context:
-      card_location: "active_now_section_below"
-      card_title: "יצירת דוח"
-      card_action: "click_to_generate_report"
-      guidance: "הכרטיס 'יצירת דוח' מופיע בסקשן 'פעיל עכשיו' מתחת לחלון השיחה. לחצי עליו כדי ליצור את הדוח המסודר."
+      type: "card"
+      default: "לחצי על הכרטיס 'יצירת דוח' ב'פעיל עכשיו' למטה כדי ליצור את הדוח המסודר"
 
   baseline_report_ready:
     trigger: baseline_parent_report.exists transitions to true
@@ -304,10 +302,8 @@ lifecycle_events:
       זה היה תהליך עשיר - תודה שהשקעת את הזמן לשתף ולצלם.
       מעכשיו אני כאן בשבילך לכל שאלה, כל תצפית, כל דבר שמתעורר בדרך. 💙
     ui_context:
-      card_location: "active_now_section_below"
-      card_title: "מדריך להורים"
-      card_action: "click_to_view_report"
-      guidance: "הכרטיס 'מדריך להורים' מופיע בסקשן 'פעיל עכשיו' מתחת לחלון השיחה. לחצי עליו כדי לקרוא את הדוח המלא."
+      type: "card"
+      default: "לחצי על הכרטיס 'מדריך להורים' ב'פעיל עכשיו' למטה כדי לקרוא את הדוח המלא"
 
 # ============================================
 # STATE INDICATORS (Emergent, not enforced)
