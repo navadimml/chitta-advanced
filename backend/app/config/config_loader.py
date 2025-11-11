@@ -247,12 +247,12 @@ class WorkflowConfigLoader(ConfigLoader):
 
     @lru_cache(maxsize=1)
     def load_lifecycle_events(self) -> Dict[str, Any]:
-        """Load lifecycle events configuration (Wu Wei dependency graph)."""
+        """Load lifecycle events configuration (Wu Wei simplified moments structure)."""
         if "lifecycle_events" not in self._cache:
             config = self.load_yaml(f"{self.workflows_path}/lifecycle_events.yaml")
             self.validate_required_fields(
                 config,
-                ["version", "workflow_name", "artifacts", "capabilities"],
+                ["version", "workflow_name", "moments", "always_available"],
                 "lifecycle_events.yaml"
             )
             self._cache["lifecycle_events"] = config
