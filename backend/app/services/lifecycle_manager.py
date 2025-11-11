@@ -170,11 +170,22 @@ class LifecycleManager:
                                 message = event_config.get("message", "").format(
                                     child_name=context.get("child_name", "הילד/ה")
                                 )
-                                events_triggered.append({
+
+                                # 🌟 Wu Wei: Include ui_context to prevent hallucinations
+                                # This guides Chitta about actual UI elements (cards, locations, actions)
+                                event_data = {
                                     "event_name": event_name,
                                     "action": event_config.get("action"),
                                     "message": message
-                                })
+                                }
+
+                                # Add ui_context if defined (for UI guidance)
+                                ui_context = event_config.get("ui_context")
+                                if ui_context:
+                                    event_data["ui_context"] = ui_context
+                                    logger.info(f"  📍 UI Context: {ui_context.get('card_title')} at {ui_context.get('card_location')}")
+
+                                events_triggered.append(event_data)
                                 logger.info(f"🎉 Triggered lifecycle event: {event_name}")
                             else:
                                 logger.warning(f"⚠️ Event '{event_name}' not found in lifecycle_events")
