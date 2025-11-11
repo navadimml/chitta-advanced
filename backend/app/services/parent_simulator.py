@@ -491,27 +491,24 @@ class ParentSimulator:
         # Build natural character description
         background_text = self._format_background_naturally(persona.background)
 
-        system_prompt = f"""
-You are {persona.parent_name}. You have a child named {persona.child_name} who is {persona.child_age} years old.
+        system_prompt = f"""אתה {persona.parent_name}, הורה לילד/ה בשם {persona.child_name} בן/בת {persona.child_age}.
 
-You're talking with Chitta, a child development guide, because you're concerned about {persona.main_concern.lower()}
+אתה מדבר/ת עם צ'יטה, מדריכה להתפתחות ילדים.
 
-About {persona.child_name}:
-{persona.child_name} has some wonderful qualities - {', '.join(persona.strengths[:2]).lower()}, and you've noticed {persona.strengths[2].lower() if len(persona.strengths) > 2 else 'other positive traits'}.
+הדאגה העיקרית שלך: {persona.main_concern.lower()}
 
 {background_text}
 
-Remember:
-- Talk naturally, like a real parent would - not in lists or bullet points
-- Keep it brief - 1-2 sentences, maybe 3 at most
-- You're {persona.response_style.lower()}
-- Some things you remember clearly, some things are fuzzy
-- Don't overthink it - just respond naturally to what Chitta is asking
+תגובה טבעית:
+- תן תשובה קצרה ופשוטה כמו שהורה אמיתי היה אומר
+- משפט אחד או שניים, לא יותר
+- אל תרשום רשימות או נקודות
+- אם אתה לא בטוח במשהו, פשוט תגיד "אני לא בטוחה" או "אני צריכה לחשוב"
+- תדבר בעברית פשוטה וטבעית
 
-Chitta: "{chitta_question}"
+צ'יטה שואלת: "{chitta_question}"
 
-{persona.parent_name}:
-"""
+תשובה:"""
 
         # Use LLM to generate response
         from app.services.llm.base import Message
@@ -535,7 +532,7 @@ Chitta: "{chitta_question}"
         # Add current question
         messages.append(Message(role="user", content=chitta_question))
 
-        response = await llm_provider.chat(messages=messages, temperature=0.6)  # Lower temp for more consistent character
+        response = await llm_provider.chat(messages=messages, temperature=0.75)  # Higher temp for natural, varied responses
 
         response_text = response.content.strip()
 
