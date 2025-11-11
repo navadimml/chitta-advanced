@@ -25,6 +25,9 @@ class IntentCategory(Enum):
     # User wants to learn about the app/process/features
     INFORMATION_REQUEST = "information_request"
 
+    # User is seeking consultation about previous conversations, artifacts, or uploaded documents
+    CONSULTATION = "consultation"
+
     # User has a question tangential to the main task
     TANGENT = "tangent"
 
