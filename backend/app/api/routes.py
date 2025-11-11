@@ -1335,8 +1335,7 @@ async def generate_parent_response(request: GenerateResponseRequest):
             return {
                 "parent_response": "",  # Empty string, not None (None triggers frontend error)
                 "interview_complete": True,
-                "conversation_ended": True,  # Clear flag for frontend
-                "message": "השיחה הסתיימה - תמר סיימה את השיחה"
+                "conversation_ended": True  # Clear flag for frontend
             }
 
         return {
