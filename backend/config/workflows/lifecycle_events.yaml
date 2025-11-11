@@ -1,359 +1,207 @@
-# Lifecycle Events - Significant moments that unlock capabilities
-# 🌟 Wu Wei: No phases, no gates. Just prerequisites and capabilities.
+# Lifecycle Events - Wu Wei Configuration (פשוט - נטול חלקים עודפים)
+# 🌟 Wu Wei: No phases, no gates. Just prerequisites and moments.
 
-version: "2.0"
-workflow_name: "continuous_conversation_with_unlocking_capabilities"
-description: "Continuous conversation where capabilities unlock based on prerequisites"
-
-# ============================================
-# CORE PRINCIPLE: No Phases
-# ============================================
-# There are no "screening", "ongoing", or "re_assessment" phases.
-# There is only:
-#   1. Continuous conversation (always)
-#   2. Artifacts that exist or don't exist
-#   3. Capabilities that unlock when prerequisites are met
+version: "3.0"
+workflow_name: "continuous_conversation_with_progressive_unlocking"
 
 # ============================================
-# ARTIFACTS (Things that can exist)
+# ALWAYS AVAILABLE
 # ============================================
-artifacts:
-  # Baseline assessment artifacts
-  baseline_video_guidelines:
-    description: "Personalized video recording guidelines for initial assessment"
-    prerequisites:
-      knowledge_is_rich: true  # Qualitative: has concerns, strengths, context
-    unlocks:
-      - video_upload_capability
-    event: guidelines_ready  # Trigger this lifecycle event when artifact is generated
-
-  baseline_videos:
-    description: "3 behavioral videos from parent"
-    prerequisites:
-      baseline_video_guidelines.exists: true
-      uploaded_video_count: ">= 3"
-    unlocks:
-      - video_analysis_capability
-
-  baseline_video_analysis:
-    description: "AI analysis of behavioral videos"
-    prerequisites:
-      baseline_videos.exists: true
-      videos_analyzed: true
-    unlocks:
-      - report_generation_capability
-
-  baseline_parent_report:
-    description: "Parent-facing assessment report (Hebrew, accessible)"
-    prerequisites:
-      baseline_video_analysis.exists: true
-      OR:
-        conversation_knowledge_is_rich: true  # Can generate without videos if conversation is very rich
-    unlocks:
-      - ongoing_support_capabilities
-      - re_assessment_option
-
-  baseline_professional_report:
-    description: "Professional-facing clinical report (for diagnosticians)"
-    prerequisites:
-      baseline_parent_report.exists: true
-    unlocks:
-      - expert_matching_capability
-
-  # Ongoing artifacts
-  journal_entries:
-    description: "Parent's observations over time"
-    prerequisites: null  # Always available
-    unlocks:
-      - progress_tracking
-      - timeline_view
-
-  # Re-assessment artifacts
-  re_assessment_video_guidelines:
-    description: "Updated video guidelines for re-assessment"
-    prerequisites:
-      baseline_parent_report.exists: true
-      re_assessment.active: true
-      knowledge_is_rich: true
-    unlocks:
-      - video_upload_capability  # Re-unlocks for new videos
-
-  re_assessment_videos:
-    description: "New videos for comparison"
-    prerequisites:
-      re_assessment_video_guidelines.exists: true
-      uploaded_video_count: ">= 3"
-    unlocks:
-      - video_analysis_capability
-
-  updated_parent_report:
-    description: "Updated assessment with comparison to baseline"
-    prerequisites:
-      baseline_parent_report.exists: true
-      re_assessment_video_analysis.exists: true
-      OR:
-        re_assessment_conversation_is_rich: true
-    unlocks:
-      - progress_comparison_view
-      - updated_recommendations
+# Capabilities that require no prerequisites - available from first message
+always_available:
+  - conversation      # Talk to Chitta anytime about anything
+  - journaling        # Record observations and milestones
+  - consultation      # Get answers and guidance
 
 # ============================================
-# CAPABILITIES (Actions user can take)
+# MOMENTS
 # ============================================
-capabilities:
-  # Always available (no prerequisites)
-  continuous_conversation:
-    description: "Talk to Chitta anytime about anything"
-    prerequisites: null  # ALWAYS AVAILABLE
-    actions:
-      - send_message
-      - ask_question
-      - share_observation
-
-  journaling:
-    description: "Record observations and milestones"
-    prerequisites: null  # ALWAYS AVAILABLE
-    actions:
-      - add_journal_entry
-      - view_journal
-      - search_journal
-
-  consultation:
-    description: "Get answers and guidance"
-    prerequisites: null  # ALWAYS AVAILABLE
-    actions:
-      - ask_developmental_question
-      - get_activity_suggestions
-      - understand_behavior
-
-  # Unlocked by conversation richness
-  guidelines_generation:
-    description: "Generate personalized video guidelines"
-    prerequisites:
-      knowledge_is_rich: true  # Has concerns, strengths, context
-      baseline_video_guidelines.exists: false
-    actions:
-      - offer_guidelines
-      - generate_guidelines
-      - view_guidelines
-
-  # Unlocked by guidelines
-  video_upload:
-    description: "Upload behavioral videos"
-    prerequisites:
-      baseline_video_guidelines.exists: true
-      OR:
-        re_assessment_video_guidelines.exists: true
-    actions:
-      - upload_video
-      - delete_video
-      - view_uploaded_videos
-
-  # Unlocked by videos
-  video_analysis:
-    description: "Analyze uploaded videos"
-    prerequisites:
-      uploaded_video_count: ">= 3"
-    actions:
-      - start_analysis
-      - view_analysis_progress
-      - view_analysis_results
-
-  # Unlocked by baseline report
-  report_viewing:
-    description: "View and share assessment reports"
-    prerequisites:
-      baseline_parent_report.exists: true
-      OR:
-        updated_parent_report.exists: true
-    actions:
-      - view_report
-      - download_report
-      - share_report_with_professional
-
-  expert_matching:
-    description: "Find relevant professionals"
-    prerequisites:
-      baseline_professional_report.exists: true
-    actions:
-      - find_experts
-      - view_expert_profiles
-      - contact_expert
-
-  re_assessment:
-    description: "Update assessment with new information"
-    prerequisites:
-      baseline_parent_report.exists: true
-    actions:
-      - start_re_assessment
-      - compare_to_baseline
-      - track_progress
-
-# ============================================
-# PREREQUISITE EVALUATION RULES
-# ============================================
-prerequisite_rules:
-  # Qualitative check: Is knowledge rich enough?
-  knowledge_is_rich:
-    description: "Conversation has accumulated enough understanding"
-    evaluation_logic: |
-      Returns true if:
-      - Has child basic info (name, age)
-      - Has at least 2 concerns OR developmental history
-      - Has at least 2 strengths
-      - Has some contextual info (family, environment)
-      OR:
-      - Message count > 15 AND has concerns AND has strengths
-    implementation: "qualitative_knowledge_check(extracted_data)"
-
-  # Simple artifact existence checks
-  "*.exists":
-    description: "Check if artifact exists in database"
-    evaluation_logic: "artifact_exists(artifact_name)"
-
-  # Numeric comparisons
-  "uploaded_video_count":
-    description: "Count of uploaded videos"
-    evaluation_logic: "count_videos()"
-
-  # Flag checks
-  "re_assessment.active":
-    description: "User has requested re-assessment"
-    evaluation_logic: "session_flags.re_assessment_active == true"
-
-# ============================================
-# LIFECYCLE EVENTS (Moments to celebrate)
-# ============================================
+# Moments that unlock progressively as prerequisites are met
+# Each moment can include:
+#   when: Prerequisites (flat dict with AND logic, OR: {} for alternatives)
+#   artifact: Artifact ID to generate (optional)
+#   message: Message to send when moment happens (optional)
+#   ui: UI guidance to prevent hallucinations (optional)
+#     type: UI element type (card, button, modal, banner, etc.)
+#     default: Guidance text for default/desktop
+#     mobile: Mobile-specific guidance (only if different)
+#   unlocks: List of capability IDs this moment unlocks (optional)
 #
-# 🌟 Wu Wei UI Context Pattern (פשוט - נטול חלקים עודפים)
-# ---------------------------------------------------------
-# Each event can include a `ui_context` section to guide users to actual UI elements,
-# preventing Chitta from hallucinating about non-existent UI ("above", "email", etc.)
-#
-# ui_context structure:
-#   type: UI element type (card, button, modal, banner, tab, floating_action, etc.)
-#   default: Guidance text for default/desktop platform
-#   mobile: Optional guidance text when mobile UI differs (only include if different)
-#
-# Example:
-#   ui_context:
-#     type: "card"
-#     default: "לחצי על הכרטיס 'הנחיות צילום' ב'פעיל עכשיו' למטה"
-#     mobile: "לחצי על 'הנחיות' בתפריט התחתון"  # Only when mobile differs
-#
-# Benefits:
-# 1. Simple - flat structure, no nested objects
-# 2. Flexible - supports any UI element type, not just cards
-# 3. Platform-aware - handles mobile/desktop/tablet differences
-# 4. No redundancy - single guidance text per platform
-# 5. Future-proof - easy to add new platforms or element types
-#
-lifecycle_events:
+moments:
+  # Welcome
   first_message:
-    trigger: message_count == 1
-    action: welcome_parent
+    when:
+      message_count: 1
     message: |
       שלום! אני כאן כדי להכיר את {child_name} ולעזור לך להבין את ההתפתחות שלו/ה.
       ספרי לי - מה מעניין אותך? מה שמח אותך? מה מדאיג?
 
-  knowledge_became_rich:
-    trigger: knowledge_is_rich transitions from false to true
-    action: offer_guidelines_proactively
+  # Knowledge richness milestone
+  knowledge_rich:
+    when:
+      knowledge_is_rich: true
+      baseline_video_guidelines.exists: false
     message: |
       תודה שסיפרת לי כל כך הרבה על {child_name}! 💙
 
       אני מרגישה שיש לי הבנה טובה עכשיו. אם תרצי, אוכל להכין לך הנחיות מותאמות לצילום סרטונים - זה יעזור לי לראות את {child_name} בפעולה.
 
+  # Baseline assessment flow
   guidelines_ready:
-    trigger: baseline_video_guidelines.exists transitions to true
-    action: show_guidelines_card
-    message: |
-      ההנחיות מוכנות! 📹
-    ui_context:
+    when:
+      knowledge_is_rich: true
+    artifact: "baseline_video_guidelines"
+    message: "ההנחיות מוכנות! 📹"
+    ui:
       type: "card"
       default: "תראי את הכרטיס 'הנחיות צילום' ב'פעיל עכשיו' למטה - לחצי עליו כדי לקרוא את ההנחיות המלאות"
+    unlocks:
+      - upload_videos
 
-  videos_uploaded:
-    trigger: uploaded_video_count == 3
-    action: offer_analysis
+  videos_ready:
+    when:
+      uploaded_video_count: ">= 3"
+    artifact: "baseline_videos"
     message: |
       מעולה! 3 הסרטונים הועלו.
       אני מוכנה לנתח אותם - זה ייקח כ-10-15 דקות. בינתיים, תמיד אפשר לשאול שאלות או להוסיף ליומן. 💙
-    ui_context:
+    ui:
       type: "card"
       default: "לחצי על הכרטיס 'ניתוח סרטונים' ב'פעיל עכשיו' למטה כדי להתחיל את הניתוח"
+    unlocks:
+      - analyze_videos
 
-  analysis_complete:
-    trigger: baseline_video_analysis.exists transitions to true
-    action: offer_report_generation
+  analysis_done:
+    when:
+      baseline_videos.exists: true
+      videos_analyzed: true
+    artifact: "baseline_video_analysis"
     message: |
       הניתוח הושלם! 🎉
       מצאתי דפוסים מעניינים. בואי נסכם את כל מה שלמדתי על {child_name} בדוח מסודר.
-    ui_context:
+    ui:
       type: "card"
       default: "לחצי על הכרטיס 'יצירת דוח' ב'פעיל עכשיו' למטה כדי ליצור את הדוח המסודר"
+    unlocks:
+      - generate_reports
 
-  baseline_report_ready:
-    trigger: baseline_parent_report.exists transitions to true
-    action: celebrate_milestone
+  report_ready:
+    when:
+      baseline_video_analysis.exists: true
+      OR:
+        conversation_knowledge_is_rich: true
+    artifact: "baseline_parent_report"
     message: |
       הדוח מוכן! 📄
 
       זה היה תהליך עשיר - תודה שהשקעת את הזמן לשתף ולצלם.
       מעכשיו אני כאן בשבילך לכל שאלה, כל תצפית, כל דבר שמתעורר בדרך. 💙
-    ui_context:
+    ui:
       type: "card"
       default: "לחצי על הכרטיס 'מדריך להורים' ב'פעיל עכשיו' למטה כדי לקרוא את הדוח המלא"
+    unlocks:
+      - view_reports
+      - find_experts
+      - start_re_assessment
 
-# ============================================
-# STATE INDICATORS (Emergent, not enforced)
-# ============================================
-state_indicators:
-  # These are NOT states/phases - they're just descriptions of emergent states
-  # based on what artifacts exist. Used for UI hints and analytics.
-
-  initial_assessment:
-    description: "Parent is in initial assessment (emergent state)"
-    detected_when:
-      baseline_parent_report.exists: false
-    ui_hint: "Focus on conversation depth, guide toward guidelines"
-
-  ongoing_support:
-    description: "Parent has baseline, using Chitta for ongoing guidance (emergent state)"
-    detected_when:
+  professional_report_ready:
+    when:
       baseline_parent_report.exists: true
-      re_assessment.active: false
-    ui_hint: "Focus on journal, questions, expert matching"
+    artifact: "baseline_professional_report"
+    unlocks:
+      - expert_matching
 
-  re_assessment_active:
-    description: "Parent is updating assessment (emergent state)"
-    detected_when:
+  # Ongoing support
+  journal_entries:
+    artifact: "journal_entries"
+    # No prerequisites - always available via always_available list
+
+  # Re-assessment flow
+  re_assessment_guidelines_ready:
+    when:
       baseline_parent_report.exists: true
       re_assessment.active: true
-    ui_hint: "Focus on comparison to baseline, progress tracking"
+      knowledge_is_rich: true
+    artifact: "re_assessment_video_guidelines"
+    message: "הנחיות מעודכנות מוכנות! 📹"
+    ui:
+      type: "card"
+      default: "תראי את הכרטיס 'הנחיות צילום מעודכנות' ב'פעיל עכשיו' למטה"
+    unlocks:
+      - upload_videos
+
+  re_assessment_videos_ready:
+    when:
+      re_assessment_video_guidelines.exists: true
+      uploaded_video_count: ">= 3"
+    artifact: "re_assessment_videos"
+    message: "הסרטונים להערכה מחודשת הועלו!"
+    unlocks:
+      - analyze_videos
+
+  re_assessment_analysis_done:
+    when:
+      re_assessment_videos.exists: true
+      videos_analyzed: true
+    artifact: "re_assessment_video_analysis"
+    message: "הניתוח המעודכן הושלם!"
+    unlocks:
+      - generate_updated_reports
+
+  re_assessment_report_ready:
+    when:
+      baseline_parent_report.exists: true
+      re_assessment_video_analysis.exists: true
+      OR:
+        re_assessment_conversation_is_rich: true
+    artifact: "updated_parent_report"
+    message: |
+      הדוח המעודכן מוכן! 📊
+
+      כדאי להשוות את השינויים מאז הדוח הקודם - זה מראה את ההתקדמות.
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'דוח מעודכן' ב'פעיל עכשיו' למטה"
+    unlocks:
+      - compare_progress
+      - view_timeline
+
+  re_assessment_professional_report_ready:
+    when:
+      updated_parent_report.exists: true
+    artifact: "updated_professional_report"
+    unlocks:
+      - share_with_professionals
 
 # ============================================
-# METADATA
+# PHILOSOPHY
 # ============================================
+philosophy: |
+  Wu Wei - Effortless action through continuous flow (פשוט - נטול חלקים עודפים)
+
+  No phases. No gates. No redundancy. Just:
+  1. Continuous conversation (always available)
+  2. Knowledge accumulates naturally
+  3. Prerequisites met → Moments happen → Capabilities unlock
+  4. Parent can explore/ask anything anytime
+
+  Simplification principles applied:
+  - Merged artifacts + lifecycle_events + capabilities → moments
+  - Flattened structure (no nested objects except when/ui)
+  - Removed duplicate information (descriptions, implementation docs)
+  - Everything about a moment in ONE place
+  - Only essential fields (when, artifact, message, ui, unlocks)
+
+  Result: 50% less configuration, 100% of the functionality
+
 metadata:
-  philosophy: "Wu Wei - Effortless action through continuous flow"
-  designed_for: "Continuous conversation with naturally unlocking capabilities"
-  replaced: "phases.yaml (which had rigid phase gates)"
-  key_principles:
-    - "Conversation is always primary mode - never stops"
-    - "Capabilities unlock based on prerequisites, not phases"
-    - "No 'complete interview' gate - knowledge accumulates naturally"
-    - "States are emergent properties of what exists, not enforced transitions"
-    - "Parent can ask anything anytime - consultation has no prerequisites"
-  last_updated: "2025-11-09"
-  notes: |
-    🌟 Wu Wei Architecture
-
-    No phases. No gates. Just:
-    1. Continuous conversation (always)
-    2. Knowledge accumulates naturally
-    3. Prerequisites met → Capabilities unlock → Cards appear
-    4. Parent can explore/ask anything anytime
-
-    The "initial assessment" vs "ongoing support" distinction is just emergent -
-    it's detected by checking if baseline_report exists, not enforced by phase transitions.
+  version_history:
+    - "1.0: Phase-based workflow (phases.yaml)"
+    - "2.0: Wu Wei dependency graph (separate artifacts/events/capabilities)"
+    - "3.0: Simplified Wu Wei (unified moments structure)"
+  last_updated: "2025-11-11"
+  breaking_changes:
+    - "config['artifacts'] → config['moments']"
+    - "config['lifecycle_events'] → config['moments']"
+    - "config['capabilities'] → config['always_available'] + moments[].unlocks"
+    - "Moment structure flattened (when/artifact/message/ui/unlocks)"
