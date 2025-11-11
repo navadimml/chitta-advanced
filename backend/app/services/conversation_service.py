@@ -823,7 +823,7 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
         artifacts_list = []
         for artifact_name, artifact in session.artifacts.items():
             # Get friendly name or use artifact type
-            friendly_name = artifact_names.get(artifact_name, artifact.type)
+            friendly_name = artifact_names.get(artifact_name, artifact.artifact_type)
 
             # Format creation date
             created_date = artifact.created_at
