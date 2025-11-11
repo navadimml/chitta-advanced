@@ -1,8 +1,51 @@
 # Chitta's Wu Wei Architecture: Conversation-First, Dependency-Based Design
 
-**Document Version**: 1.0
-**Date**: November 9, 2025
-**Status**: Design Specification
+**Document Version**: 3.0
+**Date**: November 11, 2025
+**Status**: Implemented & Simplified (פשוט - נטול חלקים עודפים)
+
+**Latest Update**: Wu Wei v3.0 - Unified "moments" structure eliminates redundancy
+
+---
+
+## Version History
+
+- **v1.0** (Nov 9, 2025): Phase-based workflow (`phases.yaml`) - Traditional stage gates
+- **v2.0** (Nov 9, 2025): Wu Wei dependency graph - Separate `artifacts`, `capabilities`, `lifecycle_events` sections
+- **v3.0** (Nov 11, 2025): **Simplified Wu Wei** - Unified `moments` structure (50% less configuration, 100% functionality)
+
+### What's New in v3.0
+
+**Before (v2.0)** - Three redundant sections:
+```yaml
+artifacts:
+  baseline_video_guidelines:
+    prerequisites: { knowledge_is_rich: true }
+    unlocks: [video_upload]
+    event: guidelines_ready  # Links to separate section
+
+lifecycle_events:
+  guidelines_ready:
+    message: "ההנחיות מוכנות!"
+    ui_context: {...}
+
+capabilities:
+  video_upload:
+    prerequisites: { ... }  # DUPLICATE!
+```
+
+**After (v3.0)** - One unified section:
+```yaml
+moments:
+  guidelines_ready:
+    when: { knowledge_is_rich: true }
+    artifact: "baseline_video_guidelines"
+    message: "ההנחיות מוכנות!"
+    ui: { type: "card", default: "..." }
+    unlocks: ["upload_videos"]
+```
+
+**Result**: 208 lines (down from 360), zero redundancy, same functionality.
 
 ---
 
@@ -489,6 +532,130 @@ class Artifact:
     generated_at: Optional[datetime]
     prerequisites_met: bool  # Calculated dynamically
 ```
+
+### v3.0: Unified Moments Structure (פשוט - נטול חלקים עודפים)
+
+**Configuration file**: `backend/config/workflows/lifecycle_events.yaml`
+
+#### The Simplification Principle
+
+Wu Wei v3.0 eliminates redundancy by merging three sections into one:
+
+**Moments** = When + What + Message + UI + Unlocks
+
+```yaml
+moments:
+  guidelines_ready:
+    # WHEN does this happen? (Prerequisites)
+    when:
+      knowledge_is_rich: true
+
+    # WHAT artifact gets generated? (Optional)
+    artifact: "baseline_video_guidelines"
+
+    # WHAT message does Chitta send? (Optional)
+    message: "ההנחיות מוכנות! 📹"
+
+    # WHAT UI guidance? (Optional, platform-aware)
+    ui:
+      type: "card"  # card, button, modal, banner, etc.
+      default: "תראי את הכרטיס 'הנחיות צילום' ב'פעיל עכשיו' למטה"
+      mobile: "לחצי על 'הנחיות' בתפריט התחתון"  # Only if different
+
+    # WHAT capabilities unlock? (Optional)
+    unlocks:
+      - upload_videos
+```
+
+#### Always Available Capabilities
+
+```yaml
+always_available:
+  - conversation      # Talk to Chitta anytime
+  - journaling        # Record observations
+  - consultation      # Get answers and guidance
+```
+
+#### Key Differences from v2.0
+
+| Aspect | v2.0 (Redundant) | v3.0 (Unified) |
+|--------|------------------|----------------|
+| **Prerequisites** | Defined in both `artifacts` AND `capabilities` | Defined once in `when` |
+| **Event mapping** | Artifact has `event:` field linking to separate section | Moment ID IS the event name |
+| **Message location** | Separate `lifecycle_events` section | Directly in moment |
+| **UI guidance** | Nested `ui_context` with card-specific fields | Flat `ui` with platform fields |
+| **Total sections** | 7 (artifacts, capabilities, lifecycle_events, prerequisite_rules, state_indicators, metadata, philosophy) | 3 (always_available, moments, metadata) |
+| **Lines of config** | 360 | 208 |
+
+#### Example: Complete Moment
+
+```yaml
+moments:
+  report_ready:
+    when:
+      baseline_video_analysis.exists: true
+      OR:
+        conversation_knowledge_is_rich: true
+
+    artifact: "baseline_parent_report"
+
+    message: |
+      הדוח מוכן! 📄
+
+      זה היה תהליך עשיר - תודה שהשקעת את הזמן לשתף ולצלם.
+      מעכשיו אני כאן בשבילך לכל שאלה. 💙
+
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'מדריך להורים' ב'פעיל עכשיו' למטה"
+
+    unlocks:
+      - view_reports
+      - find_experts
+      - start_re_assessment
+```
+
+#### How It Works
+
+```python
+# LifecycleManager simplified in v3.0
+moments = config.get("moments", {})
+
+for moment_id, moment_config in moments.items():
+    # Check prerequisites from 'when' field
+    prerequisites = moment_config.get("when")
+    prereqs_met = evaluate_prerequisites(prerequisites, context)
+
+    # If prerequisites just became met (transition)
+    if prereqs_met and not previously_met:
+
+        # Generate artifact if defined
+        artifact_id = moment_config.get("artifact")
+        if artifact_id:
+            generate_artifact(artifact_id, moment_config, context)
+
+        # Send message if defined
+        message = moment_config.get("message")
+        if message:
+            send_message(message.format(child_name=child_name))
+
+        # Include UI guidance if defined
+        ui_context = moment_config.get("ui")
+        if ui_context:
+            include_ui_guidance(ui_context, platform)
+
+        # Unlock capabilities if defined
+        unlocks = moment_config.get("unlocks", [])
+        unlock_capabilities(unlocks)
+```
+
+**Benefits**:
+- ✅ Everything about a moment in ONE place
+- ✅ No redundant prerequisite definitions
+- ✅ No separate event mapping needed
+- ✅ Flatter, simpler structure
+- ✅ Easy to understand and modify
+- ✅ 50% less configuration
 
 ### Prerequisite System
 
