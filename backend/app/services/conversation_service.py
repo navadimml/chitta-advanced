@@ -261,6 +261,14 @@ Your role now:
 
 Remember: You are an AI assistant. Be transparent about your nature when relevant."""
 
+            # 🌟 INJECT ARTIFACT AWARENESS - Even post-interview, Chitta needs to know what exists
+            artifact_awareness = self._build_artifact_awareness(session)
+            if artifact_awareness:
+                base_prompt += f"""
+
+{artifact_awareness}
+"""
+
         else:
             # During interview: use dynamic interview prompt with LLM-based strategic advisor
             # Natural flow + intelligent strategic awareness
@@ -296,6 +304,15 @@ Remember: You are an AI assistant. Be transparent about your nature when relevan
                 extracted_data=extracted_data_dict,
                 strategic_guidance=strategic_guidance
             )
+
+        # 🌟 INJECT ARTIFACT AWARENESS - Critical for sync between lifecycle events and conversation
+        # This ensures Chitta knows what artifacts have been generated and can reference them properly
+        artifact_awareness = self._build_artifact_awareness(session)
+        if artifact_awareness:
+            base_prompt += f"""
+
+{artifact_awareness}
+"""
 
         # Add prerequisite context if action was detected
         if prerequisite_check:
@@ -776,6 +793,65 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             "viewed_guidelines": False,  # TODO: Track user actions
             "declined_guidelines_offer": False,  # TODO: Track user actions
         }
+
+    def _build_artifact_awareness(self, session: Any) -> str:
+        """
+        Build artifact awareness section for injection into conversation prompt.
+
+        This ensures Chitta knows what artifacts have been generated and can
+        reference them properly in conversation (critical for sync).
+
+        Args:
+            session: Current interview session
+
+        Returns:
+            Formatted artifact awareness string, or empty string if no artifacts
+        """
+        if not session.artifacts:
+            return ""
+
+        # Map artifact types to friendly Hebrew names
+        artifact_names = {
+            "baseline_video_guidelines": "הנחיות צילום מותאמות אישית",
+            "baseline_parent_report": "דוח הורה ראשוני",
+            "sensory_profile": "פרופיל חושי",
+            "video_analysis": "ניתוח וידאו",
+            "progress_report": "דוח התקדמות",
+            "recommendations": "המלצות",
+        }
+
+        artifacts_list = []
+        for artifact_name, artifact in session.artifacts.items():
+            # Get friendly name or use artifact type
+            friendly_name = artifact_names.get(artifact_name, artifact.type)
+
+            # Format creation date
+            created_date = artifact.created_at
+            if hasattr(created_date, 'strftime'):
+                date_str = created_date.strftime("%d/%m/%Y %H:%M")
+            else:
+                date_str = str(created_date)
+
+            artifacts_list.append(f"  ✅ **{friendly_name}** (נוצר: {date_str})")
+
+        if not artifacts_list:
+            return ""
+
+        return f"""
+## 📋 מסמכים שכבר יצרת
+
+{chr(10).join(artifacts_list)}
+
+**חשוב מאוד:** המסמכים האלה כבר קיימים וזמינים להורה!
+- אם ההורה שואל עליהם - התייחס אליהם כמוכנים ולא כמשהו שעוד צריך ליצור
+- אם ההורה מבקש לראות אותם - הסבר שהם זמינים בכרטיסי ההקשר או במקטע המתאים
+- אל תאמר "אני אכין" או "נייצר" - אלא "כבר הכנתי" או "כבר יצרתי"
+
+דוגמאות לתשובות נכונות:
+- "כבר הכנתי לך הנחיות צילום מותאמות אישית! הן זמינות למעלה בכרטיס"
+- "הדוח המקיף שיצרתי כולל..."
+- "בהנחיות הצילום שהכנתי, תמצאי..."
+"""
 
     def _generate_context_cards(
         self,
