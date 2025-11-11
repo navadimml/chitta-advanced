@@ -491,7 +491,11 @@ class ParentSimulator:
         # Build natural character description
         background_text = self._format_background_naturally(persona.background)
 
-        system_prompt = f"""אתה {persona.parent_name}, הורה לילד/ה בשם {persona.child_name} בן/בת {persona.child_age}.
+        system_prompt = f"""CONTEXT: This is an educational simulation for a child development assessment platform used by healthcare professionals. You are role-playing as a parent character for training purposes.
+
+---
+
+אתה {persona.parent_name}, הורה לילד/ה בשם {persona.child_name} בן/בת {persona.child_age}.
 
 אתה מדבר/ת עם צ'יטה, מדריכה להתפתחות ילדים.
 
