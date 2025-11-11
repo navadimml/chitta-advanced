@@ -2,16 +2,16 @@
 Lifecycle Manager - Wu Wei Architecture Core
 
 This is the heart of the Wu Wei system. It:
-1. Reads lifecycle_events.yaml (the dependency graph)
+1. Reads lifecycle_events.yaml (the simplified moments configuration)
 2. Monitors prerequisite transitions
-3. Auto-generates artifacts when prerequisites become met
-4. Triggers lifecycle events
+3. Auto-generates artifacts when moment prerequisites become met
+4. Triggers moment messages and UI guidance
 5. Is 100% configuration-driven - no hardcoded logic
 
 Key Principle: EMERGENCE, NOT FORCE
 - We don't force artifacts to be generated
-- We check what's POSSIBLE now based on the dependency graph
-- When prerequisites transition from false→true, we act
+- We check what's POSSIBLE now based on prerequisites
+- When prerequisites transition from false→true, the moment happens
 - Everything flows from the YAML configuration
 """
 
@@ -28,15 +28,15 @@ logger = logging.getLogger(__name__)
 
 class LifecycleManager:
     """
-    🌟 Wu Wei: Configuration-driven artifact lifecycle manager
+    🌟 Wu Wei: Configuration-driven moment lifecycle manager (פשוט - נטול חלקים עודפים)
 
     This manager reads lifecycle_events.yaml and automatically:
-    - Detects when prerequisites are met
+    - Detects when moment prerequisites are met
     - Generates artifacts at the right moment
-    - Triggers lifecycle events
+    - Triggers moment messages and UI guidance
     - Unlocks capabilities
 
-    NO HARDCODED LOGIC. Everything emerges from the dependency graph.
+    NO HARDCODED LOGIC. Everything emerges from the simplified moments configuration.
     """
 
     def __init__(
@@ -52,10 +52,9 @@ class LifecycleManager:
         self._previous_states: Dict[str, Dict[str, bool]] = {}
 
         logger.info(
-            f"🌟 LifecycleManager initialized with Wu Wei dependency graph: "
-            f"{len(self.config.get('artifacts', {}))} artifacts, "
-            f"{len(self.config.get('capabilities', {}))} capabilities, "
-            f"{len(self.config.get('lifecycle_events', {}))} events"
+            f"🌟 LifecycleManager initialized with simplified Wu Wei configuration: "
+            f"{len(self.config.get('moments', {}))} moments, "
+            f"{len(self.config.get('always_available', []))} always-available capabilities"
         )
 
     async def process_lifecycle_events(
@@ -65,13 +64,13 @@ class LifecycleManager:
         session: Any
     ) -> Dict[str, Any]:
         """
-        🌟 Wu Wei: Check dependency graph and auto-generate what emerges
+        🌟 Wu Wei: Check moments and auto-generate what emerges (פשוט - נטול חלקים עודפים)
 
         This is called AFTER each conversation turn. It:
-        1. Evaluates all artifact prerequisites
+        1. Evaluates all moment prerequisites
         2. Detects transitions (false → true)
-        3. Auto-generates artifacts whose prerequisites just became met
-        4. Triggers lifecycle events
+        3. Auto-generates artifacts when moment prerequisites just became met
+        4. Triggers moment messages and UI guidance
         5. Returns list of what changed
 
         Args:
@@ -82,7 +81,7 @@ class LifecycleManager:
         Returns:
             Dict with:
                 - artifacts_generated: List[str] of artifact IDs
-                - events_triggered: List[str] of event names
+                - events_triggered: List[dict] of moment events with messages/UI
                 - capabilities_unlocked: List[str] of capability names
         """
         artifacts_generated = []
@@ -93,26 +92,29 @@ class LifecycleManager:
         previous_state = self._previous_states.get(family_id, {})
         current_state = {}
 
-        # 🌟 Wu Wei: Iterate through ALL artifacts defined in YAML
-        artifacts_config = self.config.get("artifacts", {})
+        # 🌟 Wu Wei: Iterate through ALL moments defined in YAML
+        moments = self.config.get("moments", {})
 
-        logger.info(f"🔍 Wu Wei: Checking {len(artifacts_config)} artifacts for {family_id}")
+        logger.info(f"🔍 Wu Wei: Checking {len(moments)} moments for {family_id}")
 
-        for artifact_id, artifact_def in artifacts_config.items():
-            logger.info(f"🔍 Checking artifact: {artifact_id}")
+        for moment_id, moment_config in moments.items():
+            logger.info(f"🔍 Checking moment: {moment_id}")
 
-            # Skip if artifact already exists
-            if session.has_artifact(artifact_id):
-                logger.info(f"  ↳ Already exists, skipping")
-                current_state[artifact_id] = True
+            # Get artifact ID if this moment generates an artifact
+            artifact_id = moment_config.get("artifact")
+
+            # If moment generates artifact, skip if artifact already exists
+            if artifact_id and session.has_artifact(artifact_id):
+                logger.info(f"  ↳ Artifact {artifact_id} already exists, skipping")
+                current_state[moment_id] = True
                 continue
 
-            # Get prerequisites from YAML
-            prerequisites = artifact_def.get("prerequisites")
+            # Get prerequisites from 'when' field
+            prerequisites = moment_config.get("when")
 
             if not prerequisites:
-                logger.info(f"  ↳ No prerequisites defined")
-                current_state[artifact_id] = False
+                logger.info(f"  ↳ No prerequisites defined (always-available moment)")
+                current_state[moment_id] = False
                 continue
 
             # Log what we're evaluating
@@ -121,86 +123,79 @@ class LifecycleManager:
 
             # Evaluate prerequisites using Wu Wei evaluator
             prereqs_met = self._evaluate_prerequisites(prerequisites, context)
-            current_state[artifact_id] = prereqs_met
+            current_state[moment_id] = prereqs_met
 
             logger.info(f"  ↳ Prerequisites met: {prereqs_met}")
 
             # Detect TRANSITION: false → true
-            was_met = previous_state.get(artifact_id, False)
+            was_met = previous_state.get(moment_id, False)
             just_became_ready = prereqs_met and not was_met
 
             logger.info(f"  ↳ Was previously met: {was_met}, Just became ready: {just_became_ready}")
 
             if just_became_ready:
                 logger.info(
-                    f"🌟 Wu Wei TRANSITION DETECTED: {artifact_id} prerequisites just became met!"
+                    f"🌟 Wu Wei TRANSITION DETECTED: {moment_id} prerequisites just became met!"
                 )
 
-                # 🎬 AUTO-GENERATE the artifact!
-                try:
-                    artifact = await self._generate_artifact(
-                        artifact_id,
-                        artifact_def,
-                        context
-                    )
-
-                    if artifact and artifact.is_ready:
-                        # Store in session
-                        session.add_artifact(artifact)
-                        artifacts_generated.append(artifact_id)
-
-                        logger.info(
-                            f"✅ Wu Wei: Auto-generated {artifact_id} "
-                            f"({len(artifact.content)} chars)"
+                # If this moment generates an artifact, generate it!
+                if artifact_id:
+                    try:
+                        artifact = await self._generate_artifact(
+                            artifact_id,
+                            moment_config,
+                            context
                         )
 
-                        # Check if this unlocks capabilities
-                        unlocked = artifact_def.get("unlocks", [])
-                        if unlocked:
-                            capabilities_unlocked.extend(unlocked)
-                            logger.info(f"🔓 Unlocked capabilities: {unlocked}")
+                        if artifact and artifact.is_ready:
+                            # Store in session
+                            session.add_artifact(artifact)
+                            artifacts_generated.append(artifact_id)
 
-                        # Trigger lifecycle event if defined in artifact config
-                        event_name = artifact_def.get("event")  # Get event name from YAML
-                        if event_name:
-                            lifecycle_events = self.config.get("lifecycle_events", {})
-                            if event_name in lifecycle_events:
-                                event_config = lifecycle_events[event_name]
-                                # Format message with context variables
-                                message = event_config.get("message", "").format(
-                                    child_name=context.get("child_name", "הילד/ה")
-                                )
+                            logger.info(
+                                f"✅ Wu Wei: Auto-generated {artifact_id} "
+                                f"({len(artifact.content)} chars)"
+                            )
+                        else:
+                            logger.error(
+                                f"❌ Wu Wei: Failed to generate {artifact_id}: "
+                                f"{artifact.error_message if artifact else 'Unknown error'}"
+                            )
 
-                                # 🌟 Wu Wei: Include ui_context to prevent hallucinations
-                                # This guides Chitta about actual UI elements (cards, buttons, modals, etc.)
-                                event_data = {
-                                    "event_name": event_name,
-                                    "action": event_config.get("action"),
-                                    "message": message
-                                }
-
-                                # Add ui_context if defined (for UI guidance)
-                                ui_context = event_config.get("ui_context")
-                                if ui_context:
-                                    event_data["ui_context"] = ui_context
-                                    logger.info(f"  📍 UI Context ({ui_context.get('type')}): {ui_context.get('default')[:50]}...")
-
-                                events_triggered.append(event_data)
-                                logger.info(f"🎉 Triggered lifecycle event: {event_name}")
-                            else:
-                                logger.warning(f"⚠️ Event '{event_name}' not found in lifecycle_events")
-
-                    else:
+                    except Exception as e:
                         logger.error(
-                            f"❌ Wu Wei: Failed to generate {artifact_id}: "
-                            f"{artifact.error_message if artifact else 'Unknown error'}"
+                            f"❌ Wu Wei: Exception generating {artifact_id}: {e}",
+                            exc_info=True
                         )
 
-                except Exception as e:
-                    logger.error(
-                        f"❌ Wu Wei: Exception generating {artifact_id}: {e}",
-                        exc_info=True
+                # Check if this moment has a message (lifecycle event)
+                message_template = moment_config.get("message")
+                if message_template:
+                    # Format message with context variables
+                    message = message_template.format(
+                        child_name=context.get("child_name", "הילד/ה")
                     )
+
+                    # 🌟 Wu Wei: Build event data (all in one place now!)
+                    event_data = {
+                        "event_name": moment_id,
+                        "message": message
+                    }
+
+                    # Add ui context if defined (for UI guidance)
+                    ui_context = moment_config.get("ui")
+                    if ui_context:
+                        event_data["ui_context"] = ui_context
+                        logger.info(f"  📍 UI Context ({ui_context.get('type')}): {ui_context.get('default')[:50]}...")
+
+                    events_triggered.append(event_data)
+                    logger.info(f"🎉 Triggered moment event: {moment_id}")
+
+                # Check if this moment unlocks capabilities
+                unlocked = moment_config.get("unlocks", [])
+                if unlocked:
+                    capabilities_unlocked.extend(unlocked)
+                    logger.info(f"🔓 Unlocked capabilities: {unlocked}")
 
             elif prereqs_met:
                 logger.debug(f"  ↳ Prerequisites met but already processed before")
@@ -215,7 +210,7 @@ class LifecycleManager:
             logger.info(
                 f"🌟 Wu Wei Lifecycle Summary for {family_id}:\n"
                 f"  - Artifacts generated: {artifacts_generated}\n"
-                f"  - Events triggered: {events_triggered}\n"
+                f"  - Moments triggered: {[e['event_name'] for e in events_triggered]}\n"
                 f"  - Capabilities unlocked: {capabilities_unlocked}"
             )
 
@@ -373,11 +368,11 @@ class LifecycleManager:
     async def _generate_artifact(
         self,
         artifact_id: str,
-        artifact_def: Dict[str, Any],
+        moment_config: Dict[str, Any],
         context: Dict[str, Any]
     ):
         """
-        Generate an artifact based on its ID and definition.
+        Generate an artifact based on its ID and moment configuration.
 
         This routes to the appropriate generation method based on artifact type.
         """
