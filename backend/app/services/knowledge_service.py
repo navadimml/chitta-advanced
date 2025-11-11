@@ -87,19 +87,29 @@ Intent categories (respond with ONLY the category name):
    - start_test_mode (for "עבור לבדיקה", "test mode", "מצב בדיקה")
    - start_demo (for "demo", "דמו", "הצג דמו")
 
-3. CONVERSATION - Just talking about their child/situation
+3. CONSULTATION - User asking questions about previous conversations, reports, or insights
+   Examples:
+   • "מה התכוונת ב'חיפוש חושי'?", "what did you mean by 'sensory seeking'?"
+   • "למה כתבת שיש לו קשיים בתפקודים ניהוליים?", "why did you write he has executive function difficulties?"
+   • "האם הדיבור שלו השתפר?", "has his speech improved?"
+   • "מה הפסיכולוגית כתבה על הקשב?", "what did the psychologist write about attention?"
+   • "איך עזרתי לו בהתפרצויות בעבר?", "how did I help with meltdowns before?"
+
+4. CONVERSATION - Just talking about their child/situation (sharing new information)
    Examples:
    • "הילד שלי בן 5", "my child is 5"
    • "יש לו קושי בדיבור", "he has speech delay"
    • "כן, זה נכון", "yes, that's right"
+   • "היום הוא עשה משהו מעניין", "today he did something interesting"
 
 Response format:
-Line 1: Category (INFORMATION, ACTION, or CONVERSATION)
+Line 1: Category (INFORMATION, ACTION, CONSULTATION, or CONVERSATION)
 Line 2 (if needed): Sub-type or specific action
 
 Examples:
 "מה זה?" → INFORMATION\nAPP_FEATURES
 "תן לי דוח" → ACTION\nview_report
+"מה התכוונת בחיפוש חושי?" → CONSULTATION
 "הבן שלי בן 3" → CONVERSATION"""
 
         try:
@@ -157,6 +167,13 @@ Examples:
                         category=IntentCategory.DATA_COLLECTION,
                         user_message=user_message
                     )
+
+            elif category_text == "CONSULTATION":
+                # User is asking about previous conversations, reports, or insights
+                return DetectedIntent(
+                    category=IntentCategory.CONSULTATION,
+                    user_message=user_message
+                )
 
             else:
                 # CONVERSATION or anything else
