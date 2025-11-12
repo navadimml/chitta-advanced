@@ -12,10 +12,89 @@ from ..services.llm.base import Message, BaseLLMProvider
 logger = logging.getLogger(__name__)
 
 
+def _get_next_moment_guidance(
+    lifecycle_manager: Any,
+    context: Dict[str, Any],
+    child_name: str
+) -> Optional[str]:
+    """
+    Check lifecycle config for what moment is about to trigger next.
+
+    🌟 Wu Wei: Config-driven! Discovers from lifecycle_events.yaml what's coming.
+
+    Args:
+        lifecycle_manager: LifecycleManager instance
+        context: Full context (with knowledge_is_rich, etc.)
+        child_name: Child's name
+
+    Returns:
+        Guidance string about next moment (message + UI context), or None
+    """
+    try:
+        # Get lifecycle configuration
+        moments = lifecycle_manager.config.get("moments", {})
+
+        # Check each moment to see if prerequisites are ABOUT to be met
+        # (or are already met but artifact doesn't exist yet)
+        for moment_id, moment_config in moments.items():
+            # Get prerequisites
+            prereqs = moment_config.get("when")
+            if not prereqs:
+                continue
+
+            # Evaluate prerequisites
+            prereqs_met = lifecycle_manager._evaluate_prerequisites(prereqs, context)
+
+            if not prereqs_met:
+                continue
+
+            # Check if this moment has an artifact
+            artifact_id = moment_config.get("artifact")
+
+            # If no artifact, skip (not something actionable for parent)
+            if not artifact_id:
+                continue
+
+            # This moment is ready to trigger! Get its guidance
+            message = moment_config.get("message", "")
+            ui_context = moment_config.get("ui", {})
+
+            if message or ui_context:
+                # Format message with child name
+                if message:
+                    message = message.format(child_name=child_name)
+
+                # Build guidance text
+                guidance_parts = []
+
+                if message:
+                    # Extract just the key info (first line usually)
+                    message_lines = message.strip().split("\n")
+                    key_message = message_lines[0] if message_lines else message
+                    guidance_parts.append(f'Say: "{key_message}"')
+
+                # Add UI guidance if available
+                if ui_context:
+                    ui_text = ui_context.get("default", "")
+                    if ui_text:
+                        guidance_parts.append(f"\nTell parent where to find it: {ui_text}")
+
+                if guidance_parts:
+                    return "\n".join(guidance_parts)
+
+        return None
+
+    except Exception as e:
+        logger.warning(f"Could not get next moment guidance: {e}")
+        return None
+
+
 async def get_strategic_guidance(
     llm_provider: BaseLLMProvider,
     extracted_data: Dict[str, Any],
-    completeness: float
+    completeness: float,
+    lifecycle_manager: Any = None,
+    context: Dict[str, Any] = None
 ) -> str:
     """
     Use LLM to analyze interview coverage and provide strategic guidance
@@ -26,6 +105,8 @@ async def get_strategic_guidance(
         llm_provider: The LLM to use for analysis
         extracted_data: Structured data extracted so far
         completeness: Current interview completeness (0.0-1.0)
+        lifecycle_manager: LifecycleManager to check what moments are coming next
+        context: Full context for evaluating next moments
 
     Returns:
         Strategic guidance text to inject into interview prompt
@@ -80,13 +161,30 @@ Ask for this BEFORE exploring more areas! Be natural and casual."""
         age
     )
 
+    # Check what moment is about to trigger next (config-driven!)
     ending_section = ""
     if ready_to_end:
-        ending_section = f"""
+        next_moment_guidance = _get_next_moment_guidance(
+            lifecycle_manager,
+            context,
+            child_name
+        ) if lifecycle_manager and context else None
+
+        if next_moment_guidance:
+            # Use dynamic guidance from lifecycle config
+            ending_section = f"""
 
 **✅ READY TO END:**
 Interview is comprehensive ({completeness_pct}%). Time to wrap up!
-Say: "תודה רבה! יש לי תמונה מקיפה של [name]. ההנחיות לצילום הווידאו יופיעו כאן למעלה."
+{next_moment_guidance}
+DON'T ask more questions - interview is complete!"""
+        else:
+            # Fallback if lifecycle not available
+            ending_section = f"""
+
+**✅ READY TO END:**
+Interview is comprehensive ({completeness_pct}%). Time to wrap up!
+Thank parent for sharing. Don't promise specific next steps - just wrap up warmly.
 DON'T ask more questions - interview is complete!"""
 
     analysis_prompt = f"""Analyze child development interview data to determine coverage.
