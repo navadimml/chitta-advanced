@@ -52,70 +52,72 @@ async def get_strategic_guidance(
 - Parents are experts on diagnosed areas - respect that
 """
 
-    analysis_prompt = f"""You are analyzing a child development interview to determine what's been covered and what needs attention.
+    # Check for missing critical info
+    child_name = extracted_data.get('child_name', '')
+    age = extracted_data.get('age', '')
 
-**CRITICAL**: Don't just look at what fields are empty. READ THE ACTUAL CONTENT to understand what developmental areas have been discussed!
+    missing_critical_info = []
+    if not child_name or child_name == 'unknown':
+        missing_critical_info.append("⚠️ MISSING: Child's name - ask naturally: 'רק רוצה לוודא - מה שם הילד/ה?' (casual, like you forgot)")
+    if not age or age == 'unknown':
+        missing_critical_info.append("⚠️ MISSING: Child's age - ask naturally: 'ואיזה גיל?'")
 
-**Current extracted data:**
+    missing_info_section = ""
+    if missing_critical_info:
+        missing_info_section = f"""
 
-Child name: {extracted_data.get('child_name', 'unknown')}
-Age: {extracted_data.get('age', 'unknown')}
-Gender: {extracted_data.get('gender', 'unknown')}
+**🚨 CRITICAL - MISSING BASIC INFO:**
+{chr(10).join(missing_critical_info)}
 
-Primary concerns: {extracted_data.get('primary_concerns', [])}
+Ask for this BEFORE exploring more areas! Be natural and casual."""
+
+    # Check if ready to end (high completeness + substantial data)
+    ready_to_end = (
+        completeness >= 0.75 and
+        len(concern_details) > 300 and
+        len(strengths) > 100 and
+        child_name and
+        age
+    )
+
+    ending_section = ""
+    if ready_to_end:
+        ending_section = f"""
+
+**✅ READY TO END:**
+Interview is comprehensive ({completeness_pct}%). Time to wrap up!
+Say: "תודה רבה! יש לי תמונה מקיפה של [name]. ההנחיות לצילום הווידאו יופיעו כאן למעלה."
+DON'T ask more questions - interview is complete!"""
+
+    analysis_prompt = f"""Analyze child development interview data to determine coverage.
+
+**Current data:**
+Child: {extracted_data.get('child_name', 'unknown')}, {extracted_data.get('age', '?')} years
+Concerns: {extracted_data.get('primary_concerns', [])}
 
 **Concern details ({len(concern_details)} chars):**
-"{concern_details[:400] if concern_details else '[EMPTY - nothing discussed yet]'}"
+"{concern_details[:300] if concern_details else '[EMPTY]'}"
 
 **Strengths ({len(strengths)} chars):**
-"{strengths[:300] if strengths else '[EMPTY - no strengths mentioned]'}"
+"{strengths[:200] if strengths else '[EMPTY]'}"
 
-**Developmental history ({len(dev_history)} chars):**
-"{dev_history[:200] if dev_history else '[EMPTY]'}"
+Completeness: {completeness_pct}%
+{diagnosis_note}{missing_info_section}{ending_section}
 
-Overall completeness: {completeness_pct}%
+**Task:** Analyze which developmental areas are covered in the DATA (not what parent said).
 
-{diagnosis_note}
+Areas: motor, communication, social, emotional/behavioral, daily routines, family, history, goals
 
-**Your task:**
+Write 2-4 concise bullets:
+- ✅ COVERED WELL: [area] - substantial data
+- ⚠️ NEEDS MORE: [area] - data exists but sparse
+- ❌ NOT EXPLORED: [area] - no data
+- 🏥 DIAGNOSED: [area] - diagnosis in data
 
-Analyze what developmental areas have ACTUALLY been discussed (read the content above carefully!):
-- Motor skills (writing, drawing, running, coordination)
-- Communication (speech, understanding, expressing)
-- Social (friends, playing with others)
-- Emotional/behavioral (tantrums, regulation, transitions)
-- Daily routines and context
-- Family background
-- Developmental history (milestones)
-- Parent's goals and hopes
-
-**SPECIAL: If existing diagnosis mentioned:**
-- Mark those areas as ✅ COVERED (don't need investigation)
-- Suggest focusing on: diagnosis context, interventions, NEW concerns, other areas, strengths
-
-**Format your response as INTERNAL DATA ANALYSIS - these are observations about the EXTRACTED DATA, NOT what parent said in conversation!**
-
-**CRITICAL DISTINCTION:**
-- You're analyzing EXTRACTED DATA (fields: concern_details, strengths, etc.)
-- This data was INFERRED from conversation, not necessarily directly stated
-- Example: Data shows "not shouting usually" in concern_details → This was EXTRACTED/INFERRED, NOT necessarily "parent mentioned worries about shouting"
-- NEVER use phrases like "parent mentioned" or "they said" - you're analyzing data fields, not conversation!
-
-Write 2-4 bullet points in this format:
-- ✅ COVERED WELL: [area] - substantial data in fields, thorough
-- ⚠️ NEEDS MORE: [area] - data exists but lacks concrete examples
-- ❌ NOT EXPLORED: [area] - no data in relevant fields yet
-- 🏥 DIAGNOSED: [area] - existing diagnosis found in data
-
-**CRITICAL**:
-- Only mark "COVERED WELL" if you see substantial text in the relevant fields
-- Don't confuse what's IN THE DATA with what the parent SAID in conversation
-- If concern_details contains speech information, mark SPEECH as covered, not all areas
-- Be ACCURATE - this prevents repeating questions
-- If diagnosis found in data, mark those areas as DIAGNOSED not NOT EXPLORED
-- Use language about DATA and FIELDS, never "parent mentioned" or "they said"
-
-Be VERY concise. This is internal data coverage analysis, not conversation attribution."""
+**CRITICAL:**
+- This is DATA ANALYSIS, not conversation attribution
+- Never say "parent mentioned" - you're analyzing extracted fields
+- Be accurate to prevent repetition"""
 
     messages = [Message(role="user", content=analysis_prompt)]
 
