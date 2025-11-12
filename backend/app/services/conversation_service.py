@@ -21,6 +21,8 @@ from .knowledge_service import get_knowledge_service, KnowledgeService
 from .consultation_service import get_consultation_service, ConsultationService
 from .artifact_generation_service import ArtifactGenerationService
 from .lifecycle_manager import get_lifecycle_manager, LifecycleManager  # 🌟 Wu Wei: Core dependency graph processor
+from .sage_service import get_sage_service, SageService, SageWisdom  # 🌟 Wu Wei: Interpretive reasoning layer
+from .hand_service import get_hand_service, HandService, ActionMode  # 🌟 Wu Wei: Action decision layer
 from ..config.artifact_manager import get_artifact_manager
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.dynamic_interview_prompt import build_dynamic_interview_prompt
@@ -54,6 +56,8 @@ class ConversationService:
         prerequisite_service: Optional[PrerequisiteService] = None,
         knowledge_service: Optional[KnowledgeService] = None,
         consultation_service: Optional[ConsultationService] = None,
+        sage_service: Optional[SageService] = None,
+        hand_service: Optional[HandService] = None,
         phase_manager: Optional[PhaseManager] = None,
         card_generator: Optional[CardGenerator] = None,
         artifact_generation_service: Optional[ArtifactGenerationService] = None,
@@ -70,6 +74,8 @@ class ConversationService:
         self.prerequisite_service = prerequisite_service or get_prerequisite_service()
         self.knowledge_service = knowledge_service or get_knowledge_service()
         self.consultation_service = consultation_service or get_consultation_service()  # 🌟 Universal consultation handler
+        self.sage_service = sage_service or get_sage_service()  # 🌟 Wu Wei: Interpretive reasoning - "What does this mean?"
+        self.hand_service = hand_service or get_hand_service()  # 🌟 Wu Wei: Action decision - "What do we do about it?"
         self.phase_manager = phase_manager or get_phase_manager()  # 🌟 Wu Wei: Config-driven phase management
         self.card_generator = card_generator or get_card_generator()  # 🌟 Wu Wei: Config-driven UI cards
         self.artifact_service = artifact_generation_service or ArtifactGenerationService()  # 🌟 Wu Wei: Artifact generation
@@ -78,6 +84,7 @@ class ConversationService:
         logger.info(f"ConversationService initialized:")
         logger.info(f"  - Conversation LLM: {self.llm.get_provider_name()}")
         logger.info(f"  - Extraction LLM: {self.extraction_llm.get_provider_name()}")
+        logger.info(f"  - Sage/Hand architecture: ENABLED (Wu Wei interpretive reasoning)")
 
     def _create_extraction_llm(self) -> BaseLLMProvider:
         """
@@ -134,14 +141,16 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 2. UNIFIED INTENT DETECTION with rich dialogue context (Wu Wei approach)
-        # Pass ACTUAL rich context instead of simplified flags
+        # 2. SAGE → HAND ARCHITECTURE (Wu Wei interpretive reasoning)
+        # The Sage interprets what the parent means and needs (natural understanding)
+        # The Hand decides what action to take (structured decision)
+        # This is separation of concerns: understanding vs action
         intent_detected = None
         prerequisite_check = None
         information_request = None
         injected_knowledge = None
 
-        # Build rich context for intent detection
+        # Build rich context for Sage interpretation
         # 1. Recent conversation (to understand dialogue flow)
         recent_history = self.interview_service.get_conversation_history(
             family_id,
@@ -166,18 +175,37 @@ class ConversationService:
             "primary_concerns": data.primary_concerns or []
         }
 
-        # Use unified intent detection with rich context
-        detected_intent = await self.knowledge_service.detect_unified_intent(
+        # 4. Session state
+        session_state = {
+            "completeness": session.completeness
+        }
+
+        # STEP 1: The Sage interprets (natural understanding)
+        logger.info("✨ Invoking Sage to interpret parent's message...")
+        sage_wisdom: SageWisdom = await self.sage_service.interpret(
             user_message=user_message,
             recent_conversation=recent_history,
+            child_context=child_context,
             available_artifacts=artifact_names,
-            child_context=child_context
+            session_state=session_state
         )
+        logger.info(f"✨ Sage wisdom: {sage_wisdom.interpretation[:120]}...")
 
-        # Handle information requests
-        if detected_intent.category == IntentCategory.INFORMATION_REQUEST:
-            information_request = detected_intent.information_type
-            logger.info(f"✓ Information request detected: {information_request}")
+        # STEP 2: The Hand decides action (structured decision)
+        logger.info("👋 Invoking Hand to decide action based on wisdom...")
+        hand_guidance = await self.hand_service.decide_action(
+            wisdom=sage_wisdom,
+            user_message=user_message,
+            available_artifacts=artifact_names,
+            available_actions=[a.value for a in Action]
+        )
+        logger.info(f"👋 Hand guidance: {hand_guidance.mode.value} - {hand_guidance.reasoning[:80]}...")
+
+        # STEP 3: Execute based on Hand's guidance (natural action flow)
+
+        # Handle EXPLAIN_PROCESS mode (app/process questions)
+        if hand_guidance.mode == ActionMode.EXPLAIN_PROCESS:
+            logger.info(f"✓ Explain process mode: {hand_guidance.information_type}")
 
             # Build context for knowledge retrieval
             context = {
@@ -187,6 +215,18 @@ class ConversationService:
                 "reports_available": False  # TODO: Get from actual report status
             }
 
+            # Map information_type to InformationRequestType
+            from ..prompts.intent_types import InformationRequestType
+            info_type_map = {
+                "app_features": InformationRequestType.APP_FEATURES,
+                "process_explanation": InformationRequestType.PROCESS_EXPLANATION,
+                "current_state": InformationRequestType.CURRENT_STATE
+            }
+            information_request = info_type_map.get(
+                hand_guidance.information_type,
+                InformationRequestType.APP_FEATURES
+            )
+
             # Inject knowledge for LLM to use in generating response
             injected_knowledge = self.knowledge_service.get_knowledge_for_prompt(
                 information_request,
@@ -194,16 +234,11 @@ class ConversationService:
             )
             logger.info(f"Injecting domain knowledge about {information_request} for LLM to use")
 
-        # Handle consultation questions (Wu Wei: Universal consultation handler)
-        elif detected_intent.category == IntentCategory.CONSULTATION:
-            logger.info(f"✓ Consultation question detected: {user_message[:50]}...")
+        # Handle CONSULTATION mode (developmental questions)
+        elif hand_guidance.mode == ActionMode.CONSULTATION:
+            logger.info(f"✓ Consultation mode: {hand_guidance.consultation_type}")
 
             # Use universal consultation service - handles ALL consultation types
-            recent_history = self.interview_service.get_conversation_history(
-                family_id,
-                last_n=10  # Last 5 exchanges for context
-            )
-
             consultation_result = await self.consultation_service.handle_consultation(
                 family_id=family_id,
                 question=user_message,
@@ -226,13 +261,17 @@ class ConversationService:
                 "consultation": {
                     "sources_used": consultation_result["sources_used"],
                     "timestamp": consultation_result["timestamp"]
+                },
+                "sage_wisdom": {
+                    "interpretation": sage_wisdom.interpretation,
+                    "emotional_state": sage_wisdom.emotional_state
                 }
             }
 
-        # Handle action requests
-        elif detected_intent.category == IntentCategory.ACTION_REQUEST:
-            intent_detected = detected_intent.specific_action
-            logger.info(f"✓ Action request detected: {intent_detected}")
+        # Handle DELIVER_ARTIFACT mode (specific artifact requests)
+        elif hand_guidance.mode == ActionMode.DELIVER_ARTIFACT:
+            intent_detected = hand_guidance.artifact_id or "view_report"
+            logger.info(f"✓ Deliver artifact mode: {intent_detected}")
 
             # 3. PREREQUISITE CHECK - Is this action currently feasible?
             context = {
@@ -253,9 +292,33 @@ class ConversationService:
                 f"missing={prerequisite_check.missing_prerequisites}"
             )
 
-        # Handle conversation (data collection)
+        # Handle EXECUTE_ACTION mode (other actions)
+        elif hand_guidance.mode == ActionMode.EXECUTE_ACTION:
+            intent_detected = hand_guidance.action_name
+            logger.info(f"✓ Execute action mode: {intent_detected}")
+
+            # 3. PREREQUISITE CHECK - Is this action currently feasible?
+            context = {
+                "completeness": session.completeness,
+                "child_name": data.child_name,
+                "video_count": 0,  # TODO: Get from actual video storage
+                "analysis_complete": False,  # TODO: Get from actual analysis status
+                "reports_available": False  # TODO: Get from actual report status
+            }
+
+            prerequisite_check = self.prerequisite_service.check_action_feasible(
+                intent_detected,
+                context
+            )
+
+            logger.info(
+                f"Prerequisite check: feasible={prerequisite_check.feasible}, "
+                f"missing={prerequisite_check.missing_prerequisites}"
+            )
+
+        # Handle CONVERSATION mode (natural dialogue with extraction)
         else:
-            logger.info("Normal conversation flow")
+            logger.info(f"✓ Conversation mode (extraction: {hand_guidance.extraction_needed})")
 
         # 4. Determine which functions to use (for extraction call later)
         model_name = getattr(self.llm, 'model_name', 'unknown')
