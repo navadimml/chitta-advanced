@@ -739,6 +739,10 @@ Call extract_interview_data with ALL relevant information from this turn."""
         # Flatten extracted_data for prerequisite evaluation
         context = self.prerequisite_service.get_context_for_cards(session_data)
 
+        # 🌟 Wu Wei: Add conversation_history to context for artifact generation
+        # This is needed for two-stage LLM video guidelines generation
+        context["conversation_history"] = session.conversation_history
+
         # Let lifecycle manager check dependency graph and auto-generate artifacts
         lifecycle_result = await self.lifecycle_manager.process_lifecycle_events(
             family_id=family_id,
