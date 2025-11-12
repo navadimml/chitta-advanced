@@ -602,6 +602,39 @@ class CardGenerator:
                 # Get color from YAML
                 color = card_type_config.get("color", "gray")
 
+                # 🌟 Wu Wei: Extract action from available_actions
+                # Actions can be:
+                # - Simple string: "upload_video"
+                # - Complex dict: {"name": "לחצי לצפייה", "action": "view_guidelines", "tracks": "..."}
+                action = None
+                action_label = None
+                available_actions = card.get("available_actions", [])
+                if available_actions:
+                    first_action = available_actions[0]
+                    if isinstance(first_action, str):
+                        # Simple string action
+                        action = first_action
+                    elif isinstance(first_action, dict):
+                        # Complex dict action - extract the action field
+                        action = first_action.get("action")
+                        action_label = first_action.get("name")
+
+                # 🌟 Wu Wei: Check if card is linked to an artifact
+                # This helps frontend know what artifact to fetch when clicking
+                artifact_id = None
+                if "artifacts." in str(card.get("display_conditions", {})):
+                    # Extract artifact_id from display_conditions
+                    # e.g., "artifacts.video_guidelines.exists: true" → "video_guidelines"
+                    for condition_key in card.get("display_conditions", {}).keys():
+                        if condition_key.startswith("artifacts."):
+                            parts = condition_key.split(".")
+                            if len(parts) >= 2:
+                                artifact_id = parts[1]  # e.g., "video_guidelines"
+                                break
+                # Also check legacy fields (for backwards compatibility)
+                if not artifact_id and card.get("video_guidelines_status"):
+                    artifact_id = "baseline_video_guidelines"
+
                 # Build card in frontend format with Wu Wei dynamic config
                 card_data = {
                     "type": card_id,  # Card identifier
@@ -611,7 +644,9 @@ class CardGenerator:
                     "subtitle": subtitle,
                     "icon": icon,  # 🌟 Wu Wei: Icon from YAML card_types
                     "status": legacy_status_hints.get(card_type, "instruction"),  # Legacy support
-                    "action": card.get("available_actions", [None])[0] if card.get("available_actions") else None,
+                    "action": action,  # 🌟 Wu Wei: Properly extracted action
+                    "action_label": action_label,  # Button label if specified
+                    "artifact_id": artifact_id,  # 🌟 Wu Wei: Linked artifact if any
                 }
 
                 visible.append(card_data)
