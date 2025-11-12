@@ -428,26 +428,13 @@ class ParentSimulator:
         }
 
     async def generate_response(
-        self,
-        family_id: str,
-        chitta_question: str,
-        llm_provider,
-        graphiti=None
-    ) -> Optional[str]:
-        """
-        Generate realistic parent response using LLM.
-        The LLM acts as the parent persona.
-
-        Args:
-            family_id: Family ID for this simulation
-            chitta_question: Current question from Chitta
-            llm_provider: LLM provider for generating responses
-            graphiti: Optional graphiti instance to retrieve conversation history
-
-        Returns:
-            str: Parent's response
-            None: If conversation should end (interview complete)
-        """
+    self,
+    family_id: str,
+    chitta_question: str,
+    llm_provider,
+    graphiti=None
+) -> Optional[str]:
+        """Generate realistic parent response using LLM."""
         simulation = self.active_simulations.get(family_id)
         if not simulation:
             raise ValueError(f"No active simulation for {family_id}")
@@ -456,7 +443,7 @@ class ParentSimulator:
         message_count = simulation["message_count"]
         simulation["message_count"] += 1
 
-        # Check if interview artifacts have been generated (indicates completion)
+        # Check completion status
         from app.services.interview_service import get_interview_service
         interview_service = get_interview_service()
         session = interview_service.get_or_create_session(family_id)
@@ -464,80 +451,107 @@ class ParentSimulator:
         guidelines_ready = session.has_artifact("baseline_video_guidelines")
         acknowledgment_count = simulation.get("completion_acknowledgments", 0)
 
-        # Simple, deterministic completion logic based on artifact state
-        # If guidelines ready AND parent has acknowledged 2+ times → stop
         if guidelines_ready and acknowledgment_count >= 2:
             logger.info(
                 f"🛑 Interview complete for {family_id}: "
                 f"guidelines ready, acknowledged {acknowledgment_count} times"
             )
-            return None  # Stop - conversation is done
+            return None
 
-        # Build context for LLM
-        answer_patterns = persona.context_info.get("answer_patterns", [])
-        patterns_text = "\n".join([f"- {p}" for p in answer_patterns]) if answer_patterns else ""
-
-        # Determine conversation phase based on message count only
+        # Determine conversation phase and emotional state
         if message_count < 3:
-            phase = "beginning - settling in"
-            detail_level = "basic facts"
+            phase = "התחלה - עדיין מתרגל לשיחה"
+            emotional_state = "קצת מהוסס/ת, עונה בקצרה"
         elif message_count < 8:
-            phase = "middle - opening up"
-            detail_level = "adding context"
+            phase = "אמצע שיחה - מתחיל להיפתח"
+            emotional_state = "יותר נוח, מוסיף פרטים"
         else:
-            phase = "established conversation"
-            detail_level = "comprehensive"
+            phase = "שיחה מתקדמת - נוח לדבר"
+            emotional_state = "משתף בחופשיות, פחות מסונן"
 
-        # Build natural character description
+        # Build natural background
         background_text = self._format_background_naturally(persona.background)
+        
+        # Get answer patterns if this is a challenging persona
+        answer_patterns = persona.context_info.get("answer_patterns", [])
+        patterns_section = ""
+        if answer_patterns:
+            patterns_list = "\n".join([f"• {p}" for p in answer_patterns])
+            patterns_section = f"\nדפוסי תשובה שלך (חשוב!):\n{patterns_list}\n"
 
-        system_prompt = f"""CONTEXT: This is a development/testing simulation for a child development guidance platform used by parents at home. You are role-playing as a parent character to help test the system.
+        system_prompt = f"""אתה משחק תפקיד של הורה אמיתי בשיחת צ'אט עם מדריכה להתפתחות ילדים.
 
----
+    === זהות ===
+    שמך: {persona.parent_name}
+    ילד/ה: {persona.child_name}, גיל {persona.child_age}
+    הדאגה המרכזית: {persona.main_concern}
 
-אתה {persona.parent_name}, הורה לילד/ה בשם {persona.child_name} בן/בת {persona.child_age}.
+    === רקע ===
+    {background_text}
 
-אתה מדבר/ת עם צ'יטה, מדריכה להתפתחות ילדים.
+    === מצב רגשי כרגע ===
+    שלב השיחה: {phase}
+    מצב רגשי: {emotional_state}{patterns_section}
 
-הדאגה העיקרית שלך: {persona.main_concern.lower()}
+    === איך לענות (קריטי!) ===
 
-{background_text}
+    ✅ כן - עשה:
+    - דבר כמו הורה אמיתי - רגשי, לא מלוטש, לא מאורגן
+    - השתמש בדוגמאות קונקרטיות: "אתמול למשל...", "בשבוע שעבר..."
+    - הבע רגשות: "זה ממש מתסכל", "בא לי לבכות", "אני כל כך גאה"
+    - שפה יומיומית: "יודע?", "ממש", "לא יודע/ת איך להסביר", "זה כאילו..."
+    - תשובות קצרות-בינוניות: 1-3 משפטים לרוב, לפעמים פסקה קצרה
+    - משפטים לא מושלמים - קופץ בין רעיונות, חוזר על עצמך
+    - אם לא בטוח - תגיד "לא יודע/ת" או "לא שמתי לב"
 
-תגובה טבעית:
-- תן תשובה קצרה ופשוטה כמו שהורה אמיתי היה אומר
-- משפט אחד או שניים, לא יותר
-- אל תרשום רשימות או נקודות
-- אם אתה לא בטוח במשהו, פשוט תגיד "אני לא בטוחה" או "אני צריכה לחשוב"
-- תדבר בעברית פשוטה וטבעית
+    ❌ לא - אל תעשה:
+    - אל תכתוב רשימות ממוספרות (1, 2, 3...)
+    - אל תכתוב כותרות או סעיפים
+    - אל תנתח כמו איש מקצוע: "הדפוס ברור", "זה מעורר", "בהתחשב בזה"
+    - אל תשתמש בשפה מקצועית: "אינטראקציה חברתית", "משתנה בלתי צפוי"
+    - אל תסכם בצורה אנליטית בסוף
+    - אל תהיה לוגי ומסודר מדי - הורה לא מארגן מחשבות בצורה מושלמת
+    - אל תהיה אובייקטיבי - הורה הוא סובייקטיבי ורגשי
 
-צ'יטה שואלת: "{chitta_question}"
+    === דוגמאות (למידה) ===
 
-תשובה:"""
+    ❌ לא טבעי:
+    "כשהוא משחק לבד, הוא מאוד אוהב משחקים שמבוססים על מערכות:
+    1. קוביות ומשחקי הרכבה
+    2. משחקי תפקידים סולו
+    הדפוס ברור: הוא נמשך לפעילויות עם סדר קבוע."
 
-        # Use LLM to generate response
+    ✅ טבעי:
+    "אוי, כשהוא לבד זה סיפור אחר לגמרי. אתמול למשל הוא בילה שעה שלמה עם הלגו, בונה משהו לפי ההוראות - ממש מדויק ומרוכז. וגם עם הדינוזאורים הקטנים שיש לו, הוא ממציא להם סיפורים. זה ממש חמוד לצפות בו.
+
+    אבל ברגע שיש ילד אחר, זה... לא יודעת איך להסביר, הכל משתנה. לא יודעת איך לעזור לו עם זה..."
+
+    ---
+
+    צ'יטה שואלת עכשיו: "{chitta_question}"
+
+    תשובה שלך כהורה (רק התשובה, ללא הסברים או מטא-תגובות):"""
+
+        # Build messages with conversation history
         from app.services.llm.base import Message
-
-        # Build messages list with conversation history
         messages = [Message(role="system", content=system_prompt)]
 
-        # Add recent conversation history if available (last 8 messages)
-        # This gives the LLM context about what it said before
+        # Add conversation history (last 8 messages for context)
         if graphiti:
             state = graphiti.get_or_create_state(family_id)
             recent_messages = state.conversation[-8:] if len(state.conversation) > 8 else state.conversation
 
             for msg in recent_messages:
-                # Convert graphiti messages to LLM messages
                 messages.append(Message(
-                    role="assistant" if msg.role == "user" else "user",  # Flip roles: user is Chitta, assistant is parent
+                    role="assistant" if msg.role == "user" else "user",
                     content=msg.content
                 ))
 
         # Add current question
         messages.append(Message(role="user", content=chitta_question))
 
-        response = await llm_provider.chat(messages=messages, temperature=0.75)  # Higher temp for natural, varied responses
-
+        # Generate with higher temperature for natural variation
+        response = await llm_provider.chat(messages=messages, temperature=0.8, max_tokens=300)
         response_text = response.content.strip()
 
         # Track acknowledgments when guidelines are ready
@@ -547,9 +561,8 @@ class ParentSimulator:
                 f"📝 Parent acknowledged completion #{acknowledgment_count + 1} for {family_id}"
             )
 
-        # Let the LLM signal completion naturally
         if "###COMPLETE###" in response_text:
-            logger.info(f"🛑 Test mode: Interview complete for {family_id} (guidelines ready: {guidelines_ready})")
+            logger.info(f"🛑 Interview complete for {family_id}")
             return None
 
         return response_text
