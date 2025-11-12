@@ -186,15 +186,22 @@ class PrerequisiteService:
         re_assessment_active = session_data.get("re_assessment_active", False)
 
         # Build comprehensive context
+        # 🌟 Wu Wei: Map extraction fields to context format for prerequisite evaluation
+        # other_info should combine family_context + daily_routines (from extraction schema)
+        family_context = extracted_data.get("family_context") or ""
+        daily_routines = extracted_data.get("daily_routines") or ""
+        other_info_combined = f"{family_context}\n{daily_routines}".strip()
+
         context = {
             # Extracted data fields
             "child_name": extracted_data.get("child_name"),
             "age": extracted_data.get("age") or extracted_data.get("child_age"),
             "primary_concerns": extracted_data.get("primary_concerns"),
             "concerns": extracted_data.get("concerns"),
-            "concern_description": extracted_data.get("concern_description"),
+            # Map concern_details (from extraction schema) to concern_description (expected by evaluator)
+            "concern_description": extracted_data.get("concern_details") or extracted_data.get("concern_description"),
             "strengths": extracted_data.get("strengths"),
-            "other_info": extracted_data.get("other_info"),
+            "other_info": other_info_combined or extracted_data.get("other_info"),  # Fallback to old field if exists
 
             # Conversation state
             "message_count": message_count,
