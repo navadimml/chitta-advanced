@@ -575,109 +575,47 @@ Continue the conversation naturally."""
             session = self.interview_service.get_or_create_session(family_id)
             current_data = session.extracted_data
 
-            extraction_system = f"""You are a data extraction assistant. Extract structured information from this conversation turn.
+            extraction_system = f"""Extract structured information from this conversation turn.
 
-**Current data summary (for context):**
-- Child: {current_data.child_name or 'unknown'}, {current_data.age or '?'} years, {current_data.gender or 'unknown'}
-- Concerns so far: {current_data.primary_concerns or 'none yet'}
-- Details collected: {len(current_data.concern_details or '')} characters
-- Completeness: {session.completeness:.0%}
+**Current data:**
+Child: {current_data.child_name or 'unknown'}, {current_data.age or '?'} years
+Concerns: {current_data.primary_concerns or 'none yet'}
+Completeness: {session.completeness:.0%}
 
-**⚠️ CRITICAL EXTRACTION RULES:**
+**EXTRACTION RULES:**
 
-1. **EXTRACT EVERYTHING - This is your ONLY CHANCE!**
-   - Parent's words will disappear from conversation history after ~20 exchanges
-   - If you miss something now, it's LOST FOREVER
-   - Even "small" details matter - extract AGGRESSIVELY
+1. **Extract EVERYTHING - conversation history is limited!**
+   - Parent's words disappear after ~20 exchanges
+   - Extract now or lose it forever
+   - Better to over-extract than miss something
 
-2. **Don't ignore casual mentions:**
-   - Parent says "הוא אוהב לצייר" → MUST extract to strengths!
-   - Parent says "הוא כבר אומר כמה מילים" → MUST extract to concern_details!
-   - Parent mentions sibling → MUST extract to family_context!
-   - Parent describes typical day → MUST extract to daily_routines!
+2. **CRITICAL - Concerns vs Strengths:**
+   ⚠️ PRIMARY_CONCERNS = ONLY if parent expresses WORRY/DIFFICULTY/PROBLEM
+   ✅ STRENGTHS = Positive behaviors, things child does well
 
-3. **Preserve parent's exact descriptions:**
-   - Parent gives examples → Extract the full examples, not summaries
-   - Parent describes specific behaviors → Extract the specific details
-   - Parent mentions frequencies ("כל יום", "לפעמים") → Capture them
-   - Parent shares feelings/worries → Include them in concern_details
+   **Strengths (NOT concerns):**
+   - "plays with other children", "gets along well", "has friends" → STRENGTH
+   - "talks a lot", "communicates well" → STRENGTH
+   - "runs and climbs" → STRENGTH
 
-4. **Multiple topics in one message:**
-   - If parent mentions BOTH concerns AND strengths → Extract BOTH
-   - If parent talks about multiple developmental areas → Extract ALL of them
-   - Don't pick and choose - capture everything!
+   **Concerns (extract these):**
+   - "struggles to connect", "avoids interaction" → concern
+   - "doesn't speak well", "speech delay" → concern
 
-**WHAT TO EXTRACT:**
+3. **Use parent's EXACT WORDS for strengths:**
+   - Parent: "הוא רץ ומטפס כל הזמן" → Extract: "רץ ומטפס כל הזמן" ✅
+   - NOT: "יכולות מוטוריות טובות" ❌ (clinical jargon)
 
-- **Basic info:** name, age, gender (if mentioned)
+4. **Extract everything relevant:**
+   - Basic info: name, age, gender
+   - Concerns: categories + detailed descriptions
+   - Strengths: interests, abilities, positive traits
+   - History: milestones, medical, evaluations
+   - Family: siblings, dynamics, support
+   - Daily life: routines, sleep, eating, activities
+   - Goals: what parent hopes to achieve
 
-- **Primary concerns:** ⚠️ **ONLY if parent expresses WORRY, DIFFICULTY, or PROBLEM!**
-  Categories: 'speech', 'social', 'motor', 'attention', 'sensory', 'emotional', 'behavioral', 'learning', 'sleep', 'eating'
-
-  ⚠️ **CRITICAL - DO NOT MISCATEGORIZE POSITIVE BEHAVIORS AS CONCERNS:**
-  - ONLY extract to primary_concerns if parent expresses WORRY, DIFFICULTY, or PROBLEM
-  - If parent describes positive, successful, or enjoyable behavior → STRENGTH, NOT concern!
-  - "Gets along with children" = STRENGTH | "Struggles with children" = concern
-  - "Talks a lot" = STRENGTH | "Doesn't talk much" = concern
-  - "Behaves well" = STRENGTH | "Behaves poorly" = concern
-
-  **Examples of STRENGTHS (NOT concerns):**
-  - "משחק עם ילדים אחרים" (plays with other children) → STRENGTH, NOT social concern!
-  - "מסתדרת יפה עם ילדים אחרים" (gets along well with other children) → STRENGTH, NOT social concern!
-  - "יש לו הרבה חברים" (has many friends) → STRENGTH, NOT social concern!
-  - "אוהב לשחק עם חברים" (likes to play with friends) → STRENGTH, NOT social concern!
-  - "מדבר הרבה" (talks a lot) → STRENGTH, NOT speech concern!
-  - "מתקשר יפה" (communicates well) → STRENGTH, NOT speech concern!
-  - "רץ ומטפס" (runs and climbs) → STRENGTH, NOT motor concern!
-  - "מתנהג יפה" (behaves well) → STRENGTH, NOT behavioral concern!
-
-  **Examples of CONCERNS (extract these):**
-  - "קשה לו להתחבר לילדים" (hard for him to connect with children) → social concern
-  - "נמנע מחברה" (avoids social interaction) → social concern
-  - "לא מדבר טוב" (doesn't speak well) → speech concern
-  - "מתקשה בריצה" (struggles with running) → motor concern
-
-- **concern_details:** ANY information about concerns:
-  * What exactly happens? (specific behaviors/examples)
-  * When does it occur? (frequency, situations, timing)
-  * Where? (home, school, with peers, with family)
-  * Impact on daily life? (how it affects child/family)
-  * How long has this been happening? (duration)
-  * Parent's observations and worries
-  * Comparisons to peers or developmental expectations
-
-- **strengths:** EVERYTHING positive about the child - USE PARENT'S EXACT WORDS:
-  ⚠️ **CRITICAL - Copy parent's actual words, NOT clinical categories!**
-  - Parent says "הוא רץ ומטפס כל הזמן" → Extract: "רץ ומטפס כל הזמן" ✅
-  - DO NOT write: "יכולות מוטוריות טובות" ❌ (clinical jargon)
-  - Parent says "אוהב לצייר ולבנות" → Extract: "אוהב לצייר ולבנות" ✅
-  - DO NOT write: "יצירתי" ❌ (categorization)
-
-  What to extract (using parent's words):
-  * Interests and hobbies
-  * What child enjoys doing
-  * What child is good at
-  * Activities that engage them
-  * Positive behaviors or traits
-  * Social successes
-  * Physical abilities
-  * Communication successes
-
-- **developmental_history:** Milestones, pregnancy, birth, medical history, when did child reach milestones
-
-- **family_context:** Siblings, family dynamics, family history of developmental issues, educational setting (daycare, kindergarten)
-
-- **daily_routines:** Typical day, sleep patterns, eating habits, activities, behaviors throughout the day
-
-- **parent_goals:** What they hope to achieve, improve, or understand better
-
-**⚠️ REMEMBER:**
-- After ~20 conversation exchanges, this turn will be GONE from history
-- The ONLY way to preserve it is through extraction
-- When in doubt → EXTRACT IT!
-- Better to over-extract than under-extract
-
-Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothing behind!"""
+Call extract_interview_data with ALL relevant information from this turn."""
 
             extraction_messages = [
                 Message(role="system", content=extraction_system),
