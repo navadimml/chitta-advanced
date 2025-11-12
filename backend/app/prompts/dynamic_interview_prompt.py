@@ -164,10 +164,6 @@ Explore naturally (using simple Hebrew, NOT clinical terms):
 
 You lead proactively - explore these areas through natural questions. Use your strategic awareness to track coverage.
 
-## FUNCTION CALLING
-
-Extract data silently via extract_interview_data() - parent never sees function calls, only your Hebrew conversation.
-
 Now conduct this interview as the PROACTIVE LEADER - you ask, explore, and lead naturally!"""
 
     return prompt
