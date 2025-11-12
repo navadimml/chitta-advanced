@@ -84,7 +84,10 @@ function App() {
         }
 
         if (state.artifacts.baseline_video_guidelines) {
-          setVideoGuidelines(state.artifacts.baseline_video_guidelines.content);
+          const content = state.artifacts.baseline_video_guidelines.content;
+          // Parse JSON content (artifact stores structured data as JSON string)
+          const guidelinesData = typeof content === 'string' ? JSON.parse(content) : content;
+          setVideoGuidelines(guidelinesData);
         }
 
         // Set activities
@@ -255,7 +258,12 @@ function App() {
       try {
         const artifact = await api.getArtifact(activeFamilyId, 'baseline_video_guidelines');
         if (artifact && artifact.content) {
-          setVideoGuidelines(artifact.content);
+          // Parse JSON content (artifact stores structured data as JSON string)
+          const guidelinesData = typeof artifact.content === 'string'
+            ? JSON.parse(artifact.content)
+            : artifact.content;
+
+          setVideoGuidelines(guidelinesData);
           setShowGuidelinesView(true);
         } else {
           console.error('Artifact not ready or missing content');
