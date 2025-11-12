@@ -15,7 +15,7 @@ from datetime import datetime
 
 from .llm.base import Message, BaseLLMProvider
 from .llm.factory import create_llm_provider
-from .interview_service import get_interview_service, InterviewService
+from .interview_service import InterviewState, get_interview_service, InterviewService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
 from .consultation_service import get_consultation_service, ConsultationService
