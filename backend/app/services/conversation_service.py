@@ -21,6 +21,7 @@ from .knowledge_service import get_knowledge_service, KnowledgeService
 from .consultation_service import get_consultation_service, ConsultationService
 from .artifact_generation_service import ArtifactGenerationService
 from .lifecycle_manager import get_lifecycle_manager, LifecycleManager  # 🌟 Wu Wei: Core dependency graph processor
+from ..config.artifact_manager import get_artifact_manager
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.dynamic_interview_prompt import build_dynamic_interview_prompt
 from ..prompts.strategic_advisor import get_strategic_guidance
@@ -801,6 +802,8 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
         This ensures Chitta knows what artifacts have been generated and can
         reference them properly in conversation (critical for sync).
 
+        🌟 GENERIC IMPLEMENTATION - Works with any artifact type from config!
+
         Args:
             session: Current interview session
 
@@ -810,20 +813,21 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
         if not session.artifacts:
             return ""
 
-        # Map artifact types to friendly Hebrew names
-        artifact_names = {
-            "baseline_video_guidelines": "הנחיות צילום מותאמות אישית",
-            "baseline_parent_report": "דוח הורה ראשוני",
-            "sensory_profile": "פרופיל חושי",
-            "video_analysis": "ניתוח וידאו",
-            "progress_report": "דוח התקדמות",
-            "recommendations": "המלצות",
-        }
-
+        artifact_manager = get_artifact_manager()
         artifacts_list = []
-        for artifact_name, artifact in session.artifacts.items():
-            # Get friendly name or use artifact type
-            friendly_name = artifact_names.get(artifact_name, artifact.artifact_type)
+
+        for artifact_id, artifact in session.artifacts.items():
+            # Get artifact definition from config (config-driven!)
+            artifact_def = artifact_manager.get_artifact(artifact_id)
+
+            if artifact_def:
+                # Use Hebrew name from config
+                friendly_name = artifact_def.get("name", artifact.artifact_type)
+                description = artifact_def.get("description", "")
+            else:
+                # Fallback if not in config
+                friendly_name = artifact.artifact_type
+                description = ""
 
             # Format creation date
             created_date = artifact.created_at
@@ -832,26 +836,80 @@ Call extract_interview_data with EVERYTHING relevant from this turn. Leave nothi
             else:
                 date_str = str(created_date)
 
-            artifacts_list.append(f"  ✅ **{friendly_name}** (נוצר: {date_str})")
+            # Build artifact entry
+            artifact_entry = f"  ✅ **{friendly_name}** (נוצר: {date_str})"
+            if description:
+                artifact_entry += f"\n     {description}"
+
+            artifacts_list.append(artifact_entry)
 
         if not artifacts_list:
             return ""
 
+        # 🌟 Get UI context from lifecycle manager to tell Chitta WHERE artifacts are
+        ui_context = self._get_artifact_ui_context(session)
+
         return f"""
-## 📋 מסמכים שכבר יצרת
+## 📋 מסמכים ותוצרים שכבר יצרת
 
 {chr(10).join(artifacts_list)}
 
 **חשוב מאוד:** המסמכים האלה כבר קיימים וזמינים להורה!
-- אם ההורה שואל עליהם - התייחס אליהם כמוכנים ולא כמשהו שעוד צריך ליצור
-- אם ההורה מבקש לראות אותם - הסבר שהם זמינים בכרטיסי ההקשר או במקטע המתאים
-- אל תאמר "אני אכין" או "נייצר" - אלא "כבר הכנתי" או "כבר יצרתי"
 
-דוגמאות לתשובות נכונות:
-- "כבר הכנתי לך הנחיות צילום מותאמות אישית! הן זמינות למעלה בכרטיס"
-- "הדוח המקיף שיצרתי כולל..."
-- "בהנחיות הצילום שהכנתי, תמצאי..."
+**איפה להפנות את ההורה:**
+{ui_context}
+
+**הנחיות לשימוש:**
+- אם ההורה שואל על מסמך - התייחס אליו כמוכן, לא כמשהו שעוד צריך ליצור
+- השתמש בלשון עבר: "כבר הכנתי", "יצרתי", "סיכמתי" (לא "אכין", "ייצר")
+- הפנה אותם למיקום הנכון (כרטיס ההקשר או מקטע ספציפי)
+- אם הם שואלים על תוכן - תן סקירה קצרה והפנה לקריאה מלאה
+
+**דוגמאות לתשובות טובות:**
+- "כבר הכנתי לך [שם המסמך]! תראי אותו [היכן למצוא]"
+- "בדוח שיצרתי ראית שכתבתי על..."
+- "אם תרצי לקרוא את ההנחיות המלאות, [היכן למצוא]"
 """
+
+    def _get_artifact_ui_context(self, session: Any) -> str:
+        """
+        Get UI context for where artifacts are located.
+
+        Uses lifecycle events configuration to tell Chitta where each artifact
+        can be found in the UI.
+
+        Args:
+            session: Current interview session
+
+        Returns:
+            Formatted string with UI locations for artifacts
+        """
+        # Get lifecycle manager to access event configurations
+        lifecycle_manager = self.lifecycle_manager
+
+        ui_locations = []
+
+        # Check which lifecycle events have been triggered
+        # and get their UI context
+        for artifact_id in session.artifacts.keys():
+            # Find lifecycle event that created this artifact
+            event_config = lifecycle_manager._find_event_for_artifact(artifact_id)
+
+            if event_config and "ui" in event_config:
+                ui_info = event_config["ui"]
+                default_text = ui_info.get("default", "")
+
+                if default_text:
+                    artifact_manager = get_artifact_manager()
+                    artifact_def = artifact_manager.get_artifact(artifact_id)
+                    artifact_name = artifact_def.get("name", artifact_id) if artifact_def else artifact_id
+
+                    ui_locations.append(f"- **{artifact_name}**: {default_text}")
+
+        if ui_locations:
+            return "\n".join(ui_locations)
+        else:
+            return "- כרטיסי ההקשר (Context Cards) בראש הדף\n- או במקטע המתאים בתפריט"
 
     def _generate_context_cards(
         self,
