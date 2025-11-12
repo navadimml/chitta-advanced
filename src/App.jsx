@@ -255,21 +255,33 @@ function App() {
       // 🌟 Wu Wei: Fetch the artifact content before showing the view
       const activeFamilyId = testMode && testFamilyId ? testFamilyId : FAMILY_ID;
 
+      console.log('📹 Fetching video guidelines for family:', activeFamilyId);
+
       try {
         const artifact = await api.getArtifact(activeFamilyId, 'baseline_video_guidelines');
+        console.log('📦 Artifact received:', artifact);
+
         if (artifact && artifact.content) {
+          console.log('📄 Content type:', typeof artifact.content);
+          console.log('📄 Content preview:', typeof artifact.content === 'string'
+            ? artifact.content.substring(0, 200)
+            : JSON.stringify(artifact.content).substring(0, 200));
+
           // Parse JSON content (artifact stores structured data as JSON string)
           const guidelinesData = typeof artifact.content === 'string'
             ? JSON.parse(artifact.content)
             : artifact.content;
 
+          console.log('✅ Parsed guidelines:', guidelinesData);
+          console.log('✅ Has scenarios:', guidelinesData.scenarios?.length);
+
           setVideoGuidelines(guidelinesData);
           setShowGuidelinesView(true);
         } else {
-          console.error('Artifact not ready or missing content');
+          console.error('❌ Artifact not ready or missing content:', artifact);
         }
       } catch (error) {
-        console.error('Error fetching video guidelines:', error);
+        console.error('❌ Error fetching video guidelines:', error);
       }
       return;
     }
