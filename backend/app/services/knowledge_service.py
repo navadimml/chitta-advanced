@@ -41,76 +41,166 @@ class KnowledgeService:
         self.llm = llm_provider or create_llm_provider()
         logger.info(f"KnowledgeService initialized for domain: {self.domain_info['domain']}")
 
-    async def detect_unified_intent(self, user_message: str) -> DetectedIntent:
+    async def detect_unified_intent(
+        self,
+        user_message: str,
+        recent_conversation: list = None,
+        available_artifacts: list = None,
+        child_context: dict = None
+    ) -> DetectedIntent:
         """
-        Unified intent detection - single LLM call for all intent types
+        Unified intent detection with rich dialogue context (Wu Wei approach)
 
-        This replaces separate calls for information requests and action requests,
-        saving one LLM call per message.
+        Instead of simplified boolean flags, we pass ACTUAL rich context:
+        - Recent conversation exchanges (to understand dialogue flow)
+        - Available artifacts (to know what can be consulted about)
+        - Child context (to personalize developmental answers)
+
+        This lets the LLM naturally understand the situation without rigid rules.
 
         Args:
-            user_message: User's message
+            user_message: User's current message
+            recent_conversation: Last 3-4 conversation exchanges [{"role": "...", "content": "..."}]
+            available_artifacts: List of artifact names/titles that exist
+            child_context: Dict with child_name, age, primary_concerns
 
         Returns:
             DetectedIntent with category and specific details
         """
-        detection_prompt = f"""Analyze this user message and classify their intent.
+        # Build rich context for the prompt
+        context_parts = []
 
-User message: "{user_message}"
+        # 1. Recent dialogue flow (crucial for understanding if parent is responding)
+        if recent_conversation:
+            context_parts.append("**Recent conversation:**")
+            for turn in recent_conversation[-4:]:  # Last 2 exchanges
+                role_name = "Chitta" if turn.get("role") == "assistant" else "Parent"
+                content_preview = turn.get("content", "")[:150]
+                context_parts.append(f"  {role_name}: {content_preview}...")
 
-Intent categories (respond with ONLY the category name):
+        # 2. Available artifacts (to know what can be consulted about)
+        if available_artifacts:
+            context_parts.append(f"\n**Available artifacts/reports:** {', '.join(available_artifacts)}")
+        else:
+            context_parts.append("\n**Available artifacts/reports:** None yet")
 
-1. INFORMATION - User asking about the app/process/features
-   Examples:
-   • "מה זה צ'יטה?", "what is this app?"
-   • "איך זה עובד?", "how does this work?"
-   • "מה הסרטונים?", "what about videos?"
-   • "איפה אני?", "where am I in the process?"
+        # 3. Child context (for developmental questions)
+        if child_context:
+            child_name = child_context.get("child_name", "")
+            age = child_context.get("age", "")
+            concerns = child_context.get("primary_concerns", [])
+            if child_name:
+                context_parts.append(f"\n**Child:** {child_name}, age {age}, concerns: {', '.join(concerns) if concerns else 'not yet discussed'}")
 
-   For INFORMATION, also specify sub-type on next line:
-   - APP_FEATURES (what the app does, features)
-   - PROCESS_EXPLANATION (how it works, what happens)
-   - CURRENT_STATE (where they are, what's next)
+        rich_context = "\n".join(context_parts) if context_parts else "No prior context (conversation just started)"
 
-2. ACTION - User wants to perform a specific action
-   Examples:
-   • "תן לי דוח", "show me report"
-   • "איך מעלים סרטון?", "how to upload video?"
-   • "תראי הנחיות", "show guidelines"
+        detection_prompt = f"""Analyze this parent's message and understand their intent in the context of the dialogue.
 
-   For ACTION, also specify which action on next line:
-   - view_report
-   - upload_video
-   - view_video_guidelines
-   - find_experts
-   - add_journal_entry
-   - start_test_mode (for "עבור לבדיקה", "test mode", "מצב בדיקה")
-   - start_demo (for "demo", "דמו", "הצג דמו")
+**DIALOGUE CONTEXT:**
+{rich_context}
 
-3. CONSULTATION - User asking questions about previous conversations, reports, or insights
-   Examples:
-   • "מה התכוונת ב'חיפוש חושי'?", "what did you mean by 'sensory seeking'?"
-   • "למה כתבת שיש לו קשיים בתפקודים ניהוליים?", "why did you write he has executive function difficulties?"
-   • "האם הדיבור שלו השתפר?", "has his speech improved?"
-   • "מה הפסיכולוגית כתבה על הקשב?", "what did the psychologist write about attention?"
-   • "איך עזרתי לו בהתפרצויות בעבר?", "how did I help with meltdowns before?"
+**Current parent message:** "{user_message}"
 
-4. CONVERSATION - Just talking about their child/situation (sharing new information)
-   Examples:
-   • "הילד שלי בן 5", "my child is 5"
-   • "יש לו קושי בדיבור", "he has speech delay"
-   • "כן, זה נכון", "yes, that's right"
-   • "היום הוא עשה משהו מעניין", "today he did something interesting"
+---
 
-Response format:
-Line 1: Category (INFORMATION, ACTION, CONSULTATION, or CONVERSATION)
+**Your task:** Understand what the parent NEEDS right now. Don't force into rigid categories - understand the natural flow.
+
+**Intent Categories:**
+
+1. **CONVERSATION** - Parent is SHARING/RESPONDING in the natural dialogue flow
+
+   **Key indicators:**
+   - Chitta just asked a question and parent is answering it
+   - Parent is responding to something Chitta said ("תודה ששאלת", "כן זה נכון")
+   - Parent is sharing new observations about their child
+   - Parent is elaborating on something already discussed
+   - The message flows naturally from the previous exchange
+
+   **Examples:**
+   - Chitta asks "ספרי לי על הדיבור של יוני" → Parent: "הוא מדבר רק כמה מילים בודדות"
+   - Chitta says "נשמע שהוא מחפש גירוי חושי" → Parent: "כן, זה נכון! תודה ששאלת על זה"
+   - Parent shares: "היום הוא עשה משהו מעניין", "הילד שלי בן 5"
+
+   **CRITICAL:** If parent is answering Chitta's question → ALWAYS CONVERSATION!
+
+2. **CONSULTATION** - Parent is asking a NEW question seeking expertise
+
+   This is **the beauty and strength of Chitta**: Parent can ask ANY question about child development,
+   and Chitta uses the LLM's huge developmental knowledge + the specific child's context to give
+   personalized expert answers.
+
+   **Two types (but both are CONSULTATION):**
+
+   a) **General developmental questions:**
+      - "מה זה חיפוש חושי?" (What is sensory seeking?)
+      - "איך יודעים שיש ADHD?" (How do you know if there's ADHD?)
+      - "מה עושים עם התפרצויות?" (What do you do with meltdowns?)
+
+   b) **Questions about Chitta's specific analysis:**
+      - "למה אמרת שיש לו חיפוש חושי?" (Why did you say he has sensory seeking?)
+      - "מה הפסיכולוגית כתבה?" (What did the psychologist write?)
+      - "האם הדיבור שלו השתפר?" (Has his speech improved?)
+
+   **Key indicators:**
+   - Parent asks a NEW question (not answering Chitta)
+   - Question is about child development, strategies, or patterns
+   - Question may reference artifacts/reports OR general knowledge
+   - Parent is seeking EXPLANATION, not just chatting
+
+   **Note:** Only categorize as CONSULTATION if artifacts exist OR it's a general developmental question.
+   If no artifacts exist and parent asks "Why did you say X?", it might be CONVERSATION (clarifying dialogue).
+
+3. **ACTION** - Parent wants something specific delivered/executed
+
+   **Examples:**
+   - "תן לי דוח" (show me report)
+   - "איך מעלים סרטון?" (how to upload video?)
+   - "תראי הנחיות" (show guidelines)
+   - "עבור לבדיקה" (start test mode)
+
+   **Actions:** view_report, upload_video, view_video_guidelines, find_experts, add_journal_entry, start_test_mode, start_demo
+
+4. **INFORMATION** - Parent asking about the app/process/features (meta questions)
+
+   **Examples:**
+   - "מה זה צ'יטה?" (what is this app?)
+   - "איך זה עובד?" (how does this work?)
+   - "איפה אני בתהליך?" (where am I in the process?)
+
+   **Sub-types:** APP_FEATURES, PROCESS_EXPLANATION, CURRENT_STATE
+
+---
+
+**Response format:**
+Line 1: Category (CONVERSATION, CONSULTATION, ACTION, or INFORMATION)
 Line 2 (if needed): Sub-type or specific action
 
-Examples:
-"מה זה?" → INFORMATION\nAPP_FEATURES
-"תן לי דוח" → ACTION\nview_report
-"מה התכוונת בחיפוש חושי?" → CONSULTATION
-"הבן שלי בן 3" → CONVERSATION"""
+**Examples with context:**
+
+Example 1:
+Context: Chitta just asked "ספרי לי עוד על הדיבור של יוני"
+Parent: "תודה ששאלת. הוא מדבר רק כמה מילים בודדות"
+→ CONVERSATION (parent is ANSWERING Chitta's question)
+
+Example 2:
+Context: Chitta said "נשמע שיוני מחפש גירוי חושי במערכת הווסטיבולרית"
+Parent: "מה זה חיפוש חושי?"
+→ CONSULTATION (parent asking NEW developmental question)
+
+Example 3:
+Context: Artifacts exist: baseline_parent_report
+Parent: "למה כתבת שיש לו חיפוש חושי?"
+→ CONSULTATION (parent asking about Chitta's specific analysis)
+
+Example 4:
+Context: No artifacts yet, conversation in progress
+Parent: "למה אמרת שזה גירוי חושי?"
+→ CONVERSATION (clarifying what Chitta just said in dialogue, not consulting a report)
+
+Example 5:
+Context: Any
+Parent: "תן לי את הדוח"
+→ ACTION\nview_report"""
 
         try:
             response = await self.llm.chat(
