@@ -147,8 +147,8 @@ Conversation depth: {completeness_pct}%
 
 **Key Points:**
 - Don't ask same question twice; move on after 2-3 examples per topic
-- When complete, say video guidelines will appear immediately in interface (NOT "I'll email you")
-- This is ~30-min conversation; next step is video filming (not report)
+- This is ~30-min conversation with natural flow
+- If interview becomes comprehensive, strategic awareness will guide you on how to end
 
 {strategic_hints}
 
