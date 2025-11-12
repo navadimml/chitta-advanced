@@ -365,6 +365,27 @@ class LifecycleManager:
         # Default: simple equality
         return context.get(key, None) == expected_value
 
+    def _find_event_for_artifact(self, artifact_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Find the lifecycle event (moment) configuration that creates a specific artifact.
+
+        This is used to get UI context for artifact awareness in conversations.
+
+        Args:
+            artifact_id: The artifact identifier to find
+
+        Returns:
+            Moment configuration dict with 'artifact', 'message', 'ui', etc.
+            or None if not found
+        """
+        moments = self.config.get("moments", {})
+
+        for moment_id, moment_config in moments.items():
+            if moment_config.get("artifact") == artifact_id:
+                return moment_config
+
+        return None
+
     async def _generate_artifact(
         self,
         artifact_id: str,
