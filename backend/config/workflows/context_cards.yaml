@@ -93,7 +93,7 @@ cards:
     display_conditions:
       baseline_parent_report.exists: false  # Initial assessment state
       message_count: "> 0"
-      artifacts.video_guidelines.exists: false  # Before guidelines ready
+      artifacts.baseline_video_guidelines.exists: false  # Before guidelines ready
 
     # Card content (qualitative, not percentage!)
     content:
@@ -156,8 +156,8 @@ cards:
     # When to show - prerequisites met but not generated yet
     display_conditions:
       baseline_parent_report.exists: false  # Initial assessment state
-      artifacts.video_guidelines.prerequisites_met: true
-      artifacts.video_guidelines.exists: false
+      artifacts.baseline_video_guidelines.prerequisites_met: true
+      artifacts.baseline_video_guidelines.exists: false
       user_actions.declined_guidelines_offer: false
 
     # Card content
@@ -192,7 +192,7 @@ cards:
     # When to show - while generating
     display_conditions:
       baseline_parent_report.exists: false  # Initial assessment state
-      artifacts.video_guidelines.status: "generating"
+      artifacts.baseline_video_guidelines.status: "generating"
 
     # Card content
     content:
@@ -215,8 +215,8 @@ cards:
     # When to show - generated but not viewed yet
     display_conditions:
       baseline_parent_report.exists: false  # Initial assessment state
-      artifacts.video_guidelines.exists: true
-      artifacts.video_guidelines.status: "ready"
+      artifacts.baseline_video_guidelines.exists: true
+      artifacts.baseline_video_guidelines.status: "ready"
       user_actions.viewed_guidelines: false
 
     # Card content
@@ -246,7 +246,7 @@ cards:
     # When to show - after viewing guidelines, before first upload
     display_conditions:
       baseline_parent_report.exists: false  # Initial assessment state
-      artifacts.video_guidelines.exists: true
+      artifacts.baseline_video_guidelines.exists: true
       user_actions.viewed_guidelines: true
       uploaded_video_count: 0
 
@@ -673,7 +673,7 @@ cards:
     # When to show
     display_conditions:
       re_assessment.active: true  # Re-assessment state
-      artifacts.updated_video_guidelines.exists: false
+      artifacts.re_assessment_video_guidelines.exists: false
       message_count: "> 0"
 
     # Card content
