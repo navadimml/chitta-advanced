@@ -134,16 +134,45 @@ class ConversationService:
         session = self.interview_service.get_or_create_session(family_id)
         data = session.extracted_data
 
-        # 2. UNIFIED INTENT DETECTION
-        # Single LLM call detects: (a) information request, (b) action request, or (c) conversation
-        # This saves one LLM call compared to sequential detection
+        # 2. UNIFIED INTENT DETECTION with rich dialogue context (Wu Wei approach)
+        # Pass ACTUAL rich context instead of simplified flags
         intent_detected = None
         prerequisite_check = None
         information_request = None
         injected_knowledge = None
 
-        # Use unified intent detection (single LLM call)
-        detected_intent = await self.knowledge_service.detect_unified_intent(user_message)
+        # Build rich context for intent detection
+        # 1. Recent conversation (to understand dialogue flow)
+        recent_history = self.interview_service.get_conversation_history(
+            family_id,
+            last_n=8  # Last 4 exchanges
+        )
+
+        # 2. Available artifacts (to know what can be consulted about)
+        artifact_names = []
+        if session.artifacts:
+            for artifact_id, artifact in session.artifacts.items():
+                # Get readable name from artifact content or use ID
+                if hasattr(artifact, 'content') and isinstance(artifact.content, dict):
+                    title = artifact.content.get('title', artifact_id)
+                    artifact_names.append(title)
+                else:
+                    artifact_names.append(artifact_id)
+
+        # 3. Child context (for developmental consultation)
+        child_context = {
+            "child_name": data.child_name,
+            "age": data.age,
+            "primary_concerns": data.primary_concerns or []
+        }
+
+        # Use unified intent detection with rich context
+        detected_intent = await self.knowledge_service.detect_unified_intent(
+            user_message=user_message,
+            recent_conversation=recent_history,
+            available_artifacts=artifact_names,
+            child_context=child_context
+        )
 
         # Handle information requests
         if detected_intent.category == IntentCategory.INFORMATION_REQUEST:
