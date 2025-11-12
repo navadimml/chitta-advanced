@@ -381,10 +381,17 @@ Remember: You are an AI assistant. Be transparent about your nature when relevan
                 "parent_goals": data.parent_goals
             }
 
+            # 🌟 Wu Wei: Build prerequisite context for lifecycle awareness
+            # This allows strategic advisor to check what moments are coming next
+            session_data = self._build_session_data_dict(family_id, session)
+            lifecycle_context = self.prerequisite_service.get_context_for_cards(session_data)
+
             strategic_guidance = await get_strategic_guidance(
                 self.llm,
                 extracted_data_dict,
-                session.completeness
+                session.completeness,
+                lifecycle_manager=self.lifecycle_manager,  # 🌟 Pass lifecycle manager
+                context=lifecycle_context  # 🌟 Pass full context for prerequisite evaluation
             )
 
             # Build dynamic prompt with strategic guidance
