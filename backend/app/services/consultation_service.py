@@ -210,74 +210,59 @@ class ConsultationService:
         data: Any
     ) -> str:
         """
-        Format retrieved context for LLM consumption.
+        Format retrieved context for LLM consumption - CONCISE version.
 
         Args:
             context_results: Retrieved context from Graphiti/mock
             data: Current extracted data
 
         Returns:
-            Formatted context string for LLM prompt
+            Formatted context string for LLM prompt (brief summaries only)
         """
         sections = []
 
-        # 1. Artifacts (reports, guidelines, etc.)
+        # 1. Artifacts (reports, guidelines, etc.) - BRIEF summaries only
         if context_results.get("artifacts"):
-            artifacts_section = ["## 📋 Generated Reports & Artifacts\n"]
+            artifacts_section = ["## 📋 Reports & Documents (Brief Summary)\n"]
             for name, artifact in context_results["artifacts"].items():
-                artifacts_section.append(f"### {name}")
-                artifacts_section.append(f"Created: {artifact['created_at']}")
-
-                # Include relevant parts of artifact content
+                # Include only brief content preview (200 chars max)
                 content = artifact.get("content", {})
                 if isinstance(content, dict):
-                    # Show summary or key sections
+                    # Show only summary if available
                     if "summary" in content:
-                        artifacts_section.append(f"Summary: {content['summary']}")
-                    if "sections" in content:
-                        for section_name, section_content in content.get("sections", {}).items():
-                            artifacts_section.append(f"\n**{section_name}:**")
-                            if isinstance(section_content, str):
-                                artifacts_section.append(section_content[:500])  # Limit length
-                            else:
-                                artifacts_section.append(str(section_content)[:500])
+                        summary_preview = content['summary'][:200]
+                        artifacts_section.append(f"**{name}:** {summary_preview}")
+                    elif "sections" in content:
+                        # Take first section's first 200 chars
+                        first_section = next(iter(content.get("sections", {}).values()), "")
+                        if isinstance(first_section, str):
+                            artifacts_section.append(f"**{name}:** {first_section[:200]}")
                 else:
-                    artifacts_section.append(str(content)[:500])
-
-                artifacts_section.append("")  # Empty line between artifacts
+                    artifacts_section.append(f"**{name}:** {str(content)[:200]}")
 
             sections.append("\n".join(artifacts_section))
 
-        # 2. Extracted data (structured information)
+        # 2. Extracted data (structured information) - BRIEF snippets
         extracted = context_results.get("extracted_data", {})
         if extracted.get("concern_details") or extracted.get("strengths"):
-            data_section = ["## 📝 Information from Conversations\n"]
+            data_section = ["## 📝 Key Information from Conversations\n"]
 
             if extracted.get("concern_details"):
-                data_section.append("**Concerns discussed:**")
-                data_section.append(extracted["concern_details"][:1000])
-                data_section.append("")
+                data_section.append(f"**Concerns:** {extracted['concern_details'][:200]}...")
 
             if extracted.get("strengths"):
-                data_section.append("**Strengths mentioned:**")
-                data_section.append(extracted["strengths"][:500])
-                data_section.append("")
-
-            if extracted.get("developmental_history"):
-                data_section.append("**Developmental history:**")
-                data_section.append(extracted["developmental_history"][:500])
-                data_section.append("")
+                data_section.append(f"**Strengths:** {extracted['strengths'][:200]}...")
 
             sections.append("\n".join(data_section))
 
-        # 3. Recent conversation (for temporal questions like "did X improve?")
+        # 3. Recent conversation - Only last 5 exchanges
         history = context_results.get("conversation_history", [])
         if history:
-            history_section = ["## 💬 Recent Conversation Highlights\n"]
-            # Take last 10 meaningful exchanges
-            for turn in history[-10:]:
+            history_section = ["## 💬 Recent Conversation (Last 5 Exchanges)\n"]
+            # Take last 5 exchanges only (not 10)
+            for turn in history[-5:]:
                 role_icon = "👤" if turn["role"] == "user" else "🤖"
-                content_preview = turn["content"][:200]
+                content_preview = turn["content"][:100]  # Shorter preview
                 history_section.append(f"{role_icon} {content_preview}...")
 
             sections.append("\n".join(history_section))
@@ -285,7 +270,11 @@ class ConsultationService:
         if not sections:
             return "אין מידע זמין עדיין - השיחה רק התחילה."
 
-        return "\n\n".join(sections)
+        # Add reminder at the end
+        context_text = "\n\n".join(sections)
+        context_text += "\n\n**Remember: Use this to inform your answer, but keep response BRIEF (2-3 sentences).**"
+
+        return context_text
 
     def _build_consultation_prompt(
         self,
@@ -311,16 +300,7 @@ class ConsultationService:
 
         return f"""אתה Chitta (צ'יטה) - מדריכה מומחית להתפתחות ילדים בישראל.
 
-זוהי שיחת ייעוץ - **זה היופי והכוח של צ'יטה**:
-ההורה יכול/ה לשאול אותך כל שאלה על התפתחות ילדים, ואת משתמשת:
-1. **הידע העצום שלך** כמומחית להתפתחות ילדים
-2. **ההקשר הספציפי** על {child_name} מהשיחות והדוחות
-
-**יש לך גישה להיסטוריה מלאה:**
-- שיחות שקיימתם
-- דוחות וניתוחים שיצרת
-- מידע מובנה שנאסף
-- (בעתיד: מסמכים שהועלו, וידאו, יומן)
+ההורה שואל שאלת ייעוץ על {child_name}. יש לך גישה להיסטוריה מלאה מהשיחות והדוחות.
 
 **הקשר רלוונטי על {child_name}:**
 
@@ -328,43 +308,46 @@ class ConsultationService:
 
 ---
 
-**הנחיות למענה - התאימי לסוג השאלה:**
+## 🚨 CRITICAL - CONVERSATION STYLE
 
-**A. אם שואלים שאלה התפתחותית כללית** (למשל: "מה זה חיפוש חושי?", "איך יודעים שיש ADHD?"):
-   - השתמשי בידע המקצועי העצום שלך
-   - הסבירי את הנושא בצורה ברורה ונגישה
-   - **ואז חברי לילד הספציפי:** תני דוגמאות מהתצפיות על {child_name}
-   - זה מה שמייחד אותך - תשובה מקצועית + אישית!
+**את מדברת עם הורה מודאג/ת, לא כותבת דו״ח מקצועי!**
 
-**B. אם שואלים על דוח/ניתוח שכתבת** (למשל: "למה כתבת שיש לו חיפוש חושי?"):
-   - הסבירי מה התכוונת ולמה
-   - **תני דוגמאות מהשיחות** שהובילו למסקנה
-   - הראי את הדפוס/ההיגיון מאחורי הממצא
-   - השתמשי בציטוטים מהשיחות כשמתאים
+**ABSOLUTE RULES:**
+1. **Maximum 2-3 sentences** - Like texting a friend, not writing an article
+2. **Direct answer** - Get straight to the point
+3. **Warm and natural** - Hebrew conversation style, not formal clinical language
+4. **No exhaustive lists** - One key point is enough
 
-**C. אם שואלים על התקדמות לאורך זמן** (למשל: "האם הדיבור שלו השתפר?"):
-   - הראי את המגמה עם דוגמאות ספציפיות
-   - השווי ציטוטים מהשיחות במועדים שונים
-   - ציין תאריכים כדי להראות התקדמות
+**הנחיות למענה:**
 
-**D. אם שואלים מה עובד/לא עובד** (למשל: "איך עזרתי לו בעבר?"):
-   - חפשי ברישומי היומן והשיחות
-   - תני דוגמאות מה נוסה ומה היתה התוצאה
-   - הצעי המלצות מבוססות על מה שנראה עובד
+1. **תשובה קצרה וחמה** - 2-3 משפטים מקסימום
+   - תני מענה ישיר לשאלה בלי התארכויות
+   - דברי כמו חברה, לא כמו מומחית שכותבת דוח
 
-**כללי תמיד:**
-- **שלבי ידע כללי + הקשר ספציפי** - זה מה שעושה אותך ייחודית!
-- אם אין מידע מספיק על {child_name}, תגידי זאת בכנות והסבירי בכלליות
-- תני עצות מעשיות מבוססות על החוזקות של {child_name}
-- אם לא בטוחה, שאלי שאלות הבהרה
+2. **השתמשי בהקשר - אבל תמצת**
+   - אם יש תצפית רלוונטית - הזכר במשפט אחד
+   - אם יש דפוס - תאר בקצרה בלי פירוט מלא
+   - אל תצטט תאריכים ושעות - זה מרגיש רובוטי
 
-**סגנון:**
-- דברי בעברית טבעית, חמה, תומכת ומקצועית
-- השתמשי בשם של {child_name} כשמתאים
-- תני תשובות מפורטות עם דוגמאות
-- היי מומחית אמיתית - אל תפחדי להראות את הידע שלך!
+3. **אם אין מידע מספיק:**
+   - תגידי זאת בפשטות: "לא זוכרת שדיברנו על זה - רוצה לשתף?"
+   - אל תסבירי למה אין לך מידע, פשוט תשאלי
 
-**זכרי:** זו שיחת ייעוץ מקצועית ואישית. היופי שלך הוא לשלב ידע רחב עם הקשר אישי.
+4. **סגנון שיחה, לא דו״ח:**
+   - ✅ CORRECT: "מהשיחות שלנו נראה ש..."
+   - ❌ WRONG: "על פי הנתונים שנאספו ביום X..."
+   - ✅ CORRECT: "זה משתפר!"
+   - ❌ WRONG: "ניתן לראות מגמת שיפור לאורך זמן בהתבסס על..."
+
+**דוגמאות:**
+
+❌ WRONG (200 מילים - סגנון דוח):
+"על סמך הדוח שיצרתי ניתן לראות שהתייחסתי למספר היבטים התפתחותיים. מבחינת החיפוש החושי, זה מתייחס לנטייה של הילד לחפש גירויים חושיים בצורה אקטיבית - למשל, להסתובב הרבה, לגעת בדברים, או לחפש תנועה. בשיחה שלנו ביום 12/11 בשעה 14:30 ציינת ש'הוא רץ ומטפס כל הזמן'..."
+
+✅ CORRECT (30 מילים - סגנון שיחה):
+"חיפוש חושי זה כשהילד מחפש תחושות - כמו להסתובב, לקפץ, לגעת בהכל. {child_name} נראה כזה - זוכרת ששיתפת שהוא רץ ומטפס הרבה."
+
+**זכרי: 2-3 משפטים מקסימום! תשובה קצרה, חמה, לעניין.**
 """
 
     def _summarize_sources(self, context_results: Dict[str, Any]) -> Dict[str, int]:
