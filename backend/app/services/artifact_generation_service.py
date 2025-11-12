@@ -358,8 +358,15 @@ class ArtifactGenerationService:
         # Convert JSON to markdown format for parent
         markdown_content = self._convert_guidelines_json_to_markdown(guidelines_data)
 
+        # Also transform to component-compatible format for frontend
+        # Store both markdown (for future use) and structured data (for current component)
+        component_format = self._transform_to_component_format(guidelines_data)
+
         logger.info(f"✅ Two-stage generation complete: {len(markdown_content)} chars markdown")
-        return markdown_content
+
+        # Return structured format (not markdown) for the component
+        import json
+        return json.dumps(component_format, ensure_ascii=False)
 
     def _build_transcript(self, conversation_history: list) -> str:
         """Build interview transcript from conversation history."""
@@ -748,6 +755,59 @@ The extracted JSON will appear here:
         md.append(f"---\n\n{closing}")
 
         return "\n".join(md)
+
+    def _transform_to_component_format(self, guidelines_data: dict) -> dict:
+        """
+        Transform LLM-generated JSON to VideoGuidelinesView component format.
+
+        LLM Format:
+        - video_guidelines: [{ id, title, instruction, example_situations, focus_points }]
+        - general_filming_tips: [...]
+        - parent_greeting.opening_message
+
+        Component Format:
+        - scenarios: [{ title, context, what_to_film, what_to_look_for, duration }]
+        - general_tips: [...]
+        - introduction: string
+        """
+        video_guidelines = guidelines_data.get("video_guidelines", [])
+        parent_greeting = guidelines_data.get("parent_greeting", {})
+
+        # Transform video_guidelines to scenarios
+        scenarios = []
+        for guideline in video_guidelines:
+            # Build context from category info
+            context = ""
+            if guideline.get("category") == "comorbidity_check":
+                context = guideline.get("rationale_for_parent", "")
+            else:
+                # For reported difficulties, use a generic context
+                context = f"תרחיש {guideline.get('id')}"
+
+            # Build scenario object
+            scenario = {
+                "title": guideline.get("title", ""),
+                "context": context,
+                "what_to_film": guideline.get("instruction", ""),
+                "what_to_look_for": guideline.get("focus_points", []),
+                "duration": guideline.get("duration_suggestion", "1-2 דקות"),
+                "why_matters": guideline.get("rationale_for_parent") if guideline.get("category") == "comorbidity_check" else None
+            }
+
+            # Add example situations as additional context
+            examples = guideline.get("example_situations", [])
+            if examples:
+                scenario["examples"] = examples
+
+            scenarios.append(scenario)
+
+        return {
+            "introduction": parent_greeting.get("opening_message", ""),
+            "scenarios": scenarios,
+            "general_tips": guidelines_data.get("general_filming_tips", []),
+            "estimated_duration": "1-2 דקות לסרטון",
+            "child_name": parent_greeting.get("child_name", "")
+        }
 
     async def _call_llm(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000) -> str:
         """
