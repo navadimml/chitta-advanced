@@ -190,6 +190,20 @@ class ChittaAPIClient {
     return response.json();
   }
 
+  /**
+   * 🌟 Wu Wei: Get artifact content
+   * Fetches generated artifacts like video guidelines, reports, etc.
+   */
+  async getArtifact(familyId, artifactId) {
+    const response = await fetch(`${API_BASE_URL}/artifacts/${artifactId}?family_id=${familyId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
 }
 
 // Singleton instance

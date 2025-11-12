@@ -249,7 +249,20 @@ function App() {
     if (!action) return; // Status cards have no action
 
     if (action === 'view_guidelines') {
-      setShowGuidelinesView(true);
+      // 🌟 Wu Wei: Fetch the artifact content before showing the view
+      const activeFamilyId = testMode && testFamilyId ? testFamilyId : FAMILY_ID;
+
+      try {
+        const artifact = await api.getArtifact(activeFamilyId, 'baseline_video_guidelines');
+        if (artifact && artifact.content) {
+          setVideoGuidelines(artifact.content);
+          setShowGuidelinesView(true);
+        } else {
+          console.error('Artifact not ready or missing content');
+        }
+      } catch (error) {
+        console.error('Error fetching video guidelines:', error);
+      }
       return;
     }
 
