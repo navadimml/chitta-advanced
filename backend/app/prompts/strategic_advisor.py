@@ -157,13 +157,14 @@ async def get_strategic_guidance(
 Ask for this BEFORE exploring more areas! Be natural and casual."""
 
     # Check if ready to end
-    # Use completeness as the primary indicator since it already accounts for all fields
-    # Age is critical for developmental assessment, but name can be asked later
+    # Use Wu Wei knowledge_is_rich evaluation (qualitative) instead of completeness threshold
+    # If knowledge is rich enough to generate guidelines, interview is ready to end
+    knowledge_is_rich = context.get('knowledge_is_rich', False) if context else False
     invalid_ages = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע']
     ready_to_end = (
-        completeness >= 0.70 and  # Lowered from 0.75
-        len(concern_details) > 200 and  # Lowered from 300 - still substantial
-        age and str(age) not in invalid_ages  # Age is critical, name is optional
+        knowledge_is_rich and  # Wu Wei says knowledge is qualitatively rich
+        len(concern_details) > 200 and  # Still substantial concern details
+        age and str(age) not in invalid_ages  # Age is critical for developmental assessment
     )
 
     # Check what moment is about to trigger next (config-driven!)
@@ -180,7 +181,7 @@ Ask for this BEFORE exploring more areas! Be natural and casual."""
             ending_section = f"""
 
 **✅ READY TO END:**
-Interview is comprehensive ({completeness_pct}%). Time to wrap up!
+Interview is comprehensive - knowledge is rich enough. Time to wrap up!
 {next_moment_guidance}
 DON'T ask more questions - interview is complete!"""
         else:
@@ -188,7 +189,7 @@ DON'T ask more questions - interview is complete!"""
             ending_section = f"""
 
 **✅ READY TO END:**
-Interview is comprehensive ({completeness_pct}%). Time to wrap up!
+Interview is comprehensive - knowledge is rich enough. Time to wrap up!
 Thank parent for sharing. Don't promise specific next steps - just wrap up warmly.
 DON'T ask more questions - interview is complete!"""
 
@@ -267,15 +268,17 @@ def build_strategic_awareness_section(guidance: str, completeness: float) -> str
     Returns:
         Formatted section for interview prompt
     """
-    completeness_pct = int(completeness * 100)
-
     return f"""
-## 📊 Strategic Awareness (Current: {completeness_pct}%)
+## 📊 Strategic Awareness (Your Internal Guidance)
 
 **Coverage analysis:**
 {guidance}
 
 **Remember:** This is awareness, not a script. You lead the conversation proactively, finding natural moments to explore these areas. The conversation should flow organically while you ensure comprehensive coverage.
 
-Don't mention percentages or "coverage" to the parent - this is your internal awareness only.
+**CRITICAL - DO NOT mention to parent:**
+- Percentages or numbers (like "52%", "58%", "נשארו עוד X%")
+- "Coverage" or "completeness"
+- "Interview progress" or similar metrics
+This is YOUR internal awareness only - parents shouldn't see these technical metrics!
 """
