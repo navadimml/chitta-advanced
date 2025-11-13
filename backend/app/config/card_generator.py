@@ -426,6 +426,10 @@ class CardGenerator:
                     else:
                         formatted = ""
 
+                # Ensure formatted is always a string (never None)
+                if formatted is None:
+                    formatted = ""
+
                 text = text.replace(f"{{{placeholder}}}", formatted)
 
         return text
