@@ -267,10 +267,25 @@ function App() {
             ? artifact.content.substring(0, 200)
             : JSON.stringify(artifact.content).substring(0, 200));
 
+          // Check if content is old markdown format (starts with #)
+          if (typeof artifact.content === 'string' && artifact.content.trim().startsWith('#')) {
+            console.warn('⚠️ Old markdown format detected. Guidelines need regeneration.');
+            alert('ההנחיות במבנה ישן. נא להתחיל שיחה חדשה כדי ליצור הנחיות מעודכנות.');
+            return;
+          }
+
           // Parse JSON content (artifact stores structured data as JSON string)
-          const guidelinesData = typeof artifact.content === 'string'
-            ? JSON.parse(artifact.content)
-            : artifact.content;
+          let guidelinesData;
+          try {
+            guidelinesData = typeof artifact.content === 'string'
+              ? JSON.parse(artifact.content)
+              : artifact.content;
+          } catch (parseError) {
+            console.error('❌ Failed to parse guidelines JSON:', parseError);
+            console.error('Content was:', artifact.content.substring(0, 500));
+            alert('שגיאה בקריאת ההנחיות. נא לנסות שוב או להתחיל שיחה חדשה.');
+            return;
+          }
 
           console.log('✅ Parsed guidelines:', guidelinesData);
           console.log('✅ Has scenarios:', guidelinesData.scenarios?.length);
@@ -279,9 +294,11 @@ function App() {
           setShowGuidelinesView(true);
         } else {
           console.error('❌ Artifact not ready or missing content:', artifact);
+          alert('ההנחיות עדיין לא מוכנות. נא לנסות שוב בעוד רגעים.');
         }
       } catch (error) {
         console.error('❌ Error fetching video guidelines:', error);
+        alert('שגיאה בטעינת ההנחיות. נא לנסות שוב.');
       }
       return;
     }
