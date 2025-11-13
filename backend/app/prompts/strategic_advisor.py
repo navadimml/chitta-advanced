@@ -156,20 +156,13 @@ async def get_strategic_guidance(
 
 Ask for this BEFORE exploring more areas! Be natural and casual."""
 
-    # Check if ready to end
-    # Use Wu Wei knowledge_is_rich evaluation (qualitative) instead of completeness threshold
-    # If knowledge is rich enough to generate guidelines, interview is ready to end
+    # Check capability availability (Wu Wei awareness)
+    # Chitta is a continuous assistant - capabilities unlock progressively, conversation never "ends"
     knowledge_is_rich = context.get('knowledge_is_rich', False) if context else False
-    invalid_ages = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע']
-    ready_to_end = (
-        knowledge_is_rich and  # Wu Wei says knowledge is qualitatively rich
-        len(concern_details) > 200 and  # Still substantial concern details
-        age and str(age) not in invalid_ages  # Age is critical for developmental assessment
-    )
 
-    # Check what moment is about to trigger next (config-driven!)
-    ending_section = ""
-    if ready_to_end:
+    capabilities_section = ""
+    if knowledge_is_rich:
+        # Knowledge is rich - guidelines capability is now available!
         next_moment_guidance = _get_next_moment_guidance(
             lifecycle_manager,
             context,
@@ -177,21 +170,23 @@ Ask for this BEFORE exploring more areas! Be natural and casual."""
         ) if lifecycle_manager and context else None
 
         if next_moment_guidance:
-            # Use dynamic guidance from lifecycle config
-            ending_section = f"""
+            capabilities_section = f"""
 
-**✅ READY TO END:**
-Interview is comprehensive - knowledge is rich enough. Time to wrap up!
+**🌟 CAPABILITY NOW AVAILABLE:**
+Knowledge about {child_name} is rich enough - guidelines capability has unlocked!
 {next_moment_guidance}
-DON'T ask more questions - interview is complete!"""
-        else:
-            # Fallback if lifecycle not available
-            ending_section = f"""
 
-**✅ READY TO END:**
-Interview is comprehensive - knowledge is rich enough. Time to wrap up!
-Thank parent for sharing. Don't promise specific next steps - just wrap up warmly.
-DON'T ask more questions - interview is complete!"""
+**How to handle this:**
+- If lifecycle already offered guidelines and parent is interested → Support the offer warmly
+- If parent wants to continue sharing → Continue conversation naturally, guidelines remain available
+- Balance: Be helpful with what's available NOW while staying responsive to parent's needs
+- Conversation continues - you're always here to help!"""
+        else:
+            capabilities_section = f"""
+
+**🌟 CAPABILITY NOW AVAILABLE:**
+Knowledge about {child_name} is rich - new capabilities are now available.
+Continue being helpful and responsive to parent's needs. You're always here to assist!"""
 
     analysis_prompt = f"""Analyze child development interview data to determine coverage.
 
@@ -205,8 +200,7 @@ Concerns: {extracted_data.get('primary_concerns', [])}
 **Strengths ({len(strengths)} chars):**
 "{strengths[:200] if strengths else '[EMPTY]'}"
 
-Completeness: {completeness_pct}%
-{diagnosis_note}{missing_info_section}{ending_section}
+{diagnosis_note}{missing_info_section}{capabilities_section}
 
 **Task:** Analyze which developmental areas are covered in the DATA (not what parent said).
 
@@ -235,7 +229,7 @@ Write 2-4 concise bullets:
         guidance = response.content.strip()
 
         if not guidance:
-            # Fallback to simple completion-based guidance
+            # Fallback to simple knowledge-based guidance
             if completeness < 0.20:
                 guidance = "Just starting - build rapport and learn what brought parent here"
             elif completeness < 0.50:
@@ -243,7 +237,7 @@ Write 2-4 concise bullets:
             elif completeness < 0.80:
                 guidance = "Good depth on main topics - gather broader context (family, routines, goals)"
             else:
-                guidance = "Comprehensive information gathered - wrap up and transition to video guidelines"
+                guidance = "Rich knowledge gathered - capabilities unlocking. Continue being helpful and responsive."
 
         logger.info(f"Strategic guidance ({completeness_pct}%): {guidance[:100]}...")
         return guidance
