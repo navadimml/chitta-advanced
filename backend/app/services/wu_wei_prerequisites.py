@@ -83,14 +83,14 @@ class WuWeiPrerequisites:
             strengths = []
 
         # Handle different formats:
-        # - If string: Check if substantial (50+ chars indicates multiple strengths described)
-        # - If list: Check if 2+ items
+        # - If string: Check if substantial (30+ chars - lowered threshold)
+        # - If list: Check if 1+ items (lowered from 2+)
         if isinstance(strengths, str):
-            # Substantial text with multiple strengths described
-            has_strengths = len(strengths) > 50
+            # Substantial text with strengths described (lowered from 50 to 30 chars)
+            has_strengths = len(strengths) > 30
         elif isinstance(strengths, list):
-            # List of individual strengths
-            has_strengths = len(strengths) >= 2
+            # List of individual strengths (lowered from 2+ to 1+)
+            has_strengths = len(strengths) >= 1
         else:
             has_strengths = False
 
@@ -111,14 +111,22 @@ class WuWeiPrerequisites:
             has_context
         )
 
-        # Path 2: Extensive conversation (fallback)
+        # Path 2: Extensive conversation (fallback) - lowered threshold
         path_2_met = (
-            message_count > 15 and
+            message_count > 12 and  # Lowered from 15
             (has_concerns or has_developmental_history) and
             has_strengths
         )
 
-        met = path_1_met or path_2_met
+        # Path 3: Good enough - basic info + substantial concern details
+        path_3_met = (
+            has_age and  # Age is critical, name can be asked later
+            has_concerns and
+            has_developmental_history and  # This means >50 chars in concern_description
+            message_count > 8
+        )
+
+        met = path_1_met or path_2_met or path_3_met
 
         # Build details for debugging
         strengths_info = f"string ({len(strengths)} chars)" if isinstance(strengths, str) else f"list ({len(strengths)} items)"
@@ -133,6 +141,7 @@ class WuWeiPrerequisites:
             "message_count": message_count,
             "path_1_met": path_1_met,
             "path_2_met": path_2_met,
+            "path_3_met": path_3_met,
         }
 
         missing = []
@@ -154,6 +163,7 @@ class WuWeiPrerequisites:
         logger.info(f"   Result: {met}")
         logger.info(f"   Path 1 (structured): {path_1_met}")
         logger.info(f"   Path 2 (extensive conversation): {path_2_met}")
+        logger.info(f"   Path 3 (good enough): {path_3_met}")
         logger.info(f"   Details:")
         logger.info(f"     - has_child_name: {has_child_name} ('{context.get('child_name')}')")
         logger.info(f"     - has_age: {has_age} ({context.get('age') or context.get('child_age')})")
@@ -162,9 +172,9 @@ class WuWeiPrerequisites:
         logger.info(f"     - has_developmental_history: {has_developmental_history} (concern_description length: {len(concern_description)})")
         logger.info(f"     - strengths type: {type(strengths).__name__}")
         logger.info(f"     - strengths value: {str(strengths)[:200] if strengths else None}")
-        logger.info(f"     - has_strengths: {has_strengths} (string needs 50+ chars OR list needs 2+ items)")
+        logger.info(f"     - has_strengths: {has_strengths} (string needs 30+ chars OR list needs 1+ items)")
         logger.info(f"     - has_context: {has_context} (other_info length: {len(other_info)})")
-        logger.info(f"     - message_count: {message_count} (need 15+ for path 2)")
+        logger.info(f"     - message_count: {message_count}")
         logger.info(f"   Why Path 1 {'PASSED' if path_1_met else 'FAILED'}:")
         if not path_1_met:
             if not has_child_name:
@@ -174,17 +184,27 @@ class WuWeiPrerequisites:
             if not (has_concerns or has_developmental_history):
                 logger.info(f"     ❌ Missing concerns OR developmental history")
             if not has_strengths:
-                logger.info(f"     ❌ Missing strengths (need 2+)")
+                logger.info(f"     ❌ Missing strengths (need 1+ items OR 30+ chars)")
             if not has_context:
                 logger.info(f"     ❌ Missing context (other_info < 30 chars)")
         logger.info(f"   Why Path 2 {'PASSED' if path_2_met else 'FAILED'}:")
         if not path_2_met:
-            if message_count <= 15:
-                logger.info(f"     ❌ Not enough messages ({message_count} <= 15)")
+            if message_count <= 12:
+                logger.info(f"     ❌ Not enough messages ({message_count} <= 12)")
             if not (has_concerns or has_developmental_history):
                 logger.info(f"     ❌ Missing concerns OR developmental history")
             if not has_strengths:
-                logger.info(f"     ❌ Missing strengths (need 2+)")
+                logger.info(f"     ❌ Missing strengths")
+        logger.info(f"   Why Path 3 {'PASSED' if path_3_met else 'FAILED'}:")
+        if not path_3_met:
+            if not has_age:
+                logger.info(f"     ❌ Missing age")
+            if not has_concerns:
+                logger.info(f"     ❌ Missing concerns")
+            if not has_developmental_history:
+                logger.info(f"     ❌ Missing substantial concern details (< 50 chars)")
+            if message_count <= 8:
+                logger.info(f"     ❌ Not enough messages ({message_count} <= 8)")
 
         return PrerequisiteEvaluation(
             met=met,

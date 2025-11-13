@@ -153,12 +153,13 @@ async def get_strategic_guidance(
 
 Ask for this BEFORE exploring more areas! Be natural and casual."""
 
-    # Check if ready to end (high completeness + substantial data)
+    # Check if ready to end
+    # Use completeness as the primary indicator since it already accounts for all fields
+    # Only add basic checks for critical info
     ready_to_end = (
-        completeness >= 0.75 and
-        len(concern_details) > 300 and
-        len(strengths) > 100 and
-        child_name and
+        completeness >= 0.70 and  # Lowered from 0.75
+        len(concern_details) > 200 and  # Lowered from 300 - still substantial
+        (child_name and str(child_name) not in ['unknown', '(not mentioned yet)']) and
         age
     )
 
