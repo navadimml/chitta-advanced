@@ -61,7 +61,7 @@ class WuWeiPrerequisites:
         # Extract what we know
         # Treat 'unknown', '(not mentioned yet)', and Hebrew placeholders as missing
         child_name = context.get("child_name")
-        invalid_names = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע', 'לא נמסר']
+        invalid_names = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע', 'לא נמסר', 'None', 'null', 'NULL']
         has_child_name = bool(child_name and child_name not in invalid_names)
 
         age = context.get("age") or context.get("child_age")
