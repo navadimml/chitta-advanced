@@ -628,14 +628,32 @@ Completeness: {session.completeness:.0%}
    - Daily life: routines, sleep, eating, activities
    - Goals: what parent hopes to achieve
 
-Call extract_interview_data with ALL relevant information from this turn."""
+Call extract_interview_data with ALL relevant information from this turn AND recent conversation history."""
 
-            extraction_messages = [
-                Message(role="system", content=extraction_system),
-                Message(role="user", content=f"Parent: {user_message}"),
-                Message(role="assistant", content=f"Response: {llm_response.content}"),
-                Message(role="user", content="Extract all relevant data from this conversation turn.")
-            ]
+            # Build extraction messages with recent conversation history
+            extraction_messages = [Message(role="system", content=extraction_system)]
+
+            # Add last 10 conversation turns for context (20 messages)
+            # This ensures extraction can see name/age mentioned earlier
+            recent_history = self.interview_service.get_conversation_history(
+                family_id,
+                last_n=20  # Last 10 exchanges
+            )
+            for turn in recent_history:
+                extraction_messages.append(Message(
+                    role=turn["role"],
+                    content=turn["content"]
+                ))
+
+            # Add current turn
+            extraction_messages.append(Message(role="user", content=user_message))
+            extraction_messages.append(Message(role="assistant", content=llm_response.content))
+
+            # Final instruction
+            extraction_messages.append(Message(
+                role="user",
+                content="Extract all relevant data from this entire conversation."
+            ))
 
             # 🎯 Use dedicated extraction LLM (stronger model for better categorization)
             extraction_response = await self.extraction_llm.chat(
