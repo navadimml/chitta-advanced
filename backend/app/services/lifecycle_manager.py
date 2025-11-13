@@ -153,17 +153,38 @@ class LifecycleManager:
             was_met = previous_state.get(moment_id, False)
             just_became_ready = prereqs_met and not was_met
 
-            # SPECIAL CASE: If artifact doesn't exist and prerequisites are met,
-            # retry generation regardless of previous state (handles failed generations)
+            # SPECIAL CASE: If artifact doesn't exist OR is empty, retry generation
+            # regardless of previous state (handles failed generations)
+            artifact_is_invalid = False
+            if artifact_id and session.has_artifact(artifact_id):
+                # Check if artifact is empty (specific validation for guidelines)
+                if artifact_id == "baseline_video_guidelines":
+                    artifact = session.get_artifact(artifact_id)
+                    try:
+                        import json
+                        if isinstance(artifact.content, str):
+                            content = json.loads(artifact.content)
+                        else:
+                            content = artifact.content
+                        scenarios = content.get("scenarios", [])
+                        if len(scenarios) == 0:
+                            artifact_is_invalid = True
+                            logger.info(f"  ↳ Artifact exists but is empty (0 scenarios)")
+                    except Exception as e:
+                        logger.warning(f"  ↳ Failed to validate artifact: {e}")
+
             should_retry_artifact = (
                 artifact_id and  # Moment generates artifact
                 prereqs_met and  # Prerequisites are met
-                not session.has_artifact(artifact_id)  # Artifact doesn't exist
+                (not session.has_artifact(artifact_id) or artifact_is_invalid)  # Artifact missing OR empty
             )
 
             logger.info(f"  ↳ Was previously met: {was_met}, Just became ready: {just_became_ready}")
             if should_retry_artifact and not just_became_ready:
-                logger.info(f"  ↳ Artifact missing despite prereqs met - will retry generation")
+                if artifact_is_invalid:
+                    logger.info(f"  ↳ Artifact invalid (empty) despite prereqs met - will retry generation")
+                else:
+                    logger.info(f"  ↳ Artifact missing despite prereqs met - will retry generation")
 
             if just_became_ready or should_retry_artifact:
                 if just_became_ready:
@@ -171,8 +192,9 @@ class LifecycleManager:
                         f"🌟 Wu Wei TRANSITION DETECTED: {moment_id} prerequisites just became met!"
                     )
                 else:
+                    retry_reason = "invalid/empty" if artifact_is_invalid else "missing"
                     logger.info(
-                        f"🔄 Wu Wei RETRY: {moment_id} artifact missing, retrying generation"
+                        f"🔄 Wu Wei RETRY: {moment_id} artifact {retry_reason}, retrying generation"
                     )
 
                 # If this moment generates an artifact, generate it!
