@@ -11,12 +11,14 @@ Key artifacts:
 """
 
 import logging
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 import time
 
 from app.models.artifact import Artifact
 from app.config.artifact_manager import get_artifact_manager
+from app.services.llm.factory import create_llm_provider
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +38,25 @@ class ArtifactGenerationService:
         Initialize artifact generation service.
 
         Args:
-            llm_provider: LLM provider for generation (optional, will use default if None)
+            llm_provider: LLM provider for generation (optional, will create strong LLM if None)
         """
-        self.llm_provider = llm_provider
+        if llm_provider is None:
+            # 🌟 Create strong LLM specifically for artifact generation
+            # This ensures high-quality output for guidelines, reports, etc.
+            strong_model = os.getenv("STRONG_LLM_MODEL", "gemini-2.0-flash-exp")
+            provider_type = os.getenv("LLM_PROVIDER", "gemini")
+
+            logger.info(f"🧠 Creating strong LLM for artifact generation: {strong_model}")
+            self.llm_provider = create_llm_provider(
+                provider_type=provider_type,
+                model=strong_model,
+                use_enhanced=False  # Strong models don't need enhanced mode
+            )
+        else:
+            self.llm_provider = llm_provider
+
         self.artifact_manager = get_artifact_manager()
-        logger.info("ArtifactGenerationService initialized")
+        logger.info(f"ArtifactGenerationService initialized with model: {getattr(self.llm_provider, 'model_name', 'unknown')}")
 
     async def generate_video_guidelines(
         self,
