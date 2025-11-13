@@ -400,7 +400,6 @@ Remember: You are an AI assistant. Be transparent about your nature when relevan
                 age=str(data.age) if data.age else "unknown",
                 gender=data.gender or "unknown",
                 concerns=data.primary_concerns,
-                completeness=session.completeness,
                 extracted_data=extracted_data_dict,
                 strategic_guidance=strategic_guidance
             )

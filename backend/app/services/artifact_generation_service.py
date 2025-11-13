@@ -344,10 +344,14 @@ class ArtifactGenerationService:
         stage1_prompt = self._build_stage1_extraction_prompt(transcript)
 
         # Call LLM for extraction
-        extracted_json_str = await self._call_llm(stage1_prompt, temperature=0.1, max_tokens=2000)
+        raw_extracted_json = await self._call_llm(stage1_prompt, temperature=0.1, max_tokens=2000)
+
+        logger.debug(f"Stage 1 raw LLM output (first 200 chars): {raw_extracted_json[:200]}")
 
         # Strip markdown code blocks if present (LLMs often wrap JSON in ```json```)
-        extracted_json_str = self._strip_markdown_code_blocks(extracted_json_str)
+        extracted_json_str = self._strip_markdown_code_blocks(raw_extracted_json)
+
+        logger.debug(f"Stage 1 after stripping (first 200 chars): {extracted_json_str[:200]}")
 
         # Parse JSON
         try:
@@ -355,7 +359,8 @@ class ArtifactGenerationService:
             logger.info(f"✅ Stage 1 complete: Extracted structured data ({len(extracted_json_str)} chars)")
         except json.JSONDecodeError as e:
             logger.error(f"❌ Stage 1 failed: Invalid JSON from LLM: {e}")
-            logger.error(f"Raw output: {extracted_json_str[:500]}")
+            logger.error(f"Raw LLM output (first 1000 chars): {raw_extracted_json[:1000]}")
+            logger.error(f"After stripping (first 1000 chars): {extracted_json_str[:1000]}")
             raise ValueError(f"LLM returned invalid JSON: {e}")
 
         # Stage 2: Generate guidelines from structured data
@@ -363,10 +368,14 @@ class ArtifactGenerationService:
         stage2_prompt = self._build_stage2_guidelines_prompt(extracted_data)
 
         # Call LLM for guidelines generation
-        guidelines_json_str = await self._call_llm(stage2_prompt, temperature=0.7, max_tokens=3000)
+        raw_guidelines_json = await self._call_llm(stage2_prompt, temperature=0.7, max_tokens=3000)
+
+        logger.debug(f"Stage 2 raw LLM output (first 200 chars): {raw_guidelines_json[:200]}")
 
         # Strip markdown code blocks if present (LLMs often wrap JSON in ```json```)
-        guidelines_json_str = self._strip_markdown_code_blocks(guidelines_json_str)
+        guidelines_json_str = self._strip_markdown_code_blocks(raw_guidelines_json)
+
+        logger.debug(f"Stage 2 after stripping (first 200 chars): {guidelines_json_str[:200]}")
 
         # Parse guidelines JSON
         try:
@@ -374,7 +383,8 @@ class ArtifactGenerationService:
             logger.info(f"✅ Stage 2 complete: Generated guidelines ({len(guidelines_json_str)} chars)")
         except json.JSONDecodeError as e:
             logger.error(f"❌ Stage 2 failed: Invalid JSON from LLM: {e}")
-            logger.error(f"Raw output: {guidelines_json_str[:500]}")
+            logger.error(f"Raw LLM output (first 1000 chars): {raw_guidelines_json[:1000]}")
+            logger.error(f"After stripping (first 1000 chars): {guidelines_json_str[:1000]}")
             raise ValueError(f"LLM returned invalid JSON: {e}")
 
         # Convert JSON to markdown format for parent
@@ -844,16 +854,31 @@ The extracted JSON will appear here:
         """
         import re
 
+        if not text:
+            return text
+
         text = text.strip()
 
-        # Match ```json\n...``` or ```\n...``` wrappers
-        # Pattern: optional opening ```, optional "json", content, closing ```
-        pattern = r'^```(?:json)?\s*\n?(.*?)\n?```$'
-        match = re.match(pattern, text, re.DOTALL)
+        # Try multiple patterns to handle different markdown formats
+        patterns = [
+            # Pattern 1: ```json\n...\n```
+            r'^```json\s*\n(.*?)\n```$',
+            # Pattern 2: ```\n...\n```
+            r'^```\s*\n(.*?)\n```$',
+            # Pattern 3: ``` json\n...\n``` (space after backticks)
+            r'^```\s+json\s*\n(.*?)\n```$',
+            # Pattern 4: More permissive - any backticks with optional json
+            r'```(?:json)?\s*(.*?)\s*```',
+        ]
 
-        if match:
-            return match.group(1).strip()
+        for pattern in patterns:
+            match = re.search(pattern, text, re.DOTALL)
+            if match:
+                extracted = match.group(1).strip()
+                if extracted:  # Only return if we got non-empty content
+                    return extracted
 
+        # No markdown blocks found, return original text
         return text
 
     async def _call_llm(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000) -> str:
