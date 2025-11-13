@@ -424,6 +424,9 @@ You are a clinical expert in child development.
         component_format = self._transform_to_component_format(guidelines_data)
 
         logger.info(f"✅ Two-stage generation complete: {len(markdown_content)} chars markdown")
+        logger.info(f"📊 Component format: {len(component_format.get('scenarios', []))} scenarios generated")
+        logger.debug(f"Guidelines data keys: {guidelines_data.keys()}")
+        logger.debug(f"Video guidelines count: {len(guidelines_data.get('video_guidelines', []))}")
 
         # Return structured format (not markdown) for the component
         return json.dumps(component_format, ensure_ascii=False)
@@ -1003,9 +1006,11 @@ The extracted JSON will appear here:
         """
         return {
             "type": "object",
+            "required": ["parent_greeting", "general_filming_tips", "video_guidelines"],
             "properties": {
                 "parent_greeting": {
                     "type": "object",
+                    "required": ["opening_message"],
                     "properties": {
                         "parent_name": {"type": "string"},
                         "child_name": {"type": "string"},
@@ -1014,27 +1019,34 @@ The extracted JSON will appear here:
                 },
                 "general_filming_tips": {
                     "type": "array",
+                    "minItems": 3,
                     "items": {"type": "string"}
                 },
                 "video_guidelines": {
                     "type": "array",
+                    "minItems": 3,
+                    "maxItems": 5,
                     "items": {
                         "type": "object",
+                        "required": ["id", "category", "title", "instruction", "example_situations", "focus_points"],
                         "properties": {
                             "id": {"type": "integer"},
-                            "category": {"type": "string"},
+                            "category": {"type": "string", "enum": ["reported_difficulty", "comorbidity_check"]},
                             "difficulty_area": {"type": "string"},
                             "title": {"type": "string"},
                             "instruction": {"type": "string"},
                             "example_situations": {
                                 "type": "array",
+                                "minItems": 2,
                                 "items": {"type": "string"}
                             },
                             "duration_suggestion": {"type": "string"},
                             "focus_points": {
                                 "type": "array",
+                                "minItems": 2,
                                 "items": {"type": "string"}
-                            }
+                            },
+                            "rationale_for_parent": {"type": "string"}
                         }
                     }
                 }
