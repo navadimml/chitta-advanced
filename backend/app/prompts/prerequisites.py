@@ -189,18 +189,17 @@ def get_prerequisite_explanation(
             completeness=completeness
         )
 
-    # For UPLOAD_VIDEO and VIEW_VIDEO_GUIDELINES, check interview state
+    # For UPLOAD_VIDEO and VIEW_VIDEO_GUIDELINES, check knowledge richness
     if action in [Action.UPLOAD_VIDEO, Action.VIEW_VIDEO_GUIDELINES]:
         if not interview_complete:
-            completeness_pct = int(completeness * 100)
-            return f"נהדר שאת מוכנה להמשיך! קודם בואי נסיים את הראיון (נשארו עוד {100 - completeness_pct}%), ואז אוכל ליצור עבורך הנחיות צילום מדויקות שמתאימות ל{child_name}."
+            return f"נהדר שאת מוכנה להמשיך! אני רוצה להכיר את {child_name} עוד קצת לפני שאכין הנחיות צילום מותאמות. בואי נמשיך בשיחה שלנו - יש עוד כמה דברים שיעזרו לי להבין טוב יותר."
 
     # For ANALYZE_VIDEOS, check what's missing
     if action == Action.ANALYZE_VIDEOS:
         if not interview_complete:
-            return f"כדי לנתח סרטונים, אני קודם צריכה להכיר את {child_name} דרך הראיון. בואי נמשיך בשיחה."
+            return f"כדי לנתח סרטונים, אני קודם צריכה להכיר את {child_name} דרך השיחה שלנו. בואי נמשיך."
         elif video_count == 0:
-            return f"כדי לנתח, אני צריכה שתעלי סרטונים של {child_name}. בואי נסיים את הראיון ואני אכין לך הנחיות צילום."
+            return f"כדי לנתח, אני צריכה שתעלי סרטונים של {child_name}. אני אכין לך הנחיות צילום כשתהיי מוכנה."
         elif video_count < required_videos:
             remaining = required_videos - video_count
             remaining_text = "סרטון אחד" if remaining == 1 else f"{remaining} סרטונים"

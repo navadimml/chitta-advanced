@@ -13,7 +13,6 @@ def build_dynamic_interview_prompt(
     age: str = "unknown",
     gender: str = "unknown",
     concerns: List[str] = None,
-    completeness: float = 0.0,
     extracted_data: Dict[str, Any] = None,
     strategic_guidance: str = None
 ) -> str:
@@ -27,14 +26,12 @@ def build_dynamic_interview_prompt(
         age: Child's age
         gender: Child's gender
         concerns: List of primary concerns
-        completeness: Interview completeness (0.0-1.0)
         extracted_data: All extracted data so far
         strategic_guidance: Strategic guidance from LLM analysis (optional)
     """
     concerns = concerns or []
     extracted_data = extracted_data or {}
     concerns_str = ", ".join(concerns) if concerns else "none yet"
-    completeness_pct = int(completeness * 100)
 
     # Use provided strategic guidance or create a simple one
     if strategic_guidance:
@@ -73,14 +70,7 @@ This section analyzes EXTRACTED DATA FIELDS (concern_details, strengths, etc.) -
 """
     else:
         # Simple fallback if no strategic guidance provided
-        if completeness < 0.20:
-            strategic_hints = "\n## 📊 Strategic Awareness\n\nJust starting - build rapport, learn what brought them here\n"
-        elif completeness < 0.50:
-            strategic_hints = "\n## 📊 Strategic Awareness\n\nHave initial info - explore concerns deeply with examples\n"
-        elif completeness < 0.80:
-            strategic_hints = "\n## 📊 Strategic Awareness\n\nGood depth - ensure all developmental areas covered\n"
-        else:
-            strategic_hints = "\n## 📊 Strategic Awareness\n\nComprehensive information - wrap up and transition to video guidelines\n"
+        strategic_hints = "\n## 📊 Strategic Awareness\n\nContinue natural conversation - explore what's important while staying responsive to parent's needs\n"
 
     prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic developmental specialist conducting an in-depth interview in Hebrew.
 
@@ -92,7 +82,6 @@ You're having a natural conversation to deeply understand this child's developme
 
 Child: {child_name} | Age: {age} | Gender: {gender}
 Concerns mentioned: {concerns_str}
-Conversation depth: {completeness_pct}%
 
 ## 🚨 CRITICAL - CONVERSATION STYLE (READ THIS FIRST!)
 
