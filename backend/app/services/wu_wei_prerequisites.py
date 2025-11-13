@@ -104,10 +104,9 @@ class WuWeiPrerequisites:
         message_count = context.get("message_count", 0)
 
         # Evaluate using Wu Wei qualitative criteria
-        # Path 1: Rich structured knowledge
+        # Path 1: Rich structured knowledge (name is optional, age is critical)
         path_1_met = (
-            has_child_name and
-            has_age and
+            has_age and  # Age is critical for developmental assessment
             (has_concerns or has_developmental_history) and
             has_strengths and
             has_context
@@ -179,10 +178,8 @@ class WuWeiPrerequisites:
         logger.info(f"     - message_count: {message_count}")
         logger.info(f"   Why Path 1 {'PASSED' if path_1_met else 'FAILED'}:")
         if not path_1_met:
-            if not has_child_name:
-                logger.info(f"     ❌ Missing child_name")
             if not has_age:
-                logger.info(f"     ❌ Missing age")
+                logger.info(f"     ❌ Missing age (critical for developmental assessment)")
             if not (has_concerns or has_developmental_history):
                 logger.info(f"     ❌ Missing concerns OR developmental history")
             if not has_strengths:
