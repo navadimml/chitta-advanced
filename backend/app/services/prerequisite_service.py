@@ -221,6 +221,7 @@ class PrerequisiteService:
             "user_actions": {
                 "viewed_guidelines": session_data.get("viewed_guidelines", False),
                 "declined_guidelines_offer": session_data.get("declined_guidelines_offer", False),
+                "declined_video_recording": session_data.get("declined_video_recording", False),
             },
 
             # Report status

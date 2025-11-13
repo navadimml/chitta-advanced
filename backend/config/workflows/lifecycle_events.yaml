@@ -41,6 +41,7 @@ moments:
     when:
       knowledge_is_rich: true
       baseline_video_guidelines.exists: false
+      user_actions.declined_video_recording: false
     message: |
       תודה שסיפרת לי כל כך הרבה על {child_name}! 💙
 
@@ -85,16 +86,32 @@ moments:
     unlocks:
       - generate_reports
 
+  # Parent declines video recording
+  video_declined:
+    when:
+      knowledge_is_rich: true
+      user_actions.declined_video_recording: true
+      baseline_parent_report.exists: false
+    message: |
+      מובן לחלוטין! 💙
+
+      אני יכולה להכין לך דוח מסודר על סמך השיחה שלנו - זה יכלול את כל מה שלמדתי על {child_name}.
+      רוצה שאכין את הדוח?
+    unlocks:
+      - generate_reports
+
+  # Report can be generated with videos OR without (conversation only)
   report_ready:
     when:
-      baseline_video_analysis.exists: true
       OR:
-        conversation_knowledge_is_rich: true
+        - baseline_video_analysis.exists: true
+        - knowledge_is_rich: true
+          user_actions.declined_video_recording: true
     artifact: "baseline_parent_report"
     message: |
       הדוח מוכן! 📄
 
-      זה היה תהליך עשיר - תודה שהשקעת את הזמן לשתף ולצלם.
+      זה היה תהליך עשיר - תודה שהשקעת את הזמן לשתף.
       מעכשיו אני כאן בשבילך לכל שאלה, כל תצפית, כל דבר שמתעורר בדרך. 💙
     ui:
       type: "card"
