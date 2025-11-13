@@ -591,16 +591,17 @@ Completeness: {session.completeness:.0%}
 
 **EXTRACTION RULES:**
 
-1. **Extract EVERYTHING - conversation history is limited!**
-   - Parent's words disappear after ~20 exchanges
-   - Extract now or lose it forever
-   - Better to over-extract than miss something
+1. **Progressive extraction - you see accumulated data above!**
+   - Current data shows what's already been collected
+   - Only extract NEW information from THIS conversation turn
+   - If name/age already collected → don't re-extract unless corrected
+   - Empty fields mean "not mentioned YET" - you'll be called again next turn
 
 2. **NEVER extract placeholder phrases as actual data!**
    ❌ DO NOT extract: "לא צוין", "לא ידוע", "לא נמסר", "unknown", "not mentioned"
    ✅ ONLY extract actual names/ages that parent explicitly shared
 
-   If parent hasn't mentioned name/age → leave those fields EMPTY (don't fill with placeholders)
+   If parent hasn't mentioned name/age in THIS turn → leave those fields EMPTY
 
 3. **CRITICAL - Concerns vs Strengths:**
    ⚠️ PRIMARY_CONCERNS = ONLY if parent expresses WORRY/DIFFICULTY/PROBLEM
@@ -619,8 +620,8 @@ Completeness: {session.completeness:.0%}
    - Parent: "הוא רץ ומטפס כל הזמן" → Extract: "רץ ומטפס כל הזמן" ✅
    - NOT: "יכולות מוטוריות טובות" ❌ (clinical jargon)
 
-5. **Extract everything relevant:**
-   - Basic info: name, age, gender
+5. **Extract from THIS turn only (you'll be called again next turn):**
+   - Basic info: name, age, gender (if mentioned in this exchange)
    - Concerns: categories + detailed descriptions
    - Strengths: interests, abilities, positive traits
    - History: milestones, medical, evaluations
@@ -628,16 +629,16 @@ Completeness: {session.completeness:.0%}
    - Daily life: routines, sleep, eating, activities
    - Goals: what parent hopes to achieve
 
-Call extract_interview_data with ALL relevant information from this turn AND recent conversation history."""
+Call extract_interview_data with information from THIS conversation turn."""
 
-            # Build extraction messages with recent conversation history
+            # Build extraction messages with minimal context
+            # Add just the previous exchange (2 messages) for continuity
             extraction_messages = [Message(role="system", content=extraction_system)]
 
-            # Add last 10 conversation turns for context (20 messages)
-            # This ensures extraction can see name/age mentioned earlier
+            # Get previous exchange for context (just 2 messages)
             recent_history = self.interview_service.get_conversation_history(
                 family_id,
-                last_n=20  # Last 10 exchanges
+                last_n=2  # Just previous exchange for continuity
             )
             for turn in recent_history:
                 extraction_messages.append(Message(
@@ -645,14 +646,14 @@ Call extract_interview_data with ALL relevant information from this turn AND rec
                     content=turn["content"]
                 ))
 
-            # Add current turn
+            # Add current exchange
             extraction_messages.append(Message(role="user", content=user_message))
             extraction_messages.append(Message(role="assistant", content=llm_response.content))
 
             # Final instruction
             extraction_messages.append(Message(
                 role="user",
-                content="Extract all relevant data from this entire conversation."
+                content="Extract any new information from this exchange."
             ))
 
             # 🎯 Use dedicated extraction LLM (stronger model for better categorization)
