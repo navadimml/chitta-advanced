@@ -278,12 +278,22 @@ class LifecycleManager:
             or_condition = prerequisites["OR"]
             non_or_conditions = {k: v for k, v in prerequisites.items() if k != "OR"}
 
-            # Evaluate OR condition (it's a dict representing alternative prerequisites)
+            # Evaluate OR condition
+            or_met = False
             if isinstance(or_condition, dict):
+                # Old format: OR is a single dict of alternative prerequisites
                 or_met = self._evaluate_prerequisites(or_condition, context)
+            elif isinstance(or_condition, list):
+                # New format: OR is a list of condition dicts (any can satisfy)
+                for condition_dict in or_condition:
+                    if isinstance(condition_dict, dict):
+                        if self._evaluate_prerequisites(condition_dict, context):
+                            or_met = True
+                            break
+                    else:
+                        logger.warning(f"OR list item has unexpected type: {type(condition_dict)}")
             else:
-                # Fallback for unexpected structure
-                or_met = False
+                # Unexpected structure
                 logger.warning(f"OR condition has unexpected type: {type(or_condition)}")
 
             if or_met:

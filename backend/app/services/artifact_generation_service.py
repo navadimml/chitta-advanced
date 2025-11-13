@@ -346,6 +346,9 @@ class ArtifactGenerationService:
         # Call LLM for extraction
         extracted_json_str = await self._call_llm(stage1_prompt, temperature=0.1, max_tokens=2000)
 
+        # Strip markdown code blocks if present (LLMs often wrap JSON in ```json```)
+        extracted_json_str = self._strip_markdown_code_blocks(extracted_json_str)
+
         # Parse JSON
         try:
             extracted_data = json.loads(extracted_json_str)
@@ -361,6 +364,9 @@ class ArtifactGenerationService:
 
         # Call LLM for guidelines generation
         guidelines_json_str = await self._call_llm(stage2_prompt, temperature=0.7, max_tokens=3000)
+
+        # Strip markdown code blocks if present (LLMs often wrap JSON in ```json```)
+        guidelines_json_str = self._strip_markdown_code_blocks(guidelines_json_str)
 
         # Parse guidelines JSON
         try:
@@ -824,6 +830,31 @@ The extracted JSON will appear here:
             "estimated_duration": "1-2 דקות לסרטון",
             "child_name": parent_greeting.get("child_name", "")
         }
+
+    def _strip_markdown_code_blocks(self, text: str) -> str:
+        """
+        Strip markdown code blocks from LLM output.
+        LLMs often wrap JSON in ```json ... ``` or ``` ... ``` blocks.
+
+        Args:
+            text: Raw text from LLM that may contain markdown code blocks
+
+        Returns:
+            Cleaned text with markdown wrappers removed
+        """
+        import re
+
+        text = text.strip()
+
+        # Match ```json\n...``` or ```\n...``` wrappers
+        # Pattern: optional opening ```, optional "json", content, closing ```
+        pattern = r'^```(?:json)?\s*\n?(.*?)\n?```$'
+        match = re.match(pattern, text, re.DOTALL)
+
+        if match:
+            return match.group(1).strip()
+
+        return text
 
     async def _call_llm(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000) -> str:
         """
