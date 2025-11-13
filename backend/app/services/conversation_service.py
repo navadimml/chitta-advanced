@@ -342,7 +342,7 @@ class ConversationService:
 The interview is complete and video filming guidelines have been generated!
 
 Current status:
-- Child: {data.child_name or "unknown"} (age: {data.age or "unknown"})
+- Child: {data.child_name or "(not mentioned yet)"} (age: {data.age or "(not mentioned yet)"})
 - Interview: ✅ Complete ({session.completeness:.0%})
 - Video guidelines: ✅ Generated and ready
 
@@ -526,7 +526,7 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
                 # Create a much simpler, safer prompt for retry
                 simple_system = f"""You are Chitta (צ'יטה), a warm Hebrew-speaking assistant helping parents understand their child's development.
 
-Child: {data.child_name or "unknown"} | Age: {data.age or "unknown"}
+Child: {data.child_name or "(not mentioned yet)"} | Age: {data.age or "(not mentioned yet)"}
 Interview progress: {session.completeness:.0%}
 
 Your role:
@@ -585,7 +585,7 @@ Continue the conversation naturally."""
             extraction_system = f"""Extract structured information from this conversation turn.
 
 **Current data:**
-Child: {current_data.child_name or 'unknown'}, {current_data.age or '?'} years
+Child: {current_data.child_name or '(not mentioned yet)'}, Age: {current_data.age or '(not mentioned yet)'}
 Concerns: {current_data.primary_concerns or 'none yet'}
 Completeness: {session.completeness:.0%}
 

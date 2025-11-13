@@ -138,9 +138,10 @@ async def get_strategic_guidance(
     age = extracted_data.get('age', '')
 
     missing_critical_info = []
-    if not child_name or child_name == 'unknown':
+    # Treat empty, 'unknown', or '(not mentioned yet)' as missing
+    if not child_name or child_name in ['unknown', '(not mentioned yet)']:
         missing_critical_info.append("⚠️ MISSING: Child's name - ask naturally: 'רק רוצה לוודא - מה שם הילד/ה?' (casual, like you forgot)")
-    if not age or age == 'unknown':
+    if not age or str(age) in ['unknown', '(not mentioned yet)']:
         missing_critical_info.append("⚠️ MISSING: Child's age - ask naturally: 'ואיזה גיל?'")
 
     missing_info_section = ""
@@ -190,7 +191,7 @@ DON'T ask more questions - interview is complete!"""
     analysis_prompt = f"""Analyze child development interview data to determine coverage.
 
 **Current data:**
-Child: {extracted_data.get('child_name', 'unknown')}, {extracted_data.get('age', '?')} years
+Child: {extracted_data.get('child_name') or '(not mentioned yet)'}, {extracted_data.get('age', '?')} years
 Concerns: {extracted_data.get('primary_concerns', [])}
 
 **Concern details ({len(concern_details)} chars):**
