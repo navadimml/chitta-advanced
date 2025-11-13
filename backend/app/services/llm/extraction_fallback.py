@@ -308,7 +308,9 @@ def merge_extracted_data(
 
         elif isinstance(value, str):
             # For strings, append if significantly different
-            existing_str = str(merged.get(key, ""))
+            # Handle None properly - don't convert to string 'None'
+            existing = merged.get(key)
+            existing_str = str(existing) if existing is not None else ""
             if value.lower() not in existing_str.lower():
                 merged[key] = f"{existing_str}. {value}".strip(". ")
             # else: keep existing (no change needed)
