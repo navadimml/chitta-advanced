@@ -390,7 +390,15 @@ You are a clinical expert in child development.
 ## Task
 1. Identify 1-2 main reported difficulties
 2. Infer 1-2 additional areas to check (comorbidities)
-3. Create 3-4 clear, sensitive filming guidelines in Hebrew
+3. Create **EXACTLY 3-4 video filming guidelines** in Hebrew (minimum 3, maximum 5)
+
+**CRITICAL REQUIREMENT:** You MUST generate at least 3 complete video_guidelines entries. Each must have:
+- Unique id (1, 2, 3, etc.)
+- Category (reported_difficulty or comorbidity_check)
+- Title in Hebrew
+- Detailed instruction in Hebrew
+- At least 2 example_situations
+- At least 2 focus_points
 
 ## Clinical Comorbidity Framework
 
@@ -413,6 +421,18 @@ You are a clinical expert in child development.
                 temperature=0.7
             )
             logger.info(f"✅ Stage 2 complete: Generated guidelines using native JSON mode")
+
+            # CRITICAL VALIDATION: Gemini schema constraints are HINTS, not enforced!
+            # We must validate the output ourselves to ensure it meets requirements
+            video_guidelines = guidelines_data.get("video_guidelines", [])
+            if len(video_guidelines) < 3:
+                error_msg = f"Validation failed: Generated only {len(video_guidelines)} guidelines, minimum 3 required"
+                logger.error(f"❌ {error_msg}")
+                logger.error(f"Guidelines data: {json.dumps(guidelines_data, ensure_ascii=False)[:500]}")
+                raise ValueError(error_msg)
+
+            logger.info(f"✅ Validation passed: {len(video_guidelines)} guidelines generated")
+
         except Exception as e:
             logger.error(f"❌ Stage 2 failed: {e}")
             raise ValueError(f"Failed to generate guidelines: {e}")
