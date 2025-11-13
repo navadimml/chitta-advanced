@@ -131,12 +131,27 @@ class LifecycleManager:
             was_met = previous_state.get(moment_id, False)
             just_became_ready = prereqs_met and not was_met
 
-            logger.info(f"  ↳ Was previously met: {was_met}, Just became ready: {just_became_ready}")
+            # SPECIAL CASE: If artifact doesn't exist and prerequisites are met,
+            # retry generation regardless of previous state (handles failed generations)
+            should_retry_artifact = (
+                artifact_id and  # Moment generates artifact
+                prereqs_met and  # Prerequisites are met
+                not session.has_artifact(artifact_id)  # Artifact doesn't exist
+            )
 
-            if just_became_ready:
-                logger.info(
-                    f"🌟 Wu Wei TRANSITION DETECTED: {moment_id} prerequisites just became met!"
-                )
+            logger.info(f"  ↳ Was previously met: {was_met}, Just became ready: {just_became_ready}")
+            if should_retry_artifact and not just_became_ready:
+                logger.info(f"  ↳ Artifact missing despite prereqs met - will retry generation")
+
+            if just_became_ready or should_retry_artifact:
+                if just_became_ready:
+                    logger.info(
+                        f"🌟 Wu Wei TRANSITION DETECTED: {moment_id} prerequisites just became met!"
+                    )
+                else:
+                    logger.info(
+                        f"🔄 Wu Wei RETRY: {moment_id} artifact missing, retrying generation"
+                    )
 
                 # If this moment generates an artifact, generate it!
                 if artifact_id:
