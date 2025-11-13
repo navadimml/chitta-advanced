@@ -59,8 +59,12 @@ class WuWeiPrerequisites:
             PrerequisiteEvaluation with met=True/False
         """
         # Extract what we know
-        has_child_name = bool(context.get("child_name"))
-        has_age = bool(context.get("age") or context.get("child_age"))
+        # Treat 'unknown' and '(not mentioned yet)' as missing
+        child_name = context.get("child_name")
+        has_child_name = bool(child_name and child_name not in ['unknown', '(not mentioned yet)'])
+
+        age = context.get("age") or context.get("child_age")
+        has_age = bool(age and str(age) not in ['unknown', '(not mentioned yet)'])
 
         # Concerns (can be in different fields depending on extraction schema)
         concerns = context.get("primary_concerns") or context.get("concerns") or []

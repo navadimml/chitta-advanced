@@ -126,7 +126,7 @@ def build_stage_specific_focus(
     Tailored to what should happen at this stage
     """
     completeness_pct = int(completeness * 100)
-    child_ref = child_name if child_name != "unknown" else "הילד/ה"
+    child_ref = child_name if child_name and child_name not in ["unknown", "(not mentioned yet)"] else "הילד/ה"
 
     if stage == ConversationStage.OPENING:
         return f"""
@@ -224,9 +224,9 @@ You need to understand what brought them here! Ask:
 
 
 def build_progressive_prompt(
-    child_name: str = "unknown",
-    age: str = "unknown",
-    gender: str = "unknown",
+    child_name: str = "(not mentioned yet)",
+    age: str = "(not mentioned yet)",
+    gender: str = "(not mentioned yet)",
     concerns: List[str] = None,
     completeness: float = 0.0,
     user_message: str = "",
