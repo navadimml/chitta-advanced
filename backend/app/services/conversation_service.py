@@ -596,7 +596,13 @@ Completeness: {session.completeness:.0%}
    - Extract now or lose it forever
    - Better to over-extract than miss something
 
-2. **CRITICAL - Concerns vs Strengths:**
+2. **NEVER extract placeholder phrases as actual data!**
+   ❌ DO NOT extract: "לא צוין", "לא ידוע", "לא נמסר", "unknown", "not mentioned"
+   ✅ ONLY extract actual names/ages that parent explicitly shared
+
+   If parent hasn't mentioned name/age → leave those fields EMPTY (don't fill with placeholders)
+
+3. **CRITICAL - Concerns vs Strengths:**
    ⚠️ PRIMARY_CONCERNS = ONLY if parent expresses WORRY/DIFFICULTY/PROBLEM
    ✅ STRENGTHS = Positive behaviors, things child does well
 
@@ -609,11 +615,11 @@ Completeness: {session.completeness:.0%}
    - "struggles to connect", "avoids interaction" → concern
    - "doesn't speak well", "speech delay" → concern
 
-3. **Use parent's EXACT WORDS for strengths:**
+4. **Use parent's EXACT WORDS for strengths:**
    - Parent: "הוא רץ ומטפס כל הזמן" → Extract: "רץ ומטפס כל הזמן" ✅
    - NOT: "יכולות מוטוריות טובות" ❌ (clinical jargon)
 
-4. **Extract everything relevant:**
+5. **Extract everything relevant:**
    - Basic info: name, age, gender
    - Concerns: categories + detailed descriptions
    - Strengths: interests, abilities, positive traits

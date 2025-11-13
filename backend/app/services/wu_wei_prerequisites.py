@@ -59,12 +59,14 @@ class WuWeiPrerequisites:
             PrerequisiteEvaluation with met=True/False
         """
         # Extract what we know
-        # Treat 'unknown' and '(not mentioned yet)' as missing
+        # Treat 'unknown', '(not mentioned yet)', and Hebrew placeholders as missing
         child_name = context.get("child_name")
-        has_child_name = bool(child_name and child_name not in ['unknown', '(not mentioned yet)'])
+        invalid_names = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע', 'לא נמסר']
+        has_child_name = bool(child_name and child_name not in invalid_names)
 
         age = context.get("age") or context.get("child_age")
-        has_age = bool(age and str(age) not in ['unknown', '(not mentioned yet)'])
+        invalid_ages = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע']
+        has_age = bool(age and str(age) not in invalid_ages)
 
         # Concerns (can be in different fields depending on extraction schema)
         concerns = context.get("primary_concerns") or context.get("concerns") or []
