@@ -146,8 +146,13 @@ class InterviewService:
             # It contains misc demographic info that's already in name/age/gender fields
 
         # Update scalar fields
+        # Reject string literals that represent null/missing values
+        invalid_values = ['None', 'null', 'NULL', 'unknown', '(not mentioned yet)']
         for field in ['child_name', 'age', 'gender']:
             if field in new_data and new_data[field]:
+                # For string fields, reject invalid placeholders
+                if isinstance(new_data[field], str) and new_data[field] in invalid_values:
+                    continue
                 setattr(current, field, new_data[field])
 
         # Merge arrays (concerns, urgent_flags)
