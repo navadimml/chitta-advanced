@@ -201,8 +201,7 @@ Sage: "Clear request for the report artifact..."
                     "consultation_type": {"type": "string"},
                     "artifact_id": {"type": "string"},
                     "action_name": {"type": "string"},
-                    "information_type": {"type": "string"},
-                    "response_context": {"type": "object"}
+                    "information_type": {"type": "string"}
                 },
                 "required": ["mode", "reasoning"]
             }
