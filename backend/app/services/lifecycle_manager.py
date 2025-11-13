@@ -103,11 +103,33 @@ class LifecycleManager:
             # Get artifact ID if this moment generates an artifact
             artifact_id = moment_config.get("artifact")
 
-            # If moment generates artifact, skip if artifact already exists
+            # If moment generates artifact, check if it needs regeneration
             if artifact_id and session.has_artifact(artifact_id):
-                logger.info(f"  ↳ Artifact {artifact_id} already exists, skipping")
-                current_state[moment_id] = True
-                continue
+                # Validate artifact is not empty (for guidelines, check scenarios)
+                artifact = session.get_artifact(artifact_id)
+                if artifact and artifact_id == "baseline_video_guidelines":
+                    # Parse content to check if scenarios exist
+                    try:
+                        import json
+                        if isinstance(artifact.content, str):
+                            content = json.loads(artifact.content)
+                        else:
+                            content = artifact.content
+
+                        scenarios = content.get("scenarios", [])
+                        if len(scenarios) == 0:
+                            logger.info(f"  ↳ Artifact {artifact_id} exists but has 0 scenarios - forcing regeneration")
+                            # Don't skip, allow regeneration
+                        else:
+                            logger.info(f"  ↳ Artifact {artifact_id} already exists with {len(scenarios)} scenarios, skipping")
+                            current_state[moment_id] = True
+                            continue
+                    except Exception as e:
+                        logger.warning(f"  ↳ Failed to validate artifact content: {e} - allowing regeneration")
+                else:
+                    logger.info(f"  ↳ Artifact {artifact_id} already exists, skipping")
+                    current_state[moment_id] = True
+                    continue
 
             # Get prerequisites from 'when' field
             prerequisites = moment_config.get("when")
