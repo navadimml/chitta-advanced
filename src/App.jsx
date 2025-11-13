@@ -579,8 +579,9 @@ function App() {
                     setIsTyping(true);
 
                     try {
-                      // Start test with this persona - PRESERVE existing family_id to maintain session!
-                      const result = await api.startTest(persona.id, FAMILY_ID);
+                      // Start test with this persona - Use NEW family_id for fresh test session
+                      // Each test should start clean without carrying over old session state
+                      const result = await api.startTest(persona.id);
 
                       // Show Chitta's initial greeting (same as real conversation)
                       const greetingMessage = {
