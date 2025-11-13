@@ -191,19 +191,31 @@ Sage: "Clear request for the report artifact..."
 """
 
         try:
-            response = await self.llm.chat(
+            # Define JSON schema for Hand's decision
+            decision_schema = {
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "enum": ["CONVERSATION", "CONSULTATION", "PROVIDE_INFORMATION", "VIEW_ARTIFACT"]},
+                    "reasoning": {"type": "string"},
+                    "extraction_needed": {"type": "boolean"},
+                    "consultation_type": {"type": "string"},
+                    "artifact_id": {"type": "string"},
+                    "action_name": {"type": "string"},
+                    "information_type": {"type": "string"},
+                    "response_context": {"type": "object"}
+                },
+                "required": ["mode", "reasoning"]
+            }
+
+            # Use structured output instead of text parsing
+            decision_json = await self.llm.chat_with_structured_output(
                 messages=[
                     Message(role="system", content=decision_prompt),
                     Message(role="user", content="What action should we take?")
                 ],
-                functions=None,
-                temperature=0.1,  # Very focused
-                max_tokens=400
+                response_schema=decision_schema,
+                temperature=0.1
             )
-
-            # Parse JSON response
-            import json
-            decision_json = json.loads(response.content.strip())
 
             # Convert to ActionMode enum
             mode_str = decision_json.get("mode", "CONVERSATION").upper()
