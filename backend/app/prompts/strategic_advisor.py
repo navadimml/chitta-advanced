@@ -158,13 +158,12 @@ Ask for this BEFORE exploring more areas! Be natural and casual."""
 
     # Check if ready to end
     # Use completeness as the primary indicator since it already accounts for all fields
-    # Only add basic checks for critical info
-    invalid_names = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע', 'לא נמסר']
+    # Age is critical for developmental assessment, but name can be asked later
+    invalid_ages = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע']
     ready_to_end = (
         completeness >= 0.70 and  # Lowered from 0.75
         len(concern_details) > 200 and  # Lowered from 300 - still substantial
-        (child_name and str(child_name) not in invalid_names) and
-        age
+        age and str(age) not in invalid_ages  # Age is critical, name is optional
     )
 
     # Check what moment is about to trigger next (config-driven!)
