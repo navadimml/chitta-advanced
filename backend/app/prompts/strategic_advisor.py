@@ -138,10 +138,13 @@ async def get_strategic_guidance(
     age = extracted_data.get('age', '')
 
     missing_critical_info = []
-    # Treat empty, 'unknown', or '(not mentioned yet)' as missing
-    if not child_name or child_name in ['unknown', '(not mentioned yet)']:
+    # Treat empty, English placeholders, and Hebrew placeholders as missing
+    invalid_names = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע', 'לא נמסר']
+    if not child_name or child_name in invalid_names:
         missing_critical_info.append("⚠️ MISSING: Child's name - ask naturally: 'רק רוצה לוודא - מה שם הילד/ה?' (casual, like you forgot)")
-    if not age or str(age) in ['unknown', '(not mentioned yet)']:
+
+    invalid_ages = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע']
+    if not age or str(age) in invalid_ages:
         missing_critical_info.append("⚠️ MISSING: Child's age - ask naturally: 'ואיזה גיל?'")
 
     missing_info_section = ""
@@ -156,10 +159,11 @@ Ask for this BEFORE exploring more areas! Be natural and casual."""
     # Check if ready to end
     # Use completeness as the primary indicator since it already accounts for all fields
     # Only add basic checks for critical info
+    invalid_names = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע', 'לא נמסר']
     ready_to_end = (
         completeness >= 0.70 and  # Lowered from 0.75
         len(concern_details) > 200 and  # Lowered from 300 - still substantial
-        (child_name and str(child_name) not in ['unknown', '(not mentioned yet)']) and
+        (child_name and str(child_name) not in invalid_names) and
         age
     )
 
