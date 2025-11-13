@@ -184,8 +184,9 @@ class LifecycleManager:
                         )
 
                 # Check if this moment has a message (lifecycle event)
+                # Only trigger message on FIRST generation, not on retries
                 message_template = moment_config.get("message")
-                if message_template:
+                if message_template and just_became_ready:  # Only on first transition, not retries
                     # Format message with context variables
                     message = message_template.format(
                         child_name=context.get("child_name", "הילד/ה")
@@ -207,8 +208,9 @@ class LifecycleManager:
                     logger.info(f"🎉 Triggered moment event: {moment_id}")
 
                 # Check if this moment unlocks capabilities
+                # Only unlock on FIRST generation, not on retries
                 unlocked = moment_config.get("unlocks", [])
-                if unlocked:
+                if unlocked and just_became_ready:  # Only on first transition, not retries
                     capabilities_unlocked.extend(unlocked)
                     logger.info(f"🔓 Unlocked capabilities: {unlocked}")
 
