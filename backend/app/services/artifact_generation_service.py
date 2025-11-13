@@ -322,10 +322,10 @@ class ArtifactGenerationService:
 
     async def _generate_guidelines_with_llm(self, session_data: Dict[str, Any]) -> str:
         """
-        Two-stage LLM generation for video guidelines.
+        Two-stage LLM generation for video guidelines using Gemini's structured output.
 
-        Stage 1: Extract structured JSON from interview transcript
-        Stage 2: Generate guidelines from structured data
+        Stage 1: Extract structured JSON from interview transcript (native JSON mode)
+        Stage 2: Generate guidelines from structured data (native JSON mode)
 
         Args:
             session_data: Session data with conversation_history, extracted_data, etc.
@@ -333,71 +333,99 @@ class ArtifactGenerationService:
         Returns:
             Markdown formatted video guidelines in Hebrew
         """
+        from app.services.llm.base import Message
         import json
 
-        # Stage 1: Extract structured JSON from conversation
-        logger.info("🔍 Stage 1: Extracting structured JSON from interview transcript")
+        # Stage 1: Extract structured JSON using Gemini's native JSON mode
+        logger.info("🔍 Stage 1: Extracting structured JSON using Gemini structured output")
         conversation_history = session_data.get("conversation_history", [])
 
         # Build transcript from conversation history
         transcript = self._build_transcript(conversation_history)
-        stage1_prompt = self._build_stage1_extraction_prompt(transcript)
 
-        # Call LLM for extraction
-        raw_extracted_json = await self._call_llm(stage1_prompt, temperature=0.1, max_tokens=2000)
+        # Build extraction prompt (simpler now that JSON schema is enforced)
+        stage1_prompt_text = f"""# Stage 1: Extract structured data from interview
 
-        logger.debug(f"Stage 1 raw LLM output (first 200 chars): {raw_extracted_json[:200]}")
+## Role
+You are a clinical data analyst specializing in child development interviews.
 
-        # Strip markdown code blocks if present (LLMs often wrap JSON in ```json```)
-        extracted_json_str = self._strip_markdown_code_blocks(raw_extracted_json)
+## Task
+Extract and structure all information from the transcript. **Preserve parent quotes in Hebrew exactly as spoken.**
 
-        logger.debug(f"Stage 1 after stripping (first 200 chars): {extracted_json_str[:200]}")
+## Rules
+✅ Copy exact parent quotes in Hebrew
+✅ Include at least 2-3 specific examples per difficulty
+✅ If information missing → use null or empty string
+✅ Preserve Hebrew text exactly - spelling, grammar, colloquialisms
+❌ Don't invent information not in transcript
+❌ Don't interpret or analyze - just summarize
+❌ Don't translate Hebrew to English
 
-        # Parse JSON
+## Interview Transcript
+
+{transcript}
+"""
+
+        # Get structured output using Gemini's native JSON mode
         try:
-            extracted_data = json.loads(extracted_json_str)
-            logger.info(f"✅ Stage 1 complete: Extracted structured data ({len(extracted_json_str)} chars)")
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ Stage 1 failed: Invalid JSON from LLM: {e}")
-            logger.error(f"Raw LLM output (first 1000 chars): {raw_extracted_json[:1000]}")
-            logger.error(f"After stripping (first 1000 chars): {extracted_json_str[:1000]}")
-            raise ValueError(f"LLM returned invalid JSON: {e}")
+            extracted_data = await self.llm_provider.chat_with_structured_output(
+                messages=[Message(role="user", content=stage1_prompt_text)],
+                response_schema=self._get_stage1_extraction_schema(),
+                temperature=0.1
+            )
+            logger.info(f"✅ Stage 1 complete: Extracted structured data using native JSON mode")
+        except Exception as e:
+            logger.error(f"❌ Stage 1 failed: {e}")
+            raise ValueError(f"Failed to extract structured data: {e}")
 
-        # Stage 2: Generate guidelines from structured data
-        logger.info("📝 Stage 2: Generating video guidelines from structured data")
-        stage2_prompt = self._build_stage2_guidelines_prompt(extracted_data)
+        # Stage 2: Generate guidelines using Gemini's native JSON mode
+        logger.info("📝 Stage 2: Generating video guidelines using Gemini structured output")
 
-        # Call LLM for guidelines generation
-        raw_guidelines_json = await self._call_llm(stage2_prompt, temperature=0.7, max_tokens=3000)
+        json_input = json.dumps(extracted_data, ensure_ascii=False, indent=2)
+        stage2_prompt_text = f"""# Stage 2: Generate video filming guidelines
 
-        logger.debug(f"Stage 2 raw LLM output (first 200 chars): {raw_guidelines_json[:200]}")
+## Role
+You are a clinical expert in child development.
 
-        # Strip markdown code blocks if present (LLMs often wrap JSON in ```json```)
-        guidelines_json_str = self._strip_markdown_code_blocks(raw_guidelines_json)
+## Task
+1. Identify 1-2 main reported difficulties
+2. Infer 1-2 additional areas to check (comorbidities)
+3. Create 3-4 clear, sensitive filming guidelines in Hebrew
 
-        logger.debug(f"Stage 2 after stripping (first 200 chars): {guidelines_json_str[:200]}")
+## Clinical Comorbidity Framework
 
-        # Parse guidelines JSON
+**ADHD** → Check: Sensory regulation, fine motor, emotional regulation
+**Learning difficulties** → Check: Visual perception, auditory processing, working memory
+**Social/communication** → Check: Symbolic play, restricted interests, repetitive behaviors, sensory responses
+**Emotional outbursts** → Check: Sensory triggers, language comprehension, parent-child dynamics
+**Language delays** → Check: Social interactions, imaginative play, non-verbal communication
+
+## Structured Data from Interview
+
+{json_input}
+"""
+
+        # Get structured output using Gemini's native JSON mode
         try:
-            guidelines_data = json.loads(guidelines_json_str)
-            logger.info(f"✅ Stage 2 complete: Generated guidelines ({len(guidelines_json_str)} chars)")
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ Stage 2 failed: Invalid JSON from LLM: {e}")
-            logger.error(f"Raw LLM output (first 1000 chars): {raw_guidelines_json[:1000]}")
-            logger.error(f"After stripping (first 1000 chars): {guidelines_json_str[:1000]}")
-            raise ValueError(f"LLM returned invalid JSON: {e}")
+            guidelines_data = await self.llm_provider.chat_with_structured_output(
+                messages=[Message(role="user", content=stage2_prompt_text)],
+                response_schema=self._get_stage2_guidelines_schema(),
+                temperature=0.7
+            )
+            logger.info(f"✅ Stage 2 complete: Generated guidelines using native JSON mode")
+        except Exception as e:
+            logger.error(f"❌ Stage 2 failed: {e}")
+            raise ValueError(f"Failed to generate guidelines: {e}")
 
         # Convert JSON to markdown format for parent
         markdown_content = self._convert_guidelines_json_to_markdown(guidelines_data)
 
         # Also transform to component-compatible format for frontend
-        # Store both markdown (for future use) and structured data (for current component)
         component_format = self._transform_to_component_format(guidelines_data)
 
         logger.info(f"✅ Two-stage generation complete: {len(markdown_content)} chars markdown")
 
         # Return structured format (not markdown) for the component
-        import json
         return json.dumps(component_format, ensure_ascii=False)
 
     def _build_transcript(self, conversation_history: list) -> str:
@@ -880,6 +908,138 @@ The extracted JSON will appear here:
 
         # No markdown blocks found, return original text
         return text
+
+    def _get_stage1_extraction_schema(self) -> dict:
+        """
+        Get JSON schema for Stage 1 extraction.
+        Defines the structure for extracting interview data.
+        """
+        return {
+            "type": "object",
+            "properties": {
+                "child": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "age_years": {"type": "number"},
+                        "age_months": {"type": "number"},
+                        "gender": {"type": "string"}
+                    }
+                },
+                "main_concern": {"type": "string"},
+                "difficulties": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "area": {"type": "string"},
+                            "description": {"type": "string"},
+                            "specific_examples": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "when_where": {"type": "string"},
+                                        "behavior": {"type": "string"},
+                                        "trigger": {"type": "string"},
+                                        "frequency": {"type": "string"},
+                                        "duration": {"type": "string"}
+                                    }
+                                }
+                            },
+                            "duration_since_onset": {"type": "string"},
+                            "impact_child": {"type": "string"},
+                            "impact_family": {"type": "string"}
+                        }
+                    }
+                },
+                "strengths": {
+                    "type": "object",
+                    "properties": {
+                        "likes": {"type": "array", "items": {"type": "string"}},
+                        "good_at": {"type": "array", "items": {"type": "string"}},
+                        "positives": {"type": "string"}
+                    }
+                },
+                "development": {
+                    "type": "object",
+                    "properties": {
+                        "pregnancy_birth": {"type": "string"},
+                        "milestones": {"type": "string"},
+                        "medical": {"type": "string"}
+                    }
+                },
+                "school": {
+                    "type": "object",
+                    "properties": {
+                        "type": {"type": "string"},
+                        "adjustment": {"type": "string"},
+                        "support": {"type": "string"}
+                    }
+                },
+                "history": {
+                    "type": "object",
+                    "properties": {
+                        "previous_diagnosis": {"type": "string"},
+                        "previous_treatment": {"type": "string"},
+                        "family_history": {"type": "string"}
+                    }
+                },
+                "parent_perspective": {
+                    "type": "object",
+                    "properties": {
+                        "childs_experience": {"type": "string"},
+                        "what_tried": {"type": "string"},
+                        "hopes": {"type": "string"}
+                    }
+                }
+            }
+        }
+
+    def _get_stage2_guidelines_schema(self) -> dict:
+        """
+        Get JSON schema for Stage 2 guidelines generation.
+        Defines the structure for video filming guidelines.
+        """
+        return {
+            "type": "object",
+            "properties": {
+                "parent_greeting": {
+                    "type": "object",
+                    "properties": {
+                        "parent_name": {"type": "string"},
+                        "child_name": {"type": "string"},
+                        "opening_message": {"type": "string"}
+                    }
+                },
+                "general_filming_tips": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                },
+                "video_guidelines": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "integer"},
+                            "category": {"type": "string"},
+                            "difficulty_area": {"type": "string"},
+                            "title": {"type": "string"},
+                            "instruction": {"type": "string"},
+                            "example_situations": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
+                            "duration_suggestion": {"type": "string"},
+                            "focus_points": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
     async def _call_llm(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000) -> str:
         """
