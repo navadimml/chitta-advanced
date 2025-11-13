@@ -17,10 +17,12 @@ EXTRACT_INTERVIEW_DATA = {
     "name": "extract_interview_data",
     "description": """Extract structured child development data from the conversation.
 
-Call this function WHENEVER the parent shares relevant information - don't wait for complete answers or milestones.
+Call this function WHENEVER the parent shares relevant information in THIS turn - this is progressive extraction.
+
+The system shows you what's already collected. Only extract NEW information from the current exchange.
 
 Examples of when to call:
-- Parent mentions child's name, age, or gender
+- Parent mentions child's name, age, or gender (if not already collected)
 - Parent describes strengths, interests, or what child likes to do
 - Parent shares concerns, challenges, or difficulties
 - Parent describes daily routines, behaviors, or typical situations
@@ -28,7 +30,7 @@ Examples of when to call:
 - Parent describes family context, siblings, support systems
 - Parent states goals or what they hope will improve
 
-Extract whatever information is available - partial data is fine. You'll be called multiple times throughout the conversation.""",
+Extract whatever new information is available from THIS turn. You'll be called again on the next turn.""",
     "parameters": {
         "type": "object",
         "properties": {
