@@ -166,20 +166,20 @@ class GeminiProvider(BaseLLMProvider):
         )
 
         try:
-            # Generate JSON response
-            async with self.client.aio as aclient:
-                response = await aclient.models.generate_content(
-                    model=self.model_name,
-                    contents=contents,
-                    config=config
-                )
+            # Generate JSON response using async client
+            # Direct .aio access without context manager (same pattern as chat())
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=config
+            )
 
             # Parse JSON from text
             return json.loads(response.text)
 
         except Exception as e:
             logger.error(f"Gemini structured output error: {e}")
-            return {}
+            raise  # Re-raise instead of returning empty dict!
 
     def _convert_messages_to_contents(self, messages: List[Message]) -> List[types.Content]:
         """
