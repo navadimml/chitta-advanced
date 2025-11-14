@@ -914,7 +914,10 @@ Call extract_interview_data with information from THIS conversation turn."""
         # 🌟 Get UI context from lifecycle manager to tell Chitta WHERE artifacts are
         ui_context = self._get_artifact_ui_context(session)
 
-        return f"""
+        # 🧠 Get system context from lifecycle events to prevent hallucinations
+        system_context = self._get_lifecycle_system_context(session)
+
+        result = f"""
 ## 📋 מסמכים ותוצרים שכבר יצרת
 
 {chr(10).join(artifacts_list)}
@@ -935,6 +938,12 @@ Call extract_interview_data with information from THIS conversation turn."""
 - "בדוח שיצרתי ראית שכתבתי על..."
 - "אם תרצי לקרוא את ההנחיות המלאות, [היכן למצוא]"
 """
+
+        # Append system context if exists
+        if system_context:
+            result += f"\n\n{system_context}"
+
+        return result
 
     def _get_artifact_ui_context(self, session: Any) -> str:
         """
@@ -975,6 +984,38 @@ Call extract_interview_data with information from THIS conversation turn."""
             return "\n".join(ui_locations)
         else:
             return "- כרטיסי ההקשר (Context Cards) בראש הדף\n- או במקטע המתאים בתפריט"
+
+    def _get_lifecycle_system_context(self, session: Any) -> str:
+        """
+        Get system context from lifecycle events to prevent hallucinations.
+
+        When certain artifacts are created (like video guidelines), the lifecycle
+        configuration includes system_context that explains to Chitta how the process
+        works, preventing hallucinations about capabilities she doesn't have.
+
+        Args:
+            session: Current interview session
+
+        Returns:
+            Formatted system context string, or empty string if none
+        """
+        lifecycle_manager = self.lifecycle_manager
+        system_contexts = []
+
+        # Check which lifecycle events have been triggered and get their system context
+        for artifact_id in session.artifacts.keys():
+            # Find lifecycle event that created this artifact
+            event_config = lifecycle_manager._find_event_for_artifact(artifact_id)
+
+            if event_config and "context" in event_config:
+                context_text = event_config["context"]
+                if context_text:
+                    system_contexts.append(context_text)
+
+        if system_contexts:
+            return "\n\n".join(system_contexts)
+        else:
+            return ""
 
     def _generate_context_cards(
         self,
