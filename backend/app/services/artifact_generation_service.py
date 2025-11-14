@@ -389,32 +389,77 @@ Extract and structure all information from the transcript. **Preserve parent quo
         stage2_prompt_text = f"""# Stage 2: Generate video filming guidelines
 
 ## Role
-You are a clinical expert in child development.
+You are a clinical expert in child development creating PARENT-FRIENDLY filming guidelines.
+
+## Critical Instructions for Writing Guidelines
+
+### 1. CONCRETE & SIMPLE (Lower Cognitive Load)
+❌ BAD: "שחקו משחק עם חוקים ותורות"
+✅ GOOD: "שבו ליד השולחן במטבח, בחרו משחק סולמות וחבלים או זיכרון (קלפים). שחקו יחד 5 דקות."
+
+❌ BAD: "צלמו פעילות יצירתית"
+✅ GOOD: "הניחו דף A4 ועפרונות צבעוניים על השולחן. בקשו ממנה לצייר משפחה או בית. צלמו אותה בזמן הציור."
+
+### 2. RATIONALE Must Connect to Parent's Story or Clinical Reasoning
+- If reporting difficulty with attention during board games → rationale explains: "את ציינת שהיא מתקשה לחכות לתורה במשחקים - זה יעזור לנו לראות..."
+- If checking comorbidity (sensory) → rationale explains: "רצינו לבדוק אם יש גם רגישות חושית שיכולה להסביר את קשיי הריכוז..."
+
+### 3. Focus Points (focus_points) are INTERNAL ONLY
+These are for YOU to analyze the video later. NOT for parents to worry about while filming.
+Write them as clinical observation notes: "האם נראית תנועת יתר?", "כמה זמן מחזיקה קשב?"
+
+### 4. Example Situations Must Be Concrete
+❌ "זמן משחק חופשי"
+✅ "בסלון אחרי הצהריים, עם הצעצועים שיש לה בארון"
 
 ## Task
-1. Identify 1-2 main reported difficulties
-2. Infer 1-2 additional areas to check (comorbidities)
+1. Identify 1-2 main reported difficulties from the parent's descriptions
+2. Infer 1-2 additional areas to check (comorbidities) based on clinical framework below
 3. Create **EXACTLY 3-4 video filming guidelines** in Hebrew (minimum 3, maximum 5)
 
 **CRITICAL REQUIREMENT:** You MUST generate at least 3 complete video_guidelines entries. Each must have:
 - Unique id (1, 2, 3, etc.)
 - Category (reported_difficulty or comorbidity_check)
-- Title in Hebrew
-- Detailed instruction in Hebrew
-- At least 2 example_situations
-- At least 2 focus_points
+- difficulty_area: Short label in Hebrew
+- title: Short title in Hebrew (3-5 words)
+- instruction: CONCRETE, SIMPLE filming instruction (see examples above) - WHERE, WHAT, HOW LONG
+- example_situations: 2-3 CONCRETE situations (specific time, place, activity)
+- duration_suggestion: Clear time estimate ("5-7 דקות", "עד שהיא מאבדת עניין")
+- focus_points: 2-4 INTERNAL analysis points (what YOU will look for in video)
+- rationale_for_parent: Connects to parent's story OR explains clinical reasoning (2-3 sentences)
 
 ## Clinical Comorbidity Framework
 
-**ADHD** → Check: Sensory regulation, fine motor, emotional regulation
+**ADHD/Attention** → Check: Sensory regulation, fine motor, emotional regulation
 **Learning difficulties** → Check: Visual perception, auditory processing, working memory
-**Social/communication** → Check: Symbolic play, restricted interests, repetitive behaviors, sensory responses
-**Emotional outbursts** → Check: Sensory triggers, language comprehension, parent-child dynamics
+**Social/communication** → Check: Symbolic play, restricted interests, repetitive behaviors
+**Emotional outbursts** → Check: Sensory triggers, language comprehension, frustration tolerance
 **Language delays** → Check: Social interactions, imaginative play, non-verbal communication
 
 ## Structured Data from Interview
 
 {json_input}
+
+## Example of GOOD Guideline
+
+{{
+  "id": 1,
+  "category": "reported_difficulty",
+  "difficulty_area": "קשב במשחקים",
+  "title": "משחק קופסה במטבח",
+  "instruction": "שבו יחד ליד שולחן המטבח. בחרו משחק קופסה פשוט שהילדה מכירה - סולמות וחבלים, דמקה, או זיכרון. שחקו יחד 5-7 דקות, או עד שהיא מאבדת עניין. אם היא קמה או מפסיקה - זה בסדר, המשיכו לצלם עוד דקה כדי לראות לאן היא הולכת.",
+  "example_situations": [
+    "אחרי ארוחת צהריים, ליד שולחן המטבח",
+    "בערב לפני האמבטיה, בסלון על השטיח"
+  ],
+  "duration_suggestion": "5-7 דקות",
+  "focus_points": [
+    "כמה זמן היא מחזיקה קשב לפני התנועה הראשונה מהכיסא?",
+    "מה היא עושה בזמן ההמתנה לתור - מסתכלת, זזה, מדברת?",
+    "איך היא מגיבה כשמזכירים לה לחזור למשחק?"
+  ],
+  "rationale_for_parent": "את ציינת שהיא מתקשה לחכות לתורה במשחקים וש'המחשבות שלה בורחות'. סרטון זה יעזור לנו לראות בדיוק איך זה נראה - האם זה קושי בבלימה, קושי בהמתנה, או משהו אחר. זה יכוון אותנו איך לעזור לה בכיתה א'."
+}}
 """
 
         # Get structured output using Gemini's native JSON mode
