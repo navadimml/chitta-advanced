@@ -238,6 +238,19 @@ class LifecycleManager:
                 # Don't block the conversation - user gets response immediately
                 if artifact_id:
                     import asyncio
+                    from ..models import Artifact
+                    from datetime import datetime
+
+                    # Create placeholder artifact with "generating" status
+                    # This ensures the card appears IMMEDIATELY in the UI
+                    placeholder = Artifact(
+                        artifact_type=artifact_id,
+                        content={"status": "generating", "message": "מכין הנחיות..."},
+                        is_ready=False,
+                        created_at=datetime.now()
+                    )
+                    session.add_artifact(placeholder)
+                    logger.info(f"📋 Added placeholder artifact for {artifact_id} (card will show immediately)")
 
                     # Create background task for artifact generation
                     task = asyncio.create_task(
