@@ -175,7 +175,7 @@ class ConsultationService:
         artifacts = {}
         for artifact_name, artifact in session.artifacts.items():
             artifacts[artifact_name] = {
-                "type": artifact.type,
+                "type": artifact.artifact_type,  # Fixed: was artifact.type
                 "content": artifact.content,
                 "created_at": artifact.created_at.isoformat() if hasattr(artifact.created_at, 'isoformat') else str(artifact.created_at)
             }
