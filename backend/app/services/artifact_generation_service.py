@@ -374,6 +374,10 @@ Extract and structure all information from the transcript. **Preserve parent quo
                 temperature=0.1
             )
             logger.info(f"✅ Stage 1 complete: Extracted structured data using native JSON mode")
+            logger.info("=" * 80)
+            logger.info("📊 STAGE 1 OUTPUT (Extracted Data):")
+            logger.info(json.dumps(extracted_data, ensure_ascii=False, indent=2))
+            logger.info("=" * 80)
         except Exception as e:
             logger.error(f"❌ Stage 1 failed: {e}")
             raise ValueError(f"Failed to extract structured data: {e}")
@@ -421,6 +425,10 @@ You are a clinical expert in child development.
                 temperature=0.7
             )
             logger.info(f"✅ Stage 2 complete: Generated guidelines using native JSON mode")
+            logger.info("=" * 80)
+            logger.info("📊 STAGE 2 OUTPUT (Generated Guidelines):")
+            logger.info(json.dumps(guidelines_data, ensure_ascii=False, indent=2))
+            logger.info("=" * 80)
 
             # CRITICAL VALIDATION: Gemini schema constraints are HINTS, not enforced!
             # We must validate the output ourselves to ensure it meets requirements
