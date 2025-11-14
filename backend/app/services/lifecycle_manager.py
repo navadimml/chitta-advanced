@@ -197,38 +197,8 @@ class LifecycleManager:
                         f"🔄 Wu Wei RETRY: {moment_id} artifact {retry_reason}, retrying generation"
                     )
 
-                # If this moment generates an artifact, generate it!
-                if artifact_id:
-                    try:
-                        artifact = await self._generate_artifact(
-                            artifact_id,
-                            moment_config,
-                            context
-                        )
-
-                        if artifact and artifact.is_ready:
-                            # Store in session
-                            session.add_artifact(artifact)
-                            artifacts_generated.append(artifact_id)
-
-                            logger.info(
-                                f"✅ Wu Wei: Auto-generated {artifact_id} "
-                                f"({len(artifact.content)} chars)"
-                            )
-                        else:
-                            logger.error(
-                                f"❌ Wu Wei: Failed to generate {artifact_id}: "
-                                f"{artifact.error_message if artifact else 'Unknown error'}"
-                            )
-
-                    except Exception as e:
-                        logger.error(
-                            f"❌ Wu Wei: Exception generating {artifact_id}: {e}",
-                            exc_info=True
-                        )
-
                 # Check if this moment has a message (lifecycle event)
-                # Only trigger message on FIRST generation, not on retries
+                # Send message IMMEDIATELY on FIRST transition (don't wait for artifact)
                 message_template = moment_config.get("message")
                 if message_template and just_became_ready:  # Only on first transition, not retries
                     # Format message with context variables
@@ -258,11 +228,32 @@ class LifecycleManager:
                     logger.info(f"🎉 Triggered moment event: {moment_id}")
 
                 # Check if this moment unlocks capabilities
-                # Only unlock on FIRST generation, not on retries
+                # Unlock IMMEDIATELY on FIRST transition (don't wait for artifact)
                 unlocked = moment_config.get("unlocks", [])
                 if unlocked and just_became_ready:  # Only on first transition, not retries
                     capabilities_unlocked.extend(unlocked)
                     logger.info(f"🔓 Unlocked capabilities: {unlocked}")
+
+                # If this moment generates an artifact, generate it IN BACKGROUND!
+                # Don't block the conversation - user gets response immediately
+                if artifact_id:
+                    import asyncio
+
+                    # Create background task for artifact generation
+                    task = asyncio.create_task(
+                        self._generate_artifact_background(
+                            artifact_id,
+                            moment_config,
+                            context,
+                            session,
+                            family_id
+                        )
+                    )
+
+                    # Track that generation started (for logging)
+                    artifacts_generated.append(f"{artifact_id}:generating")
+                    logger.info(f"🚀 Started background generation of {artifact_id} (non-blocking)")
+
 
             elif prereqs_met:
                 logger.debug(f"  ↳ Prerequisites met but already processed before")
@@ -490,6 +481,58 @@ class LifecycleManager:
                 f"Add it to LifecycleManager._generate_artifact()"
             )
             return None
+
+    async def _generate_artifact_background(
+        self,
+        artifact_id: str,
+        moment_config: Dict[str, Any],
+        context: Dict[str, Any],
+        session: Any,
+        family_id: str
+    ):
+        """
+        Generate artifact in background without blocking conversation.
+
+        This allows the user to get an immediate response while artifact
+        generation happens asynchronously. The artifact will appear in the
+        UI on the next conversation turn.
+
+        Args:
+            artifact_id: ID of artifact to generate
+            moment_config: Moment configuration from lifecycle_events.yaml
+            context: Current context for generation
+            session: Interview session to update when complete
+            family_id: Family identifier for logging
+        """
+        try:
+            logger.info(f"🎬 Background generation started: {artifact_id} for {family_id}")
+
+            # Generate the artifact (this is the slow LLM call)
+            artifact = await self._generate_artifact(
+                artifact_id,
+                moment_config,
+                context
+            )
+
+            if artifact and artifact.is_ready:
+                # Store in session
+                session.add_artifact(artifact)
+
+                logger.info(
+                    f"✅ Background generation complete: {artifact_id} "
+                    f"({len(artifact.content)} chars) - artifact now available in session"
+                )
+            else:
+                logger.error(
+                    f"❌ Background generation failed: {artifact_id}: "
+                    f"{artifact.error_message if artifact else 'Unknown error'}"
+                )
+
+        except Exception as e:
+            logger.error(
+                f"❌ Background generation exception: {artifact_id}: {e}",
+                exc_info=True
+            )
 
 
 # Singleton instance

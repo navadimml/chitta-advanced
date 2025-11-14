@@ -52,10 +52,13 @@ moments:
     when:
       knowledge_is_rich: true
     artifact: "baseline_video_guidelines"
-    message: "ההנחיות מוכנות! 📹"
+    message: |
+      תודה שסיפרת לי כל כך הרבה על {child_name}! 💙
+
+      אני מכינה לך עכשיו הנחיות מותאמות לצילום - זה ייקח רגע אחד. ההנחיות יופיעו בכרטיס למטה ברגע שהן מוכנות.
     ui:
       type: "card"
-      default: "תראי את הכרטיס 'הנחיות צילום' ב'פעיל עכשיו' למטה - לחצי עליו כדי לקרוא את ההנחיות המלאות"
+      default: "ההנחיות יופיעו בכרטיס 'הנחיות צילום' ב'פעיל עכשיו' בעוד רגעים ספורים"
     context: |
       <system_context type="video_guidelines_process">
       You (Chitta) have just generated video filming guidelines for the parent.
@@ -164,10 +167,11 @@ moments:
       re_assessment.active: true
       knowledge_is_rich: true
     artifact: "re_assessment_video_guidelines"
-    message: "הנחיות מעודכנות מוכנות! 📹"
+    message: |
+      מעולה! אני מכינה לך הנחיות צילום מעודכנות - זה ייקח רגע אחד. ההנחיות יופיעו בכרטיס למטה ברגע שהן מוכנות. 📹
     ui:
       type: "card"
-      default: "תראי את הכרטיס 'הנחיות צילום מעודכנות' ב'פעיל עכשיו' למטה"
+      default: "ההנחיות המעודכנות יופיעו בכרטיס 'הנחיות צילום מעודכנות' ב'פעיל עכשיו' בעוד רגעים ספורים"
     context: |
       <system_context type="video_guidelines_process">
       You (Chitta) have just generated updated video filming guidelines for re-assessment.
