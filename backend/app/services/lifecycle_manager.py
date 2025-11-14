@@ -248,6 +248,12 @@ class LifecycleManager:
                         event_data["ui_context"] = ui_context
                         logger.info(f"  📍 UI Context ({ui_context.get('type')}): {ui_context.get('default')[:50]}...")
 
+                    # Add system context if defined (to prevent hallucinations)
+                    system_context = moment_config.get("context")
+                    if system_context:
+                        event_data["system_context"] = system_context
+                        logger.info(f"  🧠 System Context: Added {len(system_context)} chars to prevent hallucination")
+
                     events_triggered.append(event_data)
                     logger.info(f"🎉 Triggered moment event: {moment_id}")
 
