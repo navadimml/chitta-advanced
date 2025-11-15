@@ -775,10 +775,14 @@ Call extract_interview_data with information from THIS conversation turn."""
         # 7.5 🔍 SEMANTIC COMPLETENESS VERIFICATION (Wu Wei Robustness)
         # Run LLM-based quality check every 3 turns after turn 6
         # This evaluates actual content quality, not just character counts
+        # STOP after video guidelines generated (no point continuing)
         turn_count = len([msg for msg in session.conversation_history if msg.get('role') == 'user'])
+        video_guidelines_generated = session.has_artifact("baseline_video_guidelines")
+
         should_verify = (
             turn_count >= 6 and  # After minimum conversation
-            (turn_count - session.semantic_verification_turn) >= 3  # Every 3 turns
+            (turn_count - session.semantic_verification_turn) >= 3 and  # Every 3 turns
+            not video_guidelines_generated  # Stop after video guidelines ready
         )
 
         if should_verify:
