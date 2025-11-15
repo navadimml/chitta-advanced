@@ -325,75 +325,33 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                   </div>
                 )}
 
-                {/* Action Buttons */}
+                {/* Video metadata inputs - Moved to fixed footer */}
                 {uploadStatus === 'idle' && (
-                  <>
-                    {/* Video metadata inputs */}
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-                      <h5 className="font-bold text-gray-900 text-sm">פרטי הסרטון (אופציונלי)</h5>
-                      <div>
-                        <label className="text-xs text-gray-600 block mb-1">כותרת</label>
-                        <input
-                          type="text"
-                          value={videoTitle}
-                          onChange={(e) => setVideoTitle(e.target.value)}
-                          placeholder="למשל: משחק חופשי, זמן ארוחה..."
-                          className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          dir="rtl"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600 block mb-1">תיאור</label>
-                        <input
-                          type="text"
-                          value={videoDescription}
-                          onChange={(e) => setVideoDescription(e.target.value)}
-                          placeholder="תיאור קצר של הסרטון"
-                          className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          dir="rtl"
-                        />
-                      </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                    <h5 className="font-bold text-gray-900 text-sm">פרטי הסרטון (אופציונלי)</h5>
+                    <div>
+                      <label className="text-xs text-gray-600 block mb-1">כותרת</label>
+                      <input
+                        type="text"
+                        value={videoTitle}
+                        onChange={(e) => setVideoTitle(e.target.value)}
+                        placeholder="למשל: משחק חופשי, זמן ארוחה..."
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        dir="rtl"
+                      />
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* Record Button */}
-                      <button
-                        onClick={toggleRecording}
-                        className="bg-gradient-to-r from-red-500 to-pink-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
-                      >
-                        <Camera className="w-8 h-8" />
-                        <span>צילום וידאו</span>
-                      </button>
-
-                      {/* Upload Button */}
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
-                      >
-                        <Upload className="w-8 h-8" />
-                        <span>העלאת קובץ</span>
-                      </button>
+                    <div>
+                      <label className="text-xs text-gray-600 block mb-1">תיאור</label>
+                      <input
+                        type="text"
+                        value={videoDescription}
+                        onChange={(e) => setVideoDescription(e.target.value)}
+                        placeholder="תיאור קצר של הסרטון"
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        dir="rtl"
+                      />
                     </div>
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="video/*"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                  </>
-                )}
-
-                {/* Recording Controls */}
-                {isRecording && (
-                  <button
-                    onClick={toggleRecording}
-                    className="w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 transition flex items-center justify-center gap-2"
-                  >
-                    <Pause className="w-5 h-5" />
-                    עצור צילום
-                  </button>
+                  </div>
                 )}
 
                 {/* Tips Section */}
@@ -455,7 +413,51 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
             </div>
           )}
         </div>
-        
+
+        {/* Fixed Footer with Action Buttons - Always Visible */}
+        {selectedGuideline && (
+          <div className="border-t border-gray-200 bg-white p-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {/* Upload Buttons - Always visible when in idle state */}
+            {uploadStatus === 'idle' && !isRecording && (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={toggleRecording}
+                  className="bg-gradient-to-r from-red-500 to-pink-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
+                >
+                  <Camera className="w-8 h-8" />
+                  <span>צילום וידאו</span>
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white p-4 rounded-xl font-bold hover:shadow-lg transition flex flex-col items-center gap-2"
+                >
+                  <Upload className="w-8 h-8" />
+                  <span>העלאת קובץ</span>
+                </button>
+              </div>
+            )}
+
+            {/* Recording Controls */}
+            {isRecording && (
+              <button
+                onClick={toggleRecording}
+                className="w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 transition flex items-center justify-center gap-2"
+              >
+                <Pause className="w-5 h-5" />
+                עצור צילום
+              </button>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );

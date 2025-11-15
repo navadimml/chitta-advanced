@@ -244,10 +244,12 @@ cards:
     priority: 85
 
     # When to show - from guidelines ready until 3 videos uploaded
+    # NOTE: Only shows AFTER user has viewed guidelines (to avoid duplicate with guidelines_ready_card)
     display_conditions:
       artifacts.baseline_parent_report.exists: false  # Initial assessment state
       artifacts.baseline_video_guidelines.exists: true
       artifacts.baseline_video_guidelines.status: "ready"
+      user_actions.viewed_guidelines: true  # Only show after initial viewing
       uploaded_video_count: [0, 1, 2]  # Show until all 3 videos uploaded
 
     # Card content
