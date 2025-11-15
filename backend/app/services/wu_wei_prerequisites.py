@@ -44,6 +44,10 @@ class WuWeiPrerequisites:
         Returns true if conversation has accumulated enough understanding.
         This is NOT a percentage check - it's qualitative assessment.
 
+        🔍 Wu Wei Robustness Enhancement:
+        - First checks semantic_verification result if available (LLM-based quality)
+        - Falls back to heuristics if semantic verification not yet run
+
         Criteria (from lifecycle_events.yaml):
         - Has child basic info (name, age)
         - Has at least 2 concerns OR developmental history
@@ -58,6 +62,52 @@ class WuWeiPrerequisites:
         Returns:
             PrerequisiteEvaluation with met=True/False
         """
+
+        # 🔍 NEW: Check semantic verification result first (if available)
+        semantic_verification = context.get("semantic_verification")
+        if semantic_verification:
+            video_readiness = semantic_verification.get('video_guidelines_readiness', 0)
+            recommendation = semantic_verification.get('recommendation', '')
+
+            logger.info(f"🔍 Using semantic verification result:")
+            logger.info(f"   Video guidelines readiness: {video_readiness}%")
+            logger.info(f"   Recommendation: {recommendation}")
+
+            # If semantic check says ready for video guidelines, trust it!
+            if video_readiness >= 75 or recommendation == 'ready_for_video_guidelines':
+                logger.info(f"✅ Semantic verification: READY for video guidelines ({video_readiness}%)")
+                return PrerequisiteEvaluation(
+                    met=True,
+                    missing=[],
+                    details={
+                        "method": "semantic_verification",
+                        "video_readiness": video_readiness,
+                        "recommendation": recommendation
+                    }
+                )
+
+            # If semantic check says not ready, check WHY and return specific feedback
+            elif video_readiness < 60:
+                critical_gaps = semantic_verification.get('critical_gaps', [])
+                missing = [gap.get('field', 'unknown') for gap in critical_gaps]
+
+                logger.info(f"❌ Semantic verification: NOT ready ({video_readiness}%)")
+                logger.info(f"   Critical gaps: {missing}")
+
+                return PrerequisiteEvaluation(
+                    met=False,
+                    missing=missing,
+                    details={
+                        "method": "semantic_verification",
+                        "video_readiness": video_readiness,
+                        "critical_gaps": [gap.get('issue') for gap in critical_gaps]
+                    }
+                )
+
+            # If in middle range (60-74%), fall through to heuristic check as tiebreaker
+            logger.info(f"⚠️ Semantic verification: UNCERTAIN ({video_readiness}%), using heuristic tiebreaker")
+
+        # FALLBACK: Use existing heuristic check (character-based)
         # Extract what we know
         # Treat 'unknown', '(not mentioned yet)', and Hebrew placeholders as missing
         child_name = context.get("child_name")
