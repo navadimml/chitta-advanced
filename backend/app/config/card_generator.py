@@ -133,6 +133,9 @@ class CardGenerator:
             # Handle dotted notation for nested attributes (e.g., "artifacts.video_guidelines.status")
             if "." in condition_key:
                 context_value = self._get_nested_value(context, condition_key)
+                # Debug logging for artifact status checks
+                if card_id == "guidelines_preparing_card" and ".status" in condition_key:
+                    logger.info(f"🔍 Card '{card_id}': checking {condition_key} = {context_value} (expected: {condition_value})")
             else:
                 context_value = context.get(condition_key)
 
@@ -515,6 +518,12 @@ class CardGenerator:
         Returns:
             List of card configurations in frontend-compatible format
         """
+        # Debug logging for artifact status
+        artifacts = context.get("artifacts", {})
+        if "baseline_video_guidelines" in artifacts:
+            guideline_artifact = artifacts["baseline_video_guidelines"]
+            logger.info(f"📊 Evaluating cards: baseline_video_guidelines status = {guideline_artifact.get('status') if isinstance(guideline_artifact, dict) else getattr(guideline_artifact, 'status', 'N/A')}")
+
         visible = []
 
         # 🌟 Wu Wei: Legacy status mapping (for old frontend compatibility)
@@ -529,6 +538,7 @@ class CardGenerator:
 
         for card_id, card in self._cards.items():
             if self.evaluate_display_conditions(card_id, context):
+                logger.info(f"✅ Card '{card_id}' matched display conditions")
                 card_type = card.get("card_type", "guidance")
 
                 # Get content (could be content dict or content_by_state dict)
