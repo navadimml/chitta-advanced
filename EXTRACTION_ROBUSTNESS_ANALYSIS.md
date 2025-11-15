@@ -343,9 +343,9 @@ For extraction to be "rock solid":
 ## 📝 Implementation Priority
 
 1. **HIGH**: Fix 1 - Prominent facts in system prompt ✅ **DONE** (fixes immediate UX)
-2. **HIGH**: Fix 2 - Schema validation (prevents garbage data)
-3. **MEDIUM**: Fix 3 - Extraction verification (alerts to failures)
-4. **MEDIUM**: Fix 5 - Quality metrics (monitoring)
+2. **HIGH**: Fix 2 - Schema validation ✅ **DONE** (prevents garbage data)
+3. **MEDIUM**: Fix 3 - Extraction verification ✅ **DONE** (alerts to failures)
+4. **MEDIUM**: Fix 5 - Quality metrics ✅ **DONE** (monitoring)
 5. **LOW**: Fix 4 - Intent validation (current LLM-based system works, just add validation)
 
 ---
@@ -359,3 +359,52 @@ After fixes:
 - ✅ <1% of conversations require name re-asking
 
 **Wu Wei**: Make the natural path (extraction and usage) so clear and simple that failures become impossible.
+
+---
+
+## 📦 Implementation Summary
+
+### ✅ Completed (2025-11-15)
+
+**Fix 1: Prominent Facts in System Prompt**
+- File: `backend/app/prompts/dynamic_interview_prompt.py`
+- Added `_build_critical_facts_section()` function
+- Facts displayed at TOP of prompt with ✅/❌ visual emphasis
+- Explicit "NEVER ask again" instructions
+- Commit: `086f063` - "Make extraction rock solid: Prominent facts + analysis doc"
+
+**Fix 2: Pydantic Schema Validation**
+- File: `backend/app/services/session_service.py`
+- Added validators to ExtractedData model:
+  * `validate_child_name()` - rejects placeholders, min 2 chars
+  * `validate_age()` - ensures 0-18 range
+  * `validate_gender()` - ensures male/female/unknown
+  * `validate_primary_concerns()` - validates against enum
+- Prevents garbage data from entering system
+- Commit: `0cd363d` - "Make extraction rock solid: Add Pydantic validation + quality metrics"
+
+**Fix 3: Extraction Verification**
+- File: `backend/app/services/session_service.py`
+- Added `_verify_extraction_quality()` method
+- Warns after 3+ exchanges if critical data missing
+- Integrated into `update_extracted_data()`
+- Commit: `0cd363d` - "Make extraction rock solid: Add Pydantic validation + quality metrics"
+
+**Fix 5: Quality Metrics**
+- File: `backend/app/services/session_service.py`
+- Added `get_extraction_quality()` method
+- Returns comprehensive metrics: has_name, has_age, warnings, etc.
+- Useful for monitoring and debugging
+- Commit: `0cd363d` - "Make extraction rock solid: Add Pydantic validation + quality metrics"
+
+### ⏳ Remaining
+
+**Fix 4: Intent Validation** (LOW priority)
+- Current LLM-based system works well
+- Add validation layer when needed
+- Not critical for extraction robustness
+
+**Fix 1-Turn Lag** (MEDIUM priority - not in original list)
+- Extraction happens AFTER conversation response
+- Consider extracting FIRST or using optimistic extraction
+- Or accept lag but ensure history usage is robust (current approach)
