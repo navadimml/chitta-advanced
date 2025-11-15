@@ -1247,22 +1247,47 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
 @router.get("/state/{family_id}")
 async def get_family_state(family_id: str):
     """
-    Get complete family state - the DNA of the system.
-    Everything (cards, greeting, suggestions) derives from this.
+    🌟 Wu Wei: Get complete family state - everything derives from this.
+    Cards are YAML-driven, evaluated from current artifacts and context.
     """
     graphiti = get_mock_graphiti()
     state = graphiti.get_or_create_state(family_id)
 
-    # Derive UI elements from state
+    # Get session and build context for card evaluation
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
+
+    # Build context for YAML-driven card evaluation
+    from app.services.prerequisite_service import get_prerequisite_service
+    from app.config.card_generator import get_card_generator
+
+    prerequisite_service = get_prerequisite_service()
+    card_generator = get_card_generator()
+
+    # Build session data for prerequisite evaluation
+    session_data = {
+        "family_id": family_id,
+        "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+        "message_count": len(session.conversation_history),
+        "artifacts": session.artifacts,
+        "uploaded_video_count": 0,  # TODO: Get from video storage
+    }
+
+    # Get Wu Wei context (includes artifacts, flags, etc.)
+    context = prerequisite_service.get_context_for_cards(session_data)
+
+    # 🌟 Use YAML-driven card evaluation (not hardcoded!)
+    cards = card_generator.get_visible_cards(context)
+
+    # Derive other UI elements
     greeting = derive_contextual_greeting(state)
-    cards = derive_active_cards(state)
     suggestions = derive_suggestions(state)
 
     return {
         "state": state.dict(),
         "ui": {
             "greeting": greeting,
-            "cards": cards,
+            "cards": cards,  # 🌟 Wu Wei: YAML-driven cards
             "suggestions": suggestions
         }
     }
