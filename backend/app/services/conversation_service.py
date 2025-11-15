@@ -333,77 +333,49 @@ class ConversationService:
             logger.debug(f"Using FULL functions for {family_id}")
 
         # 5. Build CONTEXTUAL conversation prompt using proper interview prompts
-        # Use comprehensive prompts that have all the detailed instructions
+        # 🌟 Wu Wei: Single continuous conversation, no "before/after" phases
+        # The conversation naturally flows based on what artifacts exist and what's needed
 
-        # Check if video guidelines already generated (post-interview phase)
-        if session.video_guidelines_generated:
-            # Post-interview: simpler prompt focused on answering questions
-            base_prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic AI assistant.
+        # Use dynamic interview prompt with LLM-based strategic advisor
+        # Natural flow + intelligent strategic awareness
 
-The interview is complete and video filming guidelines have been generated!
+        # Get strategic guidance from LLM analysis of extracted data
+        # This is MUCH smarter than pattern matching!
+        extracted_data_dict = {
+            "child_name": data.child_name,
+            "age": data.age,
+            "gender": data.gender,
+            "primary_concerns": data.primary_concerns,
+            "concern_details": data.concern_details,
+            "strengths": data.strengths,
+            "developmental_history": data.developmental_history,
+            "family_context": data.family_context,
+            "daily_routines": data.daily_routines,
+            "parent_goals": data.parent_goals
+        }
 
-Current status:
-- Child: {data.child_name or "(not mentioned yet)"} (age: {data.age or "(not mentioned yet)"})
-- Interview: ✅ Complete ({session.completeness:.0%})
-- Video guidelines: ✅ Generated and ready
+        # 🌟 Wu Wei: Build prerequisite context for lifecycle awareness
+        # This allows strategic advisor to check what moments are coming next
+        session_data = self._build_session_data_dict(family_id, session)
+        lifecycle_context = self.prerequisite_service.get_context_for_cards(session_data)
 
-Your role now:
-- Answer any questions the parent has about the process, video filming, or next steps
-- Be helpful and supportive
-- If they ask about uploading videos, explain they can use the video upload section
-- Keep responses brief and helpful
+        strategic_guidance = await get_strategic_guidance(
+            self.llm,
+            extracted_data_dict,
+            session.completeness,
+            lifecycle_manager=self.lifecycle_manager,  # 🌟 Pass lifecycle manager
+            context=lifecycle_context  # 🌟 Pass full context for prerequisite evaluation
+        )
 
-Remember: You are an AI assistant. Be transparent about your nature when relevant."""
-
-            # 🌟 INJECT ARTIFACT AWARENESS - Even post-interview, Chitta needs to know what exists
-            artifact_awareness = self._build_artifact_awareness(session)
-            if artifact_awareness:
-                base_prompt += f"""
-
-{artifact_awareness}
-"""
-
-        else:
-            # During interview: use dynamic interview prompt with LLM-based strategic advisor
-            # Natural flow + intelligent strategic awareness
-
-            # Get strategic guidance from LLM analysis of extracted data
-            # This is MUCH smarter than pattern matching!
-            extracted_data_dict = {
-                "child_name": data.child_name,
-                "age": data.age,
-                "gender": data.gender,
-                "primary_concerns": data.primary_concerns,
-                "concern_details": data.concern_details,
-                "strengths": data.strengths,
-                "developmental_history": data.developmental_history,
-                "family_context": data.family_context,
-                "daily_routines": data.daily_routines,
-                "parent_goals": data.parent_goals
-            }
-
-            # 🌟 Wu Wei: Build prerequisite context for lifecycle awareness
-            # This allows strategic advisor to check what moments are coming next
-            session_data = self._build_session_data_dict(family_id, session)
-            lifecycle_context = self.prerequisite_service.get_context_for_cards(session_data)
-
-            strategic_guidance = await get_strategic_guidance(
-                self.llm,
-                extracted_data_dict,
-                session.completeness,
-                lifecycle_manager=self.lifecycle_manager,  # 🌟 Pass lifecycle manager
-                context=lifecycle_context  # 🌟 Pass full context for prerequisite evaluation
-            )
-
-            # Build dynamic prompt with strategic guidance
-            base_prompt = build_dynamic_interview_prompt(
-                child_name=data.child_name or "unknown",
-                age=str(data.age) if data.age else "unknown",
-                gender=data.gender or "unknown",
-                concerns=data.primary_concerns,
-                extracted_data=extracted_data_dict,
-                strategic_guidance=strategic_guidance
-            )
+        # Build dynamic prompt with strategic guidance
+        base_prompt = build_dynamic_interview_prompt(
+            child_name=data.child_name or "unknown",
+            age=str(data.age) if data.age else "unknown",
+            gender=data.gender or "unknown",
+            concerns=data.primary_concerns,
+            extracted_data=extracted_data_dict,
+            strategic_guidance=strategic_guidance
+        )
 
         # 🌟 INJECT ARTIFACT AWARENESS - Critical for sync between lifecycle events and conversation
         # This ensures Chitta knows what artifacts have been generated and can reference them properly
@@ -863,9 +835,9 @@ Call extract_interview_data with information from THIS conversation turn."""
             # 🌟 Wu Wei: Include actual artifacts from session
             "artifacts": session.artifacts,  # Dict[str, Artifact]
 
-            # DEPRECATED: Old field names (for backwards compatibility)
-            "video_guidelines": session.video_guidelines_generated,
-            "video_guidelines_status": "ready" if session.video_guidelines_generated else "pending",
+            # Artifact-based flags (Wu Wei compliant - derived from artifacts, not stored)
+            "video_guidelines": session.has_artifact("baseline_video_guidelines"),
+            "video_guidelines_status": session.get_artifact("baseline_video_guidelines").status if session.get_artifact("baseline_video_guidelines") else "pending",
             "parent_report_id": session.get_artifact("baseline_parent_report").artifact_id if session.has_artifact("baseline_parent_report") else None,
 
             # TODO fields
@@ -1072,7 +1044,7 @@ Call extract_interview_data with information from THIS conversation turn."""
 
         logger.debug(
             f"Generated {len(cards)} context cards using card_generator "
-            f"(phase={session.phase}, completeness={completeness:.1%})"
+            f"(completeness={completeness:.1%}, artifacts={len(session.artifacts)})"
         )
 
         # 🌟 Wu Wei: Notify SSE clients of card changes (real-time updates)

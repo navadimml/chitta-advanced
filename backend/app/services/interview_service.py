@@ -52,10 +52,8 @@ class InterviewState(BaseModel):
     # 🌟 Wu Wei: Artifact storage (replaces boolean flags)
     artifacts: Dict[str, Artifact] = Field(default_factory=dict, description="Generated artifacts keyed by artifact_id")
 
-    # DEPRECATED: Use artifacts["video_guidelines"].exists instead
-    video_guidelines_generated: bool = False
-
-    phase: str = "screening"  # 🌟 Wu Wei: Current workflow phase (screening, ongoing, re_assessment)
+    # 🌟 Wu Wei: No phases - continuous conversation flow
+    # DEPRECATED: phase field removed - workflow state derived from artifacts and context
     created_at: datetime = datetime.now()
     updated_at: datetime = datetime.now()
 
@@ -69,13 +67,13 @@ class InterviewState(BaseModel):
         return artifact is not None and artifact.is_ready
 
     def add_artifact(self, artifact: Artifact):
-        """Add or update an artifact."""
+        """
+        🌟 Wu Wei: Add or update an artifact.
+
+        State is derived from artifacts - no need for separate flags.
+        """
         self.artifacts[artifact.artifact_id] = artifact
         self.updated_at = datetime.now()
-
-        # DEPRECATED: Maintain backwards compatibility
-        if artifact.artifact_id == "baseline_video_guidelines" and artifact.is_ready:
-            self.video_guidelines_generated = True
 
 
 class InterviewService:
