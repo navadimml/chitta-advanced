@@ -14,7 +14,7 @@ This service:
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 # Wu Wei Architecture: Import schema registry for config-driven completeness
 from app.config.schema_registry import get_schema_registry, calculate_completeness as config_calculate_completeness
@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 class ExtractedData(BaseModel):
-    """Structured conversation data extracted from ongoing dialogue"""
+    """Structured conversation data extracted from ongoing dialogue
+
+    🔒 Wu Wei Robustness: Validates extraction data to prevent garbage from entering the system
+    """
     child_name: Optional[str] = None
     age: Optional[float] = None
     gender: Optional[str] = None  # "male", "female", "unknown"
@@ -42,6 +45,79 @@ class ExtractedData(BaseModel):
     # Metadata
     last_updated: datetime = datetime.now()
     extraction_count: int = 0  # How many times data was extracted
+
+    @validator('child_name')
+    def validate_child_name(cls, v):
+        """Reject placeholder values and invalid names"""
+        if v is None:
+            return None
+
+        # List of placeholder values that should be rejected
+        placeholders = [
+            'unknown', 'not mentioned', 'null', 'none',
+            'לא צוין', 'לא ידוע', 'לא נמסר',
+            '(not mentioned yet)', '(unknown)',
+            'not specified', 'n/a', 'na'
+        ]
+
+        if v.lower().strip() in placeholders:
+            logger.warning(f"🚫 Rejected placeholder child_name: '{v}'")
+            return None
+
+        # Name must be at least 2 characters
+        if len(v.strip()) < 2:
+            logger.warning(f"🚫 Rejected too-short child_name: '{v}'")
+            return None
+
+        # Return cleaned name
+        return v.strip()
+
+    @validator('age')
+    def validate_age(cls, v):
+        """Ensure age is in valid range for child development (0-18 years)"""
+        if v is None:
+            return None
+
+        # Age must be between 0 and 18 for child development
+        if v < 0 or v > 18:
+            logger.warning(f"🚫 Rejected out-of-range age: {v} (must be 0-18)")
+            return None
+
+        return v
+
+    @validator('gender')
+    def validate_gender(cls, v):
+        """Ensure gender is one of valid values"""
+        if v is None:
+            return None
+
+        valid_genders = ['male', 'female', 'unknown']
+        if v.lower() not in valid_genders:
+            logger.warning(f"🚫 Rejected invalid gender: '{v}' (must be male/female/unknown)")
+            return 'unknown'  # Default to unknown for invalid values
+
+        return v.lower()
+
+    @validator('primary_concerns')
+    def validate_primary_concerns(cls, v):
+        """Ensure concerns are from valid enum and not placeholders"""
+        if not v:
+            return []
+
+        valid_concerns = [
+            'speech', 'social', 'attention', 'motor', 'sensory',
+            'emotional', 'behavioral', 'learning', 'sleep', 'eating', 'other'
+        ]
+
+        # Filter out invalid concerns
+        validated = []
+        for concern in v:
+            if concern.lower() in valid_concerns:
+                validated.append(concern.lower())
+            else:
+                logger.warning(f"🚫 Rejected invalid concern: '{concern}'")
+
+        return validated
 
 
 class SessionState(BaseModel):
@@ -203,6 +279,9 @@ class SessionService:
             f"extractions={current.extraction_count}"
         )
 
+        # 🔍 Wu Wei Robustness: Verify extraction quality
+        self._verify_extraction_quality(family_id, session, current)
+
         return current
 
     def calculate_completeness(self, family_id: str) -> float:
@@ -254,6 +333,77 @@ class SessionService:
         )
 
         return completeness
+
+    def _verify_extraction_quality(
+        self,
+        family_id: str,
+        session: 'SessionState',
+        data: ExtractedData
+    ):
+        """
+        🔍 Wu Wei Robustness: Verify extraction quality and warn about missing critical data
+
+        This helps catch extraction failures early and provides visibility into data quality.
+        """
+        turns = len(session.conversation_history)
+
+        # After first few turns, we should have basic info
+        if turns >= 6:  # After 3 exchanges (user + assistant = 2 messages per exchange)
+            warnings = []
+
+            if not data.child_name:
+                warnings.append("⚠️ Child name not extracted after 3+ turns")
+
+            if not data.age:
+                warnings.append("⚠️ Child age not extracted after 3+ turns")
+
+            if not data.primary_concerns or len(data.primary_concerns) == 0:
+                warnings.append("⚠️ No primary concerns extracted after 3+ turns")
+
+            for warning in warnings:
+                logger.warning(f"[{family_id}] {warning}")
+
+    def get_extraction_quality(self, family_id: str) -> dict:
+        """
+        🔍 Wu Wei Robustness: Check extraction quality and completeness
+
+        Returns quality metrics showing what's been extracted and what's missing.
+        Useful for monitoring and debugging extraction issues.
+        """
+        session = self.get_or_create_session(family_id)
+        data = session.extracted_data
+        turns = len(session.conversation_history)
+
+        quality = {
+            'has_name': bool(data.child_name),
+            'has_age': bool(data.age),
+            'has_gender': bool(data.gender and data.gender != 'unknown'),
+            'has_concerns': len(data.primary_concerns) > 0,
+            'concern_count': len(data.primary_concerns),
+            'has_concern_details': bool(data.concern_details),
+            'has_strengths': bool(data.strengths),
+            'has_developmental_history': bool(data.developmental_history),
+            'has_family_context': bool(data.family_context),
+            'turns_count': turns,
+            'extraction_count': data.extraction_count,
+            'completeness': session.completeness,
+            'warnings': []
+        }
+
+        # Quality warnings after sufficient conversation
+        if turns >= 6:  # After 3+ exchanges
+            if not quality['has_name']:
+                quality['warnings'].append("Child name not extracted after 3+ turns")
+            if not quality['has_age']:
+                quality['warnings'].append("Child age not extracted after 3+ turns")
+            if not quality['has_concerns']:
+                quality['warnings'].append("No primary concerns extracted after 3+ turns")
+
+        # Success indicators
+        quality['basic_info_complete'] = quality['has_name'] and quality['has_age']
+        quality['concerns_captured'] = quality['has_concerns'] and quality['has_concern_details']
+
+        return quality
 
     def add_conversation_turn(
         self,
