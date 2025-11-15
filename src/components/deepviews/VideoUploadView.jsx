@@ -111,7 +111,7 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-slideUp" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-2xl max-h-[100vh] overflow-hidden flex flex-col animate-slideUp" onClick={(e) => e.stopPropagation()}>
         
         <div className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-5 flex items-center justify-between">
           <h3 className="text-lg font-bold">צילום והעלאת וידאו</h3>
