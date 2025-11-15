@@ -291,11 +291,12 @@ cards:
     card_type: action_needed
     priority: 85
 
-    # When to show
+    # When to show - ongoing progress (1-2 videos uploaded, need more)
     display_conditions:
       artifacts.baseline_parent_report.exists: false  # Initial assessment state
-      video_guidelines_status: ready
-      uploaded_video_count: "< 3"
+      artifacts.baseline_video_guidelines.exists: true
+      artifacts.baseline_video_guidelines.status: "ready"
+      uploaded_video_count: [1, 2]  # Show when 1 or 2 videos uploaded
 
     # Card content
     content:
