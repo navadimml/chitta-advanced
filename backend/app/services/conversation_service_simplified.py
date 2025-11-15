@@ -21,7 +21,7 @@ from .session_service import get_session_service
 from .lifecycle_manager import get_lifecycle_manager
 from .prerequisite_service import get_prerequisite_service
 from ..prompts.comprehensive_prompt_builder import build_comprehensive_prompt
-from ..prompts.interview_functions_comprehensive import INTERVIEW_FUNCTIONS_COMPREHENSIVE
+from ..prompts.conversation_functions import CONVERSATION_FUNCTIONS_COMPREHENSIVE
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ class SimplifiedConversationService:
         logger.info("🤖 Calling main LLM with comprehensive functions")
         llm_response = await self.llm.chat(
             messages=messages,
-            functions=INTERVIEW_FUNCTIONS_COMPREHENSIVE,
+            functions=CONVERSATION_FUNCTIONS_COMPREHENSIVE,
             temperature=temperature,
             max_tokens=2000
         )
