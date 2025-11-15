@@ -772,6 +772,27 @@ Call extract_interview_data with information from THIS conversation turn."""
         session = self.session_service.get_or_create_session(family_id)
         completeness_pct = session.completeness * 100
 
+        # 7.5 🔍 SEMANTIC COMPLETENESS VERIFICATION (Wu Wei Robustness)
+        # Run LLM-based quality check every 3 turns after turn 6
+        # This evaluates actual content quality, not just character counts
+        turn_count = len([msg for msg in session.conversation_history if msg.get('role') == 'user'])
+        should_verify = (
+            turn_count >= 6 and  # After minimum conversation
+            (turn_count - session.semantic_verification_turn) >= 3  # Every 3 turns
+        )
+
+        if should_verify:
+            logger.info(f"🔍 Running semantic completeness verification (turn {turn_count})")
+            semantic_result = await self.session_service.verify_semantic_completeness(family_id)
+
+            # Log the result for visibility
+            if semantic_result.get('video_guidelines_readiness', 0) >= 80:
+                logger.info(f"✅ Ready for video guidelines! ({semantic_result.get('video_guidelines_readiness')}%)")
+            elif semantic_result.get('critical_gaps'):
+                logger.warning(f"⚠️ Critical gaps prevent video guidelines:")
+                for gap in semantic_result.get('critical_gaps', []):
+                    logger.warning(f"   - {gap.get('issue')}")
+
         # 8. Generate context cards based on state
         context_cards = self._generate_context_cards(
             family_id,
@@ -872,6 +893,9 @@ Call extract_interview_data with information from THIS conversation turn."""
 
             # 🌟 Wu Wei: Include actual artifacts from session
             "artifacts": session.artifacts,  # Dict[str, Artifact]
+
+            # 🔍 Wu Wei Robustness: Include semantic verification result
+            "semantic_verification": session.semantic_verification,
 
             # Artifact-based flags (Wu Wei compliant - derived from artifacts, not stored)
             "video_guidelines": session.has_artifact("baseline_video_guidelines"),

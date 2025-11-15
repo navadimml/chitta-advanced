@@ -15,12 +15,21 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, validator
+import json
+import os
 
 # Wu Wei Architecture: Import schema registry for config-driven completeness
 from app.config.schema_registry import get_schema_registry, calculate_completeness as config_calculate_completeness
 
 # Wu Wei Architecture: Import artifact models
 from app.models.artifact import Artifact
+
+# LLM for semantic completeness verification
+from app.services.llm.factory import create_llm_provider
+from app.core.types import Message
+
+# Completeness verification prompt
+from app.prompts.completeness_verification import build_completeness_verification_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -124,11 +133,15 @@ class SessionState(BaseModel):
     """Complete conversation session state for a family"""
     family_id: str
     extracted_data: ExtractedData = ExtractedData()
-    completeness: float = 0.0  # 0.0 to 1.0
+    completeness: float = 0.0  # 0.0 to 1.0 (character-based heuristic)
     conversation_history: List[Dict[str, str]] = []  # List of {role, content}
 
     # 🌟 Wu Wei: Artifact storage (replaces boolean flags)
     artifacts: Dict[str, Artifact] = Field(default_factory=dict, description="Generated artifacts keyed by artifact_id")
+
+    # 🔍 Semantic completeness verification (LLM-based quality assessment)
+    semantic_verification: Optional[Dict[str, Any]] = None  # Result from verify_semantic_completeness()
+    semantic_verification_turn: int = 0  # Last turn when semantic verification was run
 
     # 🌟 Wu Wei: No phases - continuous conversation flow
     # DEPRECATED: phase field removed - workflow state derived from artifacts and context
@@ -163,9 +176,24 @@ class SessionService:
     For now, uses in-memory storage.
     """
 
-    def __init__(self):
+    def __init__(self, llm_provider=None):
         # In-memory storage: family_id -> SessionState
         self.sessions: Dict[str, SessionState] = {}
+
+        # LLM for semantic completeness verification
+        if llm_provider is None:
+            # Create strong LLM for completeness verification
+            strong_model = os.getenv("STRONG_LLM_MODEL", "gemini-2.0-flash-exp")
+            provider_type = os.getenv("LLM_PROVIDER", "gemini")
+            self.verification_llm = create_llm_provider(
+                provider_type=provider_type,
+                model=strong_model,
+                use_enhanced=False
+            )
+            logger.info(f"🔍 Created verification LLM: {strong_model}")
+        else:
+            self.verification_llm = llm_provider
+
         logger.info("SessionService initialized (in-memory mode)")
 
     def get_or_create_session(self, family_id: str) -> SessionState:
@@ -404,6 +432,99 @@ class SessionService:
         quality['concerns_captured'] = quality['has_concerns'] and quality['has_concern_details']
 
         return quality
+
+    async def verify_semantic_completeness(self, family_id: str) -> dict:
+        """
+        🔍 Wu Wei Robustness: Verify completeness using LLM semantic understanding
+
+        Instead of counting characters, this uses an LLM to evaluate whether we have
+        enough USEFUL information for:
+        1. Generating effective video guidelines
+        2. Creating a comprehensive assessment report
+
+        Returns:
+            dict with completeness scores, gaps, and recommendations
+        """
+        session = self.get_or_create_session(family_id)
+        data = session.extracted_data
+
+        # Build extracted data dict
+        extracted_dict = {
+            'child_name': data.child_name,
+            'age': data.age,
+            'gender': data.gender,
+            'primary_concerns': data.primary_concerns,
+            'concern_details': data.concern_details,
+            'strengths': data.strengths,
+            'developmental_history': data.developmental_history,
+            'family_context': data.family_context,
+            'daily_routines': data.daily_routines,
+            'parent_goals': data.parent_goals,
+        }
+
+        # Build verification prompt
+        prompt = build_completeness_verification_prompt(
+            extracted_data=extracted_dict,
+            conversation_history=session.conversation_history
+        )
+
+        try:
+            logger.info(f"🔍 Running semantic completeness verification for {family_id}")
+
+            # Call LLM with JSON mode
+            response = await self.verification_llm.chat(
+                messages=[Message(role="user", content=prompt)],
+                temperature=0.1,  # Low temp for consistent evaluation
+                max_tokens=2000,
+                response_format="json"  # Request JSON output
+            )
+
+            # Parse JSON response
+            result = json.loads(response.content)
+
+            logger.info(f"✅ Semantic verification complete:")
+            logger.info(f"   Overall: {result.get('overall_completeness', 0)}%")
+            logger.info(f"   Video guidelines ready: {result.get('video_guidelines_readiness', 0)}%")
+            logger.info(f"   Report ready: {result.get('comprehensive_report_readiness', 0)}%")
+            logger.info(f"   Recommendation: {result.get('recommendation', 'unknown')}")
+
+            # Log critical gaps
+            critical_gaps = result.get('critical_gaps', [])
+            if critical_gaps:
+                logger.warning(f"   Critical gaps: {len(critical_gaps)}")
+                for gap in critical_gaps:
+                    logger.warning(f"      - {gap.get('field')}: {gap.get('issue')}")
+
+            # Store result in session state
+            turn_count = len([msg for msg in session.conversation_history if msg.get('role') == 'user'])
+            session.semantic_verification = result
+            session.semantic_verification_turn = turn_count
+            session.updated_at = datetime.now()
+
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse LLM response as JSON: {e}")
+            logger.error(f"   Response content: {response.content[:200]}")
+            # Return fallback result
+            return {
+                "overall_completeness": session.completeness * 100,
+                "video_guidelines_readiness": session.completeness * 100,
+                "comprehensive_report_readiness": session.completeness * 100,
+                "recommendation": "continue_conversation",
+                "error": "Failed to parse LLM response"
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error in semantic completeness verification: {e}", exc_info=True)
+            # Return fallback result
+            return {
+                "overall_completeness": session.completeness * 100,
+                "video_guidelines_readiness": session.completeness * 100,
+                "comprehensive_report_readiness": session.completeness * 100,
+                "recommendation": "continue_conversation",
+                "error": str(e)
+            }
 
     def add_conversation_turn(
         self,
