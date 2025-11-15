@@ -274,12 +274,12 @@ def _build_strategic_guidance(
 
     has_name = bool(extracted_data.get('child_name'))
     has_age = bool(extracted_data.get('age'))
-    has_concerns = len(extracted_data.get('primary_concerns', [])) > 0
-    has_details = len(extracted_data.get('concern_details', '')) > 50
-    has_strengths = len(extracted_data.get('strengths', '')) > 20
-    has_history = len(extracted_data.get('developmental_history', '')) > 30
-    has_family = len(extracted_data.get('family_context', '')) > 30
-    has_routines = len(extracted_data.get('daily_routines', '')) > 30
+    has_concerns = len(extracted_data.get('primary_concerns') or []) > 0
+    has_details = len(extracted_data.get('concern_details') or '') > 50
+    has_strengths = len(extracted_data.get('strengths') or '') > 20
+    has_history = len(extracted_data.get('developmental_history') or '') > 30
+    has_family = len(extracted_data.get('family_context') or '') > 30
+    has_routines = len(extracted_data.get('daily_routines') or '') > 30
 
     guidance = []
 
