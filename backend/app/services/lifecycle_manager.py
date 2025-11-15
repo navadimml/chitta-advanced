@@ -51,6 +51,10 @@ class LifecycleManager:
         # Track previous state to detect transitions
         self._previous_states: Dict[str, Dict[str, bool]] = {}
 
+        # Track generation attempts to prevent infinite loops
+        self._generation_attempts: Dict[str, Dict[str, int]] = {}  # {family_id: {artifact_id: attempt_count}}
+        self._max_generation_attempts = 3  # Maximum retry attempts per artifact
+
         logger.info(
             f"🌟 LifecycleManager initialized with simplified Wu Wei configuration: "
             f"{len(self.config.get('moments', {}))} moments, "
@@ -154,7 +158,7 @@ class LifecycleManager:
             just_became_ready = prereqs_met and not was_met
 
             # SPECIAL CASE: If artifact doesn't exist OR is empty, retry generation
-            # regardless of previous state (handles failed generations)
+            # But limit retries to prevent infinite loops!
             artifact_is_invalid = False
             if artifact_id and session.has_artifact(artifact_id):
                 # Check if artifact is empty (specific validation for guidelines)
@@ -173,15 +177,30 @@ class LifecycleManager:
                     except Exception as e:
                         logger.warning(f"  ↳ Failed to validate artifact: {e}")
 
+            # Check retry attempts for this artifact
+            if family_id not in self._generation_attempts:
+                self._generation_attempts[family_id] = {}
+
+            attempt_count = self._generation_attempts[family_id].get(artifact_id, 0)
+            max_attempts_reached = attempt_count >= self._max_generation_attempts
+
             should_retry_artifact = (
                 artifact_id and  # Moment generates artifact
                 prereqs_met and  # Prerequisites are met
-                (not session.has_artifact(artifact_id) or artifact_is_invalid)  # Artifact missing OR empty
+                (not session.has_artifact(artifact_id) or artifact_is_invalid) and  # Artifact missing OR empty
+                not max_attempts_reached  # Haven't exceeded retry limit
             )
 
             logger.info(f"  ↳ Was previously met: {was_met}, Just became ready: {just_became_ready}")
+            logger.info(f"  ↳ Attempt count: {attempt_count}/{self._max_generation_attempts}")
+
             if should_retry_artifact and not just_became_ready:
-                if artifact_is_invalid:
+                if max_attempts_reached:
+                    logger.error(
+                        f"  ⚠️ Max retry attempts ({self._max_generation_attempts}) reached for {artifact_id}. "
+                        f"Skipping further retries. Check generation errors."
+                    )
+                elif artifact_is_invalid:
                     logger.info(f"  ↳ Artifact invalid (empty) despite prereqs met - will retry generation")
                 else:
                     logger.info(f"  ↳ Artifact missing despite prereqs met - will retry generation")
@@ -241,6 +260,12 @@ class LifecycleManager:
                     from app.models.artifact import Artifact
                     from datetime import datetime
 
+                    # Increment attempt counter
+                    if family_id not in self._generation_attempts:
+                        self._generation_attempts[family_id] = {}
+                    self._generation_attempts[family_id][artifact_id] = attempt_count + 1
+                    logger.info(f"📊 Incrementing attempt counter: {artifact_id} → {attempt_count + 1}")
+
                     # Create placeholder artifact with "generating" status
                     # This ensures the card appears IMMEDIATELY in the UI
                     placeholder = Artifact(
@@ -248,7 +273,11 @@ class LifecycleManager:
                         artifact_type=artifact_id,
                         status="generating",
                         content=None,  # No content yet
-                        metadata={"message": "מכין הנחיות..."},
+                        metadata={
+                            "message": "מכין הנחיות...",
+                            "attempt_count": attempt_count + 1,
+                            "max_attempts": self._max_generation_attempts
+                        },
                         created_at=datetime.now()
                     )
                     session.add_artifact(placeholder)
@@ -267,7 +296,7 @@ class LifecycleManager:
 
                     # Track that generation started (for logging)
                     artifacts_generated.append(f"{artifact_id}:generating")
-                    logger.info(f"🚀 Started background generation of {artifact_id} (non-blocking)")
+                    logger.info(f"🚀 Started background generation of {artifact_id} (non-blocking, attempt {attempt_count + 1})")
 
 
             elif prereqs_met:

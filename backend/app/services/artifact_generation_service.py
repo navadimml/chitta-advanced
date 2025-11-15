@@ -101,7 +101,36 @@ class ArtifactGenerationService:
             # Generate using LLM (or fallback to template if no LLM)
             if self.llm_provider:
                 logger.info("📝 Using two-stage LLM generation for video guidelines")
-                content = await self._generate_guidelines_with_llm(session_data)
+                try:
+                    content = await self._generate_guidelines_with_llm(session_data)
+                except Exception as llm_error:
+                    logger.error(
+                        f"❌ LLM generation failed: {llm_error}. "
+                        f"Falling back to template generation.",
+                        exc_info=True
+                    )
+                    # Fallback to template if LLM fails
+                    child_name = session_data.get("child_name", "ילד/ה")
+                    age = session_data.get("age", "")
+                    age_str = f"{age} שנים" if age else "גיל לא צוין"
+                    concerns = session_data.get("primary_concerns", [])
+                    concern_details = session_data.get("concern_details", "")
+
+                    # Generate template-based guidelines
+                    template_content = self._generate_guidelines_template(
+                        child_name=child_name,
+                        age_str=age_str,
+                        concerns=concerns,
+                        concern_details=concern_details
+                    )
+
+                    # Convert to JSON format for consistency
+                    content = self._convert_template_to_json_format(
+                        template_content,
+                        child_name,
+                        age_str
+                    )
+                    artifact.generation_model = "template_fallback"
             else:
                 logger.info("📝 Using template generation (no LLM provider)")
                 # Fallback to template
@@ -111,21 +140,30 @@ class ArtifactGenerationService:
                 concerns = session_data.get("primary_concerns", [])
                 concern_details = session_data.get("concern_details", "")
 
-                content = self._generate_guidelines_template(
+                template_content = self._generate_guidelines_template(
                     child_name=child_name,
                     age_str=age_str,
                     concerns=concerns,
                     concern_details=concern_details
                 )
 
+                # Convert to JSON format
+                content = self._convert_template_to_json_format(
+                    template_content,
+                    child_name,
+                    age_str
+                )
+                artifact.generation_model = "template"
+
             # Mark artifact as ready
             artifact.mark_ready(content)
             artifact.generation_duration_seconds = time.time() - start_time
-            artifact.generation_model = getattr(self.llm_provider, "model_name", "template") if self.llm_provider else "template"
+            if not hasattr(artifact, 'generation_model'):
+                artifact.generation_model = getattr(self.llm_provider, "model_name", "template") if self.llm_provider else "template"
 
             logger.info(
                 f"✅ Video guidelines generated successfully in {artifact.generation_duration_seconds:.2f}s "
-                f"({len(content)} chars)"
+                f"({len(content)} chars, model: {artifact.generation_model})"
             )
 
         except Exception as e:
@@ -984,6 +1022,83 @@ The extracted JSON will appear here:
 
         # No markdown blocks found, return original text
         return text
+
+    def _convert_template_to_json_format(
+        self,
+        markdown_content: str,
+        child_name: str,
+        age_str: str
+    ) -> str:
+        """
+        Convert template markdown to JSON format expected by frontend.
+
+        This ensures template fallback provides the same structure as LLM generation.
+        Frontend expects: { introduction, scenarios, general_tips, child_name }
+        """
+        import json
+
+        # Create 3 standard scenarios for template-based guidelines
+        scenarios = [
+            {
+                "title": "משחק חופשי",
+                "context": "תרחיש 1",
+                "what_to_film": f"צלמו את {child_name} במשחק חופשי - בבית, בגן, או בכל מקום שנוח. המטרה היא לראות איך {child_name} מתנהל/ת במצב זה.",
+                "what_to_look_for": [
+                    "איך הילד/ה בוחר/ת פעילות",
+                    "משך זמן הקשב לפעילות",
+                    "תגובות לסביבה"
+                ],
+                "duration": "2-5 דקות",
+                "examples": [
+                    "משחק עם צעצועים בסלון",
+                    "פעילות יצירתית בשולחן"
+                ]
+            },
+            {
+                "title": "אינטראקציה חברתית",
+                "context": "תרחיש 2",
+                "what_to_film": f"צלמו אינטראקציה של {child_name} עם אדם אחר - זה יכול להיות אח/ות, הורה, או חבר/ה.",
+                "what_to_look_for": [
+                    "איכות התקשורת",
+                    "יוזמה חברתית",
+                    "תגובתיות לאחר"
+                ],
+                "duration": "2-5 דקות",
+                "examples": [
+                    "משחק משותף עם ילד אחר",
+                    "שיחה עם מבוגר"
+                ]
+            },
+            {
+                "title": "פעילות יומיומית",
+                "context": "תרחיש 3",
+                "what_to_film": f"כל פעילות יומיומית שבה {child_name} עוסק/ת באופן טבעי - אוכל, משחק, הכנה לשינה וכד'.",
+                "what_to_look_for": [
+                    "עצמאות בביצוע",
+                    "התארגנות",
+                    "ויסות עצמי"
+                ],
+                "duration": "2-5 דקות",
+                "examples": [
+                    "ארוחה משפחתית",
+                    "משחק בחצר",
+                    "זמן קריאה"
+                ]
+            }
+        ]
+
+        return json.dumps({
+            "introduction": f"הנחיות צילום מותאמות עבור {child_name}",
+            "scenarios": scenarios,
+            "general_tips": [
+                "צילום טבעי - אל תבקשו מהילד/ה לעשות משהו מיוחד",
+                "2-5 דקות לכל סרטון",
+                "מיקוד על פני וגוף הילד/ה",
+                "תאורה טבעית היא הכי טובה"
+            ],
+            "estimated_duration": "2-5 דקות לסרטון",
+            "child_name": child_name
+        }, ensure_ascii=False)
 
     def _get_stage1_extraction_schema(self) -> dict:
         """
