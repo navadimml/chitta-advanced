@@ -180,40 +180,88 @@ if session.conversation_history > 3:  # After initial exchanges
 
 ---
 
-### Fix 4: Simplify Intent Detection
+### Fix 4: Make Intent Detection Robust (NOT with keywords!)
 
-**Remove**: Complex Sage/Hand architecture for basic cases
+**WRONG Approach**: ❌ Keyword matching - brittle, breaks easily
+**RIGHT Approach**: ✅ Use LLM (what it's good at) + validation
 
-**Use**: Simple pattern matching + LLM validation
+The current Sage/Hand system already uses LLM for intent detection. That's good!
+
+**What needs fixing**:
+1. ❌ Too many separate LLM calls (Sage, Hand, Strategic Guidance)
+2. ❌ No validation of detected intents
+3. ❌ No fallback when intent detection fails
+
+**Wu Wei Solution**: Keep LLM-based detection, add validation
 
 ```python
-def detect_intent_robust(message: str, extracted_data: dict) -> Intent:
-    """Rock-solid intent detection with validation"""
+async def detect_intent_robust(
+    message: str,
+    conversation_history: List[Dict],
+    extracted_data: Dict
+) -> Intent:
+    """
+    Robust intent detection using LLM + validation
 
-    # 1. Simple keyword matching for common intents
-    keywords = {
-        'view_report': ['דוח', 'תוצאות', 'לראות את'],
-        'upload_video': ['וידאו', 'סרטון', 'להעלות'],
-        'consultation': ['שאלה', 'להתייעץ', 'לדבר'],
-    }
+    Wu Wei: Use LLM's natural language understanding,
+    validate results, provide safe fallbacks
+    """
 
-    for intent, words in keywords.items():
-        if any(word in message for word in words):
-            # Found keyword match
-            # 2. Verify with prerequisite check
-            if prerequisite_met(intent, extracted_data):
-                return Intent(type=intent, confidence=0.9)
+    # 1. Use LLM to detect intent (natural language understanding)
+    #    Single call with rich context
+    intent_result = await llm.detect_intent(
+        message=message,
+        recent_history=conversation_history[-3:],  # Last 3 turns for context
+        known_facts=extracted_data,
+        available_actions=get_available_actions(extracted_data)
+    )
 
-    # 3. Fall back to LLM for ambiguous cases
-    llm_intent = await llm_detect_intent(message)
+    # 2. Validate detected intent
+    validation = validate_intent(
+        intent=intent_result,
+        prerequisites=get_prerequisites(intent_result.type),
+        current_state=extracted_data
+    )
 
-    # 4. Validate LLM result
-    if validate_intent(llm_intent, extracted_data):
-        return llm_intent
+    if not validation.is_valid:
+        logger.warning(f"Intent {intent_result.type} invalid: {validation.reason}")
+        # 3. Safe fallback: conversation mode
+        return Intent(type='conversation', confidence=1.0)
 
-    # 5. Default: conversation mode
-    return Intent(type='conversation', confidence=1.0)
+    # 4. Return validated intent
+    return intent_result
+
+
+def validate_intent(intent: Intent, prerequisites: Dict, current_state: Dict) -> Validation:
+    """
+    Validate intent can actually be executed
+
+    Example: Can't view report if no report exists
+    """
+    if intent.type == 'view_report':
+        if not current_state.get('report_ready'):
+            return Validation(
+                is_valid=False,
+                reason="Report not ready yet - interview incomplete"
+            )
+
+    if intent.type == 'upload_video':
+        if not current_state.get('guidelines_generated'):
+            return Validation(
+                is_valid=False,
+                reason="Need to complete interview first"
+            )
+
+    # All checks passed
+    return Validation(is_valid=True, reason="Prerequisites met")
 ```
+
+**Key Principles**:
+- ✅ Use LLM for what it's good at (natural language understanding)
+- ✅ Validate results before acting
+- ✅ Provide safe fallbacks (default to conversation)
+- ✅ Check prerequisites before allowing actions
+- ❌ NO keyword matching - that's brittle and breaks easily
 
 ---
 
@@ -294,11 +342,11 @@ For extraction to be "rock solid":
 
 ## 📝 Implementation Priority
 
-1. **HIGH**: Fix 1 - Prominent facts in system prompt (fixes immediate UX)
+1. **HIGH**: Fix 1 - Prominent facts in system prompt ✅ **DONE** (fixes immediate UX)
 2. **HIGH**: Fix 2 - Schema validation (prevents garbage data)
 3. **MEDIUM**: Fix 3 - Extraction verification (alerts to failures)
 4. **MEDIUM**: Fix 5 - Quality metrics (monitoring)
-5. **LOW**: Fix 4 - Simplify intent (can do later)
+5. **LOW**: Fix 4 - Intent validation (current LLM-based system works, just add validation)
 
 ---
 
