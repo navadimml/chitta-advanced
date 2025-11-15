@@ -15,7 +15,7 @@ from datetime import datetime
 
 from .llm.base import Message, BaseLLMProvider
 from .llm.factory import create_llm_provider
-from .interview_service import InterviewState, get_interview_service, InterviewService
+from .session_service import SessionState, get_session_service, SessionService
 from .prerequisite_service import get_prerequisite_service, PrerequisiteService
 from .knowledge_service import get_knowledge_service, KnowledgeService
 from .consultation_service import get_consultation_service, ConsultationService
@@ -53,7 +53,7 @@ class ConversationService:
         self,
         llm_provider: Optional[BaseLLMProvider] = None,
         extraction_llm_provider: Optional[BaseLLMProvider] = None,
-        interview_service: Optional[InterviewService] = None,
+        session_service: Optional[SessionService] = None,
         prerequisite_service: Optional[PrerequisiteService] = None,
         knowledge_service: Optional[KnowledgeService] = None,
         consultation_service: Optional[ConsultationService] = None,
@@ -71,7 +71,7 @@ class ConversationService:
         # Extraction uses stronger model (e.g., flash-exp or pro) for accuracy
         self.extraction_llm = extraction_llm_provider or self._create_extraction_llm()
 
-        self.interview_service = interview_service or get_interview_service()
+        self.session_service = session_service or get_session_service()
         self.prerequisite_service = prerequisite_service or get_prerequisite_service()
         self.knowledge_service = knowledge_service or get_knowledge_service()
         self.consultation_service = consultation_service or get_consultation_service()  # 🌟 Universal consultation handler
@@ -139,7 +139,7 @@ class ConversationService:
         logger.info(f"Processing message for family {family_id}: {user_message[:50]}...")
 
         # 1. Get current interview state
-        session = self.interview_service.get_or_create_session(family_id)
+        session = self.session_service.get_or_create_session(family_id)
         data = session.extracted_data
 
         # 2. SAGE → HAND ARCHITECTURE (Wu Wei interpretive reasoning)
@@ -153,7 +153,7 @@ class ConversationService:
 
         # Build rich context for Sage interpretation
         # 1. Recent conversation (to understand dialogue flow)
-        recent_history = self.interview_service.get_conversation_history(
+        recent_history = self.session_service.get_conversation_history(
             family_id,
             last_n=8  # Last 4 exchanges
         )
@@ -258,7 +258,7 @@ class ConversationService:
                     None,
                     None
                 ),
-                "stats": self.interview_service.get_session_stats(family_id),
+                "stats": self.session_service.get_session_stats(family_id),
                 "consultation": {
                     "sources_used": consultation_result["sources_used"],
                     "timestamp": consultation_result["timestamp"]
@@ -323,7 +323,7 @@ class ConversationService:
 
         # 4. Determine which functions to use (for extraction call later)
         model_name = getattr(self.llm, 'model_name', 'unknown')
-        use_lite = self.interview_service.should_use_lite_mode(family_id, model_name)
+        use_lite = self.session_service.should_use_lite_mode(family_id, model_name)
 
         if use_lite:
             functions = INTERVIEW_FUNCTIONS_LITE
@@ -446,7 +446,7 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
         # 6. Build conversation messages
         # Add recent conversation history (last 20 turns)
         # Increased from 20 to 40 to reduce context loss glitches
-        history = self.interview_service.get_conversation_history(
+        history = self.session_service.get_conversation_history(
             family_id,
             last_n=40  # Last 20 exchanges (user + assistant)
         )
@@ -532,7 +532,7 @@ Continue the conversation naturally."""
                 simple_messages = [Message(role="system", content=simple_system)]
 
                 # Add last 10 conversation turns
-                recent_history = self.interview_service.get_conversation_history(
+                recent_history = self.session_service.get_conversation_history(
                     family_id,
                     last_n=10
                 )
@@ -565,7 +565,7 @@ Continue the conversation naturally."""
 
             # CALL 2: Extract structured data from conversation
             # Create dedicated extraction context with current state
-            session = self.interview_service.get_or_create_session(family_id)
+            session = self.session_service.get_or_create_session(family_id)
             current_data = session.extracted_data
 
             extraction_system = f"""Extract structured information from this conversation turn.
@@ -622,7 +622,7 @@ Call extract_interview_data with information from THIS conversation turn."""
             extraction_messages = [Message(role="system", content=extraction_system)]
 
             # Get previous exchange for context (just 2 messages)
-            recent_history = self.interview_service.get_conversation_history(
+            recent_history = self.session_service.get_conversation_history(
                 family_id,
                 last_n=2  # Just previous exchange for continuity
             )
@@ -690,14 +690,14 @@ Call extract_interview_data with information from THIS conversation turn."""
 
                 # Update extracted data
                 # Note: If LLM doesn't get the name, it will ask naturally in the conversation
-                updated_data = self.interview_service.update_extracted_data(
+                updated_data = self.session_service.update_extracted_data(
                     family_id,
                     func_call.arguments
                 )
                 extraction_summary = func_call.arguments
 
                 # Get current completeness and show what was updated
-                session = self.interview_service.get_or_create_session(family_id)
+                session = self.session_service.get_or_create_session(family_id)
                 logger.info(f"✅ DATA UPDATED - Completeness: {session.completeness:.1%}")
                 logger.info(f"   - Extraction count: {updated_data.extraction_count}")
                 logger.info(f"   - Current data summary:")
@@ -719,19 +719,19 @@ Call extract_interview_data with information from THIS conversation turn."""
                 logger.info(f"Completeness check: {completeness_check}")
 
         # 6. Save conversation turn
-        self.interview_service.add_conversation_turn(
+        self.session_service.add_conversation_turn(
             family_id,
             role="user",
             content=user_message
         )
-        self.interview_service.add_conversation_turn(
+        self.session_service.add_conversation_turn(
             family_id,
             role="assistant",
             content=llm_response.content
         )
 
         # 7. Get updated session state
-        session = self.interview_service.get_or_create_session(family_id)
+        session = self.session_service.get_or_create_session(family_id)
         completeness_pct = session.completeness * 100
 
         # 8. Generate context cards based on state
@@ -786,7 +786,7 @@ Call extract_interview_data with information from THIS conversation turn."""
                 "completeness": completeness_pct,
                 "extracted_data": extraction_summary,
                 "context_cards": context_cards,
-                "stats": self.interview_service.get_session_stats(family_id),
+                "stats": self.session_service.get_session_stats(family_id),
                 "lifecycle_event": event["event_name"]  # Signal which event occurred
             }
 
@@ -800,23 +800,23 @@ Call extract_interview_data with information from THIS conversation turn."""
             "completeness": completeness_pct,
             "extracted_data": extraction_summary,
             "context_cards": context_cards,
-            "stats": self.interview_service.get_session_stats(family_id)
+            "stats": self.session_service.get_session_stats(family_id)
         }
 
     def _build_session_data_dict(
         self,
         family_id: str,
-        session: 'InterviewState'
+        session: 'SessionState'
     ) -> Dict[str, Any]:
         """
         🌟 Wu Wei: Build session_data dict for prerequisite_service
 
-        Transforms InterviewState → session_data format expected by
+        Transforms SessionState → session_data format expected by
         prerequisite_service.get_context_for_cards()
 
         Args:
             family_id: Family identifier
-            session: InterviewState object
+            session: SessionState object
 
         Returns:
             Session data dict with extracted_data, artifacts, flags, etc.
@@ -1026,7 +1026,7 @@ Call extract_interview_data with information from THIS conversation turn."""
         Returns:
             List of card dicts for frontend
         """
-        session = self.interview_service.get_or_create_session(family_id)
+        session = self.session_service.get_or_create_session(family_id)
 
         # 🌟 Wu Wei: Build session_data and let prerequisite_service build context
         session_data = self._build_session_data_dict(family_id, session)
@@ -1156,13 +1156,13 @@ Call extract_interview_data with information from THIS conversation turn."""
 
     async def get_session_summary(self, family_id: str) -> Dict[str, Any]:
         """Get a summary of the current session state"""
-        stats = self.interview_service.get_session_stats(family_id)
-        session = self.interview_service.get_or_create_session(family_id)
+        stats = self.session_service.get_session_stats(family_id)
+        session = self.session_service.get_or_create_session(family_id)
 
         return {
             **stats,
-            "context_summary": self.interview_service.get_context_summary(family_id),
-            "recent_messages": self.interview_service.get_conversation_history(
+            "context_summary": self.session_service.get_context_summary(family_id),
+            "recent_messages": self.session_service.get_conversation_history(
                 family_id,
                 last_n=6
             )
