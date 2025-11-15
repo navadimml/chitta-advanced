@@ -22,6 +22,7 @@ from datetime import datetime
 from app.config.config_loader import load_lifecycle_events
 from app.services.wu_wei_prerequisites import WuWeiPrerequisites
 from app.services.artifact_generation_service import ArtifactGenerationService
+from app.services.sse_notifier import get_sse_notifier
 
 logger = logging.getLogger(__name__)
 
@@ -583,10 +584,33 @@ class LifecycleManager:
                     f"✅ Background generation complete: {artifact_id} "
                     f"({len(artifact.content)} chars) - artifact now available in session"
                 )
+
+                # 🌟 Wu Wei: Notify SSE clients that artifact is ready
+                import asyncio
+                sse_notifier = get_sse_notifier()
+                asyncio.create_task(
+                    sse_notifier.notify_artifact_updated(
+                        family_id,
+                        artifact_id,
+                        "ready",
+                        artifact.content
+                    )
+                )
             else:
                 logger.error(
                     f"❌ Background generation failed: {artifact_id}: "
                     f"{artifact.error_message if artifact else 'Unknown error'}"
+                )
+
+                # Notify SSE clients of failure
+                import asyncio
+                sse_notifier = get_sse_notifier()
+                asyncio.create_task(
+                    sse_notifier.notify_artifact_updated(
+                        family_id,
+                        artifact_id,
+                        "error"
+                    )
                 )
 
         except Exception as e:
