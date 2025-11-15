@@ -101,7 +101,9 @@ class SimplifiedConversationService:
             },
             completeness=session.completeness,
             available_artifacts=available_artifacts,
-            message_count=message_count
+            message_count=message_count,
+            session=session,
+            lifecycle_manager=self.lifecycle_manager
         )
 
         # 3. Get conversation history
