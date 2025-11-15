@@ -23,6 +23,7 @@ from .artifact_generation_service import ArtifactGenerationService
 from .lifecycle_manager import get_lifecycle_manager, LifecycleManager  # 🌟 Wu Wei: Core dependency graph processor
 from .sage_service import get_sage_service, SageService, SageWisdom  # 🌟 Wu Wei: Interpretive reasoning layer
 from .hand_service import get_hand_service, HandService, ActionMode  # 🌟 Wu Wei: Action decision layer
+from .sse_notifier import get_sse_notifier  # 🌟 Wu Wei: Real-time state updates
 from ..config.artifact_manager import get_artifact_manager
 from ..prompts.interview_prompt import build_interview_prompt
 from ..prompts.dynamic_interview_prompt import build_dynamic_interview_prompt
@@ -1072,6 +1073,14 @@ Call extract_interview_data with information from THIS conversation turn."""
         logger.debug(
             f"Generated {len(cards)} context cards using card_generator "
             f"(phase={session.phase}, completeness={completeness:.1%})"
+        )
+
+        # 🌟 Wu Wei: Notify SSE clients of card changes (real-time updates)
+        import asyncio
+        sse_notifier = get_sse_notifier()
+        # Use create_task to avoid blocking conversation flow
+        asyncio.create_task(
+            sse_notifier.notify_cards_updated(family_id, cards)
         )
 
         return cards
