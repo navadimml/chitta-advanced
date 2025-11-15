@@ -243,27 +243,29 @@ cards:
     card_type: action_needed
     priority: 86
 
-    # When to show - after viewing guidelines, before first upload
+    # When to show - after guidelines ready, before report generation
     display_conditions:
       artifacts.baseline_parent_report.exists: false  # Initial assessment state
       artifacts.baseline_video_guidelines.exists: true
-      user_actions.viewed_guidelines: true
+      artifacts.baseline_video_guidelines.status: "ready"
       uploaded_video_count: 0
 
     # Card content
     content:
-      title: "מוכנ/ה להעלות סרטונים? 📹"
+      title: "🎬 הגיע הזמן להקליט!"
       body: |
-        קראת את ההנחיות - אפשר להתחיל! ✨
+        ההנחיות מוכנות - עכשיו אפשר להקליט סרטונים ישירות באפליקציה!
 
-        **מה אני מחפשת:**
+        **למה להקליט כאן?**
+        • הנחיות מותאמות בדיוק למה שצריך
+        • צילום או העלאה מהגלריה
+        • הכל מאובטח ופרטי
+
+        **מה להקליט?**
         {guidelines_brief_summary}
 
-        **כמה סרטונים צריך?**
-        3 סרטונים קצרים (2-5 דקות כל אחד) במצבים שונים.
-
-        **איך מעלים?**
-        לחצי על "העלי סרטונים" ובחרי את הסרטונים מהגלריה או צלמי חדשים.
+        **כמה סרטונים?**
+        3 סרטונים קצרים (2-5 דקות כל אחד)
 
       guidelines_brief_summary:
         source: video_guidelines_artifact
