@@ -31,6 +31,11 @@ features:
   # Minimum turn count before semantic verification starts
   semantic_verification_min_turns: 6
 
+  # Semantic verification thresholds (implemented in wu_wei_prerequisites.py):
+  # - Ready for video guidelines: >= 90% (increased from 75% for better quality)
+  # - Not ready: < 70% (increased from 60% for more thorough conversations)
+  # - Uncertain range: 70-89% (falls through to heuristic check)
+
   # Enable demo mode
   demo_mode: true
 

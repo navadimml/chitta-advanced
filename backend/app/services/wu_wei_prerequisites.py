@@ -74,7 +74,8 @@ class WuWeiPrerequisites:
             logger.info(f"   Recommendation: {recommendation}")
 
             # If semantic check says ready for video guidelines, trust it!
-            if video_readiness >= 75 or recommendation == 'ready_for_video_guidelines':
+            # Increased threshold from 75% to 90% to ensure better quality conversations
+            if video_readiness >= 90 or recommendation == 'ready_for_video_guidelines':
                 logger.info(f"✅ Semantic verification: READY for video guidelines ({video_readiness}%)")
                 return PrerequisiteEvaluation(
                     met=True,
@@ -87,7 +88,8 @@ class WuWeiPrerequisites:
                 )
 
             # If semantic check says not ready, check WHY and return specific feedback
-            elif video_readiness < 60:
+            # Increased threshold from 60% to 70% for more thorough conversations
+            elif video_readiness < 70:
                 critical_gaps = semantic_verification.get('critical_gaps', [])
                 missing = [gap.get('field', 'unknown') for gap in critical_gaps]
 
@@ -104,7 +106,7 @@ class WuWeiPrerequisites:
                     }
                 )
 
-            # If in middle range (60-74%), fall through to heuristic check as tiebreaker
+            # If in middle range (70-89%), fall through to heuristic check as tiebreaker
             logger.info(f"⚠️ Semantic verification: UNCERTAIN ({video_readiness}%), using heuristic tiebreaker")
 
         # FALLBACK: Use existing heuristic check (character-based)
