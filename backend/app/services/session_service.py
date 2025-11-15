@@ -26,7 +26,7 @@ from app.models.artifact import Artifact
 
 # LLM for semantic completeness verification
 from app.services.llm.factory import create_llm_provider
-from app.core.types import Message
+from app.services.llm.base import Message
 
 # Completeness verification prompt
 from app.prompts.completeness_verification import build_completeness_verification_prompt
