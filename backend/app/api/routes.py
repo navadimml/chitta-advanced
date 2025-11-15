@@ -3,9 +3,12 @@ API Routes for Chitta
 """
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import asyncio
+import json
 
 from app.core.app_state import app_state
 from app.services.llm.base import Message
@@ -25,6 +28,8 @@ from app.services.state_derivation import (
 )
 # Parent Simulator (Test Mode)
 from app.services.parent_simulator import get_parent_simulator
+# SSE for real-time updates
+from app.services.sse_notifier import get_sse_notifier
 
 router = APIRouter()
 
@@ -254,15 +259,18 @@ async def send_message(request: SendMessageRequest):
                 "ready_at": artifact.ready_at.isoformat() if artifact.ready_at else None
             }
 
-        # Get current state and derive UI elements
+        # Get current state for derived suggestions (keep legacy compatibility)
         state = graphiti.get_or_create_state(request.family_id)
-        derived_cards = derive_active_cards(state)
         derived_suggestions = derive_suggestions(state)
+
+        # 🌟 Wu Wei: Use YAML-driven cards from conversation_service (not hardcoded derive_active_cards)
+        # conversation_service already evaluated cards using card_generator.get_visible_cards()
+        cards_from_conversation = result.get("context_cards", [])
 
         # Build UI data with real data from conversation service + derived UI
         ui_data = {
             "suggestions": derived_suggestions,  # Derived from state
-            "cards": derived_cards,  # Derived from state
+            "cards": cards_from_conversation,  # 🌟 Wu Wei: YAML-driven cards from conversation_service
             "progress": result["completeness"] / 100,  # Convert to 0-1 scale
             "extracted_data": result.get("extracted_data", {}),
             "stats": result.get("stats", {}),
@@ -1348,3 +1356,50 @@ async def generate_parent_response(request: GenerateResponseRequest):
         import logging
         logging.error(f"Error generating parent response: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate response")
+
+
+@router.get("/state/subscribe")
+async def subscribe_to_state_updates(family_id: str):
+    """
+    🌟 Wu Wei SSE: Subscribe to real-time state updates
+
+    Frontend connects to this endpoint and receives Server-Sent Events when:
+    - Cards change (artifact status updates, lifecycle moments)
+    - Artifacts complete background generation
+    - Any state change that affects UI
+
+    Usage:
+        const eventSource = new EventSource('/api/state/subscribe?family_id=xyz');
+        eventSource.onmessage = (event) => {
+            const update = JSON.parse(event.data);
+            // update.type: "cards" | "artifact" | "lifecycle_event"
+            // update.data: { ... }
+        };
+    """
+    notifier = get_sse_notifier()
+    queue = await notifier.subscribe(family_id)
+
+    async def event_generator():
+        """Generate SSE events from the queue"""
+        try:
+            while True:
+                # Wait for next state change
+                event_data = await queue.get()
+
+                # Format as SSE event
+                yield f"data: {json.dumps(event_data)}\n\n"
+
+        except asyncio.CancelledError:
+            # Client disconnected
+            await notifier.unsubscribe(family_id, queue)
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
