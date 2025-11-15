@@ -160,7 +160,7 @@ async def send_message(request: SendMessageRequest):
         if action == "start_demo":
             demo_orchestrator = get_demo_orchestrator()
             # Use demo orchestrator's logic to pick scenario
-            scenario_id = "language_delay"  # Default scenario
+            scenario_id = "language_concerns"  # Default scenario
             demo_result = await demo_orchestrator.start_demo(scenario_id)
 
             return SendMessageResponse(
