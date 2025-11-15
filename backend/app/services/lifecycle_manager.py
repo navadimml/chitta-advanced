@@ -81,7 +81,7 @@ class LifecycleManager:
         Args:
             family_id: Family identifier
             context: Current context (flattened, includes extracted_data)
-            session: InterviewState session
+            session: SessionState session
 
         Returns:
             Dict with:

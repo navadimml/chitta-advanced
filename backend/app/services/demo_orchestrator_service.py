@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import logging
 
-from app.services.interview_service import get_interview_service, ExtractedData
+from app.services.session_service import get_session_service, ExtractedData
 from app.services.artifact_generation_service import ArtifactGenerationService
 from app.models.artifact import Artifact
 
@@ -257,8 +257,8 @@ class DemoOrchestratorService:
         demo_family_id = f"demo_{scenario_id}_{int(datetime.now().timestamp())}"
 
         # Initialize demo session
-        interview_service = get_interview_service()
-        session = interview_service.get_or_create_session(demo_family_id)
+        session_service = get_session_service()
+        session = session_service.get_or_create_session(demo_family_id)
 
         # Set up child profile
         session.extracted_data = ExtractedData(**scenario.child_profile)
@@ -323,8 +323,8 @@ class DemoOrchestratorService:
         current_message = scenario.messages[demo_state.current_step]
 
         # Update session with message
-        interview_service = get_interview_service()
-        session = interview_service.get_or_create_session(demo_family_id)
+        session_service = get_session_service()
+        session = session_service.get_or_create_session(demo_family_id)
 
         session.conversation_history.append({
             "role": current_message.role,

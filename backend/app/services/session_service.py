@@ -1,12 +1,14 @@
 """
-Interview Service - Manages interview state and completeness calculation
+Session Service - Manages conversation session state and completeness calculation
+
+🌟 Wu Wei: Renamed from InterviewService - reflects continuous conversation, not staged interview
 
 This service:
-1. Stores extracted interview data per family
-2. Calculates interview completeness (now using schema_registry!)
+1. Stores extracted conversation data per family
+2. Calculates conversation completeness (using schema_registry)
 3. Tracks conversation history
-4. Determines which prompt/functions to use
-5. Generates video guidelines when ready
+4. Manages artifacts (video guidelines, reports, etc.)
+5. No phases - state emerges from artifacts and prerequisites
 """
 
 import logging
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class ExtractedData(BaseModel):
-    """Structured interview data extracted from conversation"""
+    """Structured conversation data extracted from ongoing dialogue"""
     child_name: Optional[str] = None
     age: Optional[float] = None
     gender: Optional[str] = None  # "male", "female", "unknown"
@@ -42,8 +44,8 @@ class ExtractedData(BaseModel):
     extraction_count: int = 0  # How many times data was extracted
 
 
-class InterviewState(BaseModel):
-    """Complete interview state for a family"""
+class SessionState(BaseModel):
+    """Complete conversation session state for a family"""
     family_id: str
     extracted_data: ExtractedData = ExtractedData()
     completeness: float = 0.0  # 0.0 to 1.0
@@ -76,24 +78,25 @@ class InterviewState(BaseModel):
         self.updated_at = datetime.now()
 
 
-class InterviewService:
+class SessionService:
     """
-    Manages interview state and data extraction for families
+    🌟 Wu Wei: Manages conversation session state and data extraction
 
-    In production, this would integrate with Graphiti for persistent storage.
-    For now, we use in-memory storage.
+    Renamed from InterviewService to reflect continuous conversation flow.
+    In production, integrates with Graphiti for persistent storage.
+    For now, uses in-memory storage.
     """
 
     def __init__(self):
-        # In-memory storage: family_id -> InterviewState
-        self.sessions: Dict[str, InterviewState] = {}
-        logger.info("InterviewService initialized (in-memory mode)")
+        # In-memory storage: family_id -> SessionState
+        self.sessions: Dict[str, SessionState] = {}
+        logger.info("SessionService initialized (in-memory mode)")
 
-    def get_or_create_session(self, family_id: str) -> InterviewState:
+    def get_or_create_session(self, family_id: str) -> SessionState:
         """Get existing session or create new one"""
         if family_id not in self.sessions:
-            self.sessions[family_id] = InterviewState(family_id=family_id)
-            logger.info(f"Created new interview session for family: {family_id}")
+            self.sessions[family_id] = SessionState(family_id=family_id)
+            logger.info(f"Created new conversation session for family: {family_id}")
         return self.sessions[family_id]
 
     def update_extracted_data(
@@ -357,7 +360,7 @@ class InterviewService:
             "completeness_pct": f"{session.completeness:.1%}",
             "extraction_count": data.extraction_count,
             "conversation_turns": len(session.conversation_history),
-            "video_guidelines_ready": session.video_guidelines_generated,
+            "video_guidelines_ready": session.has_artifact("baseline_video_guidelines"),
             "has_child_name": bool(data.child_name),
             "has_age": bool(data.age),
             "concerns_count": len(data.primary_concerns),
@@ -368,11 +371,16 @@ class InterviewService:
 
 
 # Singleton instance
-_interview_service = None
+_session_service = None
 
-def get_interview_service() -> InterviewService:
-    """Get singleton InterviewService instance"""
-    global _interview_service
-    if _interview_service is None:
-        _interview_service = InterviewService()
-    return _interview_service
+def get_session_service() -> SessionService:
+    """Get singleton SessionService instance"""
+    global _session_service
+    if _session_service is None:
+        _session_service = SessionService()
+    return _session_service
+
+# DEPRECATED: Backwards compatibility - remove in future
+def get_interview_service() -> SessionService:
+    """DEPRECATED: Use get_session_service() instead"""
+    return get_session_service()

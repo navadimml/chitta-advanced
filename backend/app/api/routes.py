@@ -13,7 +13,7 @@ import json
 from app.core.app_state import app_state
 from app.services.llm.base import Message
 from app.services.conversation_service import get_conversation_service
-from app.services.interview_service import get_interview_service
+from app.services.session_service import get_session_service
 # Wu Wei Architecture: Import config-driven UI components
 from app.config.card_generator import get_card_generator
 from app.config.view_manager import get_view_manager
@@ -236,8 +236,8 @@ async def send_message(request: SendMessageRequest):
             session["current_stage"] = "interview"
 
         # 🌟 Wu Wei: Get artifacts for frontend
-        interview_service = get_interview_service()
-        interview_session = interview_service.get_or_create_session(request.family_id)
+        session_service = get_session_service()
+        interview_session = session_service.get_or_create_session(request.family_id)
 
         # Sync artifacts to graphiti state (CRITICAL FIX!)
         # The state derivation checks state.artifacts, so we must sync them
@@ -969,11 +969,11 @@ async def get_available_views(family_id: str):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     # Get services
-    interview_service = get_interview_service()
+    session_service = get_session_service()
     view_manager = get_view_manager()
 
     # Get session state
-    session = interview_service.get_or_create_session(family_id)
+    session = session_service.get_or_create_session(family_id)
     data = session.extracted_data
 
     # 🌟 Wu Wei: Build artifacts for view availability checks
@@ -1015,7 +1015,7 @@ async def get_view_content(view_id: str, family_id: str):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     # Get services
-    interview_service = get_interview_service()
+    session_service = get_session_service()
     view_manager = get_view_manager()
 
     # Get view definition
@@ -1024,7 +1024,7 @@ async def get_view_content(view_id: str, family_id: str):
         raise HTTPException(status_code=404, detail=f"View '{view_id}' not found")
 
     # Get session state
-    session = interview_service.get_or_create_session(family_id)
+    session = session_service.get_or_create_session(family_id)
     data = session.extracted_data
 
     # 🌟 Wu Wei: Build artifacts for view availability check
@@ -1114,8 +1114,8 @@ async def get_session_artifacts(family_id: str):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    interview_service = get_interview_service()
-    session = interview_service.get_or_create_session(family_id)
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
 
     # Convert artifacts to dict format for response
     artifacts_list = []
@@ -1150,8 +1150,8 @@ async def get_artifact(artifact_id: str, family_id: str):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    interview_service = get_interview_service()
-    session = interview_service.get_or_create_session(family_id)
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
 
     # Get artifact
     artifact = session.get_artifact(artifact_id)
@@ -1184,8 +1184,8 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    interview_service = get_interview_service()
-    session = interview_service.get_or_create_session(request.family_id)
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(request.family_id)
 
     # Verify artifact exists
     artifact = session.get_artifact(artifact_id)

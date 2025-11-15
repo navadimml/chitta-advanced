@@ -444,9 +444,9 @@ class ParentSimulator:
         simulation["message_count"] += 1
 
         # Check completion status
-        from app.services.interview_service import get_interview_service
-        interview_service = get_interview_service()
-        session = interview_service.get_or_create_session(family_id)
+        from app.services.session_service import get_session_service
+        session_service = get_session_service()
+        session = session_service.get_or_create_session(family_id)
 
         guidelines_ready = session.has_artifact("baseline_video_guidelines")
         acknowledgment_count = simulation.get("completion_acknowledgments", 0)
