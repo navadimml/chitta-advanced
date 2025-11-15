@@ -18,7 +18,7 @@ from datetime import datetime
 from .llm.base import Message, BaseLLMProvider
 from .llm.factory import create_llm_provider
 from .mock_graphiti import MockGraphiti
-from .interview_service import get_interview_service
+from .session_service import get_session_service
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class ConsultationService:
         """
         self.graphiti = graphiti or MockGraphiti()
         self.llm = llm_provider or create_llm_provider()
-        self.interview_service = get_interview_service()
+        self.session_service = get_session_service()
 
         logger.info("ConsultationService initialized (universal handler)")
 
@@ -78,7 +78,7 @@ class ConsultationService:
         logger.info(f"📚 Consultation question for family {family_id}: {question[:50]}...")
 
         # 1. Get current session state for context
-        session = self.interview_service.get_or_create_session(family_id)
+        session = self.session_service.get_or_create_session(family_id)
         data = session.extracted_data
 
         # 2. Retrieve relevant context using Graphiti search
@@ -119,12 +119,12 @@ class ConsultationService:
             logger.info(f"✅ Consultation response generated ({len(response_text)} chars)")
 
             # 6. Save consultation as conversation turn (for future context)
-            self.interview_service.add_conversation_turn(
+            self.session_service.add_conversation_turn(
                 family_id,
                 role="user",
                 content=question
             )
-            self.interview_service.add_conversation_turn(
+            self.session_service.add_conversation_turn(
                 family_id,
                 role="assistant",
                 content=response_text
@@ -166,7 +166,7 @@ class ConsultationService:
             Dict with relevant context from various sources
         """
         # Get conversation history (recent turns)
-        history = self.interview_service.get_conversation_history(
+        history = self.session_service.get_conversation_history(
             family_id,
             last_n=40  # Last 20 exchanges
         )
