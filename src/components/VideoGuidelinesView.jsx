@@ -7,13 +7,15 @@ import { X, Video, Clock, CheckCircle, Camera, Lightbulb } from 'lucide-react';
  * Beautiful, full-screen view for filming instructions artifact.
  * Shows scenarios, tips, and personalized guidance.
  */
-export default function VideoGuidelinesView({ guidelines, childName, onClose }) {
+export default function VideoGuidelinesView({ guidelines, childName, onClose, onStartFilming }) {
   if (!guidelines) return null;
 
   // Parse guidelines if it's markdown or structured data
   const scenarios = guidelines.scenarios || [];
   const generalTips = guidelines.general_tips || [];
   const duration = guidelines.estimated_duration || "2-3 דקות לסרטון";
+  // Use child name from guidelines data, with fallback to prop
+  const displayChildName = guidelines.child_name || childName || "הילד/ה";
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
@@ -27,7 +29,7 @@ export default function VideoGuidelinesView({ guidelines, childName, onClose }) 
                 הנחיות צילום מותאמות
               </h2>
               <p className="text-purple-100 text-lg">
-                {childName ? `מיוחד עבור ${childName}` : 'מותאם אישית עבורך'}
+                מיוחד עבור {displayChildName}
               </p>
             </div>
             <button
@@ -151,7 +153,7 @@ export default function VideoGuidelinesView({ guidelines, childName, onClose }) 
           <div className="mt-8 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
             <p className="text-gray-700 leading-relaxed text-center">
               <span className="font-semibold text-purple-800">💙 זכרי:</span> אין נכון ולא נכון.
-              המטרה היא לראות את {childName || 'הילד/ה'} בפעולה, בצורה הכי טבעית שאפשר.
+              המטרה היא לראות את {displayChildName} בפעולה, בצורה הכי טבעית שאפשר.
               קחי את הזמן שצריך, ואין לחץ!
             </p>
           </div>
@@ -165,11 +167,14 @@ export default function VideoGuidelinesView({ guidelines, childName, onClose }) 
           >
             סגור
           </button>
-          <button
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
-          >
-            התחל צילום →
-          </button>
+          {onStartFilming && (
+            <button
+              onClick={onStartFilming}
+              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              התחל צילום →
+            </button>
+          )}
         </div>
       </div>
 

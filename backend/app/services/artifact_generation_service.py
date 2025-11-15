@@ -692,8 +692,8 @@ You are a clinical expert in child development. You receive structured JSON from
 ```json
 {{
   "parent_greeting": {{
-    "parent_name": "שם ההורה (if known, else 'הורה יקר')",
-    "child_name": "שם הילד/ה (if known)",
+    "parent_name": "שם ההורה (if available from extracted data, else 'הורה יקר')",
+    "child_name": "USE CHILD_NAME FROM EXTRACTED DATA ABOVE - שם הילד/ה מהנתונים שמעל",
     "opening_message": "פסקת פתיחה מלאה בעברית - תודה על השיחה, הסבר קצר על מטרת הסרטונים"
   }},
 
@@ -1167,7 +1167,7 @@ The extracted JSON will appear here:
             "properties": {
                 "parent_greeting": {
                     "type": "object",
-                    "required": ["opening_message"],
+                    "required": ["child_name", "opening_message"],
                     "properties": {
                         "parent_name": {"type": "string"},
                         "child_name": {"type": "string"},
