@@ -923,13 +923,9 @@ The extracted JSON will appear here:
         # Transform video_guidelines to scenarios
         scenarios = []
         for guideline in video_guidelines:
-            # Build context from category info
-            context = ""
-            if guideline.get("category") == "comorbidity_check":
-                context = guideline.get("rationale_for_parent", "")
-            else:
-                # For reported difficulties, use a generic context
-                context = f"תרחיש {guideline.get('id')}"
+            # Build context from difficulty area (short label, not the full rationale)
+            # The full rationale goes in why_matters to avoid duplication
+            context = guideline.get("difficulty_area", f"תרחיש {guideline.get('id')}")
 
             # Build scenario object
             scenario = {
