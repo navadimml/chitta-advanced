@@ -406,7 +406,11 @@ class WuWeiPrerequisites:
 
             # Artifact existence check
             elif ".exists" in key:
+                # Extract artifact name, handling "artifacts.X.exists" format
                 artifact_name = key.replace(".exists", "")
+                # Strip "artifacts." prefix if present (card format includes it)
+                if artifact_name.startswith("artifacts."):
+                    artifact_name = artifact_name[len("artifacts."):]
                 expected_exists = bool(value)
                 result = self.check_artifact_exists(artifact_name, context)
                 # Invert if checking for "exists: false"
@@ -419,7 +423,11 @@ class WuWeiPrerequisites:
 
             # Artifact status check
             elif ".status" in key:
+                # Extract artifact name, handling "artifacts.X.status" format
                 artifact_name = key.split(".status")[0]
+                # Strip "artifacts." prefix if present (card format includes it)
+                if artifact_name.startswith("artifacts."):
+                    artifact_name = artifact_name[len("artifacts."):]
                 expected_status = value
                 result = self.check_artifact_status(artifact_name, expected_status, context)
                 all_details[key] = result.details
