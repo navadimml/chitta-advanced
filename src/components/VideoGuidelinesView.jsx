@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Video, Clock, CheckCircle, AlertCircle, Camera, Lightbulb } from 'lucide-react';
+import { X, Video, Clock, CheckCircle, Camera, Lightbulb } from 'lucide-react';
 
 /**
  * 🎬 Video Guidelines Deep View
@@ -111,25 +111,7 @@ export default function VideoGuidelinesView({ guidelines, childName, onClose }) 
                     </p>
                   </div>
 
-                  {/* What to Look For */}
-                  {scenario.what_to_look_for && (
-                    <div className="mb-4">
-                      <h5 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-purple-600" />
-                        על מה לשים לב:
-                      </h5>
-                      <ul className="space-y-2">
-                        {scenario.what_to_look_for.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2 text-gray-700">
-                            <CheckCircle className="w-4 h-4 text-purple-600 flex-shrink-0 mt-1" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Why This Matters */}
+                  {/* Why This Matters - Always displayed at the end */}
                   {scenario.why_matters && (
                     <div className="mt-4 p-4 bg-indigo-50 rounded-lg border-r-2 border-indigo-400">
                       <p className="text-sm text-indigo-800">
