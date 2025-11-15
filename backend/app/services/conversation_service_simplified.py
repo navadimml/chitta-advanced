@@ -79,7 +79,9 @@ class SimplifiedConversationService:
 
         # 2. Build comprehensive system prompt
         available_artifacts = list(session.artifacts.keys())
-        message_count = len([m for m in session.conversation_history if m.get('role') == 'user'])
+        # Defensive: ensure conversation_history is never None
+        conversation_history = session.conversation_history or []
+        message_count = len([m for m in conversation_history if m.get('role') == 'user'])
 
         system_prompt = build_comprehensive_prompt(
             child_name=data.child_name,
@@ -103,7 +105,7 @@ class SimplifiedConversationService:
         )
 
         # 3. Get conversation history
-        history = self.session_service.get_conversation_history(family_id)
+        history = self.session_service.get_conversation_history(family_id) or []
 
         # Build messages array
         messages = [Message(role="system", content=system_prompt)]
@@ -166,14 +168,14 @@ class SimplifiedConversationService:
 
         # 6. Save conversation turn
         self.session_service.add_conversation_turn(family_id, "user", user_message)
-        self.session_service.add_conversation_turn(family_id, "assistant", llm_response.content)
+        self.session_service.add_conversation_turn(family_id, "assistant", llm_response.content or "")
 
         # 7. Get updated session state
         session = self.session_service.get_or_create_session(family_id)
         completeness_pct = session.completeness * 100
 
         # 8. Semantic verification (every 3 turns until guidelines ready)
-        turn_count = len([msg for msg in session.conversation_history if msg.get('role') == 'user'])
+        turn_count = len([msg for msg in (session.conversation_history or []) if msg.get('role') == 'user'])
         video_guidelines_generated = session.has_artifact("baseline_video_guidelines")
 
         should_verify = (
@@ -200,7 +202,7 @@ class SimplifiedConversationService:
         # 10. Process lifecycle events
         session_data = self._build_session_data_dict(family_id, session)
         context = self.prerequisite_service.get_context_for_cards(session_data)
-        context["conversation_history"] = session.conversation_history
+        context["conversation_history"] = session.conversation_history or []
 
         lifecycle_result = await self.lifecycle_manager.process_lifecycle_events(
             family_id=family_id,
@@ -215,7 +217,7 @@ class SimplifiedConversationService:
 
         # 11. Return response
         return {
-            "response": llm_response.content,
+            "response": llm_response.content or "",
             "function_calls": [
                 {"name": fc.name, "arguments": fc.arguments}
                 for fc in llm_response.function_calls
@@ -243,7 +245,7 @@ class SimplifiedConversationService:
         return {
             "family_id": family_id,
             "extracted_data": extracted_dict,
-            "message_count": len(session.conversation_history),
+            "message_count": len(session.conversation_history or []),
             "artifacts": session.artifacts,
             "semantic_verification": session.semantic_verification,
             "video_guidelines": session.has_artifact("baseline_video_guidelines"),
