@@ -345,6 +345,9 @@ function App() {
     setIsTyping(true);
 
     try {
+      // Refresh cards before API call to ensure clean state
+      await refreshCards();
+
       const response = await api.completeInterview(FAMILY_ID);
 
       // Show video guidelines
@@ -360,6 +363,9 @@ function App() {
         // Save guidelines to state
         setVideoGuidelines(response.video_guidelines);
         setStage('video_upload');
+
+        // Refresh cards to show updated status
+        await refreshCards();
       }
 
     } catch (error) {
