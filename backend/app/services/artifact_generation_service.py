@@ -904,14 +904,18 @@ The extracted JSON will appear here:
         Transform LLM-generated JSON to VideoGuidelinesView component format.
 
         LLM Format:
-        - video_guidelines: [{ id, title, instruction, example_situations, focus_points }]
+        - video_guidelines: [{ id, title, instruction, example_situations, focus_points, rationale_for_parent }]
         - general_filming_tips: [...]
         - parent_greeting.opening_message
 
         Component Format:
-        - scenarios: [{ title, context, what_to_film, what_to_look_for, duration }]
+        - scenarios: [{ title, context, what_to_film, what_to_look_for, duration, why_matters }]
         - general_tips: [...]
         - introduction: string
+
+        IMPORTANT: Field usage for frontend display:
+        - why_matters (rationale_for_parent): MUST be displayed to parents in ALL scenarios as "למה זה חשוב:"
+        - what_to_look_for (focus_points): INTERNAL USE ONLY - for team analysis, NOT for parent display
         """
         video_guidelines = guidelines_data.get("video_guidelines", [])
         parent_greeting = guidelines_data.get("parent_greeting", {})
@@ -932,9 +936,9 @@ The extracted JSON will appear here:
                 "title": guideline.get("title", ""),
                 "context": context,
                 "what_to_film": guideline.get("instruction", ""),
-                "what_to_look_for": guideline.get("focus_points", []),
+                "what_to_look_for": guideline.get("focus_points", []),  # Internal use - not for display
                 "duration": guideline.get("duration_suggestion", "1-2 דקות"),
-                "why_matters": guideline.get("rationale_for_parent") if guideline.get("category") == "comorbidity_check" else None
+                "why_matters": guideline.get("rationale_for_parent", "")  # Always include for ALL scenarios
             }
 
             # Add example situations as additional context
@@ -1185,7 +1189,7 @@ The extracted JSON will appear here:
                     "maxItems": 5,
                     "items": {
                         "type": "object",
-                        "required": ["id", "category", "title", "instruction", "example_situations", "focus_points"],
+                        "required": ["id", "category", "title", "instruction", "example_situations", "focus_points", "rationale_for_parent"],
                         "properties": {
                             "id": {"type": "integer"},
                             "category": {"type": "string", "enum": ["reported_difficulty", "comorbidity_check"]},
