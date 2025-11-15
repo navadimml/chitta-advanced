@@ -237,66 +237,18 @@ cards:
     dismissible: false
     auto_dismiss_after_action: view_guidelines
 
-  upload_available_card:
-    name: "מוכנ/ה להעלות סרטונים"
-    name_en: "Ready to Upload Videos"
-    card_type: action_needed
-    priority: 86
-
-    # When to show - after guidelines ready, before report generation
-    display_conditions:
-      artifacts.baseline_parent_report.exists: false  # Initial assessment state
-      artifacts.baseline_video_guidelines.exists: true
-      artifacts.baseline_video_guidelines.status: "ready"
-      uploaded_video_count: 0
-
-    # Card content
-    content:
-      title: "🎬 הגיע הזמן להקליט!"
-      body: |
-        ההנחיות מוכנות - עכשיו אפשר להקליט סרטונים ישירות באפליקציה!
-
-        **למה להקליט כאן?**
-        • הנחיות מותאמות בדיוק למה שצריך
-        • צילום או העלאה מהגלריה
-        • הכל מאובטח ופרטי
-
-        **מה להקליט?**
-        {guidelines_brief_summary}
-
-        **כמה סרטונים?**
-        3 סרטונים קצרים (2-5 דקות כל אחד)
-
-      guidelines_brief_summary:
-        source: video_guidelines_artifact
-        extract: situations_to_capture
-        format: "• {situation}"
-        max_items: 3
-
-      footer: "בואי נתחיל! 🎬"
-
-    # Available actions
-    available_actions:
-      - upload_video  # Primary action
-      - view_video_guidelines  # Review if needed
-      - consultation
-
-    # Behavior
-    dismissible: false
-    auto_dismiss_after_action: upload_video
-
   video_guidelines_card:
     name: "הנחיות צילום"
     name_en: "Video Guidelines"
     card_type: action_needed
     priority: 85
 
-    # When to show - ongoing progress (1-2 videos uploaded, need more)
+    # When to show - from guidelines ready until 3 videos uploaded
     display_conditions:
       artifacts.baseline_parent_report.exists: false  # Initial assessment state
       artifacts.baseline_video_guidelines.exists: true
       artifacts.baseline_video_guidelines.status: "ready"
-      uploaded_video_count: [1, 2]  # Show when 1 or 2 videos uploaded
+      uploaded_video_count: [0, 1, 2]  # Show until all 3 videos uploaded
 
     # Card content
     content:
@@ -328,14 +280,13 @@ cards:
           3: "✅✅✅"
 
       footer_by_upload_count:
-        0: "אפשר להעלות את הסרטון הראשון 🎬"
+        0: "לחצי לצפייה בהנחיות והתחלת צילום 🎬"
         1: "יופי! בואי נעלה עוד 2 סרטונים"
         2: "כמעט סיימנו! עוד סרטון אחד"
 
     # Available actions
     available_actions:
-      - upload_video
-      - view_video_guidelines  # See full guidelines
+      - view_video_guidelines  # Opens guidelines view with "התחל צילום" button inside
       - consultation
 
     # Behavior
