@@ -23,7 +23,9 @@ def build_comprehensive_prompt(
     extracted_data: Dict[str, Any],
     completeness: float,
     available_artifacts: Optional[List[str]] = None,
-    message_count: int = 0
+    message_count: int = 0,
+    session: Optional[Any] = None,
+    lifecycle_manager: Optional[Any] = None
 ) -> str:
     """
     Build comprehensive system prompt for single-LLM architecture.
@@ -52,7 +54,11 @@ def build_comprehensive_prompt(
     )
 
     # Build artifacts section
-    artifacts_section = _build_artifacts_section(available_artifacts or [])
+    artifacts_section = _build_artifacts_section(
+        available_artifacts or [],
+        session,
+        lifecycle_manager
+    )
 
     # Build the comprehensive prompt
     prompt = f"""אתה צ'יטה, מדריכה וירטואלית חמה ומקצועית בהערכה התפתחותית לילדים.
@@ -340,8 +346,12 @@ def _build_strategic_guidance(
 ────────────────────────────────────────────────────────────"""
 
 
-def _build_artifacts_section(available_artifacts: List[str]) -> str:
-    """Build section about available artifacts"""
+def _build_artifacts_section(
+    available_artifacts: List[str],
+    session: Optional[Any] = None,
+    lifecycle_manager: Optional[Any] = None
+) -> str:
+    """Build section about available artifacts with system context from lifecycle events"""
 
     if not available_artifacts:
         return """## 📄 מסמכים זמינים
@@ -352,7 +362,7 @@ def _build_artifacts_section(available_artifacts: List[str]) -> str:
 
     artifacts_list = "\n".join(f"- {artifact}" for artifact in available_artifacts)
 
-    return f"""## 📄 מסמכים זמינים
+    result = f"""## 📄 מסמכים זמינים
 
 המסמכים הבאים כבר נוצרו ויכולים להיות מוצגים:
 
@@ -361,3 +371,41 @@ def _build_artifacts_section(available_artifacts: List[str]) -> str:
 אם ההורה מבקש לראות מסמך → קראי ל-request_action(action="view_report") או view_guidelines
 
 ────────────────────────────────────────────────────────────"""
+
+    # 🧠 Inject system context from lifecycle events (prevents hallucinations!)
+    if session and lifecycle_manager:
+        system_contexts = []
+        ui_contexts = []
+
+        # Extract system context and UI context for each artifact
+        for artifact_id in session.artifacts.keys():
+            # Find lifecycle event that created this artifact
+            event_config = lifecycle_manager._find_event_for_artifact(artifact_id)
+
+            if event_config:
+                # Get system context (explains how process works to prevent hallucinations)
+                if "context" in event_config:
+                    context_text = event_config["context"]
+                    if context_text:
+                        system_contexts.append(context_text)
+
+                # Get UI context (tells Chitta where artifacts are in UI)
+                if "ui" in event_config:
+                    ui_info = event_config["ui"]
+                    default_text = ui_info.get("default", "")
+                    if default_text:
+                        ui_contexts.append(f"- **{artifact_id}**: {default_text}")
+
+        # Append UI context (where to find artifacts)
+        if ui_contexts:
+            result += f"""
+
+**איפה להפנות את ההורה:**
+{chr(10).join(ui_contexts)}
+"""
+
+        # Append system context (how things work - prevent hallucinations)
+        if system_contexts:
+            result += "\n\n" + "\n\n".join(system_contexts)
+
+    return result
