@@ -55,7 +55,7 @@ cards:
 
     # When to show this card
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       message_count: 0
       show_once: true
 
@@ -91,7 +91,7 @@ cards:
 
     # When to show - during active conversation
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       message_count: "> 0"
       artifacts.baseline_video_guidelines.exists: false  # Before guidelines ready
 
@@ -121,7 +121,7 @@ cards:
 
     # When to show - as soon as we have basic info
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       child_name: "!= None"  # Has name
       age: "> 0"  # Has age
 
@@ -155,7 +155,7 @@ cards:
 
     # When to show - prerequisites met but not generated yet
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       artifacts.baseline_video_guidelines.prerequisites_met: true
       artifacts.baseline_video_guidelines.exists: false
       user_actions.declined_guidelines_offer: false
@@ -191,7 +191,7 @@ cards:
 
     # When to show - while generating
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       artifacts.baseline_video_guidelines.status: "generating"
 
     # Card content
@@ -214,7 +214,7 @@ cards:
 
     # When to show - generated but not viewed yet
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       artifacts.baseline_video_guidelines.exists: true
       artifacts.baseline_video_guidelines.status: "ready"
       user_actions.viewed_guidelines: false
@@ -245,7 +245,7 @@ cards:
 
     # When to show - after viewing guidelines, before first upload
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       artifacts.baseline_video_guidelines.exists: true
       user_actions.viewed_guidelines: true
       uploaded_video_count: 0
@@ -291,7 +291,7 @@ cards:
 
     # When to show
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       video_guidelines_status: ready
       uploaded_video_count: "< 3"
 
@@ -348,7 +348,7 @@ cards:
 
     # When to show
     display_conditions:
-      baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
       uploaded_video_count: ">= 3"
       video_analysis_status: ["pending", "analyzing"]
       reports_status: "!= ready"
@@ -444,7 +444,7 @@ cards:
 
     # When to show
     display_conditions:
-      baseline_parent_report.exists: true  # Ongoing support state
+      artifacts.baseline_parent_report.exists: true  # Ongoing support state
       re_assessment.active: false
       phase_entry_message_shown: false  # Show once when entering this state
 
@@ -535,7 +535,7 @@ cards:
 
     # When to show
     display_conditions:
-      baseline_parent_report.exists: true  # Ongoing support state
+      artifacts.baseline_parent_report.exists: true  # Ongoing support state
       re_assessment.active: false
       has_new_follow_up_summary: true
       user_viewed_summary: false
@@ -580,7 +580,7 @@ cards:
 
     # When to show
     display_conditions:
-      baseline_parent_report.exists: true  # Ongoing support state
+      artifacts.baseline_parent_report.exists: true  # Ongoing support state
       re_assessment.active: false
       reports_status: ready
       expert_search_count: "< 3"  # Don't show forever
