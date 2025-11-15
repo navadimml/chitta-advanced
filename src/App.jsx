@@ -557,6 +557,10 @@ function App() {
           guidelines={videoGuidelines}
           childName={childName || "דניאל"}
           onClose={() => setShowGuidelinesView(false)}
+          onStartFilming={() => {
+            setShowGuidelinesView(false);
+            setActiveDeepView('upload');
+          }}
         />
       )}
 
