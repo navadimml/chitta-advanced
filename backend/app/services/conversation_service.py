@@ -444,25 +444,60 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
         system_prompt = base_prompt
 
         # 6. Build conversation messages
-        # Add recent conversation history (last 20 turns)
-        # Increased from 20 to 40 to reduce context loss glitches
+        # 🔥 CRITICAL FIX: Use FULL conversation history, not limited to last N messages
+        # Previous bug: Limited to last 40 messages caused context loss (forgot child's name/age)
+        # Now: Send complete history so LLM maintains full context throughout conversation
         history = self.session_service.get_conversation_history(
-            family_id,
-            last_n=40  # Last 20 exchanges (user + assistant)
+            family_id
+            # NO last_n parameter = get ALL messages
         )
+
+        # Build context summary for system prompt
+        context_summary = ""
+        if history:
+            # Extract key facts from conversation history for prominent display
+            context_facts = []
+            if data.child_name:
+                context_facts.append(f"Child's name: **{data.child_name}**")
+            if data.age:
+                context_facts.append(f"Age: **{data.age} years**")
+            if data.primary_concerns:
+                concerns_list = ", ".join(data.primary_concerns[:3])
+                context_facts.append(f"Primary concerns: **{concerns_list}**")
+
+            if context_facts:
+                context_summary = f"""
+
+## 📝 CONVERSATION CONTEXT (Critical Information Already Discussed)
+
+{chr(10).join(f"• {fact}" for fact in context_facts)}
+
+**This information was already shared by the parent - DO NOT ask for it again!**
+**USE this information when responding - refer to the child by name!**
+"""
 
         # If there's conversation history, add prominent reminder not to re-introduce
         if len(history) > 0:
+            system_prompt += context_summary
             system_prompt += """
 
 ## 🚨 CRITICAL - YOU ARE ALREADY IN AN ONGOING CONVERSATION
 
-**DO NOT re-introduce yourself!** You already introduced yourself in your first message.
+**The complete conversation history is provided above. Review it carefully before responding!**
 
-**WRONG:** "היי, אני צ'יטה, נעים מאוד"
-**CORRECT:** Just continue the conversation naturally based on what the parent said.
+**DO NOT:**
+- Re-introduce yourself (you already said "שלום! אני צ'יטה" in your first message)
+- Ask for information the parent already provided (name, age, concerns, etc.)
+- Repeat questions you already asked
+- Act like this is the first time meeting
 
-The conversation history above shows you've already met - don't act like this is the first time!
+**DO:**
+- Continue naturally based on what was discussed
+- Acknowledge and build on previous answers
+- Use the child's name when referring to them
+- Show you remember what the parent shared
+
+**REVIEW THE CONVERSATION HISTORY ABOVE BEFORE RESPONDING!**
 """
 
         messages = [Message(role="system", content=system_prompt)]
@@ -526,17 +561,20 @@ Current conversation state:
 - Concerns discussed: {len(data.primary_concerns)} areas
 - Detail level: {session.completeness:.0%}
 
+**CRITICAL - Review the conversation history below!**
+- DO NOT re-introduce yourself if you've already met
+- DO NOT ask for information already provided (name, age, etc.)
+- USE the child's name if you know it
+- Continue naturally based on what was discussed
+
 Continue the conversation naturally."""
 
-                # Build simpler messages (last 10 turns only + simple system)
+                # Build simpler messages with FULL history (not limited)
+                # 🔥 CRITICAL FIX: Also use full history in retry, not just last 10 turns
                 simple_messages = [Message(role="system", content=simple_system)]
 
-                # Add last 10 conversation turns
-                recent_history = self.session_service.get_conversation_history(
-                    family_id,
-                    last_n=10
-                )
-                for turn in recent_history:
+                # Add full conversation history (same as main call)
+                for turn in history:
                     simple_messages.append(Message(
                         role=turn["role"],
                         content=turn["content"]
