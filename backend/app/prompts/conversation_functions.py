@@ -1,5 +1,5 @@
 """
-Comprehensive Interview Function Definitions - Simplified Architecture
+Comprehensive Conversation Function Definitions - Simplified Architecture
 
 These 5 functions replace the Sage+Hand architecture.
 ALL intent detection is handled via function calling - no separate LLM calls!
@@ -15,7 +15,7 @@ Functions:
 from typing import List, Dict, Any
 
 
-# === Function 1: Interview Data Extraction ===
+# === Function 1: Data Extraction ===
 
 EXTRACT_INTERVIEW_DATA = {
     "name": "extract_interview_data",
@@ -266,7 +266,7 @@ Don't call for:
 
 # === All Comprehensive Functions ===
 
-INTERVIEW_FUNCTIONS_COMPREHENSIVE: List[Dict[str, Any]] = [
+CONVERSATION_FUNCTIONS_COMPREHENSIVE: List[Dict[str, Any]] = [
     EXTRACT_INTERVIEW_DATA,
     ASK_DEVELOPMENTAL_QUESTION,
     ASK_ABOUT_ANALYSIS,
@@ -279,7 +279,7 @@ INTERVIEW_FUNCTIONS_COMPREHENSIVE: List[Dict[str, Any]] = [
 
 def get_function_by_name(name: str) -> Dict[str, Any]:
     """Get function definition by name"""
-    for func in INTERVIEW_FUNCTIONS_COMPREHENSIVE:
+    for func in CONVERSATION_FUNCTIONS_COMPREHENSIVE:
         if func["name"] == name:
             return func
     raise ValueError(f"Function {name} not found")
@@ -287,4 +287,4 @@ def get_function_by_name(name: str) -> Dict[str, Any]:
 
 def get_function_names() -> List[str]:
     """Get list of all function names"""
-    return [func["name"] for func in INTERVIEW_FUNCTIONS_COMPREHENSIVE]
+    return [func["name"] for func in CONVERSATION_FUNCTIONS_COMPREHENSIVE]

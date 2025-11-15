@@ -13,10 +13,12 @@ import json
 from app.core.app_state import app_state
 from app.services.llm.base import Message
 from app.services.conversation_service import get_conversation_service
+from app.services.conversation_service_simplified import get_simplified_conversation_service
 from app.services.session_service import get_session_service
 # Wu Wei Architecture: Import config-driven UI components
 from app.config.card_generator import get_card_generator
 from app.config.view_manager import get_view_manager
+from app.config.config_loader import is_simplified_architecture
 # Demo Mode: Import demo orchestrator
 from app.services.demo_orchestrator_service import get_demo_orchestrator
 # State-based architecture
@@ -147,10 +149,19 @@ async def send_message(request: SendMessageRequest):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    # Get services
-    conversation_service = get_conversation_service()
+    # Get services based on configuration
+    use_simplified = is_simplified_architecture()
+
+    if use_simplified:
+        conversation_service = get_simplified_conversation_service()
+        # Simplified service doesn't have knowledge_service, use full service for intent detection only
+        full_service = get_conversation_service()
+        knowledge_service = full_service.knowledge_service
+    else:
+        conversation_service = get_conversation_service()
+        knowledge_service = conversation_service.knowledge_service
+
     graphiti = get_mock_graphiti()
-    knowledge_service = conversation_service.knowledge_service
 
     # 🎯 LLM-based Intent Detection: Check for system actions (test/demo mode)
     # Use the intelligent intent detector instead of primitive string matching

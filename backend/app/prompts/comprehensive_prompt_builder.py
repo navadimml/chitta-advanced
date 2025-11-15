@@ -13,6 +13,7 @@ This prompt includes:
 """
 
 from typing import Dict, List, Any, Optional
+from .conversation_functions import CONVERSATION_FUNCTIONS_COMPREHENSIVE
 
 
 def build_comprehensive_prompt(

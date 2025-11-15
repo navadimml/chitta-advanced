@@ -342,3 +342,89 @@ def load_deep_views() -> Dict[str, Any]:
 def load_lifecycle_events() -> Dict[str, Any]:
     """Load lifecycle events configuration (Wu Wei dependency graph)."""
     return get_workflow_config_loader().load_lifecycle_events()
+
+
+# === App Configuration Loader ===
+
+class AppConfigLoader(ConfigLoader):
+    """
+    Loader for application-level configuration.
+
+    Loads app_config.yaml for runtime settings like:
+    - Conversation architecture mode
+    - Feature flags
+    - LLM provider settings
+    """
+
+    def __init__(self):
+        # Config base path is backend/config/
+        super().__init__()
+        self._cache: Dict[str, Any] = {}
+
+    @lru_cache(maxsize=1)
+    def load_app_config(self) -> Dict[str, Any]:
+        """Load application configuration."""
+        if "app_config" not in self._cache:
+            config = self.load_yaml("app_config.yaml")
+            self.validate_required_fields(
+                config,
+                ["version", "app_name", "conversation"],
+                "app_config.yaml"
+            )
+            self._cache["app_config"] = config
+
+        return self._cache["app_config"]
+
+    def get_conversation_architecture(self) -> str:
+        """Get conversation architecture mode: 'simplified' or 'full'"""
+        config = self.load_app_config()
+        return config.get("conversation", {}).get("architecture", "simplified")
+
+    def is_simplified_architecture(self) -> bool:
+        """Check if simplified architecture is enabled"""
+        return self.get_conversation_architecture() == "simplified"
+
+    def get_feature_flag(self, feature_name: str, default: bool = False) -> bool:
+        """Get feature flag value"""
+        config = self.load_app_config()
+        return config.get("features", {}).get(feature_name, default)
+
+    def clear_cache(self) -> None:
+        """Clear configuration cache."""
+        self._cache.clear()
+        self.load_app_config.cache_clear()
+        logger.info("App configuration cache cleared")
+
+
+# Global singleton instance for app config
+_app_config_loader: Optional[AppConfigLoader] = None
+
+
+def get_app_config_loader() -> AppConfigLoader:
+    """
+    Get global AppConfigLoader instance (singleton pattern).
+
+    Returns:
+        AppConfigLoader instance
+    """
+    global _app_config_loader
+
+    if _app_config_loader is None:
+        _app_config_loader = AppConfigLoader()
+
+    return _app_config_loader
+
+
+def load_app_config() -> Dict[str, Any]:
+    """Load application configuration."""
+    return get_app_config_loader().load_app_config()
+
+
+def get_conversation_architecture() -> str:
+    """Get conversation architecture mode: 'simplified' or 'full'"""
+    return get_app_config_loader().get_conversation_architecture()
+
+
+def is_simplified_architecture() -> bool:
+    """Check if simplified architecture is enabled"""
+    return get_app_config_loader().is_simplified_architecture()
