@@ -72,8 +72,11 @@ class WuWeiPrerequisites:
         concerns = context.get("primary_concerns") or context.get("concerns") or []
         if isinstance(concerns, str):
             concerns = [concerns]
-        # Has concerns if: list with 2+ items OR single substantial text (50+ chars)
-        has_concerns = len(concerns) >= 2 or (len(concerns) == 1 and len(str(concerns[0])) > 50)
+        # Filter out invalid/placeholder concerns
+        invalid_concerns = ['unknown', '(not mentioned yet)', 'לא צוין', 'לא ידוע', 'לא נמסר', 'None', 'null', 'NULL', '']
+        valid_concerns = [c for c in concerns if c and str(c).strip() not in invalid_concerns]
+        # Has concerns if we have any valid concerns (even single categories like 'eating', 'speech', etc.)
+        has_concerns = len(valid_concerns) >= 1
 
         # Check for developmental history in concern_description
         concern_description = context.get("concern_description") or ""

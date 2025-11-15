@@ -471,14 +471,28 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
         system_prompt = base_prompt
 
         # 6. Build conversation messages
-        messages = [Message(role="system", content=system_prompt)]
-
         # Add recent conversation history (last 20 turns)
         # Increased from 20 to 40 to reduce context loss glitches
         history = self.interview_service.get_conversation_history(
             family_id,
             last_n=40  # Last 20 exchanges (user + assistant)
         )
+
+        # If there's conversation history, add prominent reminder not to re-introduce
+        if len(history) > 0:
+            system_prompt += """
+
+## 🚨 CRITICAL - YOU ARE ALREADY IN AN ONGOING CONVERSATION
+
+**DO NOT re-introduce yourself!** You already introduced yourself in your first message.
+
+**WRONG:** "היי, אני צ'יטה, נעים מאוד"
+**CORRECT:** Just continue the conversation naturally based on what the parent said.
+
+The conversation history above shows you've already met - don't act like this is the first time!
+"""
+
+        messages = [Message(role="system", content=system_prompt)]
 
         for turn in history:
             messages.append(Message(
