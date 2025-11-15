@@ -536,12 +536,13 @@ class ParentSimulator:
         from app.services.llm.base import Message
         messages = [Message(role="system", content=system_prompt)]
 
-        # Add conversation history (last 8 messages for context)
+        # 🔥 CRITICAL FIX: Use FULL conversation history for parent simulator too
+        # Previous bug: Limited to last 8 messages caused parent to lose context
+        # Now: Send all messages so parent maintains consistent persona throughout
         if graphiti:
             state = graphiti.get_or_create_state(family_id)
-            recent_messages = state.conversation[-8:] if len(state.conversation) > 8 else state.conversation
-
-            for msg in recent_messages:
+            # Use ALL conversation history, not just last 8
+            for msg in state.conversation:
                 messages.append(Message(
                     role="assistant" if msg.role == "user" else "user",
                     content=msg.content

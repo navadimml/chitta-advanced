@@ -192,17 +192,128 @@ def test_conversation_context_preserved():
 
 3. **Integration Test**: Test full conversation flow in test mode
 
+## Backend Fixes Applied ✅
+
+### 1. ✅ Fixed Conversation History Limitation (CRITICAL)
+**File**: `backend/app/services/conversation_service.py`
+
+**Root Cause Found** (Lines 447-452):
+```python
+# OLD CODE - BUG:
+history = self.session_service.get_conversation_history(
+    family_id,
+    last_n=40  # ❌ Only last 40 messages! Context lost after this
+)
+```
+
+**Problem**:
+- Conversation history was limited to last 40 messages
+- When conversation exceeded 40 messages, earlier context (child's name, age, concerns) was lost
+- LLM forgot information provided at the beginning of conversation
+- Caused repetitive questions and double greetings
+
+**Fix Applied**:
+```python
+# NEW CODE - FIXED:
+history = self.session_service.get_conversation_history(
+    family_id
+    # NO last_n parameter = get ALL messages ✅
+)
+
+# Added context summary in system prompt showing key facts
+context_summary with child_name, age, primary_concerns
+Strong warnings to review conversation history
+Clear instructions not to repeat questions
+```
+
+**Changes**:
+- Removed `last_n=40` limitation - now sends FULL conversation history
+- Added context summary highlighting key facts (name, age, concerns)
+- Enhanced system prompt with explicit instructions to review history
+- Fixed retry logic to also use full history (was limited to 10 messages)
+
+### 2. ✅ Fixed Parent Simulator Context Loss
+**File**: `backend/app/services/parent_simulator.py`
+
+**Problem** (Lines 539-542):
+```python
+# OLD CODE - BUG:
+recent_messages = state.conversation[-8:] if len(state.conversation) > 8 else state.conversation
+# ❌ Only last 8 messages!
+```
+
+**Fix Applied**:
+```python
+# NEW CODE - FIXED:
+# Use ALL conversation history, not just last 8
+for msg in state.conversation:
+    messages.append(Message(...))
+```
+
+**Changes**:
+- Parent simulator now also uses full conversation history
+- Ensures consistent parent persona throughout entire conversation
+- Prevents parent from contradicting earlier answers
+
+### 3. ✅ Enhanced System Prompt Context Awareness
+**File**: `backend/app/services/conversation_service.py`
+
+**New Instructions Added** (Lines 484-501):
+```markdown
+## 🚨 CRITICAL - YOU ARE ALREADY IN AN ONGOING CONVERSATION
+
+**The complete conversation history is provided above. Review it carefully before responding!**
+
+**DO NOT:**
+- Re-introduce yourself (you already said "שלום! אני צ'יטה" in your first message)
+- Ask for information the parent already provided (name, age, concerns, etc.)
+- Repeat questions you already asked
+- Act like this is the first time meeting
+
+**DO:**
+- Continue naturally based on what was discussed
+- Acknowledge and build on previous answers
+- Use the child's name when referring to them
+- Show you remember what the parent shared
+
+**REVIEW THE CONVERSATION HISTORY ABOVE BEFORE RESPONDING!**
+```
+
 ## Related Files
 
 - `src/services/TestModeOrchestrator.jsx` - Frontend test orchestration (working correctly)
 - `src/App.jsx` - Message handling (working correctly)
 - `backend/config/workflows/context_cards.yaml` - Card definitions (fixed)
 - `src/components/deepviews/VideoUploadView.jsx` - Upload UI (fixed)
+- `backend/app/services/conversation_service.py` - Conversation management (fixed) ✅
+- `backend/app/services/parent_simulator.py` - Test mode simulator (fixed) ✅
+
+## Testing Results
+
+After applying backend fixes, test the following scenarios:
+
+1. **Long Conversation Test**:
+   - Start conversation with test parent
+   - Continue for 50+ messages
+   - Verify Chitta remembers child's name, age throughout
+   - Verify no repeated questions
+
+2. **Context Persistence Test**:
+   - Parent provides name/age in first few messages
+   - Continue conversation about various topics
+   - 20 messages later, ask follow-up question
+   - Verify Chitta uses child's name correctly
+
+3. **No Double Greeting Test**:
+   - Start fresh conversation
+   - Verify Chitta greets ONCE only
+   - Verify no re-introduction in later messages
 
 ## Next Steps
 
 1. ✅ Fix frontend UI issues (cards, buttons) - **DONE**
-2. ⏳ Backend team: Investigate conversation context management
-3. ⏳ Add logging to track LLM context
-4. ⏳ Verify system prompt includes context awareness instructions
-5. ⏳ Test with parent simulator after backend fixes
+2. ✅ Fix backend conversation context management - **DONE**
+3. ✅ Add enhanced context awareness to system prompt - **DONE**
+4. ⏳ Run comprehensive test suite with parent personas
+5. ⏳ Monitor production conversations for context quality
+6. ⏳ Consider implementing conversation summarization for very long conversations (100+ messages)
