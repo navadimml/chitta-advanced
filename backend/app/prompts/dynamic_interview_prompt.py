@@ -31,6 +31,10 @@ def build_dynamic_interview_prompt(
     """
     concerns = concerns or []
     extracted_data = extracted_data or {}
+
+    # Build CRITICAL FACTS section that's impossible to miss
+    facts_section = _build_critical_facts_section(child_name, age, gender, concerns)
+
     concerns_str = ", ".join(concerns) if concerns else "none yet"
 
     # Use provided strategic guidance or create a simple one
@@ -74,14 +78,11 @@ This section analyzes EXTRACTED DATA FIELDS (concern_details, strengths, etc.) -
 
     prompt = f"""You are Chitta (צ'יטה) - a warm, empathetic developmental specialist conducting an in-depth interview in Hebrew.
 
+{facts_section}
+
 ## YOUR ROLE
 
 You're having a natural conversation to deeply understand this child's development. This isn't a checklist or form - it's a flowing, empathetic conversation where you listen, follow up thoughtfully, and explore what matters.
-
-## CURRENT STATE
-
-Child: {child_name} | Age: {age} | Gender: {gender}
-Concerns mentioned: {concerns_str}
 
 ## 🚨 CRITICAL - CONVERSATION STYLE (READ THIS FIRST!)
 
@@ -174,3 +175,62 @@ You lead proactively - explore these areas through natural questions. Use your s
 Now conduct this interview as the PROACTIVE LEADER - you ask, explore, and lead naturally!"""
 
     return prompt
+
+
+def _build_critical_facts_section(child_name: str, age: str, gender: str, concerns: List[str]) -> str:
+    """
+    Build PROMINENT facts section that LLM cannot miss
+
+    Wu Wei principle: Make the right path (using facts) impossible to miss
+    """
+    facts = []
+
+    # Child name - PROMINENT
+    if child_name and child_name.lower() not in ['unknown', 'not mentioned', 'null', '']:
+        facts.append(f"""✅ **Child's name: {child_name}**
+   → USE THIS NAME in every response! Say "{child_name}" not "הילד/ה שלך"
+   → NEVER ask for the name again - you already know it!""")
+    else:
+        facts.append("""❌ Child's name: (not mentioned yet)
+   → If natural opportunity arises, gently ask: "איך קוראים לילד/ה?"
+   → Don't push if parent doesn't want to share""")
+
+    # Age - PROMINENT
+    if age and str(age).lower() not in ['unknown', 'not mentioned', 'null', '']:
+        facts.append(f"""✅ **Child's age: {age} years**
+   → Reference age naturally: "בגיל {age}...", "לגיל {age} זה..."
+   → NEVER ask for age again - you already know it!""")
+    else:
+        facts.append("""❌ Child's age: (not mentioned yet)
+   → If natural opportunity arises, gently ask: "בן/בת כמה?"
+   → Don't push if parent doesn't want to share""")
+
+    # Gender
+    if gender and gender.lower() not in ['unknown', 'not mentioned', 'null', '']:
+        gender_he = "הוא" if gender == "male" else "היא" if gender == "female" else "הילד/ה"
+        facts.append(f"""✅ Gender: {gender} (use "{gender_he}" in Hebrew)""")
+
+    # Concerns
+    if concerns:
+        concerns_str = ", ".join(concerns)
+        facts.append(f"""✅ **Concerns mentioned: {concerns_str}**
+   → Build on these, explore deeper
+   → Don't ask about same concerns again - focus on understanding better""")
+    else:
+        facts.append("""❌ Primary concerns: (not discussed yet)
+   → Explore what brings parent here: "מה הדאגה העיקרית?"
+   → Listen for what truly worries them""")
+
+    facts_text = "\n\n".join(facts)
+
+    return f"""
+## 🚨 CRITICAL FACTS - USE THESE IN YOUR RESPONSE! 🚨
+
+**These are FACTS from previous conversation - DO NOT ASK AGAIN:**
+
+{facts_text}
+
+**GOLDEN RULE**: If a fact is marked ✅ above, USE IT! Don't ask for it again!
+
+────────────────────────────────────────────────────
+"""
