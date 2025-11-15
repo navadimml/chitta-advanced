@@ -98,42 +98,13 @@ class ArtifactGenerationService:
         )
 
         try:
-            # Generate using LLM (or fallback to template if no LLM)
+            # Generate using LLM
             if self.llm_provider:
                 logger.info("📝 Using two-stage LLM generation for video guidelines")
-                try:
-                    content = await self._generate_guidelines_with_llm(session_data)
-                except Exception as llm_error:
-                    logger.error(
-                        f"❌ LLM generation failed: {llm_error}. "
-                        f"Falling back to template generation.",
-                        exc_info=True
-                    )
-                    # Fallback to template if LLM fails
-                    child_name = session_data.get("child_name", "ילד/ה")
-                    age = session_data.get("age", "")
-                    age_str = f"{age} שנים" if age else "גיל לא צוין"
-                    concerns = session_data.get("primary_concerns", [])
-                    concern_details = session_data.get("concern_details", "")
-
-                    # Generate template-based guidelines
-                    template_content = self._generate_guidelines_template(
-                        child_name=child_name,
-                        age_str=age_str,
-                        concerns=concerns,
-                        concern_details=concern_details
-                    )
-
-                    # Convert to JSON format for consistency
-                    content = self._convert_template_to_json_format(
-                        template_content,
-                        child_name,
-                        age_str
-                    )
-                    artifact.generation_model = "template_fallback"
+                content = await self._generate_guidelines_with_llm(session_data)
             else:
                 logger.info("📝 Using template generation (no LLM provider)")
-                # Fallback to template
+                # Fallback to template only if no LLM provider
                 child_name = session_data.get("child_name", "ילד/ה")
                 age = session_data.get("age", "")
                 age_str = f"{age} שנים" if age else "גיל לא צוין"
@@ -153,17 +124,15 @@ class ArtifactGenerationService:
                     child_name,
                     age_str
                 )
-                artifact.generation_model = "template"
 
             # Mark artifact as ready
             artifact.mark_ready(content)
             artifact.generation_duration_seconds = time.time() - start_time
-            if not hasattr(artifact, 'generation_model'):
-                artifact.generation_model = getattr(self.llm_provider, "model_name", "template") if self.llm_provider else "template"
+            artifact.generation_model = getattr(self.llm_provider, "model_name", "template") if self.llm_provider else "template"
 
             logger.info(
                 f"✅ Video guidelines generated successfully in {artifact.generation_duration_seconds:.2f}s "
-                f"({len(content)} chars, model: {artifact.generation_model})"
+                f"({len(content)} chars)"
             )
 
         except Exception as e:
