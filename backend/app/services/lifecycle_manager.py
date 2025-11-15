@@ -107,10 +107,18 @@ class LifecycleManager:
             # Get artifact ID if this moment generates an artifact
             artifact_id = moment_config.get("artifact")
 
-            # If moment generates artifact, check if it needs regeneration
+            # If moment generates artifact, check current status
+            artifact = session.get_artifact(artifact_id) if artifact_id else None
+
+            # Skip if artifact is currently being generated (avoid concurrent generations)
+            if artifact and artifact.is_generating:
+                logger.info(f"  ↳ Artifact {artifact_id} is currently generating, skipping")
+                current_state[moment_id] = False  # Not yet ready
+                continue
+
+            # Check if ready artifact exists and is valid
             if artifact_id and session.has_artifact(artifact_id):
-                # Validate artifact is not empty (for guidelines, check scenarios)
-                artifact = session.get_artifact(artifact_id)
+                # Artifact is ready - validate it's not empty
                 if artifact and artifact_id == "baseline_video_guidelines":
                     # Parse content to check if scenarios exist
                     try:
@@ -157,13 +165,15 @@ class LifecycleManager:
             was_met = previous_state.get(moment_id, False)
             just_became_ready = prereqs_met and not was_met
 
-            # SPECIAL CASE: If artifact doesn't exist OR is empty, retry generation
+            # SPECIAL CASE: If artifact doesn't exist OR is empty OR failed, retry generation
             # But limit retries to prevent infinite loops!
             artifact_is_invalid = False
+            artifact_is_generating = artifact and artifact.is_generating if artifact else False
+
+            # Only validate ready artifacts for emptiness
             if artifact_id and session.has_artifact(artifact_id):
-                # Check if artifact is empty (specific validation for guidelines)
+                # Artifact is ready - check if it's empty (specific validation for guidelines)
                 if artifact_id == "baseline_video_guidelines":
-                    artifact = session.get_artifact(artifact_id)
                     try:
                         import json
                         if isinstance(artifact.content, str):
@@ -176,6 +186,10 @@ class LifecycleManager:
                             logger.info(f"  ↳ Artifact exists but is empty (0 scenarios)")
                     except Exception as e:
                         logger.warning(f"  ↳ Failed to validate artifact: {e}")
+                        artifact_is_invalid = True
+
+            # Check if artifact errored out
+            artifact_has_error = artifact and artifact.has_error if artifact else False
 
             # Check retry attempts for this artifact
             if family_id not in self._generation_attempts:
@@ -187,12 +201,15 @@ class LifecycleManager:
             should_retry_artifact = (
                 artifact_id and  # Moment generates artifact
                 prereqs_met and  # Prerequisites are met
-                (not session.has_artifact(artifact_id) or artifact_is_invalid) and  # Artifact missing OR empty
+                not artifact_is_generating and  # NOT currently generating (avoid concurrent)
+                (not session.has_artifact(artifact_id) or artifact_is_invalid or artifact_has_error) and  # Artifact missing, empty, or failed
                 not max_attempts_reached  # Haven't exceeded retry limit
             )
 
             logger.info(f"  ↳ Was previously met: {was_met}, Just became ready: {just_became_ready}")
             logger.info(f"  ↳ Attempt count: {attempt_count}/{self._max_generation_attempts}")
+            if artifact_is_generating:
+                logger.info(f"  ↳ Artifact is currently generating - skipping retry to avoid concurrent generations")
 
             if should_retry_artifact and not just_became_ready:
                 if max_attempts_reached:
