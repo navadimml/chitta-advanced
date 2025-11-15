@@ -157,11 +157,19 @@ class InterviewService:
 
         # Merge arrays (concerns, urgent_flags)
         if 'primary_concerns' in new_data and new_data['primary_concerns']:
-            concerns = set(current.primary_concerns + new_data['primary_concerns'])
+            # Ensure new_data['primary_concerns'] is a list (LLM sometimes returns string)
+            new_concerns = new_data['primary_concerns']
+            if isinstance(new_concerns, str):
+                new_concerns = [new_concerns]
+            concerns = set(current.primary_concerns + new_concerns)
             current.primary_concerns = list(concerns)
 
         if 'urgent_flags' in new_data and new_data['urgent_flags']:
-            flags = set(current.urgent_flags + new_data['urgent_flags'])
+            # Ensure new_data['urgent_flags'] is a list (LLM sometimes returns string)
+            new_flags = new_data['urgent_flags']
+            if isinstance(new_flags, str):
+                new_flags = [new_flags]
+            flags = set(current.urgent_flags + new_flags)
             current.urgent_flags = list(flags)
 
         # Append or merge text fields
