@@ -117,6 +117,37 @@ function App() {
       };
       setMessages(prev => [...prev, errorMessage]);
     };
+
+    // 🌟 Wu Wei: Connect to Server-Sent Events for real-time updates
+    const eventSource = new EventSource(`/api/state/subscribe?family_id=${FAMILY_ID}`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const update = JSON.parse(event.data);
+        console.log('📡 SSE update received:', update.type, update.data);
+
+        if (update.type === 'cards') {
+          // Update cards in real-time
+          setCards(update.data.cards);
+        } else if (update.type === 'artifact') {
+          // Artifact status changed - could trigger card refresh or UI updates
+          console.log('📦 Artifact updated:', update.data.artifact_id, update.data.status);
+          // Additional handling could go here (e.g., update specific artifact displays)
+        }
+      } catch (error) {
+        console.error('Error processing SSE update:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      // Automatically reconnects on error
+    };
+
+    // Cleanup on unmount
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   // 🧪 Monitor messages and trigger next response in test mode
