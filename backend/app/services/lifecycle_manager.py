@@ -239,8 +239,13 @@ class LifecycleManager:
                 message_template = moment_config.get("message")
                 if message_template and just_became_ready:  # Only on first transition, not retries
                     # Format message with context variables
+                    # Use fallback if child_name is None, empty, or placeholder
+                    child_name_raw = context.get("child_name")
+                    invalid_names = [None, "", "unknown", "Unknown", "לא צוין", "לא ידוע"]
+                    child_name = child_name_raw if child_name_raw not in invalid_names else "הילד/ה"
+
                     message = message_template.format(
-                        child_name=context.get("child_name", "הילד/ה")
+                        child_name=child_name
                     )
 
                     # 🌟 Wu Wei: Build event data (all in one place now!)
