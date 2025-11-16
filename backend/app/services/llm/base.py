@@ -12,9 +12,10 @@ from pydantic import BaseModel, Field
 class Message(BaseModel):
     """Chat message"""
     role: str = Field(..., description="Role: 'system', 'user', 'assistant', or 'function'")
-    content: str = Field(..., description="Message content")
+    content: str = Field(default="", description="Message content")
     name: Optional[str] = Field(default=None, description="Function name for function responses")
     function_response: Optional[Dict[str, Any]] = Field(default=None, description="Function response data for Gemini")
+    function_calls: Optional[List['FunctionCall']] = Field(default=None, description="Function calls made by assistant (for conversation history)")
 
 
 class FunctionCall(BaseModel):
@@ -34,6 +35,10 @@ class LLMResponse(BaseModel):
         default=None,
         description="Reason for completion: 'stop', 'function_call', 'length', etc."
     )
+
+
+# Update forward references for Pydantic
+Message.model_rebuild()
 
 
 class BaseLLMProvider(ABC):

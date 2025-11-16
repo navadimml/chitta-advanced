@@ -188,6 +188,15 @@ class SimplifiedConversationService:
                 logger.info("✅ Final text response received")
                 break
 
+            # CRITICAL: Add assistant's response (with function calls) to conversation history
+            # This is required per Gemini docs - model needs to see its own function calls
+            # Otherwise it doesn't know it already called the function and will call again!
+            messages.append(Message(
+                role="assistant",
+                content=response_text or "",  # Usually empty when function calling
+                function_calls=llm_response.function_calls  # The function calls themselves
+            ))
+
             # Process function calls and build results
             logger.info(f"🔧 Processing {len(llm_response.function_calls)} function call(s)")
             function_results = {}
