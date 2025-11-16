@@ -188,6 +188,7 @@ class GeminiProvider(BaseLLMProvider):
         Gemini format:
         - System message: Included as first user message with system prompt prefix
         - User/Assistant: Content with role and parts
+        - Function responses: Special Part.from_function_response format
         """
         contents = []
         system_prompt = None
@@ -196,6 +197,26 @@ class GeminiProvider(BaseLLMProvider):
             if msg.role == "system":
                 # Save system prompt to prepend to first user message
                 system_prompt = msg.content
+                continue
+
+            # Handle function responses (from function execution results)
+            if msg.role == "function" and msg.function_response:
+                # Gemini expects function responses as user role with function_response parts
+                parts = []
+                for func_name, result in msg.function_response.items():
+                    parts.append(
+                        types.Part.from_function_response(
+                            name=func_name,
+                            response={"result": result}
+                        )
+                    )
+
+                contents.append(
+                    types.Content(
+                        role="user",  # Function responses are sent as user role in Gemini
+                        parts=parts
+                    )
+                )
                 continue
 
             # Map our roles to Gemini roles

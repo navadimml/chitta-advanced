@@ -201,18 +201,14 @@ class SimplifiedConversationService:
                     function_results[func_call.name] = {"status": "noted", "action": action_requested}
 
             # Add function results to conversation (Wu Wei: send results back to LLM)
-            # Build function response message
-            function_response_content = "Function execution results:\n"
-            for func_name, result in function_results.items():
-                function_response_content += f"- {func_name}: {result}\n"
-
+            # Use Gemini's expected function_response format
             messages.append(Message(
                 role="function",
-                content=function_response_content,
-                name="system"  # Function results come from system
+                content="Function execution results",  # Descriptive text for logging
+                function_response=function_results  # Proper Gemini format
             ))
 
-            logger.info("📤 Function results sent back to LLM for next iteration")
+            logger.info(f"📤 Function results sent back to LLM: {list(function_results.keys())}")
             # Loop continues - next iteration will get final text response
 
         # 6. Save conversation turn
