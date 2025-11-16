@@ -1,0 +1,552 @@
+"""
+Simplified Conversation Service - Single LLM Architecture
+
+This replaces the complex Sage+Hand+Strategic architecture with ONE comprehensive LLM call.
+
+Benefits:
+- 1-2 LLM calls instead of 5-6
+- 80% cost reduction
+- 5x faster responses
+- Same or better quality
+- Easy to maintain and extend
+"""
+
+import logging
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+
+from .llm.base import Message
+from .llm.factory import create_llm_provider
+from .session_service import get_session_service
+from .lifecycle_manager import get_lifecycle_manager
+from .prerequisite_service import get_prerequisite_service
+from ..prompts.comprehensive_prompt_builder import build_comprehensive_prompt
+from ..prompts.conversation_functions import CONVERSATION_FUNCTIONS_COMPREHENSIVE
+
+logger = logging.getLogger(__name__)
+
+
+class SimplifiedConversationService:
+    """
+    Simplified conversation service using single LLM call.
+
+    Replaces:
+    - Sage (intent interpretation) → Main LLM understands naturally
+    - Hand (action decision) → Main LLM detects via functions
+    - Strategic Advisor → Built into system prompt
+    - Separate extraction → Combined via function calling
+    """
+
+    def __init__(self, llm_provider=None):
+        """Initialize simplified conversation service"""
+        self.llm = llm_provider or create_llm_provider()
+        self.session_service = get_session_service()
+        self.lifecycle_manager = get_lifecycle_manager()
+        self.prerequisite_service = get_prerequisite_service()
+
+        logger.info("✨ SimplifiedConversationService initialized - single LLM architecture")
+
+    async def process_message(
+        self,
+        family_id: str,
+        user_message: str,
+        temperature: float = 0.0  # Low temp for reliable function calling
+    ) -> Dict[str, Any]:
+        """
+        Process user message using simplified single-LLM architecture.
+
+        Flow:
+        1. Get session data
+        2. Build comprehensive prompt
+        3. SINGLE LLM call (with functions)
+        4. Process function calls
+        5. Semantic verification (every 3 turns)
+        6. Return response
+
+        Args:
+            family_id: Family identifier
+            user_message: Parent's message
+            temperature: LLM temperature
+
+        Returns:
+            Response dict with content, extracted data, cards, etc.
+        """
+        logger.info(f"📨 Processing message (simplified): {user_message[:100]}...")
+
+        # 1. Get session state
+        session = self.session_service.get_or_create_session(family_id)
+        data = session.extracted_data
+
+        # 2. Build comprehensive system prompt
+        available_artifacts = list(session.artifacts.keys())
+        # Defensive: ensure conversation_history is never None
+        conversation_history = session.conversation_history or []
+        message_count = len([m for m in conversation_history if m.get('role') == 'user'])
+
+        system_prompt = build_comprehensive_prompt(
+            child_name=data.child_name,
+            age=data.age,
+            gender=data.gender,
+            extracted_data={
+                'child_name': data.child_name,
+                'age': data.age,
+                'gender': data.gender,
+                'primary_concerns': data.primary_concerns,
+                'concern_details': data.concern_details,
+                'strengths': data.strengths,
+                'developmental_history': data.developmental_history,
+                'family_context': data.family_context,
+                'daily_routines': data.daily_routines,
+                'parent_goals': data.parent_goals
+            },
+            completeness=session.completeness,
+            available_artifacts=available_artifacts,
+            message_count=message_count,
+            session=session,
+            lifecycle_manager=self.lifecycle_manager
+        )
+
+        # 3. Get conversation history
+        history = self.session_service.get_conversation_history(family_id) or []
+
+        # Build messages array
+        messages = [Message(role="system", content=system_prompt)]
+
+        for turn in history:
+            messages.append(Message(
+                role=turn["role"],
+                content=turn["content"]
+            ))
+
+        messages.append(Message(role="user", content=user_message))
+
+        # 4. FUNCTION CALLING LOOP (Wu Wei - flow with Gemini's natural multi-turn pattern)
+        # Iteration 1: May return function calls only
+        # Iteration 2: Returns final text response after seeing function results
+        logger.info("🤖 Starting function calling loop")
+
+        max_iterations = 3  # Prevent infinite loops
+        iteration = 0
+        llm_response = None
+
+        # Track function call results for all iterations
+        all_extractions = []  # Track ALL extraction calls, not just the last one
+        action_requested = None
+        developmental_question = None
+        analysis_question = None
+        app_help_request = None
+
+        while iteration < max_iterations:
+            iteration += 1
+            logger.info(f"🔄 Iteration {iteration}/{max_iterations}")
+
+            # CRITICAL FIX: Only provide tools on first iteration
+            # After executing functions, remove tools to FORCE text response
+            # This prevents infinite function calling loop
+            functions_param = CONVERSATION_FUNCTIONS_COMPREHENSIVE if iteration == 1 else None
+
+            if iteration > 1:
+                logger.info("🔒 Tools removed - forcing final text response")
+
+            # Call LLM with functions
+            # CRITICAL FIX: Increased max_tokens from 2000 to 4000 to prevent truncation
+            # The comprehensive prompt is ~2500 tokens, leaving little room for responses
+            llm_response = await self.llm.chat(
+                messages=messages,
+                functions=functions_param,
+                temperature=temperature,
+                max_tokens=4000
+            )
+
+            response_text = llm_response.content or ""
+            has_function_calls = len(llm_response.function_calls) > 0
+            finish_reason = getattr(llm_response, 'finish_reason', None)
+
+            logger.info(
+                f"✅ LLM response: {len(response_text)} chars, "
+                f"{len(llm_response.function_calls)} function calls"
+            )
+
+            # Enhanced debugging for function calling issues
+            if has_function_calls:
+                func_names = [fc.name for fc in llm_response.function_calls]
+                logger.info(f"📞 Functions called: {func_names}")
+            else:
+                # Warn if no function calls when we expected them
+                if response_text and len(response_text) > 0:
+                    logger.warning(
+                        f"⚠️  No function calls made despite {len(CONVERSATION_FUNCTIONS_COMPREHENSIVE)} "
+                        f"functions available. Response preview: {response_text[:100]}..."
+                    )
+
+            # Check for malformed function call (common with weak models)
+            if finish_reason and 'MALFORMED' in str(finish_reason):
+                logger.error(
+                    f"🔴 MALFORMED_FUNCTION_CALL detected on iteration {iteration}. "
+                    f"This usually means the model is too weak for this task. "
+                    f"Recommend upgrading from flash-lite to gemini-2.5-flash or better."
+                )
+                # If we're past the first iteration, we can use whatever we have
+                if iteration > 1:
+                    logger.warning("⚠️  Falling back to previous valid state")
+                    break
+
+            # If no function calls, we have the final text response
+            if not has_function_calls:
+                logger.info("✅ Final text response received")
+                break
+
+            # CRITICAL: Add assistant's response (with function calls) to conversation history
+            # This is required per Gemini docs - model needs to see its own function calls
+            # Otherwise it doesn't know it already called the function and will call again!
+            messages.append(Message(
+                role="assistant",
+                content=response_text or "",  # Usually empty when function calling
+                function_calls=llm_response.function_calls  # The function calls themselves
+            ))
+
+            # Process function calls and build results
+            # CRITICAL: Use LIST not dict to support multiple calls to same function!
+            # Gemini expects one response per call, in the same order
+            logger.info(f"🔧 Processing {len(llm_response.function_calls)} function call(s)")
+            function_results = []  # Changed from dict to list!
+
+            for func_call in llm_response.function_calls:
+                if func_call.name == "extract_interview_data":
+                    # Extract structured data
+                    logger.info(f"📝 Extracting data: {list(func_call.arguments.keys())}")
+                    logger.info(f"   → child_name: {repr(func_call.arguments.get('child_name'))}")
+                    logger.info(f"   → age: {repr(func_call.arguments.get('age'))}")
+                    logger.info(f"   → strengths: {repr(str(func_call.arguments.get('strengths', 'N/A'))[:100])}")
+                    updated_data = self.session_service.update_extracted_data(
+                        family_id,
+                        func_call.arguments
+                    )
+                    # Track ALL extractions, not just the last one
+                    all_extractions.append(func_call.arguments)
+                    # Append to list (not dict) to preserve all responses
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "success", "data_saved": True}
+                    })
+
+                elif func_call.name == "ask_developmental_question":
+                    # Developmental question asked
+                    developmental_question = func_call.arguments
+                    logger.info(f"❓ Developmental question: {developmental_question.get('question_topic')}")
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "topic": developmental_question.get('question_topic')}
+                    })
+
+                elif func_call.name == "ask_about_analysis":
+                    # Question about Chitta's analysis
+                    analysis_question = func_call.arguments
+                    logger.info(f"🔍 Analysis question: {analysis_question.get('analysis_element')}")
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "element": analysis_question.get('analysis_element')}
+                    })
+
+                elif func_call.name == "ask_about_app":
+                    # App help request
+                    app_help_request = func_call.arguments
+                    logger.info(f"ℹ️ App help: {app_help_request.get('help_topic')}")
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "topic": app_help_request.get('help_topic')}
+                    })
+
+                elif func_call.name == "request_action":
+                    # Action requested
+                    action_requested = func_call.arguments.get('action')
+                    logger.info(f"🎬 Action requested: {action_requested}")
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "action": action_requested}
+                    })
+
+            # Add function results to conversation (Wu Wei: send results back to LLM)
+            # Use Gemini's expected function_response format
+            messages.append(Message(
+                role="function",
+                content="Function execution results",  # Descriptive text for logging
+                function_response=function_results  # Now a list to support multiple calls!
+            ))
+
+            func_names = [fr["name"] for fr in function_results]
+            logger.info(f"📤 Function results sent back to LLM: {len(function_results)} responses for {func_names}")
+            logger.debug(f"📦 Full function_results payload: {function_results}")
+            # Loop continues - next iteration will get final text response
+
+        # 5.5. FALLBACK EXTRACTION: If model didn't call extract_interview_data, try regex extraction
+        # This helps with weak models like gemini-flash-lite that don't reliably call functions
+        if not all_extractions:
+            logger.warning("⚠️  Model didn't call extract_interview_data - attempting fallback regex extraction")
+            fallback_data = self._fallback_extract_basic_info(user_message)
+            if fallback_data:
+                logger.info(f"✅ Fallback extraction succeeded: {list(fallback_data.keys())}")
+                # Save the extracted data
+                self.session_service.update_extracted_data(family_id, fallback_data)
+                all_extractions.append(fallback_data)
+            else:
+                logger.info("ℹ️  Fallback extraction found nothing - user message may not contain basic info")
+
+        # 6. Check for empty response and generate context-aware fallback if needed
+        final_response = llm_response.content or ""
+
+        if not final_response and all_extractions:
+            # We extracted data but got no text response (model hit max_iterations)
+            # Generate a CONTEXT-AWARE acknowledgment based on what was just shared
+
+            # Merge all extractions to see what we got this turn
+            merged = {}
+            for ext in all_extractions:
+                merged.update(ext)
+
+            # Get current session data to avoid repeating questions
+            session = self.session_service.get_or_create_session(family_id)
+            data = session.extracted_data
+
+            # Smart fallback based on what was just shared
+            child_name = merged.get('child_name') or data.child_name or 'הילד/ה'
+            age = merged.get('age') or data.age
+            concern_details = merged.get('concern_details', '')
+            strengths = merged.get('strengths', '')
+
+            # Generate response based on what was JUST shared (not what we already know)
+            if merged.get('child_name') and merged.get('age'):
+                # Just learned name and age
+                final_response = f"נעים להכיר את {child_name}! ספרי לי קצת - מה מעסיק אותך?"
+            elif concern_details and not strengths:
+                # Shared concerns, now ask about strengths
+                final_response = f"אני שומעת. ומה {child_name} כן אוהב לעשות? במה הוא טוב?"
+            elif strengths and not concern_details:
+                # Shared strengths, now ask about concerns
+                final_response = f"נהדר! ומה מעסיק אותך לגבי {child_name}?"
+            elif concern_details:
+                # Shared concern details, ask for more specifics
+                final_response = "תני לי דוגמה - מתי זה קרה לאחרונה?"
+            else:
+                # Generic - just continue the conversation
+                final_response = "ספרי לי עוד - מה קורה?"
+
+            logger.warning(
+                f"⚠️  Generated context-aware fallback (model hit max_iterations). "
+                f"Merged extractions: {list(merged.keys())}. "
+                f"Model likely too weak - upgrade to gemini-2.5-flash recommended."
+            )
+
+        # Save conversation turn
+        self.session_service.add_conversation_turn(family_id, "user", user_message)
+        self.session_service.add_conversation_turn(family_id, "assistant", final_response)
+
+        # 7. Get updated session state
+        session = self.session_service.get_or_create_session(family_id)
+        completeness_pct = session.completeness * 100
+
+        # 8. Semantic verification (every 3 turns until guidelines ready)
+        turn_count = len([msg for msg in (session.conversation_history or []) if msg.get('role') == 'user'])
+        video_guidelines_generated = session.has_artifact("baseline_video_guidelines")
+
+        should_verify = (
+            turn_count >= 6 and
+            (turn_count - session.semantic_verification_turn) >= 3 and
+            not video_guidelines_generated
+        )
+
+        if should_verify:
+            logger.info(f"🔍 Running semantic completeness verification (turn {turn_count})")
+            semantic_result = await self.session_service.verify_semantic_completeness(family_id)
+
+            if semantic_result.get('video_guidelines_readiness', 0) >= 80:
+                logger.info(f"✅ Ready for video guidelines! ({semantic_result.get('video_guidelines_readiness')}%)")
+
+        # 9. Generate context cards
+        context_cards = self._generate_context_cards(
+            family_id,
+            session.completeness,
+            action_requested,
+            None
+        )
+
+        # 10. Process lifecycle events
+        session_data = self._build_session_data_dict(family_id, session)
+        context = self.prerequisite_service.get_context_for_cards(session_data)
+        context["conversation_history"] = session.conversation_history or []
+
+        lifecycle_result = await self.lifecycle_manager.process_lifecycle_events(
+            family_id=family_id,
+            context=context,
+            session=session
+        )
+
+        if lifecycle_result["artifacts_generated"]:
+            logger.info(
+                f"🌟 Artifacts generated: {lifecycle_result['artifacts_generated']}"
+            )
+
+        # 🌟 Wu Wei: If lifecycle events were triggered, use their messages from YAML
+        # These messages notify the parent about new capabilities/artifacts
+        response_text = final_response
+
+        if lifecycle_result["events_triggered"]:
+            # Use the first event's message (usually only one per turn)
+            event = lifecycle_result["events_triggered"][0]
+            event_message = event.get("message", "")
+
+            logger.info(
+                f"🎉 Wu Wei: Lifecycle event triggered: {event['event_name']}"
+            )
+            logger.info(f"📢 Event message: {event_message[:100]}...")
+
+            # Use event message as the response (it explains what just happened)
+            response_text = event_message
+
+        # 11. Return response
+        # Merge all extractions for the response
+        merged_extractions = {}
+        for ext in all_extractions:
+            merged_extractions.update(ext)
+
+        return {
+            "response": response_text,
+            "function_calls": [
+                {"name": fc.name, "arguments": fc.arguments}
+                for fc in llm_response.function_calls
+            ],
+            "completeness": completeness_pct,
+            "extracted_data": merged_extractions,
+            "context_cards": context_cards,
+            "stats": self.session_service.get_session_stats(family_id),
+            "architecture": "simplified",  # Signal which architecture was used
+            "intents_detected": {
+                "developmental_question": developmental_question,
+                "analysis_question": analysis_question,
+                "app_help_request": app_help_request,
+                "action_requested": action_requested
+            }
+        }
+
+    def _build_session_data_dict(self, family_id: str, session: 'SessionState') -> Dict[str, Any]:
+        """Build session data dict for prerequisite service"""
+        try:
+            extracted_dict = session.extracted_data.model_dump()
+        except AttributeError:
+            extracted_dict = session.extracted_data.dict()
+
+        return {
+            "family_id": family_id,
+            "extracted_data": extracted_dict,
+            "message_count": len(session.conversation_history or []),
+            "artifacts": session.artifacts,
+            "semantic_verification": session.semantic_verification,
+            "video_guidelines": session.has_artifact("baseline_video_guidelines"),
+            "video_guidelines_status": session.get_artifact("baseline_video_guidelines").status if session.get_artifact("baseline_video_guidelines") else "pending",
+            "parent_report_id": session.get_artifact("baseline_parent_report").artifact_id if session.has_artifact("baseline_parent_report") else None,
+            "uploaded_video_count": 0,
+            "re_assessment_active": False,
+            "viewed_guidelines": False,
+            "declined_guidelines_offer": False,
+        }
+
+    def _fallback_extract_basic_info(self, user_message: str) -> Dict[str, Any]:
+        """
+        Fallback extraction using regex patterns for weak models.
+        Extracts name and age when model doesn't call extract_interview_data.
+        """
+        import re
+
+        extracted = {}
+
+        # Pattern 1: "שמו X" or "קוראים לו X" (his name is X, we call him X)
+        name_patterns = [
+            r'שמו\s+([א-ת]+)',
+            r'קוראים\s+לו\s+([א-ת]+)',
+            r'נקרא\s+לו\s+([א-ת]+)',
+            r'שם\s+הילד\s+([א-ת]+)',
+            r'^([א-ת]+),?\s+בן',  # Pattern: "NAME, age X"
+            r'^([א-ת]+)\s*\.\s*הוא\s+בן',  # Pattern: "NAME. He is age X"
+        ]
+
+        for pattern in name_patterns:
+            match = re.search(pattern, user_message)
+            if match:
+                extracted['child_name'] = match.group(1)
+                logger.info(f"   → Fallback extracted name: {match.group(1)}")
+                break
+
+        # Hebrew number words to digits mapping (ages 1-10)
+        hebrew_numbers = {
+            'אחת': 1, 'אחד': 1,
+            'שתיים': 2, 'שניים': 2,
+            'שלוש': 3, 'שלושה': 3,
+            'ארבע': 4, 'ארבעה': 4,
+            'חמש': 5, 'חמישה': 5,
+            'שש': 6, 'שישה': 6,
+            'שבע': 7, 'שבעה': 7,
+            'שמונה': 8,
+            'תשע': 9, 'תשעה': 9,
+            'עשר': 10, 'עשרה': 10
+        }
+
+        # Pattern 2: "בן X" or "בת X" (age X boy/girl) - with both digits and Hebrew numbers
+        age_patterns = [
+            r'בן\s+(\d+)',
+            r'בת\s+(\d+)',
+            r'גיל\s+(\d+)',
+            r'(\d+)\s+שנים',
+        ]
+
+        # Try digit patterns first
+        for pattern in age_patterns:
+            match = re.search(pattern, user_message)
+            if match:
+                try:
+                    age = int(match.group(1))
+                    extracted['age'] = age
+                    logger.info(f"   → Fallback extracted age: {age}")
+                    break
+                except ValueError:
+                    pass
+
+        # If no digit found, try Hebrew number words
+        if 'age' not in extracted:
+            for hebrew_num, digit in hebrew_numbers.items():
+                if re.search(rf'בן\s+{hebrew_num}\b', user_message) or \
+                   re.search(rf'בת\s+{hebrew_num}\b', user_message):
+                    extracted['age'] = digit
+                    logger.info(f"   → Fallback extracted age (Hebrew word): {digit} ({hebrew_num})")
+                    break
+
+        # Infer gender from Hebrew grammar
+        if re.search(r'\bהוא\b', user_message):
+            extracted['gender'] = 'male'
+        elif re.search(r'\bהיא\b', user_message):
+            extracted['gender'] = 'female'
+
+        return extracted
+
+    def _generate_context_cards(
+        self,
+        family_id: str,
+        completeness: float,
+        action_requested: Optional[str],
+        completeness_check: Optional[Dict]
+    ) -> List[Dict[str, Any]]:
+        """Generate context cards (simplified - can be enhanced later)"""
+        # For now, return empty list
+        # Can add card generation logic later
+        return []
+
+
+# Singleton instance
+_simplified_conversation_service = None
+
+
+def get_simplified_conversation_service() -> SimplifiedConversationService:
+    """Get or create singleton simplified conversation service"""
+    global _simplified_conversation_service
+    if _simplified_conversation_service is None:
+        _simplified_conversation_service = SimplifiedConversationService()
+    return _simplified_conversation_service

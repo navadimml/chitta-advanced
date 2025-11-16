@@ -1,5 +1,5 @@
 """
-Simplified Conversation Service - Single LLM Architecture
+Simplified Conversation Service - Single LLM Architecture (Refactored)
 
 This replaces the complex Sage+Hand+Strategic architecture with ONE comprehensive LLM call.
 
@@ -9,15 +9,24 @@ Benefits:
 - 5x faster responses
 - Same or better quality
 - Easy to maintain and extend
+
+Key improvements in this refactored version:
+- Wu Wei flow: Tools stay available, model decides when done
+- Better empty response handling
+- Multiple lifecycle event support
+- Loop detection for stuck function calls
+- Configurable token limits
+- Cleaner code structure
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Set, Tuple
 from datetime import datetime
+from collections import defaultdict
 
 from .llm.base import Message
 from .llm.factory import create_llm_provider
-from .session_service import get_session_service
+from .session_service import SessionState, get_session_service
 from .lifecycle_manager import get_lifecycle_manager
 from .prerequisite_service import get_prerequisite_service
 from ..prompts.comprehensive_prompt_builder import build_comprehensive_prompt
@@ -28,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 class SimplifiedConversationService:
     """
-    Simplified conversation service using single LLM call.
+    Simplified conversation service using single LLM call with Wu Wei flow.
 
     Replaces:
     - Sage (intent interpretation) → Main LLM understands naturally
@@ -37,6 +46,15 @@ class SimplifiedConversationService:
     - Separate extraction → Combined via function calling
     """
 
+    # Configuration constants
+    MAX_ITERATIONS = 5  # Maximum conversation turns with model
+    MAX_FUNCTION_CALLS = 15  # Maximum total function calls per message
+    MAX_TOKENS = 8000  # Generous token limit for Hebrew responses
+    DEFAULT_TEMPERATURE = 0.0  # Low temp for reliable function calling
+
+    # Semantic verification intervals (exponential backoff)
+    VERIFICATION_TURNS = [6, 9, 12, 18, 24, 36]
+
     def __init__(self, llm_provider=None):
         """Initialize simplified conversation service"""
         self.llm = llm_provider or create_llm_provider()
@@ -44,34 +62,42 @@ class SimplifiedConversationService:
         self.lifecycle_manager = get_lifecycle_manager()
         self.prerequisite_service = get_prerequisite_service()
 
-        logger.info("✨ SimplifiedConversationService initialized - single LLM architecture")
+        logger.info("✨ SimplifiedConversationService initialized - Wu Wei architecture")
 
     async def process_message(
         self,
         family_id: str,
         user_message: str,
-        temperature: float = 0.0  # Low temp for reliable function calling
+        temperature: float = None,
+        max_tokens: int = None
     ) -> Dict[str, Any]:
         """
         Process user message using simplified single-LLM architecture.
 
-        Flow:
+        Flow (Wu Wei - natural flow with safety limits):
         1. Get session data
         2. Build comprehensive prompt
-        3. SINGLE LLM call (with functions)
+        3. Function calling loop (model decides when done)
+           - Keep tools available
+           - Track function call count
+           - Detect loops
         4. Process function calls
-        5. Semantic verification (every 3 turns)
+        5. Semantic verification (smart intervals)
         6. Return response
 
         Args:
             family_id: Family identifier
             user_message: Parent's message
-            temperature: LLM temperature
+            temperature: LLM temperature (default: 0.0)
+            max_tokens: Maximum response tokens (default: 8000)
 
         Returns:
             Response dict with content, extracted data, cards, etc.
         """
-        logger.info(f"📨 Processing message (simplified): {user_message[:100]}...")
+        temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
+        max_tokens = max_tokens if max_tokens is not None else self.MAX_TOKENS
+
+        logger.info(f"📨 Processing message: {user_message[:100]}...")
 
         # 1. Get session state
         session = self.session_service.get_or_create_session(family_id)
@@ -79,9 +105,7 @@ class SimplifiedConversationService:
 
         # 2. Build comprehensive system prompt
         available_artifacts = list(session.artifacts.keys())
-        # Defensive: ensure conversation_history is never None
-        conversation_history = session.conversation_history or []
-        message_count = len([m for m in conversation_history if m.get('role') == 'user'])
+        message_count = self._count_user_messages(session)
 
         system_prompt = build_comprehensive_prompt(
             child_name=data.child_name,
@@ -120,224 +144,34 @@ class SimplifiedConversationService:
 
         messages.append(Message(role="user", content=user_message))
 
-        # 4. FUNCTION CALLING LOOP (Wu Wei - flow with Gemini's natural multi-turn pattern)
-        # Iteration 1: May return function calls only
-        # Iteration 2: Returns final text response after seeing function results
-        logger.info("🤖 Starting function calling loop")
+        # 4. FUNCTION CALLING LOOP (Wu Wei - natural flow with safety limits)
+        logger.info("🤖 Starting Wu Wei function calling loop")
 
-        max_iterations = 3  # Prevent infinite loops
-        iteration = 0
-        llm_response = None
+        loop_result = await self._function_calling_loop(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            family_id=family_id
+        )
 
-        # Track function call results for all iterations
-        all_extractions = []  # Track ALL extraction calls, not just the last one
-        action_requested = None
-        developmental_question = None
-        analysis_question = None
-        app_help_request = None
+        # Unpack loop results
+        final_response = loop_result["response"]
+        llm_response = loop_result["llm_response"]
+        all_extractions = loop_result["extractions"]
+        action_requested = loop_result["action_requested"]
+        developmental_question = loop_result["developmental_question"]
+        analysis_question = loop_result["analysis_question"]
+        app_help_request = loop_result["app_help_request"]
 
-        while iteration < max_iterations:
-            iteration += 1
-            logger.info(f"🔄 Iteration {iteration}/{max_iterations}")
-
-            # CRITICAL FIX: Only provide tools on first iteration
-            # After executing functions, remove tools to FORCE text response
-            # This prevents infinite function calling loop
-            functions_param = CONVERSATION_FUNCTIONS_COMPREHENSIVE if iteration == 1 else None
-
-            if iteration > 1:
-                logger.info("🔒 Tools removed - forcing final text response")
-
-            # Call LLM with functions
-            # CRITICAL FIX: Increased max_tokens from 2000 to 4000 to prevent truncation
-            # The comprehensive prompt is ~2500 tokens, leaving little room for responses
-            llm_response = await self.llm.chat(
-                messages=messages,
-                functions=functions_param,
-                temperature=temperature,
-                max_tokens=4000
+        # 5. Handle empty response with smart fallback
+        if not final_response:
+            final_response = self._generate_smart_fallback(
+                family_id=family_id,
+                all_extractions=all_extractions,
+                user_message=user_message
             )
 
-            response_text = llm_response.content or ""
-            has_function_calls = len(llm_response.function_calls) > 0
-            finish_reason = getattr(llm_response, 'finish_reason', None)
-
-            logger.info(
-                f"✅ LLM response: {len(response_text)} chars, "
-                f"{len(llm_response.function_calls)} function calls"
-            )
-
-            # Enhanced debugging for function calling issues
-            if has_function_calls:
-                func_names = [fc.name for fc in llm_response.function_calls]
-                logger.info(f"📞 Functions called: {func_names}")
-            else:
-                # Warn if no function calls when we expected them
-                if response_text and len(response_text) > 0:
-                    logger.warning(
-                        f"⚠️  No function calls made despite {len(CONVERSATION_FUNCTIONS_COMPREHENSIVE)} "
-                        f"functions available. Response preview: {response_text[:100]}..."
-                    )
-
-            # Check for malformed function call (common with weak models)
-            if finish_reason and 'MALFORMED' in str(finish_reason):
-                logger.error(
-                    f"🔴 MALFORMED_FUNCTION_CALL detected on iteration {iteration}. "
-                    f"This usually means the model is too weak for this task. "
-                    f"Recommend upgrading from flash-lite to gemini-2.5-flash or better."
-                )
-                # If we're past the first iteration, we can use whatever we have
-                if iteration > 1:
-                    logger.warning("⚠️  Falling back to previous valid state")
-                    break
-
-            # If no function calls, we have the final text response
-            if not has_function_calls:
-                logger.info("✅ Final text response received")
-                break
-
-            # CRITICAL: Add assistant's response (with function calls) to conversation history
-            # This is required per Gemini docs - model needs to see its own function calls
-            # Otherwise it doesn't know it already called the function and will call again!
-            messages.append(Message(
-                role="assistant",
-                content=response_text or "",  # Usually empty when function calling
-                function_calls=llm_response.function_calls  # The function calls themselves
-            ))
-
-            # Process function calls and build results
-            # CRITICAL: Use LIST not dict to support multiple calls to same function!
-            # Gemini expects one response per call, in the same order
-            logger.info(f"🔧 Processing {len(llm_response.function_calls)} function call(s)")
-            function_results = []  # Changed from dict to list!
-
-            for func_call in llm_response.function_calls:
-                if func_call.name == "extract_interview_data":
-                    # Extract structured data
-                    logger.info(f"📝 Extracting data: {list(func_call.arguments.keys())}")
-                    logger.info(f"   → child_name: {repr(func_call.arguments.get('child_name'))}")
-                    logger.info(f"   → age: {repr(func_call.arguments.get('age'))}")
-                    logger.info(f"   → strengths: {repr(str(func_call.arguments.get('strengths', 'N/A'))[:100])}")
-                    updated_data = self.session_service.update_extracted_data(
-                        family_id,
-                        func_call.arguments
-                    )
-                    # Track ALL extractions, not just the last one
-                    all_extractions.append(func_call.arguments)
-                    # Append to list (not dict) to preserve all responses
-                    function_results.append({
-                        "name": func_call.name,
-                        "result": {"status": "success", "data_saved": True}
-                    })
-
-                elif func_call.name == "ask_developmental_question":
-                    # Developmental question asked
-                    developmental_question = func_call.arguments
-                    logger.info(f"❓ Developmental question: {developmental_question.get('question_topic')}")
-                    function_results.append({
-                        "name": func_call.name,
-                        "result": {"status": "noted", "topic": developmental_question.get('question_topic')}
-                    })
-
-                elif func_call.name == "ask_about_analysis":
-                    # Question about Chitta's analysis
-                    analysis_question = func_call.arguments
-                    logger.info(f"🔍 Analysis question: {analysis_question.get('analysis_element')}")
-                    function_results.append({
-                        "name": func_call.name,
-                        "result": {"status": "noted", "element": analysis_question.get('analysis_element')}
-                    })
-
-                elif func_call.name == "ask_about_app":
-                    # App help request
-                    app_help_request = func_call.arguments
-                    logger.info(f"ℹ️ App help: {app_help_request.get('help_topic')}")
-                    function_results.append({
-                        "name": func_call.name,
-                        "result": {"status": "noted", "topic": app_help_request.get('help_topic')}
-                    })
-
-                elif func_call.name == "request_action":
-                    # Action requested
-                    action_requested = func_call.arguments.get('action')
-                    logger.info(f"🎬 Action requested: {action_requested}")
-                    function_results.append({
-                        "name": func_call.name,
-                        "result": {"status": "noted", "action": action_requested}
-                    })
-
-            # Add function results to conversation (Wu Wei: send results back to LLM)
-            # Use Gemini's expected function_response format
-            messages.append(Message(
-                role="function",
-                content="Function execution results",  # Descriptive text for logging
-                function_response=function_results  # Now a list to support multiple calls!
-            ))
-
-            func_names = [fr["name"] for fr in function_results]
-            logger.info(f"📤 Function results sent back to LLM: {len(function_results)} responses for {func_names}")
-            logger.debug(f"📦 Full function_results payload: {function_results}")
-            # Loop continues - next iteration will get final text response
-
-        # 5.5. FALLBACK EXTRACTION: If model didn't call extract_interview_data, try regex extraction
-        # This helps with weak models like gemini-flash-lite that don't reliably call functions
-        if not all_extractions:
-            logger.warning("⚠️  Model didn't call extract_interview_data - attempting fallback regex extraction")
-            fallback_data = self._fallback_extract_basic_info(user_message)
-            if fallback_data:
-                logger.info(f"✅ Fallback extraction succeeded: {list(fallback_data.keys())}")
-                # Save the extracted data
-                self.session_service.update_extracted_data(family_id, fallback_data)
-                all_extractions.append(fallback_data)
-            else:
-                logger.info("ℹ️  Fallback extraction found nothing - user message may not contain basic info")
-
-        # 6. Check for empty response and generate context-aware fallback if needed
-        final_response = llm_response.content or ""
-
-        if not final_response and all_extractions:
-            # We extracted data but got no text response (model hit max_iterations)
-            # Generate a CONTEXT-AWARE acknowledgment based on what was just shared
-
-            # Merge all extractions to see what we got this turn
-            merged = {}
-            for ext in all_extractions:
-                merged.update(ext)
-
-            # Get current session data to avoid repeating questions
-            session = self.session_service.get_or_create_session(family_id)
-            data = session.extracted_data
-
-            # Smart fallback based on what was just shared
-            child_name = merged.get('child_name') or data.child_name or 'הילד/ה'
-            age = merged.get('age') or data.age
-            concern_details = merged.get('concern_details', '')
-            strengths = merged.get('strengths', '')
-
-            # Generate response based on what was JUST shared (not what we already know)
-            if merged.get('child_name') and merged.get('age'):
-                # Just learned name and age
-                final_response = f"נעים להכיר את {child_name}! ספרי לי קצת - מה מעסיק אותך?"
-            elif concern_details and not strengths:
-                # Shared concerns, now ask about strengths
-                final_response = f"אני שומעת. ומה {child_name} כן אוהב לעשות? במה הוא טוב?"
-            elif strengths and not concern_details:
-                # Shared strengths, now ask about concerns
-                final_response = f"נהדר! ומה מעסיק אותך לגבי {child_name}?"
-            elif concern_details:
-                # Shared concern details, ask for more specifics
-                final_response = "תני לי דוגמה - מתי זה קרה לאחרונה?"
-            else:
-                # Generic - just continue the conversation
-                final_response = "ספרי לי עוד - מה קורה?"
-
-            logger.warning(
-                f"⚠️  Generated context-aware fallback (model hit max_iterations). "
-                f"Merged extractions: {list(merged.keys())}. "
-                f"Model likely too weak - upgrade to gemini-2.5-flash recommended."
-            )
-
-        # Save conversation turn
+        # 6. Save conversation turn
         self.session_service.add_conversation_turn(family_id, "user", user_message)
         self.session_service.add_conversation_turn(family_id, "assistant", final_response)
 
@@ -345,17 +179,11 @@ class SimplifiedConversationService:
         session = self.session_service.get_or_create_session(family_id)
         completeness_pct = session.completeness * 100
 
-        # 8. Semantic verification (every 3 turns until guidelines ready)
-        turn_count = len([msg for msg in (session.conversation_history or []) if msg.get('role') == 'user'])
-        video_guidelines_generated = session.has_artifact("baseline_video_guidelines")
-
-        should_verify = (
-            turn_count >= 6 and
-            (turn_count - session.semantic_verification_turn) >= 3 and
-            not video_guidelines_generated
-        )
+        # 8. Semantic verification (smart intervals)
+        should_verify = self._should_run_verification(session)
 
         if should_verify:
+            turn_count = self._count_user_messages(session)
             logger.info(f"🔍 Running semantic completeness verification (turn {turn_count})")
             semantic_result = await self.session_service.verify_semantic_completeness(family_id)
 
@@ -386,28 +214,14 @@ class SimplifiedConversationService:
                 f"🌟 Artifacts generated: {lifecycle_result['artifacts_generated']}"
             )
 
-        # 🌟 Wu Wei: If lifecycle events were triggered, use their messages from YAML
-        # These messages notify the parent about new capabilities/artifacts
-        response_text = final_response
+        # 11. Wu Wei: Use lifecycle event messages if triggered
+        response_text = self._merge_lifecycle_messages(
+            final_response=final_response,
+            lifecycle_result=lifecycle_result
+        )
 
-        if lifecycle_result["events_triggered"]:
-            # Use the first event's message (usually only one per turn)
-            event = lifecycle_result["events_triggered"][0]
-            event_message = event.get("message", "")
-
-            logger.info(
-                f"🎉 Wu Wei: Lifecycle event triggered: {event['event_name']}"
-            )
-            logger.info(f"📢 Event message: {event_message[:100]}...")
-
-            # Use event message as the response (it explains what just happened)
-            response_text = event_message
-
-        # 11. Return response
-        # Merge all extractions for the response
-        merged_extractions = {}
-        for ext in all_extractions:
-            merged_extractions.update(ext)
+        # 12. Return response
+        merged_extractions = self._merge_extractions(all_extractions)
 
         return {
             "response": response_text,
@@ -419,7 +233,7 @@ class SimplifiedConversationService:
             "extracted_data": merged_extractions,
             "context_cards": context_cards,
             "stats": self.session_service.get_session_stats(family_id),
-            "architecture": "simplified",  # Signal which architecture was used
+            "architecture": "simplified_wu_wei",
             "intents_detected": {
                 "developmental_question": developmental_question,
                 "analysis_question": analysis_question,
@@ -428,7 +242,399 @@ class SimplifiedConversationService:
             }
         }
 
-    def _build_session_data_dict(self, family_id: str, session: 'SessionState') -> Dict[str, Any]:
+    async def _function_calling_loop(
+        self,
+        messages: List[Message],
+        temperature: float,
+        max_tokens: int,
+        family_id: str
+    ) -> Dict[str, Any]:
+        """
+        Wu Wei function calling loop - let model decide when done.
+
+        Safety mechanisms:
+        - Max iterations (prevent infinite loops)
+        - Max function calls (cost control)
+        - Loop detection (same function repeatedly)
+
+        Returns:
+            Dict with response, llm_response, extractions, and intents
+        """
+        iteration = 0
+        total_function_calls = 0
+        llm_response = None
+
+        # Track ALL extractions and intents across iterations
+        all_extractions = []
+        action_requested = None
+        developmental_question = None
+        analysis_question = None
+        app_help_request = None
+
+        # Loop detection: track function call signatures
+        function_call_history: List[Tuple[str, str]] = []  # (name, args_hash)
+
+        while iteration < self.MAX_ITERATIONS:
+            iteration += 1
+            logger.info(f"🔄 Iteration {iteration}/{self.MAX_ITERATIONS} (total calls: {total_function_calls}/{self.MAX_FUNCTION_CALLS})")
+
+            # Wu Wei: Always provide tools, let model decide when done
+            # Only remove tools if we've hit the function call limit
+            functions_param = None if total_function_calls >= self.MAX_FUNCTION_CALLS else CONVERSATION_FUNCTIONS_COMPREHENSIVE
+
+            if total_function_calls >= self.MAX_FUNCTION_CALLS:
+                logger.warning(f"⚠️ Function call limit reached ({self.MAX_FUNCTION_CALLS}), forcing text response")
+
+            # Call LLM
+            llm_response = await self.llm.chat(
+                messages=messages,
+                functions=functions_param,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+
+            response_text = llm_response.content or ""
+            has_function_calls = len(llm_response.function_calls) > 0
+            finish_reason = getattr(llm_response, 'finish_reason', None)
+
+            logger.info(
+                f"✅ LLM response: {len(response_text)} chars, "
+                f"{len(llm_response.function_calls)} function calls, "
+                f"finish_reason: {finish_reason}"
+            )
+
+            # Log function calls with details
+            if has_function_calls:
+                self._log_function_calls(llm_response.function_calls)
+            else:
+                if iteration == 1 and functions_param:
+                    logger.info("ℹ️ No function calls on first iteration - model provided direct response")
+
+            # Check for malformed function call
+            if finish_reason and 'MALFORMED' in str(finish_reason):
+                logger.error(
+                    f"🔴 MALFORMED_FUNCTION_CALL detected on iteration {iteration}. "
+                    f"Model may be too weak. Recommend gemini-2.5-flash or better."
+                )
+                if iteration > 1:
+                    logger.warning("⚠️ Falling back to previous valid state")
+                    break
+
+            # If no function calls, we have the final text response
+            if not has_function_calls:
+                logger.info("✅ Final text response received")
+                break
+
+            # Check if we're hitting the function call limit
+            if total_function_calls + len(llm_response.function_calls) > self.MAX_FUNCTION_CALLS:
+                logger.warning(
+                    f"⚠️ Would exceed function call limit. "
+                    f"Stopping at {total_function_calls} calls."
+                )
+                break
+
+            # Loop detection: check if model is stuck
+            if self._detect_function_loop(llm_response.function_calls, function_call_history):
+                logger.error("🔴 Function call loop detected! Model is stuck. Breaking loop.")
+                break
+
+            # Add assistant's response to conversation
+            messages.append(Message(
+                role="assistant",
+                content=response_text or "",
+                function_calls=llm_response.function_calls
+            ))
+
+            # Process function calls
+            function_results = []
+            new_extractions, new_intents = self._process_function_calls(
+                llm_response.function_calls,
+                family_id
+            )
+
+            # Track results
+            all_extractions.extend(new_extractions)
+            if new_intents.get("action_requested"):
+                action_requested = new_intents["action_requested"]
+            if new_intents.get("developmental_question"):
+                developmental_question = new_intents["developmental_question"]
+            if new_intents.get("analysis_question"):
+                analysis_question = new_intents["analysis_question"]
+            if new_intents.get("app_help_request"):
+                app_help_request = new_intents["app_help_request"]
+
+            # Build function results for model
+            for func_call in llm_response.function_calls:
+                if func_call.name == "extract_interview_data":
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "success", "data_saved": True}
+                    })
+                elif func_call.name == "ask_developmental_question":
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "topic": func_call.arguments.get('question_topic')}
+                    })
+                elif func_call.name == "ask_about_analysis":
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "element": func_call.arguments.get('analysis_element')}
+                    })
+                elif func_call.name == "ask_about_app":
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "topic": func_call.arguments.get('help_topic')}
+                    })
+                elif func_call.name == "request_action":
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "action": func_call.arguments.get('action')}
+                    })
+
+            # Add function results to conversation
+            messages.append(Message(
+                role="function",
+                content="Function execution results",
+                function_response=function_results
+            ))
+
+            total_function_calls += len(llm_response.function_calls)
+            logger.info(f"📤 Sent {len(function_results)} function results back to LLM")
+
+        # Check for early exit conditions
+        if iteration >= self.MAX_ITERATIONS:
+            logger.warning(f"⚠️ Reached max iterations ({self.MAX_ITERATIONS})")
+
+        return {
+            "response": response_text,
+            "llm_response": llm_response,
+            "extractions": all_extractions,
+            "action_requested": action_requested,
+            "developmental_question": developmental_question,
+            "analysis_question": analysis_question,
+            "app_help_request": app_help_request
+        }
+
+    def _process_function_calls(
+        self,
+        function_calls: List[Any],
+        family_id: str
+    ) -> Tuple[List[Dict], Dict[str, Any]]:
+        """
+        Process function calls and return extractions and intents.
+
+        Returns:
+            Tuple of (extractions_list, intents_dict)
+        """
+        extractions = []
+        intents = {}
+
+        logger.info(f"🔧 Processing {len(function_calls)} function call(s)")
+
+        for func_call in function_calls:
+            if func_call.name == "extract_interview_data":
+                logger.info(f"📝 Extracting data: {list(func_call.arguments.keys())}")
+                logger.debug(f"   → child_name: {repr(func_call.arguments.get('child_name'))}")
+                logger.debug(f"   → age: {repr(func_call.arguments.get('age'))}")
+
+                self.session_service.update_extracted_data(
+                    family_id,
+                    func_call.arguments
+                )
+                extractions.append(func_call.arguments)
+
+            elif func_call.name == "ask_developmental_question":
+                intents["developmental_question"] = func_call.arguments
+                logger.info(f"❓ Developmental question: {func_call.arguments.get('question_topic')}")
+
+            elif func_call.name == "ask_about_analysis":
+                intents["analysis_question"] = func_call.arguments
+                logger.info(f"🔍 Analysis question: {func_call.arguments.get('analysis_element')}")
+
+            elif func_call.name == "ask_about_app":
+                intents["app_help_request"] = func_call.arguments
+                logger.info(f"ℹ️ App help: {func_call.arguments.get('help_topic')}")
+
+            elif func_call.name == "request_action":
+                action = func_call.arguments.get('action')
+                intents["action_requested"] = action
+                logger.info(f"🎬 Action requested: {action}")
+
+        return extractions, intents
+
+    def _detect_function_loop(
+        self,
+        function_calls: List[Any],
+        history: List[Tuple[str, str]]
+    ) -> bool:
+        """
+        Detect if model is stuck in a loop calling the same function repeatedly.
+
+        Returns:
+            True if loop detected, False otherwise
+        """
+        import hashlib
+
+        # Build signatures for current calls
+        current_signatures = []
+        for fc in function_calls:
+            # Create hash of function name + arguments
+            args_str = str(sorted(fc.arguments.items()))
+            signature = (fc.name, hashlib.md5(args_str.encode()).hexdigest()[:8])
+            current_signatures.append(signature)
+
+        # Check if any signature appears too many times in recent history
+        recent_history = history[-10:]  # Look at last 10 calls
+        for sig in current_signatures:
+            count = recent_history.count(sig)
+            if count >= 3:  # Same call 3 times = stuck
+                logger.error(f"🔴 Loop detected: {sig[0]} called {count} times with same args")
+                return True
+
+        # Add current signatures to history
+        history.extend(current_signatures)
+        return False
+
+    def _log_function_calls(self, function_calls: List[Any]) -> None:
+        """Log function call details for debugging"""
+        logger.info(f"📞 Functions called: {[fc.name for fc in function_calls]}")
+        for fc in function_calls:
+            arg_keys = list(fc.arguments.keys())
+            logger.debug(f"   📋 {fc.name}({arg_keys})")
+            # Log first 200 chars of each argument
+            for key, value in fc.arguments.items():
+                value_str = str(value)[:200]
+                logger.debug(f"      {key}: {value_str}")
+
+    def _generate_smart_fallback(
+        self,
+        family_id: str,
+        all_extractions: List[Dict],
+        user_message: str
+    ) -> str:
+        """
+        Generate context-aware fallback response when model returns empty.
+
+        This happens when:
+        1. Model hits max_iterations while still calling functions
+        2. Model fails to generate text (rare)
+        3. Response is truncated (max_tokens too low)
+
+        Strategy: Look at what was JUST shared vs what we already know
+        """
+        if not all_extractions:
+            # No extractions AND no response = complete failure
+            logger.error("🔴 CRITICAL: No response and no extractions - model failure")
+            return "סליחה, משהו השתבש. אפשר לנסות שוב?"
+
+        # We have extractions but no text - generate context-aware response
+        logger.warning("⚠️ Generating smart fallback (model hit limits)")
+
+        # Merge all extractions from this turn
+        merged = {}
+        for ext in all_extractions:
+            merged.update(ext)
+
+        # Get current session data
+        session = self.session_service.get_or_create_session(family_id)
+        data = session.extracted_data
+
+        # Determine what's NEW this turn vs what we already knew
+        child_name = merged.get('child_name') or data.child_name or 'הילד/ה'
+        age = merged.get('age') or data.age
+
+        # Generate response based on what was JUST shared
+        if merged.get('child_name') and merged.get('age'):
+            # Just learned name and age
+            return f"נעים להכיר את {child_name}! ספרי לי קצת - מה מעסיק אותך?"
+
+        elif merged.get('concern_details') and not merged.get('strengths'):
+            # Shared concerns, now ask about strengths
+            return f"אני שומעת. ומה {child_name} כן אוהב לעשות? במה הוא טוב?"
+
+        elif merged.get('strengths') and not merged.get('concern_details'):
+            # Shared strengths, now ask about concerns
+            return f"נהדר! ומה מעסיק אותך לגבי {child_name}?"
+
+        elif merged.get('concern_details'):
+            # Shared concern details, ask for more specifics
+            return "תני לי דוגמה - מתי זה קרה לאחרונה?"
+
+        else:
+            # Generic - just continue naturally
+            return "ספרי לי עוד - מה קורה?"
+
+    def _merge_lifecycle_messages(
+        self,
+        final_response: str,
+        lifecycle_result: Dict[str, Any]
+    ) -> str:
+        """
+        Merge lifecycle event messages with final response.
+
+        If lifecycle events triggered, their messages explain what happened
+        (e.g., "Video guidelines are ready!"). Use these instead of or
+        alongside the conversational response.
+        """
+        if not lifecycle_result.get("events_triggered"):
+            return final_response
+
+        # Extract all event messages
+        event_messages = [
+            event.get("message", "")
+            for event in lifecycle_result["events_triggered"]
+            if event.get("message")
+        ]
+
+        if not event_messages:
+            return final_response
+
+        # Log what we're doing
+        event_names = [e["event_name"] for e in lifecycle_result["events_triggered"]]
+        logger.info(f"🎉 Lifecycle events triggered: {event_names}")
+
+        # If we have multiple events, combine them
+        lifecycle_message = "\n\n".join(event_messages)
+
+        # Use lifecycle message as primary response
+        # (it explains what just unlocked/happened)
+        logger.info(f"📢 Using lifecycle message: {lifecycle_message[:100]}...")
+        return lifecycle_message
+
+    def _count_user_messages(self, session: SessionState) -> int:
+        """Count user messages in conversation history"""
+        conversation_history = session.conversation_history or []
+        return len([m for m in conversation_history if m.get('role') == 'user'])
+
+    def _should_run_verification(self, session: SessionState) -> bool:
+        """
+        Determine if semantic verification should run this turn.
+
+        Uses exponential backoff: verify at turns 6, 9, 12, 18, 24, 36...
+        Stop verifying once video guidelines are generated.
+        """
+        turn_count = self._count_user_messages(session)
+        video_guidelines_generated = session.has_artifact("baseline_video_guidelines")
+
+        # Don't verify if guidelines already generated
+        if video_guidelines_generated:
+            return False
+
+        # Check if current turn matches a verification turn
+        if turn_count not in self.VERIFICATION_TURNS:
+            return False
+
+        # Verify if we haven't verified at this turn already
+        return turn_count != session.semantic_verification_turn
+
+    def _merge_extractions(self, all_extractions: List[Dict]) -> Dict[str, Any]:
+        """Merge all extractions into a single dict"""
+        merged = {}
+        for extraction in all_extractions:
+            merged.update(extraction)
+        return merged
+
+    def _build_session_data_dict(self, family_id: str, session: SessionState) -> Dict[str, Any]:
         """Build session data dict for prerequisite service"""
         try:
             extracted_dict = session.extracted_data.model_dump()
@@ -438,94 +644,25 @@ class SimplifiedConversationService:
         return {
             "family_id": family_id,
             "extracted_data": extracted_dict,
-            "message_count": len(session.conversation_history or []),
+            "message_count": self._count_user_messages(session),
             "artifacts": session.artifacts,
             "semantic_verification": session.semantic_verification,
             "video_guidelines": session.has_artifact("baseline_video_guidelines"),
-            "video_guidelines_status": session.get_artifact("baseline_video_guidelines").status if session.get_artifact("baseline_video_guidelines") else "pending",
-            "parent_report_id": session.get_artifact("baseline_parent_report").artifact_id if session.has_artifact("baseline_parent_report") else None,
+            "video_guidelines_status": (
+                session.get_artifact("baseline_video_guidelines").status
+                if session.get_artifact("baseline_video_guidelines")
+                else "pending"
+            ),
+            "parent_report_id": (
+                session.get_artifact("baseline_parent_report").artifact_id
+                if session.has_artifact("baseline_parent_report")
+                else None
+            ),
             "uploaded_video_count": 0,
             "re_assessment_active": False,
             "viewed_guidelines": False,
             "declined_guidelines_offer": False,
         }
-
-    def _fallback_extract_basic_info(self, user_message: str) -> Dict[str, Any]:
-        """
-        Fallback extraction using regex patterns for weak models.
-        Extracts name and age when model doesn't call extract_interview_data.
-        """
-        import re
-
-        extracted = {}
-
-        # Pattern 1: "שמו X" or "קוראים לו X" (his name is X, we call him X)
-        name_patterns = [
-            r'שמו\s+([א-ת]+)',
-            r'קוראים\s+לו\s+([א-ת]+)',
-            r'נקרא\s+לו\s+([א-ת]+)',
-            r'שם\s+הילד\s+([א-ת]+)',
-            r'^([א-ת]+),?\s+בן',  # Pattern: "NAME, age X"
-            r'^([א-ת]+)\s*\.\s*הוא\s+בן',  # Pattern: "NAME. He is age X"
-        ]
-
-        for pattern in name_patterns:
-            match = re.search(pattern, user_message)
-            if match:
-                extracted['child_name'] = match.group(1)
-                logger.info(f"   → Fallback extracted name: {match.group(1)}")
-                break
-
-        # Hebrew number words to digits mapping (ages 1-10)
-        hebrew_numbers = {
-            'אחת': 1, 'אחד': 1,
-            'שתיים': 2, 'שניים': 2,
-            'שלוש': 3, 'שלושה': 3,
-            'ארבע': 4, 'ארבעה': 4,
-            'חמש': 5, 'חמישה': 5,
-            'שש': 6, 'שישה': 6,
-            'שבע': 7, 'שבעה': 7,
-            'שמונה': 8,
-            'תשע': 9, 'תשעה': 9,
-            'עשר': 10, 'עשרה': 10
-        }
-
-        # Pattern 2: "בן X" or "בת X" (age X boy/girl) - with both digits and Hebrew numbers
-        age_patterns = [
-            r'בן\s+(\d+)',
-            r'בת\s+(\d+)',
-            r'גיל\s+(\d+)',
-            r'(\d+)\s+שנים',
-        ]
-
-        # Try digit patterns first
-        for pattern in age_patterns:
-            match = re.search(pattern, user_message)
-            if match:
-                try:
-                    age = int(match.group(1))
-                    extracted['age'] = age
-                    logger.info(f"   → Fallback extracted age: {age}")
-                    break
-                except ValueError:
-                    pass
-
-        # If no digit found, try Hebrew number words
-        if 'age' not in extracted:
-            for hebrew_num, digit in hebrew_numbers.items():
-                if re.search(rf'בן\s+{hebrew_num}\b', user_message) or \
-                   re.search(rf'בת\s+{hebrew_num}\b', user_message):
-                    extracted['age'] = digit
-                    logger.info(f"   → Fallback extracted age (Hebrew word): {digit} ({hebrew_num})")
-                    break
-
-        # Infer gender from Hebrew grammar
-        if re.search(r'\bהוא\b', user_message):
-            extracted['gender'] = 'male'
-        elif re.search(r'\bהיא\b', user_message):
-            extracted['gender'] = 'female'
-
-        return extracted
 
     def _generate_context_cards(
         self,
@@ -534,9 +671,16 @@ class SimplifiedConversationService:
         action_requested: Optional[str],
         completeness_check: Optional[Dict]
     ) -> List[Dict[str, Any]]:
-        """Generate context cards (simplified - can be enhanced later)"""
+        """
+        Generate context cards for UI.
+
+        Can be enhanced later with:
+        - Progress indicators
+        - Next steps suggestions
+        - Missing information highlights
+        """
         # For now, return empty list
-        # Can add card generation logic later
+        # Can add card generation logic as needed
         return []
 
 
