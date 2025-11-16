@@ -9,6 +9,7 @@ import ExpertProfileView from './deepviews/ExpertProfileView';
 import VideoGalleryView from './deepviews/VideoGalleryView';
 import VideoUploadView from './deepviews/VideoUploadView';
 import FilmingInstructionView from './deepviews/FilmingInstructionView';
+import DynamicGuidelineView from './deepviews/DynamicGuidelineView';
 import MeetingSummaryView from './deepviews/MeetingSummaryView';
 
 const viewComponents = {
@@ -29,18 +30,51 @@ const viewComponents = {
   summary: MeetingSummaryView,
   instructions: FilmingInstructionView,
   experts: ExpertProfileView,
+  findExperts: ExpertProfileView,
   moreExperts: ExpertProfileView,
+  professionalReport: ReportView,  // Add explicit mapping for professional report
+  dynamic_guideline: DynamicGuidelineView,  // New dynamic view for backend guidelines
 };
 
-export default function DeepViewManager({ activeView, onClose, viewData }) {
+export default function DeepViewManager({
+  activeView,
+  onClose,
+  viewData,
+  videos,
+  videoGuidelines,
+  journalEntries,
+  onCreateJournalEntry,
+  onDeleteJournalEntry,
+  onCreateVideo,
+  onDeleteVideo
+}) {
   if (!activeView) return null;
 
   const ViewComponent = viewComponents[activeView];
-  
+
   if (!ViewComponent) {
     console.warn(`No component found for view: ${activeView}`);
     return null;
   }
 
-  return <ViewComponent viewKey={activeView} onClose={onClose} data={viewData} />;
+  // For dynamic_guideline, pass the viewData directly as data prop
+  // For other views, pass as viewData
+  const dataProps = activeView === 'dynamic_guideline'
+    ? { data: viewData }
+    : { data: viewData };
+
+  return (
+    <ViewComponent
+      viewKey={activeView}
+      onClose={onClose}
+      {...dataProps}
+      videos={videos}
+      videoGuidelines={videoGuidelines}
+      journalEntries={journalEntries}
+      onCreateJournalEntry={onCreateJournalEntry}
+      onDeleteJournalEntry={onDeleteJournalEntry}
+      onCreateVideo={onCreateVideo}
+      onDeleteVideo={onDeleteVideo}
+    />
+  );
 }

@@ -1,0 +1,966 @@
+# Deep Views - Modal/overlay interfaces for focused interactions
+# Views provide dedicated spaces for complex actions and information consumption
+
+version: "1.0"
+view_system_name: "child_development_deep_views"
+description: "Full-screen and modal interfaces for reports, journal, uploads, experts, and more"
+
+# View types for behavior
+view_types:
+  modal:
+    behavior: "overlay on main chat"
+    closeable: true
+    preserves_context: true
+
+  fullscreen:
+    behavior: "replaces chat temporarily"
+    closeable: true
+    back_button: true
+
+  sidebar:
+    behavior: "slides in from side"
+    closeable: true
+    width: "40%"
+
+  inline:
+    behavior: "expands within chat"
+    closeable: false
+
+# Views in the system
+views:
+  # ========================================
+  # REPORT VIEWS
+  # ========================================
+
+  report_view:
+    name: "תצוגת דוח"
+    name_en: "Report View"
+    view_type: fullscreen
+    priority: 100
+
+    # When available
+    availability:
+      phases: [screening, ongoing, re_assessment]
+      requires:
+        - reports_available
+      triggered_by_actions:
+        - view_report
+      triggered_by_cards:
+        - reports_ready_card
+        - updated_report_ready_card
+
+    # Data sources
+    data_sources:
+      primary: parent_report
+      secondary:
+        - professional_report
+        - video_analysis_results
+      metadata:
+        - generation_date
+        - report_version
+        - child_age_at_assessment
+
+    # View structure
+    layout:
+      header:
+        title: "דוח הערכה התפתחותית - {child_name}"
+        subtitle: "{generation_date} | גיל {child_age}"
+        actions:
+          - download_report
+          - share_report
+          - toggle_professional_view  # Switch between parent/professional
+
+      navigation:
+        type: sidebar_toc
+        sections_from: parent_report.content_schema.sections
+        sticky: true
+
+      main_content:
+        render: markdown
+        source: parent_report
+        sections:
+          - name: "סיכום מנהלים"
+            icon: "file-text"
+            content: "{executive_summary}"
+
+          - name: "פרופיל {child_name}"
+            icon: "user"
+            content: "{child_profile}"
+
+          - name: "תצפיות התפתחותיות"
+            icon: "eye"
+            subsections:
+              - social_emotional
+              - communication
+              - cognitive
+              - motor
+              - sensory_processing
+            expandable: true
+
+          - name: "חוזקות"
+            icon: "star"
+            content: "{areas_of_strength}"
+            highlight_style: positive
+
+          - name: "תחומים לתמיכה"
+            icon: "heart"
+            content: "{areas_for_support}"
+            tone: gentle
+
+          - name: "המלצות"
+            icon: "compass"
+            content: "{recommendations}"
+            subsections:
+              - immediate_steps
+              - long_term_goals
+              - resources
+              - expert_referrals
+            actionable: true
+
+          - name: "צעדים הבאים"
+            icon: "arrow-right"
+            content: "{next_steps}"
+            format: checklist
+
+      footer:
+        disclaimer: "דוח זה אינו מהווה אבחון רפואי. מומלץ להתייעץ עם אנשי מקצוע."
+        generated_by: "נוצר ע\"י מערכת הערכה התפתחותית AI"
+
+    # Actions within view
+    actions:
+      download_report:
+        label: "הורד PDF"
+        icon: "download"
+        generates: report_pdf
+        filename_pattern: "report_{child_name}_{date}.pdf"
+
+      share_report:
+        label: "שתף דוח"
+        icon: "share-2"
+        opens_view: share_view
+
+      toggle_professional_view:
+        label: "תצוגה מקצועית"
+        icon: "briefcase"
+        switches_to: professional_report
+        requires_confirmation: true
+        tooltip: "דוח זה מכיל מינוח קליני"
+
+      print:
+        label: "הדפס"
+        icon: "printer"
+
+      add_note:
+        label: "הוסף הערה"
+        icon: "edit"
+        inline_annotation: true
+
+    # Behavior
+    closeable: true
+    save_scroll_position: true
+    marks_as_viewed: true  # Updates user_viewed_report flag
+
+    # Connected elements
+    related_cards:
+      - reports_ready_card
+      - updated_report_ready_card
+    related_artifacts:
+      - parent_report
+      - professional_report
+    related_views:
+      - share_view
+      - comparison_view
+
+  comparison_view:
+    name: "תצוגת השוואה"
+    name_en: "Comparison View"
+    view_type: fullscreen
+    priority: 90
+
+    # When available
+    availability:
+      phases: [re_assessment, ongoing]
+      requires:
+        - updated_reports_available
+      triggered_by_actions:
+        - compare_reports
+      triggered_by_cards:
+        - updated_report_ready_card
+
+    # Data sources
+    data_sources:
+      baseline: parent_report  # Original
+      updated: updated_parent_report  # Re-assessment
+      journal: journal_entries  # What happened between
+
+    # View structure
+    layout:
+      header:
+        title: "השוואה: {baseline_date} ← → {updated_date}"
+        subtitle: "{time_between} חלפו בין ההערכות"
+
+      main_content:
+        type: side_by_side
+        columns:
+          left:
+            title: "הערכת בסיס ({baseline_date})"
+            source: parent_report
+          right:
+            title: "הערכה מעודכנת ({updated_date})"
+            source: updated_parent_report
+          center:
+            type: comparison_highlights
+            content:
+              - areas_of_progress
+              - areas_still_challenging
+              - new_observations
+              - intervention_impact
+
+        synchronized_scroll: true
+        highlight_differences: true
+
+      insights_panel:
+        title: "מה השתנה?"
+        source: updated_parent_report.comparison_to_baseline
+        sections:
+          - progress_made:
+              icon: "trending-up"
+              style: positive
+          - skills_gained:
+              icon: "check-circle"
+              style: positive
+          - areas_still_challenging:
+              icon: "alert-circle"
+              style: neutral
+          - trajectory_analysis:
+              icon: "activity"
+              style: informational
+
+    # Actions
+    actions:
+      download_comparison:
+        label: "הורד דוח השוואה"
+        generates: comparison_pdf
+
+      view_journal_between:
+        label: "צפה ביומן בתקופה"
+        opens_view: journal_view
+        filter_by_date_range: true
+
+      share_progress:
+        label: "שתף התקדמות"
+        opens_view: share_view
+        includes: both_reports
+
+    # Behavior
+    default_focus: comparison_highlights
+    educational: true  # Help users understand progress
+
+  # ========================================
+  # JOURNAL VIEWS
+  # ========================================
+
+  journal_view:
+    name: "יומן התפתחות"
+    name_en: "Development Journal"
+    view_type: sidebar
+    priority: 85
+
+    # When available
+    availability:
+      phases: [screening, ongoing, re_assessment]
+      requires: []  # Always available
+      triggered_by_actions:
+        - view_journal
+        - add_journal_entry
+      triggered_by_cards:
+        - journal_card
+        - ongoing_welcome_card
+
+    # Data sources
+    data_sources:
+      entries: journal_entries
+      summaries: follow_up_summaries
+      baseline: parent_report  # For context
+
+    # View structure
+    layout:
+      header:
+        title: "יומן ההתפתחות של {child_name}"
+        actions:
+          - add_entry
+          - filter_entries
+          - export_journal
+
+      modes:
+        - timeline_view  # Default: chronological
+        - grouped_view  # By type (observation, milestone, etc.)
+        - calendar_view  # Calendar grid
+        - summary_view  # AI summaries only
+
+      entry_list:
+        sort: reverse_chronological
+        group_by: date
+        entry_card:
+          timestamp: datetime
+          entry_type: badge
+          content: truncated
+          tags: chips
+          mood_indicator: emoji
+          actions:
+            - view_full
+            - edit
+            - delete
+
+      add_entry_form:
+        fields:
+          - entry_type:
+              type: select
+              options: [observation, milestone, concern, question, success]
+          - content:
+              type: textarea
+              placeholder: "מה הבחנת? מה קרה? מה אתה תוהה?"
+          - tags:
+              type: multiselect
+              suggestions_from: ai_analysis
+          - mood:
+              type: emoji_picker
+              optional: true
+          - child_mood:
+              type: emoji_picker
+              optional: true
+        ai_assistance:
+          enabled: true
+          features:
+            - suggest_tags
+            - identify_themes
+            - flag_concerns
+
+      detail_view:
+        when_entry_clicked:
+          show: full_entry
+          include:
+            - timestamp
+            - full_content
+            - tags
+            - moods
+            - ai_analysis
+            - related_entries
+          actions:
+            - edit
+            - delete
+            - add_followup
+
+    # Actions
+    actions:
+      add_entry:
+        label: "הוסף רשומה"
+        icon: "plus"
+        opens_form: add_entry_form
+
+      filter_entries:
+        label: "סנן"
+        icon: "filter"
+        filters:
+          - by_type
+          - by_date_range
+          - by_tags
+          - by_concern_level
+
+      export_journal:
+        label: "ייצא יומן"
+        icon: "download"
+        formats: [pdf, csv, json]
+
+      view_summary:
+        label: "צפה בסיכום"
+        icon: "file-text"
+        shows: follow_up_summaries
+        available_when: "journal_entry_count >= 10"
+
+    # Behavior
+    auto_save: true
+    private: true
+    searchable: true
+    ai_insights: true  # Continuous analysis
+
+    # Connected elements
+    related_cards:
+      - journal_card
+      - follow_up_summary_ready_card
+    related_artifacts:
+      - journal_entries
+      - follow_up_summaries
+
+  # ========================================
+  # VIDEO VIEWS
+  # ========================================
+
+  video_guidelines_view:
+    name: "הנחיות צילום"
+    name_en: "Video Recording Guidelines"
+    view_type: modal
+    priority: 80
+
+    # When available
+    availability:
+      phases: [screening, re_assessment]
+      requires:
+        - interview_complete
+      triggered_by_actions:
+        - view_video_guidelines
+      triggered_by_cards:
+        - interview_complete_card
+        - video_guidelines_card
+
+    # Data sources
+    data_sources:
+      primary: video_guidelines
+      context:
+        - extracted_data
+        - primary_concerns
+
+    # View structure
+    layout:
+      header:
+        title: "הנחיות צילום מותאמות ל{child_name}"
+        subtitle: "3 סרטונים קצרים שיעזרו לי להבין טוב יותר"
+
+      main_content:
+        source: video_guidelines
+        sections:
+          - introduction:
+              icon: "info"
+              style: warm
+              content: "{introduction}"
+
+          - situations_to_capture:
+              icon: "video"
+              style: instructional
+              format: numbered_list
+              content: "{situations_to_capture}"
+              per_situation:
+                - description
+                - why_important
+                - duration_suggestion
+
+          - filming_tips:
+              icon: "camera"
+              style: practical
+              format: bullet_list
+              content: "{filming_tips}"
+              expandable: true
+
+          - what_to_avoid:
+              icon: "x-circle"
+              style: warning_gentle
+              content: "{what_to_avoid}"
+
+          - upload_instructions:
+              icon: "upload"
+              style: step_by_step
+              content: "{upload_instructions}"
+
+      footer:
+        encouragement: "קחי את הזמן שצריך - אין לחץ 💙"
+        button:
+          label: "התחל להעלות סרטונים"
+          action: upload_video
+          primary: true
+
+    # Actions
+    actions:
+      upload_video:
+        label: "העלה סרטון"
+        icon: "upload"
+        opens_view: video_upload_view
+
+      download_guidelines:
+        label: "הורד הנחיות"
+        icon: "download"
+        format: pdf
+
+      print:
+        label: "הדפס"
+        icon: "printer"
+
+    # Behavior
+    personalized: true
+    printable: true
+    downloadable: true
+
+  video_upload_view:
+    name: "העלאת סרטונים"
+    name_en: "Video Upload"
+    view_type: modal
+    priority: 85
+
+    # When available
+    availability:
+      phases: [screening, re_assessment]
+      requires:
+        - interview_complete
+      triggered_by_actions:
+        - upload_video
+      triggered_by_cards:
+        - video_guidelines_card
+
+    # Data sources
+    data_sources:
+      uploaded_videos: behavioral_videos
+      guidelines: video_guidelines
+      validation_rules: artifacts.behavioral_videos.validation
+
+    # View structure
+    layout:
+      header:
+        title: "העלאת סרטוני התנהגות"
+        progress: "{uploaded_count}/3 סרטונים"
+
+      upload_area:
+        type: drag_and_drop
+        accepted_formats: [".mp4", ".mov", ".avi"]
+        max_size: "500MB"
+        max_duration: "10 minutes"
+        instant_feedback: true
+
+      uploaded_videos_list:
+        per_video:
+          - thumbnail
+          - filename
+          - duration
+          - file_size
+          - upload_status
+          - actions:
+              - preview
+              - replace
+              - delete
+              - add_description
+
+      guidelines_sidebar:
+        title: "תזכורת: מה לצלם"
+        source: video_guidelines.situations_to_capture
+        format: checklist
+        collapsible: true
+
+      validation_feedback:
+        real_time: true
+        checks:
+          - file_format
+          - file_size
+          - duration
+          - quality_basic
+        errors_shown_inline: true
+
+    # Actions
+    actions:
+      upload:
+        label: "בחר קובץ"
+        icon: "upload"
+        supports_multiple: false  # One at a time for better UX
+
+      preview_video:
+        label: "תצוגה מקדימה"
+        icon: "play"
+        opens: inline_player
+
+      delete_video:
+        label: "מחק"
+        icon: "trash"
+        requires_confirmation: true
+
+      add_description:
+        label: "הוסף תיאור"
+        icon: "edit"
+        optional: true
+        placeholder: "באיזה מצב {child_name} בסרטון הזה?"
+
+      proceed_to_analysis:
+        label: "המשך לניתוח"
+        icon: "arrow-right"
+        enabled_when: "uploaded_count >= 3"
+        action: analyze_videos
+
+    # Behavior
+    validates_on_upload: true
+    shows_progress: true
+    allows_replacement: true
+
+  # ========================================
+  # EXPERT FINDER VIEW
+  # ========================================
+
+  expert_finder_view:
+    name: "מציאת מומחים"
+    name_en: "Expert Finder"
+    view_type: fullscreen
+    priority: 75
+
+    # When available
+    availability:
+      phases: [ongoing]
+      requires: []  # Can browse anytime
+      enhanced_by:
+        - reports_available  # Better matching
+      triggered_by_actions:
+        - find_experts
+      triggered_by_cards:
+        - expert_finder_card
+        - ongoing_welcome_card
+
+    # Data sources
+    data_sources:
+      recommendations: expert_recommendations
+      expert_database: external_db
+      child_needs:
+        - parent_report
+        - professional_report
+
+    # View structure
+    layout:
+      header:
+        title: "מציאת מומחים ל{child_name}"
+        subtitle: "מומחים שמתאימים לצרכים שזיהינו"
+
+      search_filters:
+        location:
+          type: location_picker
+          default: user_location
+          radius: adjustable
+
+        specialties:
+          type: multiselect
+          options_from: professional_report.recommendations.specialist_referrals
+          preselected: true
+
+        additional_filters:
+          - language
+          - availability
+          - age_group_specialization
+          - approach  # behavioral, developmental, sensory, etc.
+
+      results_section:
+        sort_options:
+          - match_score  # Default
+          - distance
+          - availability
+          - rating
+
+        expert_card:
+          layout: card_grid
+          per_expert:
+            - photo
+            - name
+            - title
+            - specialties: badges
+            - match_score:
+                show_when: has_report
+                format: percentage
+                tooltip: "Why matched"
+            - match_reasons:
+                show_when: has_report
+                format: bullet_list
+            - location_distance
+            - availability: badge
+            - languages: chips
+            - rating: stars
+            - actions:
+                - view_profile
+                - contact
+                - save_for_later
+
+      match_explanation:
+        shown_when: has_report
+        title: "למה המליצו על מומחים אלה?"
+        content:
+          - child_primary_needs
+          - expert_match_reasons
+          - location_considerations
+
+      no_report_message:
+        shown_when: "!has_report"
+        content: |
+          אפשר לעיין במומחים, אבל ההמלצות יהיו מדויקות יותר אחרי שהדוח יהיה מוכן.
+
+          ברגע שהדוח יהיה מוכן, אוכל להמליץ על מומחים שמתאימים בדיוק לצרכים של {child_name}.
+
+    # Actions
+    actions:
+      contact_expert:
+        label: "צור קשר"
+        icon: "mail"
+        requires: reports_available
+        generates: contact_message_draft
+        includes_report_attachment: optional
+
+      view_profile:
+        label: "פרופיל מלא"
+        icon: "user"
+        shows: expert_detailed_profile
+
+      save_expert:
+        label: "שמור"
+        icon: "bookmark"
+        saves_to: saved_experts
+
+      share_list:
+        label: "שתף רשימה"
+        icon: "share-2"
+        generates: shareable_link
+
+    # Behavior
+    search_updates_dynamically: true
+    personalized_when_report_available: true
+
+    # Connected elements
+    related_cards:
+      - expert_finder_card
+    related_artifacts:
+      - expert_recommendations
+      - parent_report
+      - professional_report
+
+  # ========================================
+  # CONSULTATION VIEW
+  # ========================================
+
+  consultation_view:
+    name: "תצוגת ייעוץ"
+    name_en: "Consultation View"
+    view_type: inline
+    priority: 100
+
+    # When available
+    availability:
+      phases: [screening, ongoing, re_assessment]
+      requires: []  # Always available
+      triggered_by_actions:
+        - consultation
+      triggered_by_cards:
+        - any_card  # All cards offer consultation
+
+    # Data sources
+    data_sources:
+      conversation_history: messages
+      context:
+        - extracted_data
+        - artifacts
+        - current_phase
+        - journal_entries
+
+    # View structure
+    layout:
+      type: enhanced_chat
+      enhancements:
+        - suggested_questions:
+            shown_when: user_pauses
+            source: llm_generated
+            examples:
+              - "מה זה אומר בפועל?"
+              - "איך אני יכולה לעזור?"
+              - "מתי כדאי לפנות למומחה?"
+
+        - quick_actions:
+            floating_buttons:
+              - add_journal_entry
+              - view_report
+              - find_experts
+
+        - context_awareness:
+            shows_relevant_report_sections: true
+            references_journal_entries: true
+            aware_of_phase: true
+
+        - warm_tone:
+            always: true
+            empathetic: true
+            strength_based: true
+
+    # Actions
+    actions:
+      ask_question:
+        default: text_input
+        supports_voice: future
+
+      reference_report:
+        label: "הפנה לדוח"
+        quick_access: true
+
+      add_to_journal:
+        label: "הוסף ליומן"
+        from_conversation: true
+
+    # Behavior
+    always_available: true
+    context_aware: true
+    integrates_with_all_views: true
+
+  # ========================================
+  # SHARING VIEW
+  # ========================================
+
+  share_view:
+    name: "שיתוף דוח"
+    name_en: "Share Report"
+    view_type: modal
+    priority: 70
+
+    # When available
+    availability:
+      phases: [screening, ongoing, re_assessment]
+      requires:
+        - reports_available
+      triggered_by_actions:
+        - share_report
+
+    # Data sources
+    data_sources:
+      report: parent_report
+      professional_report: professional_report
+
+    # View structure
+    layout:
+      header:
+        title: "שיתוף הדוח של {child_name}"
+        subtitle: "שליחה מאובטחת למומחים או משפחה"
+
+      share_options:
+        - secure_link:
+            description: "קישור מאובטח עם תוקף זמני"
+            settings:
+              - expiration_days: [7, 14, 30, 90]
+              - password_protect: optional
+              - view_only: true
+            generates: unique_link
+
+        - email_direct:
+            description: "שליחה ישירה למייל"
+            fields:
+              - recipient_email
+              - recipient_name
+              - personal_message: optional
+            sends: secure_email
+
+        - download_and_send:
+            description: "הורדת PDF ושליחה עצמאית"
+            generates: report_pdf
+
+      report_selection:
+        options:
+          - parent_report: "דוח הורים (שפה נגישה)"
+          - professional_report: "דוח מקצועי (מינוח קליני)"
+          - both: "שני הדוחות"
+        default: parent_report
+
+      privacy_reminder:
+        always_shown: true
+        content: |
+          🔒 **פרטיות וביטחון**
+
+          • הדוח מכיל מידע רגיש
+          • שתפי רק עם אנשי מקצוע מהימנים
+          • קישורים ניתנים לביטול בכל עת
+
+    # Actions
+    actions:
+      generate_link:
+        label: "צור קישור"
+        icon: "link"
+        generates: shareable_link
+
+      send_email:
+        label: "שלח במייל"
+        icon: "mail"
+        validates_email: true
+
+      download_pdf:
+        label: "הורד PDF"
+        icon: "download"
+
+      revoke_access:
+        label: "בטל שיתוף"
+        icon: "x"
+        manages: active_shares
+
+    # Behavior
+    tracks_shares: true  # Who accessed when
+    allows_revocation: true
+    secure_by_default: true
+
+# View system behaviors
+view_system:
+  navigation:
+    can_deep_link: true  # Direct URLs to views
+    preserves_state: true  # Return to same scroll position
+    breadcrumb_navigation: true
+
+  responsive:
+    mobile:
+      fullscreen_views: always
+      sidebar_views: convert_to_modal
+      modal_views: full_height
+
+    tablet:
+      sidebar_views: true
+      split_views: supported
+
+    desktop:
+      sidebar_views: true
+      split_views: true
+      picture_in_picture: some_views
+
+  accessibility:
+    keyboard_navigation: full
+    screen_reader: optimized
+    high_contrast: supported
+    rtl_support: native  # Hebrew
+
+  performance:
+    lazy_load: long_content
+    virtual_scroll: lists
+    cache_viewed: true
+
+# Metadata
+metadata:
+  designed_for: "child_development_workflow"
+  language: "he"
+  last_updated: "2025-11-08"
+  notes: |
+    Deep views provide focused interfaces for complex tasks:
+
+    1. REPORTS - comprehensive reading experience
+       - Full markdown rendering
+       - Download/share capabilities
+       - Professional vs parent toggle
+
+    2. JOURNAL - long-term tracking
+       - Timeline and grouped views
+       - AI-assisted tagging
+       - Periodic summaries
+
+    3. VIDEOS - upload and guidelines
+       - Personalized instructions
+       - Validated uploads
+       - Progress tracking
+
+    4. EXPERTS - personalized matching
+       - Report-driven recommendations
+       - Location-aware search
+       - Direct contact
+
+    5. CONSULTATION - always-available Q&A
+       - Context-aware responses
+       - Warm, empathetic tone
+       - Integrated with all views
+
+    6. SHARING - secure distribution
+       - Multiple sharing methods
+       - Privacy-first design
+       - Revocable access
+
+    Key principles:
+    - Views are phase-aware
+    - Views connect to cards, actions, artifacts
+    - Views adapt to available data
+    - Views prioritize user experience
+    - Views maintain context
