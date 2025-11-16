@@ -120,53 +120,100 @@ class SimplifiedConversationService:
 
         messages.append(Message(role="user", content=user_message))
 
-        # 4. SINGLE LLM CALL with comprehensive functions
-        logger.info("🤖 Calling main LLM with comprehensive functions")
-        llm_response = await self.llm.chat(
-            messages=messages,
-            functions=CONVERSATION_FUNCTIONS_COMPREHENSIVE,
-            temperature=temperature,
-            max_tokens=2000
-        )
+        # 4. FUNCTION CALLING LOOP (Wu Wei - flow with Gemini's natural multi-turn pattern)
+        # Iteration 1: May return function calls only
+        # Iteration 2: Returns final text response after seeing function results
+        logger.info("🤖 Starting function calling loop")
 
-        logger.info(f"✅ LLM response received ({len(llm_response.content)} chars, {len(llm_response.function_calls)} function calls)")
+        max_iterations = 3  # Prevent infinite loops
+        iteration = 0
+        llm_response = None
 
-        # 5. Process function calls
+        # Track function call results for all iterations
         extraction_summary = {}
         action_requested = None
         developmental_question = None
         analysis_question = None
         app_help_request = None
 
-        for func_call in llm_response.function_calls:
-            if func_call.name == "extract_interview_data":
-                # Extract structured data
-                logger.info(f"📝 Extracting data: {list(func_call.arguments.keys())}")
-                updated_data = self.session_service.update_extracted_data(
-                    family_id,
-                    func_call.arguments
-                )
-                extraction_summary = func_call.arguments
+        while iteration < max_iterations:
+            iteration += 1
+            logger.info(f"🔄 Iteration {iteration}/{max_iterations}")
 
-            elif func_call.name == "ask_developmental_question":
-                # Developmental question asked
-                developmental_question = func_call.arguments
-                logger.info(f"❓ Developmental question: {developmental_question.get('question_topic')}")
+            # Call LLM with functions
+            llm_response = await self.llm.chat(
+                messages=messages,
+                functions=CONVERSATION_FUNCTIONS_COMPREHENSIVE,
+                temperature=temperature,
+                max_tokens=2000
+            )
 
-            elif func_call.name == "ask_about_analysis":
-                # Question about Chitta's analysis
-                analysis_question = func_call.arguments
-                logger.info(f"🔍 Analysis question: {analysis_question.get('analysis_element')}")
+            response_text = llm_response.content or ""
+            has_function_calls = len(llm_response.function_calls) > 0
 
-            elif func_call.name == "ask_about_app":
-                # App help request
-                app_help_request = func_call.arguments
-                logger.info(f"ℹ️ App help: {app_help_request.get('help_topic')}")
+            logger.info(
+                f"✅ LLM response: {len(response_text)} chars, "
+                f"{len(llm_response.function_calls)} function calls"
+            )
 
-            elif func_call.name == "request_action":
-                # Action requested
-                action_requested = func_call.arguments.get('action')
-                logger.info(f"🎬 Action requested: {action_requested}")
+            # If no function calls, we have the final text response
+            if not has_function_calls:
+                logger.info("✅ Final text response received")
+                break
+
+            # Process function calls and build results
+            logger.info(f"🔧 Processing {len(llm_response.function_calls)} function call(s)")
+            function_results = {}
+
+            for func_call in llm_response.function_calls:
+                if func_call.name == "extract_interview_data":
+                    # Extract structured data
+                    logger.info(f"📝 Extracting data: {list(func_call.arguments.keys())}")
+                    updated_data = self.session_service.update_extracted_data(
+                        family_id,
+                        func_call.arguments
+                    )
+                    extraction_summary = func_call.arguments
+                    function_results[func_call.name] = {"status": "success", "data_saved": True}
+
+                elif func_call.name == "ask_developmental_question":
+                    # Developmental question asked
+                    developmental_question = func_call.arguments
+                    logger.info(f"❓ Developmental question: {developmental_question.get('question_topic')}")
+                    function_results[func_call.name] = {"status": "noted", "topic": developmental_question.get('question_topic')}
+
+                elif func_call.name == "ask_about_analysis":
+                    # Question about Chitta's analysis
+                    analysis_question = func_call.arguments
+                    logger.info(f"🔍 Analysis question: {analysis_question.get('analysis_element')}")
+                    function_results[func_call.name] = {"status": "noted", "element": analysis_question.get('analysis_element')}
+
+                elif func_call.name == "ask_about_app":
+                    # App help request
+                    app_help_request = func_call.arguments
+                    logger.info(f"ℹ️ App help: {app_help_request.get('help_topic')}")
+                    function_results[func_call.name] = {"status": "noted", "topic": app_help_request.get('help_topic')}
+
+                elif func_call.name == "request_action":
+                    # Action requested
+                    action_requested = func_call.arguments.get('action')
+                    logger.info(f"🎬 Action requested: {action_requested}")
+                    function_results[func_call.name] = {"status": "noted", "action": action_requested}
+
+            # Add function results to conversation (Wu Wei: send results back to LLM)
+            # Build function response message
+            function_response_content = "Function execution results:\n"
+            for func_name, result in function_results.items():
+                function_response_content += f"- {func_name}: {result}\n"
+
+            messages.append(Message(
+                role="function",
+                content=function_response_content,
+                name="system"  # Function results come from system
+            ))
+
+            logger.info("📤 Function results sent back to LLM for next iteration")
+            # Loop continues - next iteration will get final text response
 
         # 6. Save conversation turn
         self.session_service.add_conversation_turn(family_id, "user", user_message)
