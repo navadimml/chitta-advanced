@@ -107,9 +107,18 @@ class GeminiProvider(BaseLLMProvider):
             "max_output_tokens": max_tokens,
             "safety_settings": self.safety_settings,
             "tools": tools
-            # NOTE: NOT setting automatic_function_calling at all
-            # Gemini default behavior should return function_call parts for manual execution
         }
+
+        # CRITICAL FIX: Explicitly disable automatic function calling
+        # The SDK enables AFC by default (as of 2024), but we need manual function calling
+        # so we can process and save the function call results ourselves
+        # Setting tool_config with function_calling_config.mode = ANY ensures manual calling
+        if tools:
+            config_params["tool_config"] = types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode=types.FunctionCallingConfigMode.ANY  # Return function calls, don't auto-execute
+                )
+            )
 
         # Add JSON mode if requested
         if response_format == "json":
