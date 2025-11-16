@@ -167,9 +167,9 @@ class WuWeiPrerequisites:
             has_context
         )
 
-        # Path 2: Extensive conversation (fallback) - lowered threshold
+        # Path 2: Extensive conversation (fallback) - allow natural conversation to develop
         path_2_met = (
-            message_count > 12 and  # Lowered from 15
+            message_count > 16 and  # Increased: allow 8+ exchanges for natural flow
             (has_concerns or has_developmental_history) and
             has_strengths
         )
@@ -179,7 +179,7 @@ class WuWeiPrerequisites:
             has_age and  # Age is critical, name can be asked later
             has_concerns and
             has_developmental_history and  # This means >50 chars in concern_description
-            message_count > 8
+            message_count > 12  # Increased: don't rush to video guidelines (6+ exchanges minimum)
         )
 
         met = path_1_met or path_2_met or path_3_met
