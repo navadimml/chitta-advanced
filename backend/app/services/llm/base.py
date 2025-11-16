@@ -5,7 +5,7 @@ Abstract base class for all LLM providers (Gemini, Claude, OpenAI, Simulated)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -14,7 +14,10 @@ class Message(BaseModel):
     role: str = Field(..., description="Role: 'system', 'user', 'assistant', or 'function'")
     content: str = Field(default="", description="Message content")
     name: Optional[str] = Field(default=None, description="Function name for function responses")
-    function_response: Optional[Dict[str, Any]] = Field(default=None, description="Function response data for Gemini")
+    function_response: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = Field(
+        default=None,
+        description="Function response data for Gemini (dict for single, list for multiple calls to same function)"
+    )
     function_calls: Optional[List['FunctionCall']] = Field(default=None, description="Function calls made by assistant (for conversation history)")
 
 
