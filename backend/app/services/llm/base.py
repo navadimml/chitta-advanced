@@ -11,8 +11,10 @@ from pydantic import BaseModel, Field
 
 class Message(BaseModel):
     """Chat message"""
-    role: str = Field(..., description="Role: 'system', 'user', or 'assistant'")
+    role: str = Field(..., description="Role: 'system', 'user', 'assistant', or 'function'")
     content: str = Field(..., description="Message content")
+    name: Optional[str] = Field(default=None, description="Function name for function responses")
+    function_response: Optional[Dict[str, Any]] = Field(default=None, description="Function response data for Gemini")
 
 
 class FunctionCall(BaseModel):
