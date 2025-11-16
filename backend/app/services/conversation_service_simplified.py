@@ -159,15 +159,16 @@ class SimplifiedConversationService:
             )
 
             # Enhanced debugging for function calling issues
-            if functions and not has_function_calls:
-                logger.warning(
-                    f"⚠️  No function calls made despite {len(CONVERSATION_FUNCTIONS_COMPREHENSIVE)} "
-                    f"functions available. Response preview: {response_text[:100]}..."
-                )
-
             if has_function_calls:
                 func_names = [fc.name for fc in llm_response.function_calls]
                 logger.info(f"📞 Functions called: {func_names}")
+            else:
+                # Warn if no function calls when we expected them
+                if response_text and len(response_text) > 0:
+                    logger.warning(
+                        f"⚠️  No function calls made despite {len(CONVERSATION_FUNCTIONS_COMPREHENSIVE)} "
+                        f"functions available. Response preview: {response_text[:100]}..."
+                    )
 
             # If no function calls, we have the final text response
             if not has_function_calls:
