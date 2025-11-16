@@ -254,28 +254,42 @@ class SessionService:
         # Reject string literals that represent null/missing values
         invalid_values = ['None', 'null', 'NULL', 'unknown', '(not mentioned yet)']
         for field in ['child_name', 'age', 'gender']:
-            if field in new_data and new_data[field]:
-                # For string fields, reject invalid placeholders
-                if isinstance(new_data[field], str) and new_data[field] in invalid_values:
-                    continue
-                setattr(current, field, new_data[field])
+            if field not in new_data:
+                continue  # Field not provided in this extraction
+
+            value = new_data[field]
+
+            # Skip if None (field not mentioned in conversation yet)
+            if value is None:
+                continue
+
+            # For string fields, reject invalid placeholder strings
+            if isinstance(value, str) and value in invalid_values:
+                continue
+
+            # Save the valid value
+            setattr(current, field, value)
 
         # Merge arrays (concerns, urgent_flags)
-        if 'primary_concerns' in new_data and new_data['primary_concerns']:
-            # Ensure new_data['primary_concerns'] is a list (LLM sometimes returns string)
+        if 'primary_concerns' in new_data:
             new_concerns = new_data['primary_concerns']
-            if isinstance(new_concerns, str):
-                new_concerns = [new_concerns]
-            concerns = set(current.primary_concerns + new_concerns)
-            current.primary_concerns = list(concerns)
+            # Skip if None or empty
+            if new_concerns:
+                # Ensure it's a list (LLM sometimes returns string)
+                if isinstance(new_concerns, str):
+                    new_concerns = [new_concerns]
+                concerns = set(current.primary_concerns + new_concerns)
+                current.primary_concerns = list(concerns)
 
-        if 'urgent_flags' in new_data and new_data['urgent_flags']:
-            # Ensure new_data['urgent_flags'] is a list (LLM sometimes returns string)
+        if 'urgent_flags' in new_data:
             new_flags = new_data['urgent_flags']
-            if isinstance(new_flags, str):
-                new_flags = [new_flags]
-            flags = set(current.urgent_flags + new_flags)
-            current.urgent_flags = list(flags)
+            # Skip if None or empty
+            if new_flags:
+                # Ensure it's a list (LLM sometimes returns string)
+                if isinstance(new_flags, str):
+                    new_flags = [new_flags]
+                flags = set(current.urgent_flags + new_flags)
+                current.urgent_flags = list(flags)
 
         # Append or merge text fields
         text_fields = [
@@ -284,14 +298,21 @@ class SessionService:
         ]
 
         for field in text_fields:
-            if field in new_data and new_data[field]:
-                current_text = getattr(current, field) or ""
-                new_text = new_data[field]
+            if field not in new_data:
+                continue  # Field not provided in this extraction
 
-                # Only append if new info is significantly different
-                if new_text.lower() not in current_text.lower():
-                    combined = f"{current_text}. {new_text}".strip(". ")
-                    setattr(current, field, combined)
+            new_text = new_data[field]
+
+            # Skip if None or empty
+            if not new_text:
+                continue
+
+            current_text = getattr(current, field) or ""
+
+            # Only append if new info is significantly different
+            if new_text.lower() not in current_text.lower():
+                combined = f"{current_text}. {new_text}".strip(". ")
+                setattr(current, field, combined)
 
         # Update metadata
         current.last_updated = datetime.now()
