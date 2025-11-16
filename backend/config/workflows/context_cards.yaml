@@ -1,0 +1,792 @@
+# Context Cards - UI cards that reflect invisible state
+# Cards guide users through the workflow by showing progress, next steps, and available actions
+# 🌟 Wu Wei: Cards appear based on prerequisites, not phases
+
+version: "2.0"
+card_system_name: "child_development_context_cards"
+description: "Dynamic UI cards that adapt based on artifacts and prerequisites (no phases)"
+
+# Card display rules
+display_rules:
+  max_cards_visible: 4  # Don't overwhelm user
+  priority_ordering: true  # Show highest priority cards first
+  auto_dismiss: true  # Some cards auto-dismiss after action
+  animation: fade_in_out
+
+# Card types for styling
+card_types:
+  progress:
+    icon: "progress-bar"
+    color: "blue"
+    style: "informational"
+
+  action_needed:
+    icon: "alert-circle"
+    color: "orange"
+    style: "call-to-action"
+
+  success:
+    icon: "check-circle"
+    color: "green"
+    style: "celebration"
+
+  guidance:
+    icon: "lightbulb"
+    color: "purple"
+    style: "helpful"
+
+  ongoing_support:
+    icon: "heart"
+    color: "pink"
+    style: "supportive"
+
+# Cards in the system
+cards:
+  # ========================================
+  # INITIAL ASSESSMENT CARDS (emergent state)
+  # Shows when: baseline_parent_report.exists = false
+  # ========================================
+
+  welcome_card:
+    name: "ברוכה הבאה"
+    name_en: "Welcome"
+    card_type: guidance
+    priority: 100  # Highest - show first
+
+    # When to show this card
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      message_count: 0
+      show_once: true
+
+    # Card content
+    content:
+      title: "שלום, נעים להכיר! 💙"
+      body: |
+        אני כאן כדי לעזור לך להבין טוב יותר את ההתפתחות של הילד/ה שלך.
+
+        **איך זה עובד?**
+        1. נדבר על הילד/ה - השיחה חופשית ונעימה
+        2. את תעלי 3 סרטונים קצרים
+        3. אנתח ואכין עבורך דוח מקיף
+
+        **הכל פרטי ומאובטח.** אפשר להתחיל מתי שנוח לך.
+
+      footer: "בואי נתחיל - ספרי לי קצת על הילד/ה שלך 😊"
+
+    # Available actions from this card
+    available_actions:
+      - continue_interview
+      - view_privacy_policy
+
+    # Behavior
+    dismissible: true
+    auto_dismiss_after_action: true
+
+  conversation_depth_card:
+    name: "עומק השיחה"
+    name_en: "Conversation Depth"
+    card_type: guidance
+    priority: 90
+
+    # When to show - during active conversation
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      message_count: "> 0"
+      artifacts.baseline_video_guidelines.exists: false  # Before guidelines ready
+
+    # Card content (qualitative, not percentage!)
+    content:
+      # Uses knowledge_depth_indicator formatter (calculated dynamically)
+      # Returns: {emoji, text} based on conversation richness
+      # Examples:
+      #   "👋 התחלנו להכיר"
+      #   "💭 מכירים את {child_name}..."
+      #   "💭 השיחה מתעמקת"
+      #   "💙 הכרנו את {child_name}"
+      title: "{knowledge_depth_indicator_emoji} {knowledge_depth_indicator_text}"
+      body: "תודה על השיתוף 💙"
+
+      footer: "אפשר לשתף עוד או לשאול כל שאלה"
+
+    # Behavior
+    dismissible: true
+    updates_dynamically: true  # Re-render when knowledge changes
+
+  child_profile_card:
+    name: "פרופיל הילד/ה"
+    name_en: "Child Profile"
+    card_type: guidance  # Informational card, not progress
+    priority: 85
+
+    # When to show - as soon as we have basic info
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      child_name: "!= None"  # Has name
+      age: "> 0"  # Has age
+
+    # Card content
+    content:
+      title: "פרופיל: {child_name}"
+      body: "גיל {age}"
+
+    # No actions - this is informational only, not clickable
+    # available_actions: []
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+
+  # REMOVED: concerns_card and strengths_card
+  # These informational cards were redundant during active conversation.
+  # The parent already knows what they said - no need to show it back to them.
+  # These might be useful later in ongoing phase as summaries, but for now they're removed.
+
+  # If needed in future, these cards could show in ongoing phase:
+  # display_conditions:
+  #   baseline_parent_report.exists: true  # Only in ongoing, not during conversation
+  #   re_assessment.active: false
+
+  guidelines_offer_card:
+    name: "הצעה להכנת הנחיות"
+    name_en: "Guidelines Offer"
+    card_type: suggestion
+    priority: 95
+
+    # When to show - prerequisites met but not generated yet
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_video_guidelines.prerequisites_met: true
+      artifacts.baseline_video_guidelines.exists: false
+      user_actions.declined_guidelines_offer: false
+
+    # Card content
+    content:
+      title: "מוכנ/ה להנחיות צילום? 🎬"
+      body: |
+        יש לי מספיק מידע כדי להכין לך הנחיות צילום
+        מותאמות במיוחד ל{child_name}.
+
+        ההנחיות יעזרו לך לדעת מה לצלם ואיך.
+
+      footer: "רוצה שאכין?"
+
+    # Available actions
+    available_actions:
+      - name: "כן, תכיני"
+        action: generate_guidelines
+      - name: "עוד רגע"
+        action: dismiss_card
+        sets: user_actions.declined_guidelines_offer = true
+
+    # Behavior
+    dismissible: true
+    auto_dismiss_after_action: generate_guidelines
+
+  guidelines_preparing_card:
+    name: "מכינה הנחיות"
+    name_en: "Preparing Guidelines"
+    card_type: loading
+    priority: 100
+
+    # When to show - while generating
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_video_guidelines.status: "generating"
+
+    # Card content
+    content:
+      title: "מכינה עבורך... ⏳"
+      body: |
+        ✨ הנחיות צילום מותאמות ל{child_name}
+
+        רגע קטן...
+
+    # Behavior
+    dismissible: false
+    auto_replaces_with: guidelines_ready_card  # When status → ready
+
+  guidelines_ready_card:
+    name: "הנחיות מוכנות"
+    name_en: "Guidelines Ready"
+    card_type: success
+    priority: 100
+
+    # When to show - generated but not viewed yet
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_video_guidelines.exists: true
+      artifacts.baseline_video_guidelines.status: "ready"
+      user_actions.viewed_guidelines: false
+
+    # Card content
+    content:
+      title: "ההנחיות מוכנות! 🎬"
+      body: |
+        הכנתי לך הנחיות צילום מותאמות ל{child_name}.
+
+        לחצי כדי לקרוא את ההנחיות.
+
+    # Available actions
+    available_actions:
+      - name: "לחצי לצפייה"
+        action: view_guidelines
+        tracks: user_actions.viewed_guidelines = true
+
+    # Behavior
+    dismissible: false
+    auto_dismiss_after_action: view_guidelines
+
+  video_guidelines_card:
+    name: "הנחיות צילום"
+    name_en: "Video Guidelines"
+    card_type: action_needed
+    priority: 85
+
+    # When to show - from guidelines ready until 3 videos uploaded
+    # NOTE: Only shows AFTER user has viewed guidelines (to avoid duplicate with guidelines_ready_card)
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      artifacts.baseline_video_guidelines.exists: true
+      artifacts.baseline_video_guidelines.status: "ready"
+      user_actions.viewed_guidelines: true  # Only show after initial viewing
+      uploaded_video_count: [0, 1, 2]  # Show until all 3 videos uploaded
+
+    # Card content
+    content:
+      title: "הנחיות הצילום מוכנות! 📹"
+      body: |
+        הכנתי עבורך הנחיות מותאמות אישית על סמך מה שסיפרת לי.
+
+        **מה לצלם:**
+        {guidelines_summary}
+
+        **כמה סרטונים?**
+        צריכים 3 סרטונים קצרים (2-5 דקות כל אחד) במצבים שונים.
+
+        {upload_progress}
+
+      # Dynamic sections
+      guidelines_summary:
+        source: video_guidelines_artifact
+        extract: situations_to_capture
+        format: "• {situation}"
+        max_items: 3
+
+      upload_progress:
+        template: "**עד כה הועלו: {uploaded_count}/3 סרטונים** {progress_emoji}"
+        progress_emoji_by_count:
+          0: "⬜⬜⬜"
+          1: "✅⬜⬜"
+          2: "✅✅⬜"
+          3: "✅✅✅"
+
+      footer_by_upload_count:
+        0: "לחצי לצפייה בהנחיות והתחלת צילום 🎬"
+        1: "יופי! בואי נעלה עוד 2 סרטונים"
+        2: "כמעט סיימנו! עוד סרטון אחד"
+
+    # Available actions
+    available_actions:
+      - view_video_guidelines  # Opens guidelines view with "התחל צילום" button inside
+      - consultation
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+    auto_dismiss_when: "uploaded_video_count >= 3"
+
+  video_analysis_card:
+    name: "ניתוח סרטונים"
+    name_en: "Video Analysis"
+    card_type: progress
+    priority: 88
+
+    # When to show
+    display_conditions:
+      artifacts.baseline_parent_report.exists: false  # Initial assessment state
+      uploaded_video_count: ">= 3"
+      video_analysis_status: ["pending", "analyzing"]
+      reports_status: "!= ready"
+
+    # Card content varies by analysis state
+    content_by_status:
+      pending:
+        title: "מוכנים לניתוח! 🎥"
+        body: |
+          3 הסרטונים הועלו בהצלחה.
+
+          **מה קורה עכשיו?**
+          אני הולכת לנתח את הסרטונים - לצפות בהם בעיון ולחפש דפוסים, חוזקות, ואתגרים.
+
+          זה לוקח כמה זמן (בדרך כלל 10-15 דקות), אבל שווה את ההמתנה 💙
+
+        actions: [analyze_videos, consultation]
+
+      analyzing:
+        title: "מנתחת את הסרטונים... 🔍"
+        body: |
+          **התהליך בעיצומו!**
+
+          אני צופה בסרטונים של {child_name} ומחפשת:
+          • דרכי תקשורת
+          • אינטראקציות חברתיות
+          • משחק ויצירתיות
+          • תגובות חושיות
+          • ויסות רגשי
+
+          {analysis_progress}
+
+        analysis_progress:
+          show_spinner: true
+          estimated_time_remaining: "{minutes} דקות"
+
+        actions: [consultation, add_journal_entry]
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+    auto_dismiss_when: "video_analysis_status == complete"
+
+  reports_ready_card:
+    name: "הדוח מוכן"
+    name_en: "Report Ready"
+    card_type: success
+    priority: 100
+
+    # When to show
+    display_conditions:
+      phase: [screening, ongoing]  # Can show in both
+      reports_status: ready
+      user_viewed_report: false
+
+    # Card content
+    content:
+      title: "הדוח שלך מוכן! 📄✨"
+      body: |
+        **הערכה הושלמה!**
+
+        הכנתי עבורך דוח מקיף על {child_name}:
+        • חוזקות ותכונות ייחודיות
+        • תצפיות התפתחותיות
+        • המלצות מעשיות
+        • צעדים הבאים
+
+        הדוח כתוב בשפה נגישה, עם דגש על החוזקות של {child_name} והאפשרויות לתמיכה.
+
+      footer: "לחצי על 'הצג דוח' כשאת מוכנה לקרוא 💙"
+
+    # Available actions
+    available_actions:
+      - view_report
+      - download_report
+      - consultation
+
+    # Behavior
+    dismissible: true
+    celebration_animation: true
+    auto_dismiss_after_action: view_report
+
+  # ========================================
+  # ONGOING SUPPORT CARDS (emergent state)
+  # Shows when: baseline_parent_report.exists = true AND re_assessment.active = false
+  # ========================================
+
+  ongoing_welcome_card:
+    name: "שלב הליווי המתמשך"
+    name_en: "Ongoing Support Phase"
+    card_type: ongoing_support
+    priority: 85
+
+    # When to show
+    display_conditions:
+      artifacts.baseline_parent_report.exists: true  # Ongoing support state
+      re_assessment.active: false
+      phase_entry_message_shown: false  # Show once when entering this state
+
+    # Card content
+    content:
+      title: "ברוכה הבאה לשלב הליווי! 💙"
+      body: |
+        **הערכה הראשונית הושלמה - מה עכשיו?**
+
+        מעכשיו אני כאן בשבילך לאורך זמן:
+
+        📖 **יומן התפתחות** - תיעדי תצפיות ואני אעזור לך לעקוב אחרי ההתקדמות
+
+        💬 **שאלות ותמיכה** - בכל זמן שיש לך שאלה, אני כאן
+
+        🔍 **חיבור למומחים** - אעזור לך למצוא את האנשים המתאימים
+
+        🔄 **הערכה מחודשת** - כשנרצה, נוכל לעשות הערכה מעודכנת
+
+      footer: "אין מטרה קבועה - זה תהליך. אני כאן איתך 🌟"
+
+    # Available actions
+    available_actions:
+      - add_journal_entry
+      - view_report
+      - find_experts
+      - consultation
+
+    # Behavior
+    dismissible: true
+    show_once: true
+
+  journal_card:
+    name: "יומן התפתחות"
+    name_en: "Development Journal"
+    card_type: guidance
+    priority: 70
+
+    # When to show - only after interview is mostly complete or in ongoing phase
+    display_conditions:
+      phase: [ongoing, re_assessment]  # Only in ongoing/re-assessment, NOT during screening
+      journal_entry_count: "< 100"  # Don't nag forever
+
+    # Card content varies by journal state
+    content_by_state:
+      empty_journal:
+        title: "התחילי יומן התפתחות 📖"
+        body: |
+          **למה יומן?**
+
+          תיעוד רגעים, תצפיות, ושאלות עוזר:
+          • לעקוב אחרי התפתחות לאורך זמן
+          • לזהות דפוסים
+          • להכין שאלות למומחים
+          • לראות את הצמיחה
+
+          אפשר לכתוב כל דבר - אין "נכון" או "לא נכון" 💙
+
+        actions: [add_journal_entry]
+
+      has_entries:
+        title: "יומן ההתפתחות שלך 📖"
+        body: |
+          **{journal_entry_count} רשומות עד כה**
+
+          {recent_entry_preview}
+
+          תיעוד רציף עוזר לראות את התמונה הגדולה ולעקוב אחרי שינויים.
+
+        recent_entry_preview:
+          source: latest_journal_entry
+          format: |
+            **אחרון:**
+            📅 {entry_date}
+            "{entry_content_preview}..."
+
+        actions: [add_journal_entry, view_journal]
+
+    # Behavior
+    dismissible: true
+    re_show_after_days: 7  # Gentle reminder
+
+  follow_up_summary_ready_card:
+    name: "סיכום מעקב מוכן"
+    name_en: "Follow-up Summary Ready"
+    card_type: success
+    priority: 80
+
+    # When to show
+    display_conditions:
+      artifacts.baseline_parent_report.exists: true  # Ongoing support state
+      re_assessment.active: false
+      has_new_follow_up_summary: true
+      user_viewed_summary: false
+
+    # Card content
+    content:
+      title: "סיכום התקופה האחרונה 📊"
+      body: |
+        ניתחתי את רשומות היומן שלך מ-{days_covered} הימים האחרונים.
+
+        **בסיכום:**
+        • תצפיות מרכזיות
+        • דפוסים שזיהיתי
+        • התקדמות ביחס לבסיס
+        • המלצות לצעדים הבאים
+
+        {summary_preview}
+
+      summary_preview:
+        source: latest_follow_up_summary
+        extract: key_observations.progress_areas
+        format: "✨ {progress_area}"
+        max_items: 2
+
+      footer: "כדאי להעיף מבט 💙"
+
+    # Available actions
+    available_actions:
+      - view_follow_up_summary
+      - download_summary
+      - consultation
+
+    # Behavior
+    dismissible: true
+    auto_dismiss_after_action: view_follow_up_summary
+
+  expert_finder_card:
+    name: "מציאת מומחים"
+    name_en: "Find Experts"
+    card_type: guidance
+    priority: 65
+
+    # When to show
+    display_conditions:
+      artifacts.baseline_parent_report.exists: true  # Ongoing support state
+      re_assessment.active: false
+      reports_status: ready
+      expert_search_count: "< 3"  # Don't show forever
+
+    # Card content
+    content:
+      title: "צריכה עזרה מקצועית? 👥"
+      body: |
+        **אפשר לעזור לך למצוא מומחים**
+
+        בהתבסס על הדוח של {child_name}, אוכל להמליץ על:
+        • מטפלים בעיסוק
+        • קלינאי תקשורת
+        • פסיכולוגים התפתחותיים
+        • יועצים חינוכיים
+        • {additional_specialist}
+
+        ההמלצות מותאמות לצרכים ולמיקום שלך.
+
+      additional_specialist:
+        source: professional_report
+        extract: recommendations.specialist_referrals
+        format: "{specialist_type}"
+
+      footer: "לוחצים על 'מצא מומחים' להתחיל"
+
+    # Available actions
+    available_actions:
+      - find_experts
+      - consultation
+
+    # Behavior
+    dismissible: true
+    re_show_after_days: 30
+
+  # ========================================
+  # RE-ASSESSMENT CARDS (emergent state)
+  # Shows when: re_assessment.active = true
+  # ========================================
+
+  re_assessment_welcome_card:
+    name: "הערכה מחודשת"
+    name_en: "Re-assessment"
+    card_type: progress
+    priority: 90
+
+    # When to show
+    display_conditions:
+      re_assessment.active: true  # Re-assessment state
+      phase_entry_message_shown: false
+
+    # Card content
+    content:
+      title: "בואי נעדכן את ההבנה שלנו 🔄"
+      body: |
+        **הערכה מחודשת של {child_name}**
+
+        זה הזמן לראות איך {child_name} התפתח/ה מאז ההערכה הראשונית.
+
+        **התהליך:**
+        1. שיחה ממוקדת על השינויים והתפתחות
+        2. סרטונים חדשים (אם נחוץ)
+        3. דוח מעודכן עם השוואה לבסיס
+
+        {focus_areas}
+
+      focus_areas:
+        source: re_assessment_configuration
+        extract: areas_to_re_evaluate
+        format: "• {area}"
+
+      footer: "בואי נתחיל - מה השתנה מאז הפעם הקודמת?"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+      - view_journal  # Review what was documented
+      - consultation
+
+    # Behavior
+    dismissible: false
+    show_once: true
+
+  re_assessment_progress_card:
+    name: "התקדמות הערכה מחודשת"
+    name_en: "Re-assessment Progress"
+    card_type: progress
+    priority: 85
+
+    # When to show
+    display_conditions:
+      re_assessment.active: true  # Re-assessment state
+      artifacts.re_assessment_video_guidelines.exists: false
+      message_count: "> 0"
+
+    # Card content
+    content:
+      title: "{knowledge_depth_indicator_emoji} {knowledge_depth_indicator_text}"
+      body: |
+        {comparison_to_baseline}
+
+        **ממוקדים על:**
+        {focus_areas}
+
+      comparison_to_baseline:
+        source: baseline_parent_report
+        format: |
+          **בהשוואה לבסיס ({baseline_date}):**
+          {initial_concerns} ← מה שדאג אז
+          {current_state} ← איפה אנחנו עכשיו
+
+      footer: "תודה על השיתוף 💙"
+
+    # Available actions
+    available_actions:
+      - continue_interview
+      - upload_video
+      - view_journal
+      - consultation
+
+    # Behavior
+    dismissible: false
+    updates_dynamically: true
+
+  updated_report_ready_card:
+    name: "דוח מעודכן מוכן"
+    name_en: "Updated Report Ready"
+    card_type: success
+    priority: 95
+
+    # When to show
+    display_conditions:
+      re_assessment.active: true  # Re-assessment state
+      updated_reports_status: ready
+      user_viewed_updated_report: false
+
+    # Card content
+    content:
+      title: "הדוח המעודכן מוכן! 📊✨"
+      body: |
+        **ההערכה המחודשת הושלמה!**
+
+        הדוח החדש כולל:
+        • תמונה מעודכנת של {child_name}
+        • השוואה להערכה הקודמת
+        • התקדמות ושינויים
+        • המלצות מעודכנות
+
+        {progress_highlight}
+
+      progress_highlight:
+        source: updated_parent_report
+        extract: comparison_to_baseline.progress_made
+        format: "🌟 {progress_item}"
+        max_items: 2
+
+      footer: "חוזרים לליווי השוטף מעכשיו 💙"
+
+    # Available actions
+    available_actions:
+      - view_report
+      - download_report
+      - compare_reports  # Side-by-side
+      - consultation
+
+    # Behavior
+    dismissible: false
+    celebration_animation: true
+    auto_dismiss_after_action: view_report
+    on_dismiss:
+      set_flags:
+        - baseline_complete: true  # Baseline assessment is done
+        - re_assessment.active: false  # Return to ongoing support
+
+# Card generation logic
+card_generation:
+  evaluation_order:
+    - "Check artifact prerequisites"
+    - "Check artifact statuses"
+    - "Check user state (viewed_report, journal_count, etc.)"
+    - "Evaluate display_conditions"
+    - "Sort by priority"
+    - "Take top N cards based on max_cards_visible"
+
+  dynamic_content:
+    variable_resolution:
+      source_priority:
+        - extracted_data  # From interview
+        - artifacts  # From generated reports
+        - session_state  # Current phase, completeness
+        - user_preferences  # Language, tone
+
+      available_variables:
+        - "{parent_name}"
+        - "{child_name}"
+        - "{age}"
+        - "{knowledge_depth_indicator_emoji}"
+        - "{knowledge_depth_indicator_text}"
+        - "{uploaded_count}"
+        - "{journal_entry_count}"
+        - "{days_since_baseline}"
+        - "{phase}"
+        - And more from context
+
+  template_engine:
+    syntax: jinja2_compatible
+    filters:
+      - format_date
+      - format_percentage
+      - truncate
+      - pluralize_he  # Hebrew pluralization
+    functions:
+      - calculate_time_since
+      - extract_from_artifact
+      - count_by_status
+
+# Metadata
+metadata:
+  designed_for: "child_development_workflow"
+  language: "he"
+  last_updated: "2025-11-08"
+  notes: |
+    🌟 Wu Wei: Context cards are the UI reflection of invisible state
+
+    1. They GUIDE users through the workflow
+       - Show what's next
+       - Explain current state
+       - Offer clear actions
+
+    2. They ADAPT to artifacts and prerequisites (NOT phases)
+       - Initial assessment: conversation-focused, guides toward guidelines
+       - Ongoing support: journal-focused, questions and experts
+       - Re-assessment: comparison-focused, tracks progress
+
+    3. They CONNECT to system state
+       - Artifacts (what exists?)
+       - Prerequisites (what's ready?)
+       - Actions (what can user do?)
+       - Flags (re_assessment.active?)
+
+    4. They COMMUNICATE with warmth
+       - Hebrew, empathetic tone
+       - Strength-based language
+       - Clear next steps
+       - No pressure
+
+    Key Wu Wei principles:
+    - Cards appear/disappear based on artifact prerequisites, NOT phases
+    - Priority determines order when multiple shown
+    - Dynamic content from session state
+    - Actions directly connected to user intent
+    - Continuous conversation always - no "complete interview" gate
+    - Qualitative progress (השיחה מתעמקת) not quantitative (76%)
