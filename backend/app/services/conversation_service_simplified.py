@@ -239,6 +239,7 @@ class SimplifiedConversationService:
             ))
 
             logger.info(f"📤 Function results sent back to LLM: {list(function_results.keys())}")
+            logger.debug(f"📦 Full function_results payload: {function_results}")
             # Loop continues - next iteration will get final text response
 
         # 6. Check for empty response and generate fallback if needed
