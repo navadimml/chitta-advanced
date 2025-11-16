@@ -12,8 +12,7 @@ const SCENARIOS = {
       completed_milestones: []
     },
     messages: [
-      { sender: 'chitta', text: 'שלום! אני Chitta, ואני כאן כדי לעזור לך להבין טוב יותר את המסע ההתפתחותי של הילד שלך. 💙', delay: 0 },
-      { sender: 'chitta', text: 'בואי נתחיל בהכרות. מה שמו של הילד/ה שלך?', delay: 1500 },
+      { sender: 'chitta', text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?', delay: 0 },
       { sender: 'user', text: 'השם שלו יוני', delay: 3000 },
       { sender: 'chitta', text: 'נעים להכיר את יוני! 😊 בן כמה הוא?', delay: 4000 },
       { sender: 'user', text: 'הוא בן 3 וחצי', delay: 5500 },
@@ -352,6 +351,41 @@ const SCENARIOS = {
 class ChittaAPI {
   constructor() {
     this.currentScenario = 'interview';
+    // In-memory storage for videos and journal entries
+    this.videos = [
+      {
+        id: 'video_1',
+        title: 'משחק חופשי',
+        description: 'עם ילדים אחרים, 3-5 דקות',
+        date: '10 אוקטובר 2024',
+        duration: '4:32',
+        thumbnail: null,
+        url: null
+      }
+    ];
+    this.journalEntries = [
+      {
+        id: 'entry_1',
+        text: 'יוני התחיל להשתמש ב"בבקשה" ו"תודה" יותר לבד! אני כל כך גאה בו 💚',
+        status: 'התקדמות',
+        timestamp: 'לפני 3 ימים',
+        date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+      },
+      {
+        id: 'entry_2',
+        text: 'בגן הגננת אמרה שהוא משתלב יותר טוב במעגל. נראה שהטיפולים עוזרים.',
+        status: 'תצפית',
+        timestamp: 'לפני שבוע',
+        date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      },
+      {
+        id: 'entry_3',
+        text: 'היום היה קשה בקניון - הרעש היה חזק מדי בשבילו. עזבנו מוקדם.',
+        status: 'אתגר',
+        timestamp: 'לפני שבועיים',
+        date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+      }
+    ];
   }
 
   // Get scenario data
@@ -378,9 +412,9 @@ class ChittaAPI {
       setTimeout(() => {
         resolve({
           success: true,
-          response: { 
-            sender: 'chitta', 
-            text: 'תגובה מהמערכת...' 
+          response: {
+            sender: 'chitta',
+            text: 'תגובה מהמערכת...'
           }
         });
       }, 800);
@@ -409,6 +443,120 @@ class ChittaAPI {
           message: 'הקובץ הועלה בהצלחה'
         });
       }, 1500);
+    });
+  }
+
+  // === JOURNAL CRUD OPERATIONS ===
+
+  // Get all journal entries
+  async getJournalEntries() {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          entries: [...this.journalEntries].sort((a, b) => b.date - a.date)
+        });
+      }, 200);
+    });
+  }
+
+  // Create a new journal entry
+  async createJournalEntry(text, status = 'תצפית') {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const newEntry = {
+          id: 'entry_' + Date.now(),
+          text,
+          status,
+          timestamp: 'עכשיו',
+          date: new Date()
+        };
+        this.journalEntries.unshift(newEntry);
+        resolve({
+          success: true,
+          entry: newEntry,
+          message: 'הרשומה נשמרה בהצלחה'
+        });
+      }, 300);
+    });
+  }
+
+  // Delete a journal entry
+  async deleteJournalEntry(entryId) {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const index = this.journalEntries.findIndex(e => e.id === entryId);
+        if (index !== -1) {
+          this.journalEntries.splice(index, 1);
+          resolve({
+            success: true,
+            message: 'הרשומה נמחקה'
+          });
+        } else {
+          resolve({
+            success: false,
+            message: 'רשומה לא נמצאה'
+          });
+        }
+      }, 200);
+    });
+  }
+
+  // === VIDEO CRUD OPERATIONS ===
+
+  // Get all videos
+  async getVideos() {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          videos: [...this.videos]
+        });
+      }, 200);
+    });
+  }
+
+  // Create/Upload a new video
+  async createVideo(videoData) {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const newVideo = {
+          id: 'video_' + Date.now(),
+          title: videoData.title || 'סרטון חדש',
+          description: videoData.description || '',
+          date: new Date().toLocaleDateString('he-IL'),
+          duration: videoData.duration || '0:00',
+          thumbnail: videoData.thumbnail || null,
+          url: videoData.url || null
+        };
+        this.videos.push(newVideo);
+        resolve({
+          success: true,
+          video: newVideo,
+          message: 'הסרטון הועלה בהצלחה'
+        });
+      }, 1500);
+    });
+  }
+
+  // Delete a video
+  async deleteVideo(videoId) {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const index = this.videos.findIndex(v => v.id === videoId);
+        if (index !== -1) {
+          this.videos.splice(index, 1);
+          resolve({
+            success: true,
+            message: 'הסרטון נמחק'
+          });
+        } else {
+          resolve({
+            success: false,
+            message: 'סרטון לא נמצא'
+          });
+        }
+      }, 300);
     });
   }
 }
