@@ -162,17 +162,66 @@ if not final_response and extraction_summary:
 
 This ensures conversation continues smoothly even with weak models, using extracted data to generate intelligent fallback responses.
 
+## Update: Root Cause Found! (2025-11-16 - Final Fix)
+
+### Issue 4: Missing Assistant Response in Conversation History 🔴 CRITICAL
+
+**The REAL Problem:**
+We were NOT following the official Gemini function calling pattern!
+
+**Per Gemini Documentation:**
+```python
+# CORRECT Pattern (multi-turn loop):
+1. Model returns function calls ONLY (0 chars text is EXPECTED, not an error!)
+2. ADD ASSISTANT'S RESPONSE TO HISTORY ← WE WERE MISSING THIS!
+3. Execute functions and send results back
+4. Model sees its own function calls → returns final text
+```
+
+**What We Were Doing Wrong:**
+```
+Iteration 1: Get function calls from model
+           → Execute functions immediately
+           → Send results back
+           → Model doesn't know it called function!
+           → Calls it again! (infinite loop)
+```
+
+**The Fix:**
+```python
+# After getting LLM response with function calls
+messages.append(Message(
+    role="assistant",
+    content=response_text or "",
+    function_calls=llm_response.function_calls  # ← Critical!
+))
+# THEN execute functions and send results
+```
+
+Without this, the model has no memory of its own function calls and keeps calling them!
+
 ## Files Modified
 
 1. `backend/app/services/llm/gemini_provider.py`
    - Added `tool_config` with `FunctionCallingConfig` to disable AFC
+   - Added handling for assistant messages with function_calls
+   - Converts to Gemini's Part(function_call) format
 
 2. `backend/app/services/conversation_service_simplified.py`
+   - **CRITICAL FIX**: Add assistant's response to history before sending function results
    - Increased `max_tokens` from 2000 to 4000
    - Added enhanced debugging logs
    - Added MALFORMED_FUNCTION_CALL detection and logging
    - Added intelligent fallback response generation
    - Fixed NameError in debugging code
+
+3. `backend/app/services/llm/base.py`
+   - Added `function_calls` field to Message class
+   - Changed `content` default to "" (empty is valid during function calling)
+   - Added model_rebuild() for Pydantic forward references
+
+4. `backend/app/services/conversation_service.py`
+   - Increased `max_tokens` from 2000 to 4000 in both calls
 
 ## Impact Assessment
 
