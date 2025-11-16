@@ -61,18 +61,18 @@ cards:
 
     # Card content
     content:
-      title: "שלום {parent_name}, נעים להכיר! 💙"
+      title: "שלום, נעים להכיר! 💙"
       body: |
-        אני כאן כדי לעזור לך להבין טוב יותר את ההתפתחות של {child_name}.
+        אני כאן כדי לעזור לך להבין טוב יותר את ההתפתחות של הילד/ה שלך.
 
         **איך זה עובד?**
-        1. נדבר על {child_name} - השיחה חופשית ונעימה
+        1. נדבר על הילד/ה - השיחה חופשית ונעימה
         2. את תעלי 3 סרטונים קצרים
         3. אנתח ואכין עבורך דוח מקיף
 
         **הכל פרטי ומאובטח.** אפשר להתחיל מתי שנוח לך.
 
-      footer: "בואי נתחיל - ספרי לי קצת על {child_name} 😊"
+      footer: "בואי נתחיל - ספרי לי קצת על הילד/ה שלך 😊"
 
     # Available actions from this card
     available_actions:
