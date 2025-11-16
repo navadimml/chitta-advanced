@@ -211,6 +211,29 @@ class GeminiProvider(BaseLLMProvider):
                 system_prompt = msg.content
                 continue
 
+            # Handle assistant messages with function calls (per Gemini docs)
+            # CRITICAL: Must add assistant's function calls to history before sending results
+            if msg.role == "assistant" and msg.function_calls:
+                # Convert our FunctionCall objects to Gemini Parts
+                parts = []
+                for fc in msg.function_calls:
+                    parts.append(
+                        types.Part(
+                            function_call=types.FunctionCall(
+                                name=fc.name,
+                                args=fc.arguments
+                            )
+                        )
+                    )
+
+                contents.append(
+                    types.Content(
+                        role="model",  # Assistant role = model in Gemini
+                        parts=parts
+                    )
+                )
+                continue
+
             # Handle function responses (from function execution results)
             if msg.role == "function" and msg.function_response:
                 # Gemini expects function responses as user role with function_response parts
