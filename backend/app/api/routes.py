@@ -1332,8 +1332,17 @@ async def start_test_mode(request: StartTestRequest):
     """
     simulator = get_parent_simulator()
 
-    # Generate family ID if not provided
-    family_id = request.family_id or f"test_{request.persona_id}_{int(datetime.now().timestamp())}"
+    # Check if there's already an active simulation for this persona
+    existing_family_id = simulator.get_active_simulation_for_persona(request.persona_id)
+
+    if existing_family_id:
+        # Reuse existing simulation - maintain context across messages
+        family_id = existing_family_id
+        logger.info(f"♻️ Reusing existing simulation for {request.persona_id}: {family_id}")
+    else:
+        # Create new simulation - only when first entering test mode
+        family_id = request.family_id or f"test_{request.persona_id}_{int(datetime.now().timestamp())}"
+        logger.info(f"🆕 Creating new simulation for {request.persona_id}: {family_id}")
 
     try:
         result = simulator.start_simulation(request.persona_id, family_id)
@@ -1392,6 +1401,32 @@ async def generate_parent_response(request: GenerateResponseRequest):
         import logging
         logging.error(f"Error generating parent response: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate response")
+
+
+class StopTestRequest(BaseModel):
+    """Request to stop test mode"""
+    family_id: str
+
+
+@router.post("/test/stop")
+async def stop_test_mode(request: StopTestRequest):
+    """
+    Stop an active test simulation.
+    This clears the simulation from memory, allowing you to start fresh with the same persona.
+    """
+    simulator = get_parent_simulator()
+
+    try:
+        simulator.stop_simulation(request.family_id)
+        logger.info(f"🛑 Stopped simulation for {request.family_id}")
+
+        return {
+            "success": True,
+            "message": f"Test simulation stopped for {request.family_id}"
+        }
+    except Exception as e:
+        logger.error(f"Error stopping simulation: {e}")
+        raise HTTPException(status_code=500, detail="Failed to stop simulation")
 
 
 @router.get("/state/subscribe")
