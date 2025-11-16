@@ -523,11 +523,12 @@ The explanation above is already in Hebrew and personalized - USE IT or adapt it
         try:
             # CALL 1: Get conversational response (NO functions)
             # This ensures we ALWAYS get Hebrew text back
+            # CRITICAL FIX: Increased from 2000 to 4000 to prevent message truncation
             llm_response = await self.llm.chat(
                 messages=messages,
                 functions=None,  # ← NO FUNCTIONS = Always get text
                 temperature=temperature,
-                max_tokens=2000
+                max_tokens=4000
             )
 
             logger.info(
@@ -588,7 +589,7 @@ Continue the conversation naturally."""
                     messages=simple_messages,
                     functions=None,
                     temperature=temperature,
-                    max_tokens=2000
+                    max_tokens=4000  # Increased to prevent truncation
                 )
 
                 logger.info(
