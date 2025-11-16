@@ -198,8 +198,10 @@ class SimplifiedConversationService:
             ))
 
             # Process function calls and build results
+            # CRITICAL: Use LIST not dict to support multiple calls to same function!
+            # Gemini expects one response per call, in the same order
             logger.info(f"🔧 Processing {len(llm_response.function_calls)} function call(s)")
-            function_results = {}
+            function_results = []  # Changed from dict to list!
 
             for func_call in llm_response.function_calls:
                 if func_call.name == "extract_interview_data":
@@ -213,41 +215,58 @@ class SimplifiedConversationService:
                         func_call.arguments
                     )
                     extraction_summary = func_call.arguments
-                    function_results[func_call.name] = {"status": "success", "data_saved": True}
+                    # Append to list (not dict) to preserve all responses
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "success", "data_saved": True}
+                    })
 
                 elif func_call.name == "ask_developmental_question":
                     # Developmental question asked
                     developmental_question = func_call.arguments
                     logger.info(f"❓ Developmental question: {developmental_question.get('question_topic')}")
-                    function_results[func_call.name] = {"status": "noted", "topic": developmental_question.get('question_topic')}
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "topic": developmental_question.get('question_topic')}
+                    })
 
                 elif func_call.name == "ask_about_analysis":
                     # Question about Chitta's analysis
                     analysis_question = func_call.arguments
                     logger.info(f"🔍 Analysis question: {analysis_question.get('analysis_element')}")
-                    function_results[func_call.name] = {"status": "noted", "element": analysis_question.get('analysis_element')}
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "element": analysis_question.get('analysis_element')}
+                    })
 
                 elif func_call.name == "ask_about_app":
                     # App help request
                     app_help_request = func_call.arguments
                     logger.info(f"ℹ️ App help: {app_help_request.get('help_topic')}")
-                    function_results[func_call.name] = {"status": "noted", "topic": app_help_request.get('help_topic')}
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "topic": app_help_request.get('help_topic')}
+                    })
 
                 elif func_call.name == "request_action":
                     # Action requested
                     action_requested = func_call.arguments.get('action')
                     logger.info(f"🎬 Action requested: {action_requested}")
-                    function_results[func_call.name] = {"status": "noted", "action": action_requested}
+                    function_results.append({
+                        "name": func_call.name,
+                        "result": {"status": "noted", "action": action_requested}
+                    })
 
             # Add function results to conversation (Wu Wei: send results back to LLM)
             # Use Gemini's expected function_response format
             messages.append(Message(
                 role="function",
                 content="Function execution results",  # Descriptive text for logging
-                function_response=function_results  # Proper Gemini format
+                function_response=function_results  # Now a list to support multiple calls!
             ))
 
-            logger.info(f"📤 Function results sent back to LLM: {list(function_results.keys())}")
+            func_names = [fr["name"] for fr in function_results]
+            logger.info(f"📤 Function results sent back to LLM: {len(function_results)} responses for {func_names}")
             logger.debug(f"📦 Full function_results payload: {function_results}")
             # Loop continues - next iteration will get final text response
 
