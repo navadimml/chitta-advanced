@@ -1,0 +1,207 @@
+# Lifecycle Events - Wu Wei Configuration (פשוט - נטול חלקים עודפים)
+# 🌟 Wu Wei: No phases, no gates. Just prerequisites and moments.
+
+version: "3.0"
+workflow_name: "continuous_conversation_with_progressive_unlocking"
+
+# ============================================
+# ALWAYS AVAILABLE
+# ============================================
+# Capabilities that require no prerequisites - available from first message
+always_available:
+  - conversation      # Talk to Chitta anytime about anything
+  - journaling        # Record observations and milestones
+  - consultation      # Get answers and guidance
+
+# ============================================
+# MOMENTS
+# ============================================
+# Moments that unlock progressively as prerequisites are met
+# Each moment can include:
+#   when: Prerequisites (flat dict with AND logic, OR: {} for alternatives)
+#   artifact: Artifact ID to generate (optional)
+#   message: Message to send when moment happens (optional)
+#   ui: UI guidance to prevent hallucinations (optional)
+#     type: UI element type (card, button, modal, banner, etc.)
+#     default: Guidance text for default/desktop
+#     mobile: Mobile-specific guidance (only if different)
+#   unlocks: List of capability IDs this moment unlocks (optional)
+#
+moments:
+  # Welcome
+  first_message:
+    when:
+      message_count: 1
+    message: |
+      שלום! אני כאן כדי להכיר את {child_name} ולעזור לך להבין את ההתפתחות שלו/ה.
+      ספרי לי - מה מעניין אותך? מה שמח אותך? מה מדאיג?
+
+  # Knowledge richness milestone
+  knowledge_rich:
+    when:
+      knowledge_is_rich: true
+      baseline_video_guidelines.exists: false
+    message: |
+      תודה שסיפרת לי כל כך הרבה על {child_name}! 💙
+
+      אני מרגישה שיש לי הבנה טובה עכשיו. אם תרצי, אוכל להכין לך הנחיות מותאמות לצילום סרטונים - זה יעזור לי לראות את {child_name} בפעולה.
+
+  # Baseline assessment flow
+  guidelines_ready:
+    when:
+      knowledge_is_rich: true
+    artifact: "baseline_video_guidelines"
+    message: "ההנחיות מוכנות! 📹"
+    ui:
+      type: "card"
+      default: "תראי את הכרטיס 'הנחיות צילום' ב'פעיל עכשיו' למטה - לחצי עליו כדי לקרוא את ההנחיות המלאות"
+    unlocks:
+      - upload_videos
+
+  videos_ready:
+    when:
+      uploaded_video_count: ">= 3"
+    artifact: "baseline_videos"
+    message: |
+      מעולה! 3 הסרטונים הועלו.
+      אני מוכנה לנתח אותם - זה ייקח כ-10-15 דקות. בינתיים, תמיד אפשר לשאול שאלות או להוסיף ליומן. 💙
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'ניתוח סרטונים' ב'פעיל עכשיו' למטה כדי להתחיל את הניתוח"
+    unlocks:
+      - analyze_videos
+
+  analysis_done:
+    when:
+      baseline_videos.exists: true
+      videos_analyzed: true
+    artifact: "baseline_video_analysis"
+    message: |
+      הניתוח הושלם! 🎉
+      מצאתי דפוסים מעניינים. בואי נסכם את כל מה שלמדתי על {child_name} בדוח מסודר.
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'יצירת דוח' ב'פעיל עכשיו' למטה כדי ליצור את הדוח המסודר"
+    unlocks:
+      - generate_reports
+
+  report_ready:
+    when:
+      baseline_video_analysis.exists: true
+      OR:
+        conversation_knowledge_is_rich: true
+    artifact: "baseline_parent_report"
+    message: |
+      הדוח מוכן! 📄
+
+      זה היה תהליך עשיר - תודה שהשקעת את הזמן לשתף ולצלם.
+      מעכשיו אני כאן בשבילך לכל שאלה, כל תצפית, כל דבר שמתעורר בדרך. 💙
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'מדריך להורים' ב'פעיל עכשיו' למטה כדי לקרוא את הדוח המלא"
+    unlocks:
+      - view_reports
+      - find_experts
+      - start_re_assessment
+
+  professional_report_ready:
+    when:
+      baseline_parent_report.exists: true
+    artifact: "baseline_professional_report"
+    unlocks:
+      - expert_matching
+
+  # Ongoing support
+  journal_entries:
+    artifact: "journal_entries"
+    # No prerequisites - always available via always_available list
+
+  # Re-assessment flow
+  re_assessment_guidelines_ready:
+    when:
+      baseline_parent_report.exists: true
+      re_assessment.active: true
+      knowledge_is_rich: true
+    artifact: "re_assessment_video_guidelines"
+    message: "הנחיות מעודכנות מוכנות! 📹"
+    ui:
+      type: "card"
+      default: "תראי את הכרטיס 'הנחיות צילום מעודכנות' ב'פעיל עכשיו' למטה"
+    unlocks:
+      - upload_videos
+
+  re_assessment_videos_ready:
+    when:
+      re_assessment_video_guidelines.exists: true
+      uploaded_video_count: ">= 3"
+    artifact: "re_assessment_videos"
+    message: "הסרטונים להערכה מחודשת הועלו!"
+    unlocks:
+      - analyze_videos
+
+  re_assessment_analysis_done:
+    when:
+      re_assessment_videos.exists: true
+      videos_analyzed: true
+    artifact: "re_assessment_video_analysis"
+    message: "הניתוח המעודכן הושלם!"
+    unlocks:
+      - generate_updated_reports
+
+  re_assessment_report_ready:
+    when:
+      baseline_parent_report.exists: true
+      re_assessment_video_analysis.exists: true
+      OR:
+        re_assessment_conversation_is_rich: true
+    artifact: "updated_parent_report"
+    message: |
+      הדוח המעודכן מוכן! 📊
+
+      כדאי להשוות את השינויים מאז הדוח הקודם - זה מראה את ההתקדמות.
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'דוח מעודכן' ב'פעיל עכשיו' למטה"
+    unlocks:
+      - compare_progress
+      - view_timeline
+
+  re_assessment_professional_report_ready:
+    when:
+      updated_parent_report.exists: true
+    artifact: "updated_professional_report"
+    unlocks:
+      - share_with_professionals
+
+# ============================================
+# PHILOSOPHY
+# ============================================
+philosophy: |
+  Wu Wei - Effortless action through continuous flow (פשוט - נטול חלקים עודפים)
+
+  No phases. No gates. No redundancy. Just:
+  1. Continuous conversation (always available)
+  2. Knowledge accumulates naturally
+  3. Prerequisites met → Moments happen → Capabilities unlock
+  4. Parent can explore/ask anything anytime
+
+  Simplification principles applied:
+  - Merged artifacts + lifecycle_events + capabilities → moments
+  - Flattened structure (no nested objects except when/ui)
+  - Removed duplicate information (descriptions, implementation docs)
+  - Everything about a moment in ONE place
+  - Only essential fields (when, artifact, message, ui, unlocks)
+
+  Result: 50% less configuration, 100% of the functionality
+
+metadata:
+  version_history:
+    - "1.0: Phase-based workflow (phases.yaml)"
+    - "2.0: Wu Wei dependency graph (separate artifacts/events/capabilities)"
+    - "3.0: Simplified Wu Wei (unified moments structure)"
+  last_updated: "2025-11-11"
+  breaking_changes:
+    - "config['artifacts'] → config['moments']"
+    - "config['lifecycle_events'] → config['moments']"
+    - "config['capabilities'] → config['always_available'] + moments[].unlocks"
+    - "Moment structure flattened (when/artifact/message/ui/unlocks)"
