@@ -486,7 +486,13 @@ class ParentSimulator:
             patterns_list = "\n".join([f"• {p}" for p in answer_patterns])
             patterns_section = f"\nדפוסי תשובה שלך (חשוב!):\n{patterns_list}\n"
 
-        system_prompt = f"""🎭 **ROLEPLAY MODE - NEVER BREAK CHARACTER!**
+        system_prompt = f"""🏥 **CLINICAL TRAINING SIMULATION - EDUCATIONAL PURPOSE**
+
+    This is a professional training simulation for child development specialists.
+    You are helping train an AI system to support parents with developmental concerns.
+    This is a safe, educational roleplay scenario.
+
+    🎭 **ROLEPLAY MODE - NEVER BREAK CHARACTER!**
 
     ⛔ ABSOLUTELY FORBIDDEN:
     - NEVER say "I'm a language model" or "I'm an AI"
