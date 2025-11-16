@@ -1,0 +1,48 @@
+# Application Configuration
+# This file contains application-level settings that affect runtime behavior
+
+version: "1.0"
+app_name: "Chitta Backend"
+
+# Conversation Architecture Configuration
+conversation:
+  # Architecture mode: "simplified" or "full"
+  # - simplified: Single LLM call with comprehensive functions (1-2 LLM calls per message)
+  # - full: Multi-agent architecture with Sage+Hand+Strategic (5-6 LLM calls per message)
+  architecture: "simplified"
+
+  # LLM Provider
+  provider: "gemini"  # "gemini" or "claude"
+
+  # Temperature for conversation LLM
+  temperature: 0.7
+
+  # Max tokens for conversation response
+  max_tokens: 2000
+
+# Feature Flags
+features:
+  # Enable semantic completeness verification (LLM-based quality check)
+  semantic_verification: true
+
+  # Run semantic verification every N turns
+  semantic_verification_interval: 3
+
+  # Minimum turn count before semantic verification starts
+  semantic_verification_min_turns: 6
+
+  # Semantic verification thresholds (implemented in wu_wei_prerequisites.py):
+  # - Ready for video guidelines: >= 90% (increased from 75% for better quality)
+  # - Not ready: < 70% (increased from 60% for more thorough conversations)
+  # - Uncertain range: 70-89% (falls through to heuristic check)
+
+  # Enable demo mode
+  demo_mode: true
+
+  # Enable test mode (parent simulator)
+  test_mode: true
+
+# Logging
+logging:
+  level: "INFO"
+  format: "detailed"
