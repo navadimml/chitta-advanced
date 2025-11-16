@@ -102,6 +102,10 @@ You have functions to help you do your work:
 
 **⚠️ CRITICAL: Call this function EVERY time the parent shares information!**
 
+**EVEN IF you already know name/age/concerns, STILL call this function when parent shares NEW information!**
+
+This function is **INCREMENTAL** - each call adds to the database. Don't think "I already have the name, so I won't call it." Think: "Parent just shared strengths → I MUST call extract_interview_data(strengths=...)"
+
 Call when:
 - Parent mentions name, age, gender
 - Parent describes concerns, challenges, difficulties (**including examples and details!**)
@@ -112,16 +116,18 @@ Call when:
 - Parent states goals or hopes
 
 **Examples:**
-- Parent: "היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע..."
-  → **MUST** call extract_interview_data(concern_details="היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע...")
-
-- Parent: "הוא בן 4, שמו דניאל"
+- Turn 1 - Parent: "הוא בן 4, שמו דניאל"
   → **MUST** call extract_interview_data(child_name="דניאל", age=4)
 
-- Parent: "הוא מצטיין בפאזלים, יכול לשבת שעות"
-  → **MUST** call extract_interview_data(strengths="מצטיין בפאזלים, יכול לשבת שעות")
+- Turn 2 - Parent: "היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע..."
+  → **MUST STILL** call extract_interview_data(concern_details="היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע...")
+  → YES, even though you already have name/age!
 
-**Don't skip this!** This information allows us to create personalized guidelines later.
+- Turn 3 - Parent: "הוא מצטיין בפאזלים, יכול לשבת שעות"
+  → **MUST STILL** call extract_interview_data(strengths="מצטיין בפאזלים, יכול לשבת שעות")
+  → YES, even though you already have name/age/concerns!
+
+**Don't skip this!** Each call saves new information. This allows us to create personalized guidelines later.
 
 ### 2. ask_developmental_question()
 **When to call:** When parent asks a **general** developmental question
@@ -242,7 +248,8 @@ def _build_critical_facts_section(
     if child_name and child_name not in ['unknown', 'Unknown', 'לא צוין']:
         facts.append(f"""✅ **Child's name: {child_name}**
    → Use the name in every response! **Don't say "your child"**
-   → **DO NOT ask** for the name again - you already know it!""")
+   → **DO NOT ask** for the name again - you already know it!
+   → **BUT DO call extract_interview_data()** when parent shares OTHER new information!""")
     else:
         facts.append("""❌ **Child's name: Not yet provided**
    → If there's a natural opportunity, ask: "What's the child's name?"
@@ -251,7 +258,8 @@ def _build_critical_facts_section(
     if age is not None and age > 0:
         facts.append(f"""✅ **Age: {age} years**
    → This is the developmental age on which assessment is based
-   → **DO NOT ask** for age again - you already know it!""")
+   → **DO NOT ask** for age again - you already know it!
+   → **BUT DO call extract_interview_data()** when parent shares OTHER new information!""")
     else:
         facts.append("""❌ **Age: Not yet provided**
    → **THIS IS CRITICAL!** Cannot assess without knowing age
@@ -265,16 +273,19 @@ def _build_critical_facts_section(
         concerns_text = ", ".join(concerns)
         facts.append(f"""✅ **Primary concerns: {concerns_text}**
    → These are the areas the parent is worried about
-   → **DO NOT ask** about concerns again - you already know them!""")
+   → **DO NOT ask** about concerns again - you already know them!
+   → **BUT DO call extract_interview_data()** when parent shares MORE details, examples, or OTHER information!""")
 
         if concern_details and len(concern_details) > 50:
             details_preview = concern_details[:100] + "..."
             facts.append(f"""✅ **Concern details:**
    {details_preview}
-   → Has specific examples - good!""")
+   → Has specific examples - good!
+   → **STILL call extract_interview_data()** if parent shares MORE examples or strengths!""")
         else:
             facts.append("""⚠️ **Concern details: Missing specific examples**
-   → Need to clarify: When does it happen? Where? Give an example from last week?""")
+   → Need to clarify: When does it happen? Where? Give an example from last week?
+   → **CALL extract_interview_data()** when parent provides these details!""")
     else:
         facts.append("""❌ **Primary concerns: Not yet provided**
    → This is the heart of the conversation - what worries the parent?
