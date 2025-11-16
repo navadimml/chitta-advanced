@@ -141,11 +141,13 @@ class SimplifiedConversationService:
             logger.info(f"🔄 Iteration {iteration}/{max_iterations}")
 
             # Call LLM with functions
+            # CRITICAL FIX: Increased max_tokens from 2000 to 4000 to prevent truncation
+            # The comprehensive prompt is ~2500 tokens, leaving little room for responses
             llm_response = await self.llm.chat(
                 messages=messages,
                 functions=CONVERSATION_FUNCTIONS_COMPREHENSIVE,
                 temperature=temperature,
-                max_tokens=2000
+                max_tokens=4000
             )
 
             response_text = llm_response.content or ""
@@ -155,6 +157,17 @@ class SimplifiedConversationService:
                 f"✅ LLM response: {len(response_text)} chars, "
                 f"{len(llm_response.function_calls)} function calls"
             )
+
+            # Enhanced debugging for function calling issues
+            if functions and not has_function_calls:
+                logger.warning(
+                    f"⚠️  No function calls made despite {len(CONVERSATION_FUNCTIONS_COMPREHENSIVE)} "
+                    f"functions available. Response preview: {response_text[:100]}..."
+                )
+
+            if has_function_calls:
+                func_names = [fc.name for fc in llm_response.function_calls]
+                logger.info(f"📞 Functions called: {func_names}")
 
             # If no function calls, we have the final text response
             if not has_function_calls:
