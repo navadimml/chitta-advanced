@@ -75,7 +75,8 @@ class GeminiProvider(BaseLLMProvider):
         messages: List[Message],
         functions: Optional[List[Dict[str, Any]]] = None,
         temperature: float = None,
-        max_tokens: int = 1000
+        max_tokens: int = 1000,
+        response_format: Optional[str] = None  # Support "json" for JSON mode
     ) -> LLMResponse:
         """
         Send chat completion with optional function calling
@@ -85,6 +86,7 @@ class GeminiProvider(BaseLLMProvider):
             functions: Function definitions for function calling
             temperature: Sampling temperature
             max_tokens: Maximum output tokens
+            response_format: If "json", requests JSON-formatted output
 
         Returns:
             LLMResponse with content and function calls
@@ -96,23 +98,24 @@ class GeminiProvider(BaseLLMProvider):
 
         # Prepare tools if functions provided
         tools = None
-        automatic_function_calling_config = None
         if functions:
             tools = self._convert_functions_to_tools(functions)
-            # Disable automatic function calling since we handle function calls manually
-            # This is critical for manual function declaration handling per Gemini API docs
-            automatic_function_calling_config = types.AutomaticFunctionCallingConfig(
-                disable=True
-            )
 
         # Create configuration
-        config = types.GenerateContentConfig(
-            temperature=temp,
-            max_output_tokens=max_tokens,
-            safety_settings=self.safety_settings,
-            tools=tools,
-            automatic_function_calling=automatic_function_calling_config
-        )
+        config_params = {
+            "temperature": temp,
+            "max_output_tokens": max_tokens,
+            "safety_settings": self.safety_settings,
+            "tools": tools
+            # NOTE: NOT setting automatic_function_calling at all
+            # Gemini default behavior should return function_call parts for manual execution
+        }
+
+        # Add JSON mode if requested
+        if response_format == "json":
+            config_params["response_mime_type"] = "application/json"
+
+        config = types.GenerateContentConfig(**config_params)
 
         try:
             # Generate response using async client
