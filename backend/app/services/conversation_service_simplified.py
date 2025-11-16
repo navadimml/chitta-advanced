@@ -50,7 +50,7 @@ class SimplifiedConversationService:
         self,
         family_id: str,
         user_message: str,
-        temperature: float = 0.7
+        temperature: float = 0.0  # Low temp for reliable function calling
     ) -> Dict[str, Any]:
         """
         Process user message using simplified single-LLM architecture.
