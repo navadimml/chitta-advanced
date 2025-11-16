@@ -409,6 +409,13 @@ class ParentSimulator:
             for p in self.personas.values()
         ]
 
+    def get_active_simulation_for_persona(self, persona_id: str) -> Optional[str]:
+        """Get family_id of active simulation for this persona"""
+        for family_id, sim_data in self.active_simulations.items():
+            if sim_data["persona"].persona_id == persona_id:
+                return family_id
+        return None
+
     def start_simulation(self, persona_id: str, family_id: str) -> dict:
         """Start a test simulation with this persona"""
         persona = self.get_persona(persona_id)
