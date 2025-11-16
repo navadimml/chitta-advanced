@@ -1377,11 +1377,18 @@ async def generate_parent_response(request: GenerateResponseRequest):
     simulator = get_parent_simulator()
     graphiti = get_mock_graphiti()
 
+    # CRITICAL FIX: Use flash-lite for test simulation to avoid safety filters
+    # gemini-2.5-pro blocks roleplay scenarios involving child behavioral concerns
+    # flash-lite has more permissive safety settings for educational/clinical content
+    from app.services.llm.factory import create_llm_provider
+    test_llm = create_llm_provider(provider_type="gemini", model="gemini-flash-lite-latest")
+    logger.info("🎭 Using gemini-flash-lite for test parent simulation (avoids safety blocks)")
+
     try:
         response = await simulator.generate_response(
             family_id=request.family_id,
             chitta_question=request.chitta_question,
-            llm_provider=app_state.llm,
+            llm_provider=test_llm,  # Use flash-lite instead of pro
             graphiti=graphiti
         )
 
