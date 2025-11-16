@@ -217,9 +217,26 @@ class SimplifiedConversationService:
                 f"🌟 Artifacts generated: {lifecycle_result['artifacts_generated']}"
             )
 
+        # 🌟 Wu Wei: If lifecycle events were triggered, use their messages from YAML
+        # These messages notify the parent about new capabilities/artifacts
+        response_text = llm_response.content or ""
+
+        if lifecycle_result["events_triggered"]:
+            # Use the first event's message (usually only one per turn)
+            event = lifecycle_result["events_triggered"][0]
+            event_message = event.get("message", "")
+
+            logger.info(
+                f"🎉 Wu Wei: Lifecycle event triggered: {event['event_name']}"
+            )
+            logger.info(f"📢 Event message: {event_message[:100]}...")
+
+            # Use event message as the response (it explains what just happened)
+            response_text = event_message
+
         # 11. Return response
         return {
-            "response": llm_response.content or "",
+            "response": response_text,
             "function_calls": [
                 {"name": fc.name, "arguments": fc.arguments}
                 for fc in llm_response.function_calls
