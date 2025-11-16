@@ -133,6 +133,35 @@ Knowledge: has_child_name: True ('יונתן'), has_age: True (4.0)
    - No mid-word cutoffs
    - Full explanations
 
+## Update: Additional Fixes Applied (2025-11-16)
+
+### Issue 3: Empty Responses from Weak Models 🟠 HIGH
+
+**Symptoms:**
+- Chitta returning empty messages to parents
+- Data being extracted successfully but no acknowledgment
+- `FinishReason.MALFORMED_FUNCTION_CALL` in logs
+
+**Root Cause:**
+After successful data extraction in iteration 1, `gemini-flash-lite-latest` fails to generate the text response in iteration 2, creating a malformed function call instead.
+
+**Fix Applied:**
+```python
+# Intelligent fallback response generation
+if not final_response and extraction_summary:
+    child_name = extraction_summary.get('child_name', 'הילד/ה')
+    age = extraction_summary.get('age')
+
+    if child_name and age:
+        final_response = f"נעים להכיר את {child_name}! בגיל {age}, מה הדבר שהכי מעסיק אותך לגביו/ה?"
+    elif child_name:
+        final_response = f"נעים להכיר את {child_name}! ספרי לי קצת עליו/ה - מה מעסיק אותך?"
+    else:
+        final_response = "תודה שאת משתפת. ספרי לי עוד - מה הדבר שהכי מדאיג אותך?"
+```
+
+This ensures conversation continues smoothly even with weak models, using extracted data to generate intelligent fallback responses.
+
 ## Files Modified
 
 1. `backend/app/services/llm/gemini_provider.py`
@@ -141,6 +170,9 @@ Knowledge: has_child_name: True ('יונתן'), has_age: True (4.0)
 2. `backend/app/services/conversation_service_simplified.py`
    - Increased `max_tokens` from 2000 to 4000
    - Added enhanced debugging logs
+   - Added MALFORMED_FUNCTION_CALL detection and logging
+   - Added intelligent fallback response generation
+   - Fixed NameError in debugging code
 
 ## Impact Assessment
 
