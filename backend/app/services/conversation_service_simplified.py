@@ -169,6 +169,9 @@ class SimplifiedConversationService:
                 if func_call.name == "extract_interview_data":
                     # Extract structured data
                     logger.info(f"📝 Extracting data: {list(func_call.arguments.keys())}")
+                    logger.info(f"   → child_name: {repr(func_call.arguments.get('child_name'))}")
+                    logger.info(f"   → age: {repr(func_call.arguments.get('age'))}")
+                    logger.info(f"   → strengths: {repr(str(func_call.arguments.get('strengths', 'N/A'))[:100])}")
                     updated_data = self.session_service.update_extracted_data(
                         family_id,
                         func_call.arguments
