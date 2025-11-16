@@ -9,6 +9,7 @@ from typing import List, Optional
 from datetime import datetime
 import asyncio
 import json
+import logging
 
 from app.core.app_state import app_state
 from app.services.llm.base import Message
@@ -34,6 +35,7 @@ from app.services.parent_simulator import get_parent_simulator
 from app.services.sse_notifier import get_sse_notifier
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # === Request/Response Models ===
 
