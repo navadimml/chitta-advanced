@@ -130,7 +130,7 @@ class SimplifiedConversationService:
         llm_response = None
 
         # Track function call results for all iterations
-        extraction_summary = {}
+        all_extractions = []  # Track ALL extraction calls, not just the last one
         action_requested = None
         developmental_question = None
         analysis_question = None
@@ -140,12 +140,20 @@ class SimplifiedConversationService:
             iteration += 1
             logger.info(f"🔄 Iteration {iteration}/{max_iterations}")
 
+            # CRITICAL FIX: Only provide tools on first iteration
+            # After executing functions, remove tools to FORCE text response
+            # This prevents infinite function calling loop
+            functions_param = CONVERSATION_FUNCTIONS_COMPREHENSIVE if iteration == 1 else None
+
+            if iteration > 1:
+                logger.info("🔒 Tools removed - forcing final text response")
+
             # Call LLM with functions
             # CRITICAL FIX: Increased max_tokens from 2000 to 4000 to prevent truncation
             # The comprehensive prompt is ~2500 tokens, leaving little room for responses
             llm_response = await self.llm.chat(
                 messages=messages,
-                functions=CONVERSATION_FUNCTIONS_COMPREHENSIVE,
+                functions=functions_param,
                 temperature=temperature,
                 max_tokens=4000
             )
@@ -214,7 +222,8 @@ class SimplifiedConversationService:
                         family_id,
                         func_call.arguments
                     )
-                    extraction_summary = func_call.arguments
+                    # Track ALL extractions, not just the last one
+                    all_extractions.append(func_call.arguments)
                     # Append to list (not dict) to preserve all responses
                     function_results.append({
                         "name": func_call.name,
@@ -270,24 +279,48 @@ class SimplifiedConversationService:
             logger.debug(f"📦 Full function_results payload: {function_results}")
             # Loop continues - next iteration will get final text response
 
-        # 6. Check for empty response and generate fallback if needed
+        # 6. Check for empty response and generate context-aware fallback if needed
         final_response = llm_response.content or ""
 
-        if not final_response and extraction_summary:
-            # We extracted data but got no text response (common with weak models)
-            # Generate a simple acknowledgment
-            child_name = extraction_summary.get('child_name', 'הילד/ה')
-            age = extraction_summary.get('age')
+        if not final_response and all_extractions:
+            # We extracted data but got no text response (model hit max_iterations)
+            # Generate a CONTEXT-AWARE acknowledgment based on what was just shared
 
-            if child_name and age:
-                final_response = f"נעים להכיר את {child_name}! בגיל {age}, מה הדבר שהכי מעסיק אותך לגביו/ה?"
-            elif child_name:
-                final_response = f"נעים להכיר את {child_name}! ספרי לי קצת עליו/ה - מה מעסיק אותך?"
+            # Merge all extractions to see what we got this turn
+            merged = {}
+            for ext in all_extractions:
+                merged.update(ext)
+
+            # Get current session data to avoid repeating questions
+            session = self.session_service.get_or_create_session(family_id)
+            data = session.extracted_data
+
+            # Smart fallback based on what was just shared
+            child_name = merged.get('child_name') or data.child_name or 'הילד/ה'
+            age = merged.get('age') or data.age
+            concern_details = merged.get('concern_details', '')
+            strengths = merged.get('strengths', '')
+
+            # Generate response based on what was JUST shared (not what we already know)
+            if merged.get('child_name') and merged.get('age'):
+                # Just learned name and age
+                final_response = f"נעים להכיר את {child_name}! ספרי לי קצת - מה מעסיק אותך?"
+            elif concern_details and not strengths:
+                # Shared concerns, now ask about strengths
+                final_response = f"אני שומעת. ומה {child_name} כן אוהב לעשות? במה הוא טוב?"
+            elif strengths and not concern_details:
+                # Shared strengths, now ask about concerns
+                final_response = f"נהדר! ומה מעסיק אותך לגבי {child_name}?"
+            elif concern_details:
+                # Shared concern details, ask for more specifics
+                final_response = "תני לי דוגמה - מתי זה קרה לאחרונה?"
             else:
-                final_response = "תודה שאת משתפת. ספרי לי עוד - מה הדבר שהכי מדאיג אותך?"
+                # Generic - just continue the conversation
+                final_response = "ספרי לי עוד - מה קורה?"
 
             logger.warning(
-                f"⚠️  Generated fallback response due to empty LLM response. "
+                f"⚠️  Generated context-aware fallback (model hit max_iterations). "
+                f"Merged extractions: {list(merged.keys())}. "
                 f"Model likely too weak - upgrade to gemini-2.5-flash recommended."
             )
 
@@ -358,6 +391,11 @@ class SimplifiedConversationService:
             response_text = event_message
 
         # 11. Return response
+        # Merge all extractions for the response
+        merged_extractions = {}
+        for ext in all_extractions:
+            merged_extractions.update(ext)
+
         return {
             "response": response_text,
             "function_calls": [
@@ -365,7 +403,7 @@ class SimplifiedConversationService:
                 for fc in llm_response.function_calls
             ],
             "completeness": completeness_pct,
-            "extracted_data": extraction_summary,
+            "extracted_data": merged_extractions,
             "context_cards": context_cards,
             "stats": self.session_service.get_session_stats(family_id),
             "architecture": "simplified",  # Signal which architecture was used

@@ -65,18 +65,23 @@ def build_comprehensive_prompt(
 
 ## ⚡⚡⚡ CRITICAL RULE - READ THIS FIRST! ⚡⚡⚡
 
-**EVERY TIME THE PARENT SHARES INFORMATION, YOU MUST CALL THE extract_interview_data() FUNCTION!**
+**WHEN THE PARENT SHARES INFORMATION, YOU MUST CALL extract_interview_data() TO SAVE IT!**
 
-This is NOT optional! If parent mentions:
-- Child's name → **MUST call extract_interview_data(child_name="...")**
-- Age → **MUST call extract_interview_data(age=...)**
-- Concerns/challenges → **MUST call extract_interview_data(concern_details="...")**
-- Strengths/interests → **MUST call extract_interview_data(strengths="...")**
-- Examples/stories → **MUST call extract_interview_data(concern_details="...")**
+This is NOT optional! When you receive a message from the parent that contains information:
 
-**If you skip calling this function, the child's information will be LOST forever!**
+**Call extract_interview_data() ONCE with ALL the new information from that message.**
 
-The function is INCREMENTAL - call it on EVERY turn when parent shares new info, even if you already have name/age!
+Examples of when to call:
+- Parent mentions child's name, age, gender → **Call once with all of it**
+- Parent describes concerns/challenges → **Call once with concern_details**
+- Parent shares strengths/interests → **Call once with strengths**
+- Parent gives examples/stories → **Call once with the details**
+
+**Important:**
+- Call this ONCE per parent message (not multiple times per message unless extracting very different types of info)
+- Include ALL new information from their message in a single call when possible
+- You can call it with just one field (like just strengths) or multiple fields (name + age + concerns)
+- If you skip calling this function, the information will be LOST forever!
 
 ## 🎯 Your Role
 
@@ -115,34 +120,32 @@ You have functions to help you do your work:
 
 ### 1. extract_interview_data() - Save Information
 
-**⚠️ CRITICAL: Call this function EVERY time the parent shares information!**
+**⚠️ CRITICAL: Call this function when the parent shares information in their message!**
 
-**EVEN IF you already know name/age/concerns, STILL call this function when parent shares NEW information!**
+This function is **INCREMENTAL** - each call adds to the database. Even if you already know name/age, when the parent shares NEW information (like strengths or examples), you must save it!
 
-This function is **INCREMENTAL** - each call adds to the database. Don't think "I already have the name, so I won't call it." Think: "Parent just shared strengths → I MUST call extract_interview_data(strengths=...)"
-
-Call when:
-- Parent mentions name, age, gender
-- Parent describes concerns, challenges, difficulties (**including examples and details!**)
-- **Parent shares strengths, interests, what child loves or is good at** (THIS IS CRITICAL DATA!)
-- Parent describes routines, behaviors
-- Parent mentions history, milestones
-- Parent talks about family, context
-- Parent states goals or hopes
+Call when parent's message contains:
+- Name, age, gender
+- Concerns, challenges, difficulties (**including examples and details!**)
+- **Strengths, interests, what child loves or is good at** (THIS IS CRITICAL DATA!)
+- Routines, behaviors, daily patterns
+- History, milestones, development
+- Family context, siblings, support
+- Goals or hopes
 
 **Examples:**
-- Turn 1 - Parent: "הוא בן 4, שמו דניאל"
-  → **MUST** call extract_interview_data(child_name="דניאל", age=4)
+- Parent: "הוא בן 4, שמו דניאל"
+  → Call extract_interview_data(child_name="דניאל", age=4)
 
-- Turn 2 - Parent: "היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע..."
-  → **MUST STILL** call extract_interview_data(concern_details="היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע...")
-  → YES, even though you already have name/age!
+- Parent: "היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע..."
+  → Call extract_interview_data(concern_details="היא אובססיבית לדינוזאורים. כל ספר, כל צעצוע...")
+  → (Even though you already have name/age - this is NEW information!)
 
-- Turn 3 - Parent: "הוא מצטיין בפאזלים, יכול לשבת שעות"
-  → **MUST STILL** call extract_interview_data(strengths="מצטיין בפאזלים, יכול לשבת שעות")
-  → YES, even though you already have name/age/concerns!
+- Parent: "הוא מצטיין בפאזלים, יכול לשבת שעות"
+  → Call extract_interview_data(strengths="מצטיין בפאזלים, יכול לשבת שעות")
+  → (This is NEW strengths data - must save it!)
 
-**Don't skip this!** Each call saves new information. This allows us to create personalized guidelines later.
+**Don't skip this!** Each parent message with new information needs to be saved.
 
 ### 2. ask_developmental_question()
 **When to call:** When parent asks a **general** developmental question
@@ -263,8 +266,7 @@ def _build_critical_facts_section(
     if child_name and child_name not in ['unknown', 'Unknown', 'לא צוין']:
         facts.append(f"""✅ **Child's name: {child_name}**
    → Use the name in every response! **Don't say "your child"**
-   → **DO NOT ask** for the name again - you already know it!
-   → **BUT DO call extract_interview_data()** when parent shares OTHER new information!""")
+   → **DO NOT ask** for the name again - you already know it!""")
     else:
         facts.append("""❌ **Child's name: Not yet provided**
    → If there's a natural opportunity, ask: "What's the child's name?"
@@ -273,8 +275,7 @@ def _build_critical_facts_section(
     if age is not None and age > 0:
         facts.append(f"""✅ **Age: {age} years**
    → This is the developmental age on which assessment is based
-   → **DO NOT ask** for age again - you already know it!
-   → **BUT DO call extract_interview_data()** when parent shares OTHER new information!""")
+   → **DO NOT ask** for age again - you already know it!""")
     else:
         facts.append("""❌ **Age: Not yet provided**
    → **THIS IS CRITICAL!** Cannot assess without knowing age
@@ -288,19 +289,16 @@ def _build_critical_facts_section(
         concerns_text = ", ".join(concerns)
         facts.append(f"""✅ **Primary concerns: {concerns_text}**
    → These are the areas the parent is worried about
-   → **DO NOT ask** about concerns again - you already know them!
-   → **BUT DO call extract_interview_data()** when parent shares MORE details, examples, or OTHER information!""")
+   → **DO NOT ask** about concerns again - you already know them!""")
 
         if concern_details and len(concern_details) > 50:
             details_preview = concern_details[:100] + "..."
             facts.append(f"""✅ **Concern details:**
    {details_preview}
-   → Has specific examples - good!
-   → **STILL call extract_interview_data()** if parent shares MORE examples or strengths!""")
+   → Has specific examples - good!""")
         else:
             facts.append("""⚠️ **Concern details: Missing specific examples**
-   → Need to clarify: When does it happen? Where? Give an example from last week?
-   → **CALL extract_interview_data()** when parent provides these details!""")
+   → Need to clarify: When does it happen? Where? Give an example from last week?""")
     else:
         facts.append("""❌ **Primary concerns: Not yet provided**
    → This is the heart of the conversation - what worries the parent?
