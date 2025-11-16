@@ -279,6 +279,19 @@ class SimplifiedConversationService:
             logger.debug(f"📦 Full function_results payload: {function_results}")
             # Loop continues - next iteration will get final text response
 
+        # 5.5. FALLBACK EXTRACTION: If model didn't call extract_interview_data, try regex extraction
+        # This helps with weak models like gemini-flash-lite that don't reliably call functions
+        if not all_extractions:
+            logger.warning("⚠️  Model didn't call extract_interview_data - attempting fallback regex extraction")
+            fallback_data = self._fallback_extract_basic_info(user_message)
+            if fallback_data:
+                logger.info(f"✅ Fallback extraction succeeded: {list(fallback_data.keys())}")
+                # Save the extracted data
+                self.session_service.update_extracted_data(family_id, fallback_data)
+                all_extractions.append(fallback_data)
+            else:
+                logger.info("ℹ️  Fallback extraction found nothing - user message may not contain basic info")
+
         # 6. Check for empty response and generate context-aware fallback if needed
         final_response = llm_response.content or ""
 
@@ -436,6 +449,83 @@ class SimplifiedConversationService:
             "viewed_guidelines": False,
             "declined_guidelines_offer": False,
         }
+
+    def _fallback_extract_basic_info(self, user_message: str) -> Dict[str, Any]:
+        """
+        Fallback extraction using regex patterns for weak models.
+        Extracts name and age when model doesn't call extract_interview_data.
+        """
+        import re
+
+        extracted = {}
+
+        # Pattern 1: "שמו X" or "קוראים לו X" (his name is X, we call him X)
+        name_patterns = [
+            r'שמו\s+([א-ת]+)',
+            r'קוראים\s+לו\s+([א-ת]+)',
+            r'נקרא\s+לו\s+([א-ת]+)',
+            r'שם\s+הילד\s+([א-ת]+)',
+            r'^([א-ת]+),?\s+בן',  # Pattern: "NAME, age X"
+            r'^([א-ת]+)\s*\.\s*הוא\s+בן',  # Pattern: "NAME. He is age X"
+        ]
+
+        for pattern in name_patterns:
+            match = re.search(pattern, user_message)
+            if match:
+                extracted['child_name'] = match.group(1)
+                logger.info(f"   → Fallback extracted name: {match.group(1)}")
+                break
+
+        # Hebrew number words to digits mapping (ages 1-10)
+        hebrew_numbers = {
+            'אחת': 1, 'אחד': 1,
+            'שתיים': 2, 'שניים': 2,
+            'שלוש': 3, 'שלושה': 3,
+            'ארבע': 4, 'ארבעה': 4,
+            'חמש': 5, 'חמישה': 5,
+            'שש': 6, 'שישה': 6,
+            'שבע': 7, 'שבעה': 7,
+            'שמונה': 8,
+            'תשע': 9, 'תשעה': 9,
+            'עשר': 10, 'עשרה': 10
+        }
+
+        # Pattern 2: "בן X" or "בת X" (age X boy/girl) - with both digits and Hebrew numbers
+        age_patterns = [
+            r'בן\s+(\d+)',
+            r'בת\s+(\d+)',
+            r'גיל\s+(\d+)',
+            r'(\d+)\s+שנים',
+        ]
+
+        # Try digit patterns first
+        for pattern in age_patterns:
+            match = re.search(pattern, user_message)
+            if match:
+                try:
+                    age = int(match.group(1))
+                    extracted['age'] = age
+                    logger.info(f"   → Fallback extracted age: {age}")
+                    break
+                except ValueError:
+                    pass
+
+        # If no digit found, try Hebrew number words
+        if 'age' not in extracted:
+            for hebrew_num, digit in hebrew_numbers.items():
+                if re.search(rf'בן\s+{hebrew_num}\b', user_message) or \
+                   re.search(rf'בת\s+{hebrew_num}\b', user_message):
+                    extracted['age'] = digit
+                    logger.info(f"   → Fallback extracted age (Hebrew word): {digit} ({hebrew_num})")
+                    break
+
+        # Infer gender from Hebrew grammar
+        if re.search(r'\bהוא\b', user_message):
+            extracted['gender'] = 'male'
+        elif re.search(r'\bהיא\b', user_message):
+            extracted['gender'] = 'female'
+
+        return extracted
 
     def _generate_context_cards(
         self,
