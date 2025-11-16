@@ -238,13 +238,27 @@ class GeminiProvider(BaseLLMProvider):
             if msg.role == "function" and msg.function_response:
                 # Gemini expects function responses as user role with function_response parts
                 parts = []
-                for func_name, result in msg.function_response.items():
-                    parts.append(
-                        types.Part.from_function_response(
-                            name=func_name,
-                            response={"result": result}
+
+                # Support both dict (old format) and list (new format for multiple calls)
+                if isinstance(msg.function_response, dict):
+                    # Old format: dict of {func_name: result}
+                    for func_name, result in msg.function_response.items():
+                        parts.append(
+                            types.Part.from_function_response(
+                                name=func_name,
+                                response={"result": result}
+                            )
                         )
-                    )
+                elif isinstance(msg.function_response, list):
+                    # New format: list of {"name": func_name, "result": result}
+                    # This preserves order and supports multiple calls to same function
+                    for item in msg.function_response:
+                        parts.append(
+                            types.Part.from_function_response(
+                                name=item["name"],
+                                response={"result": item["result"]}
+                            )
+                        )
 
                 contents.append(
                     types.Content(
