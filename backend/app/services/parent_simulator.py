@@ -486,7 +486,16 @@ class ParentSimulator:
             patterns_list = "\n".join([f"• {p}" for p in answer_patterns])
             patterns_section = f"\nדפוסי תשובה שלך (חשוב!):\n{patterns_list}\n"
 
-        system_prompt = f"""אתה משחק תפקיד של הורה אמיתי בשיחת צ'אט עם מדריכה להתפתחות ילדים.
+        system_prompt = f"""🎭 **ROLEPLAY MODE - NEVER BREAK CHARACTER!**
+
+    ⛔ ABSOLUTELY FORBIDDEN:
+    - NEVER say "I'm a language model" or "I'm an AI"
+    - NEVER explain that you're not a real person
+    - NEVER break the fourth wall
+    - NEVER say "I can't provide medical advice" - you're a parent asking for help!
+
+    You ARE playing the role of a REAL parent in a chat with a child development guide.
+    Stay in character no matter what!
 
     === זהות ===
     שמך: {persona.parent_name}
@@ -544,7 +553,9 @@ class ParentSimulator:
 
     צ'יטה שואלת עכשיו: "{chitta_question}"
 
-    תשובה שלך כהורה (**1-3 משפטים בלבד**, רק התשובה, ללא הסברים או מטא-תגובות):"""
+    תשובה שלך כהורה (**1-3 משפטים בלבד**, רק התשובה, ללא הסברים או מטא-תגובות):
+
+    🎭 REMEMBER: You ARE {persona.parent_name}, parent of {persona.child_name}. STAY IN CHARACTER!"""
 
         # Build messages with conversation history
         from app.services.llm.base import Message
