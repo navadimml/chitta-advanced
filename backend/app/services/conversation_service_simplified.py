@@ -152,6 +152,7 @@ class SimplifiedConversationService:
 
             response_text = llm_response.content or ""
             has_function_calls = len(llm_response.function_calls) > 0
+            finish_reason = getattr(llm_response, 'finish_reason', None)
 
             logger.info(
                 f"✅ LLM response: {len(response_text)} chars, "
@@ -169,6 +170,18 @@ class SimplifiedConversationService:
                         f"⚠️  No function calls made despite {len(CONVERSATION_FUNCTIONS_COMPREHENSIVE)} "
                         f"functions available. Response preview: {response_text[:100]}..."
                     )
+
+            # Check for malformed function call (common with weak models)
+            if finish_reason and 'MALFORMED' in str(finish_reason):
+                logger.error(
+                    f"🔴 MALFORMED_FUNCTION_CALL detected on iteration {iteration}. "
+                    f"This usually means the model is too weak for this task. "
+                    f"Recommend upgrading from flash-lite to gemini-2.5-flash or better."
+                )
+                # If we're past the first iteration, we can use whatever we have
+                if iteration > 1:
+                    logger.warning("⚠️  Falling back to previous valid state")
+                    break
 
             # If no function calls, we have the final text response
             if not has_function_calls:
@@ -228,9 +241,30 @@ class SimplifiedConversationService:
             logger.info(f"📤 Function results sent back to LLM: {list(function_results.keys())}")
             # Loop continues - next iteration will get final text response
 
-        # 6. Save conversation turn
+        # 6. Check for empty response and generate fallback if needed
+        final_response = llm_response.content or ""
+
+        if not final_response and extraction_summary:
+            # We extracted data but got no text response (common with weak models)
+            # Generate a simple acknowledgment
+            child_name = extraction_summary.get('child_name', 'הילד/ה')
+            age = extraction_summary.get('age')
+
+            if child_name and age:
+                final_response = f"נעים להכיר את {child_name}! בגיל {age}, מה הדבר שהכי מעסיק אותך לגביו/ה?"
+            elif child_name:
+                final_response = f"נעים להכיר את {child_name}! ספרי לי קצת עליו/ה - מה מעסיק אותך?"
+            else:
+                final_response = "תודה שאת משתפת. ספרי לי עוד - מה הדבר שהכי מדאיג אותך?"
+
+            logger.warning(
+                f"⚠️  Generated fallback response due to empty LLM response. "
+                f"Model likely too weak - upgrade to gemini-2.5-flash recommended."
+            )
+
+        # Save conversation turn
         self.session_service.add_conversation_turn(family_id, "user", user_message)
-        self.session_service.add_conversation_turn(family_id, "assistant", llm_response.content or "")
+        self.session_service.add_conversation_turn(family_id, "assistant", final_response)
 
         # 7. Get updated session state
         session = self.session_service.get_or_create_session(family_id)
@@ -279,7 +313,7 @@ class SimplifiedConversationService:
 
         # 🌟 Wu Wei: If lifecycle events were triggered, use their messages from YAML
         # These messages notify the parent about new capabilities/artifacts
-        response_text = llm_response.content or ""
+        response_text = final_response
 
         if lifecycle_result["events_triggered"]:
             # Use the first event's message (usually only one per turn)
