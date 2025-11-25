@@ -1,0 +1,48 @@
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+================================================================================
+TEST 1: Simple conversation (no thought suppression)
+================================================================================
+
+Response type: <class 'google.genai.types.GenerateContentResponse'>
+Has candidates: True
+Candidate finish_reason: FinishReason.STOP
+Number of parts: 1
+  Part 0: <class 'google.genai.types.Part'>
+    Text: שלום! שלומי מצוין, תודה ששאלת. 😊
+
+איך אני יכול לעזור לך היום?
+    ** THOUGHT_SIGNATURE DETECTED **
+
+response.text: שלום! שלומי מצוין, תודה ששאלת. 😊
+
+איך אני יכול לעזור לך היום?
+
+================================================================================
+TEST 2: With instruction to NOT show thinking tags
+================================================================================
+
+Response type: <class 'google.genai.types.GenerateContentResponse'>
+Candidate finish_reason: FinishReason.STOP
+Number of parts: 1
+  Part 0: <class 'google.genai.types.Part'>
+    Text: שלומי מצוין, תודה ששאלת! איך אני יכול לעזור לך היום?
+    ** THOUGHT_SIGNATURE DETECTED **
+
+response.text: שלומי מצוין, תודה ששאלת! איך אני יכול לעזור לך היום?
+
+================================================================================
+TEST 3: Attempting to disable thought_signature via config
+================================================================================
+
+With system_instruction:
+Number of parts: 1
+  Part 0: <class 'google.genai.types.Part'>
+    Text: שלומי מצוין, תודה ששאלת! איך אני יכול לעזור לך היום?
+    ** THOUGHT_SIGNATURE DETECTED **
+
+response.text: שלומי מצוין, תודה ששאלת! איך אני יכול לעזור לך היום?

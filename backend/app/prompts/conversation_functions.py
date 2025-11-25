@@ -58,11 +58,11 @@ Extract whatever NEW information is available from THIS turn.""",
                         "emotional", "behavioral", "learning", "sleep", "eating", "other"
                     ]
                 },
-                "description": "Only if parent EXPLICITLY mentioned - don't infer!"
+                "description": "ONLY if parent EXPLICITLY mentioned CHILD-RELATED developmental concerns. DO NOT extract general parent concerns (being in a hurry, tired, etc.)"
             },
             "concern_details": {
                 "type": "string",
-                "description": "Specific examples with context: what happens, when, frequency, impact"
+                "description": "Specific examples about THE CHILD with context: what the CHILD does, when, frequency, impact on the CHILD. NOT about parent's feelings or schedule."
             },
             "strengths": {
                 "type": "string",
@@ -88,6 +88,25 @@ Extract whatever NEW information is available from THIS turn.""",
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Safety concerns requiring immediate attention"
+            },
+            "filming_preference": {
+                "type": "string",
+                "enum": ["wants_videos", "report_only"],
+                "description": """Extract parent's decision about filming when they respond to the filming question.
+
+Set to "wants_videos" if parent AGREES to film:
+- "כן, אני מוכן/ה לצלם"
+- "בסדר, אצלם"
+- "אני רוצה לצלם"
+- Any positive response about filming
+
+Set to "report_only" if parent DECLINES filming:
+- "לא, אני מעדיף/ה רק דוח"
+- "בלי סרטונים"
+- "רק דוח בבקשה"
+- Any indication they don't want to film
+
+DO NOT extract if parent hasn't been asked yet or is still thinking."""
             }
         },
         "required": []
@@ -248,9 +267,10 @@ Don't call for:
                     "view_report",                # רוצה לראות דוח
                     "schedule_consultation",      # קביעת פגישה עם מומחה
                     "find_experts",               # מציאת מומחים
-                    "share_report",               # שיתוף דוח
-                    "add_journal_entry",          # כתיבת יומן
-                    "view_journal"                # צפייה ביומן
+                    "share_report"                # שיתוף דוח
+                    # NOTE: add_journal_entry and view_journal removed
+                    # These are not used during active interview conversations
+                    # Journaling is a separate feature accessed outside the interview flow
                 ],
                 "description": "The specific action requested"
             },

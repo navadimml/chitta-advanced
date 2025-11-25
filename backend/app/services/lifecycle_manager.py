@@ -2,7 +2,7 @@
 Lifecycle Manager - Wu Wei Architecture Core
 
 This is the heart of the Wu Wei system. It:
-1. Reads lifecycle_events.yaml (the simplified moments configuration)
+1. Reads workflow.yaml (the simplified moments configuration)
 2. Monitors prerequisite transitions
 3. Auto-generates artifacts when moment prerequisites become met
 4. Triggers moment messages and UI guidance
@@ -19,10 +19,12 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from app.config.config_loader import load_lifecycle_events
+from app.config.config_loader import load_workflow
 from app.services.wu_wei_prerequisites import WuWeiPrerequisites
 from app.services.artifact_generation_service import ArtifactGenerationService
 from app.services.sse_notifier import get_sse_notifier
+from app.config.action_registry import get_available_actions as get_available_action_ids
+from app.services.card_lifecycle_service import CardLifecycleService
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ class LifecycleManager:
     """
     🌟 Wu Wei: Configuration-driven moment lifecycle manager (פשוט - נטול חלקים עודפים)
 
-    This manager reads lifecycle_events.yaml and automatically:
+    This manager reads workflow.yaml and automatically:
     - Detects when moment prerequisites are met
     - Generates artifacts at the right moment
     - Triggers moment messages and UI guidance
@@ -45,9 +47,12 @@ class LifecycleManager:
         artifact_service: Optional[ArtifactGenerationService] = None
     ):
         """Initialize lifecycle manager with configuration."""
-        self.config = load_lifecycle_events()
+        self.config = load_workflow()
         self.prerequisite_evaluator = WuWeiPrerequisites()
         self.artifact_service = artifact_service or ArtifactGenerationService()
+
+        # 🌟 Phase 1 Living Dashboard: Card Lifecycle Service
+        self.card_lifecycle_service = CardLifecycleService()
 
         # Track previous state to detect transitions
         self._previous_states: Dict[str, Dict[str, bool]] = {}
@@ -61,6 +66,10 @@ class LifecycleManager:
             f"{len(self.config.get('moments', {}))} moments, "
             f"{len(self.config.get('always_available', []))} always-available capabilities"
         )
+
+    def get_lifecycle_config(self) -> Dict[str, Any]:
+        """Get the lifecycle configuration (moments, always_available, etc.)"""
+        return self.config
 
     async def process_lifecycle_events(
         self,
@@ -92,6 +101,10 @@ class LifecycleManager:
         artifacts_generated = []
         events_triggered = []
         capabilities_unlocked = []
+
+        # 🌟 Event-Driven Discovery: Capture available actions BEFORE any moments trigger
+        actions_before = set(get_available_action_ids(context))
+        logger.info(f"📊 Actions available before moment processing: {actions_before}")
 
         # Get previous state for this family
         previous_state = self._previous_states.get(family_id, {})
@@ -244,9 +257,19 @@ class LifecycleManager:
                     invalid_names = [None, "", "unknown", "Unknown", "לא צוין", "לא ידוע"]
                     child_name = child_name_raw if child_name_raw not in invalid_names else "הילד/ה"
 
-                    message = message_template.format(
-                        child_name=child_name
-                    )
+                    # Prepare format kwargs with all common context variables
+                    format_kwargs = {
+                        "child_name": child_name,
+                        "uploaded_video_count": context.get("uploaded_video_count", 0),
+                    }
+
+                    # Use safe formatting - only replace variables that exist in template
+                    try:
+                        message = message_template.format(**format_kwargs)
+                    except KeyError as e:
+                        # If template references a variable we don't have, log warning and use template as-is
+                        logger.warning(f"⚠️ Message template for {moment_id} references undefined variable: {e}")
+                        message = message_template
 
                     # 🌟 Wu Wei: Build event data (all in one place now!)
                     event_data = {
@@ -266,15 +289,21 @@ class LifecycleManager:
                         event_data["system_context"] = system_context
                         logger.info(f"  🧠 System Context: Added {len(system_context)} chars to prevent hallucination")
 
+                    # 🌟 Event-Driven Cards: Add card if moment defines one
+                    card_config = moment_config.get("card")
+                    if card_config:
+                        event_data["card"] = card_config
+                        logger.info(f"  💳 Card: {card_config.get('title', 'Untitled')[:50]}...")
+
                     events_triggered.append(event_data)
                     logger.info(f"🎉 Triggered moment event: {moment_id}")
 
-                # Check if this moment unlocks capabilities
-                # Unlock IMMEDIATELY on FIRST transition (don't wait for artifact)
-                unlocked = moment_config.get("unlocks", [])
-                if unlocked and just_became_ready:  # Only on first transition, not retries
-                    capabilities_unlocked.extend(unlocked)
-                    logger.info(f"🔓 Unlocked capabilities: {unlocked}")
+                    # Wu Wei: Update session with last triggered moment (for persistent context)
+                    session.last_triggered_moment = {
+                        "id": moment_id,
+                        "context": moment_config.get("context", ""),
+                        "message": message
+                    }
 
                 # If this moment generates an artifact, generate it IN BACKGROUND!
                 # Don't block the conversation - user gets response immediately
@@ -306,6 +335,20 @@ class LifecycleManager:
                     session.add_artifact(placeholder)
                     logger.info(f"📋 Added placeholder artifact for {artifact_id} (card will show immediately)")
 
+                    # 🌟 Event-Driven Discovery: Check what actions just became available!
+                    # Rebuild context with new artifact
+                    updated_context = {**context, "artifacts": session.artifacts}
+                    actions_after = set(get_available_action_ids(updated_context))
+                    newly_available = actions_after - actions_before
+
+                    if newly_available:
+                        logger.info(f"🔓 Auto-discovered newly available actions: {newly_available}")
+                        capabilities_unlocked.extend(list(newly_available))
+
+                        # Add to event data for LLM context
+                        if events_triggered and just_became_ready:
+                            events_triggered[-1]["newly_available_actions"] = list(newly_available)
+
                     # Create background task for artifact generation
                     task = asyncio.create_task(
                         self._generate_artifact_background(
@@ -330,6 +373,44 @@ class LifecycleManager:
         # Save current state for next time
         self._previous_states[family_id] = current_state
 
+        # 🌟 Phase 1 Living Dashboard: Process card lifecycle
+        # Get family state for card management
+        from app.services.mock_graphiti import get_mock_graphiti
+        graphiti = get_mock_graphiti()
+        family_state = graphiti.get_or_create_state(family_id)
+
+        # Build previous context from stored snapshot (or empty if first time)
+        previous_card_context = family_state.previous_context_snapshot or {}
+
+        # Process card transitions (creates new cards on FALSE→TRUE)
+        new_cards = self.card_lifecycle_service.process_transitions(
+            family_state=family_state,
+            previous_context=previous_card_context,
+            current_context=context
+        )
+
+        # Update existing cards (dismissals, dynamic content)
+        card_changes = self.card_lifecycle_service.update_active_cards(
+            family_state=family_state,
+            context=context
+        )
+
+        # Store current context for next comparison
+        family_state.previous_context_snapshot = context.copy()
+
+        # Get visible cards for response
+        visible_cards = self.card_lifecycle_service.get_visible_cards_serialized(family_state)
+
+        # Log card lifecycle activity
+        if new_cards or card_changes["dismissed"]:
+            logger.info(
+                f"💳 Card Lifecycle for {family_id}:\n"
+                f"  - Cards created: {[c.card_id for c in new_cards]}\n"
+                f"  - Cards dismissed: {card_changes['dismissed']}\n"
+                f"  - Cards updated: {card_changes['updated']}\n"
+                f"  - Visible cards: {len(visible_cards)}"
+            )
+
         # Log summary
         if artifacts_generated or events_triggered or capabilities_unlocked:
             logger.info(
@@ -342,7 +423,11 @@ class LifecycleManager:
         return {
             "artifacts_generated": artifacts_generated,
             "events_triggered": events_triggered,
-            "capabilities_unlocked": capabilities_unlocked
+            "capabilities_unlocked": capabilities_unlocked,
+            # 🌟 Phase 1 Living Dashboard: Include card state
+            "active_cards": visible_cards,
+            "cards_created": [c.card_id for c in new_cards],
+            "cards_dismissed": card_changes["dismissed"],
         }
 
     def _evaluate_prerequisites(
@@ -449,8 +534,9 @@ class LifecycleManager:
         """
         # Special case: knowledge_is_rich
         if key == "knowledge_is_rich":
-            # This was already evaluated and added to context
-            return context.get("knowledge_is_rich", False) == expected_value
+            # Delegate to WuWeiPrerequisites for dynamic evaluation
+            result = self.prerequisite_evaluator.evaluate_knowledge_richness(context)
+            return result.met == expected_value
 
         # Special case: artifact.exists checks
         if ".exists" in key:
@@ -528,26 +614,60 @@ class LifecycleManager:
         context: Dict[str, Any]
     ):
         """
-        Generate an artifact based on its ID and moment configuration.
+        🌟 Wu Wei: Generate artifact using config-driven dispatch.
 
-        This routes to the appropriate generation method based on artifact type.
+        No more hardcoded artifact IDs! The artifact_generators.yaml config
+        determines which method to call and what dependencies are required.
+
+        Args:
+            artifact_id: Artifact identifier
+            moment_config: Moment configuration from lifecycle_events.yaml
+            context: Current context with artifacts and session data
+
+        Returns:
+            Generated Artifact or None if generation fails
         """
-        logger.info(f"🎬 Generating artifact: {artifact_id}")
+        logger.info(f"🎬 Config-driven generation for: {artifact_id}")
 
-        # Route to appropriate generation method
-        if artifact_id == "baseline_video_guidelines":
-            return await self.artifact_service.generate_video_guidelines(context)
+        # Get generator config from artifact_manager
+        from app.config.artifact_manager import get_artifact_manager
+        artifact_manager = get_artifact_manager()
+        generator_config = artifact_manager.get_generator_config(artifact_id)
 
-        elif artifact_id == "re_assessment_video_guidelines":
-            return await self.artifact_service.generate_video_guidelines(context)
-
-        # Add more artifact types here as they're implemented
-        else:
+        if not generator_config:
             logger.warning(
-                f"⚠️ No generation method defined for artifact: {artifact_id}. "
-                f"Add it to LifecycleManager._generate_artifact()"
+                f"⚠️ No generator config found for: {artifact_id}. "
+                f"Add it to artifact_generators.yaml"
             )
             return None
+
+        # Check required artifacts exist
+        required_artifacts = generator_config.get("requires_artifacts", [])
+        for required_artifact_id in required_artifacts:
+            required_artifact = context.get("artifacts", {}).get(required_artifact_id)
+            if not required_artifact or not required_artifact.get("exists"):
+                logger.error(
+                    f"❌ Cannot generate {artifact_id}: "
+                    f"required artifact {required_artifact_id} not available"
+                )
+                return None
+
+        # Check optional artifacts (don't fail if missing, but log)
+        optional_artifacts = generator_config.get("optional_artifacts", [])
+        for optional_artifact_id in optional_artifacts:
+            optional_artifact = context.get("artifacts", {}).get(optional_artifact_id)
+            if optional_artifact and optional_artifact.get("exists"):
+                logger.info(f"✅ Optional artifact {optional_artifact_id} available for {artifact_id}")
+            else:
+                logger.info(f"ℹ️ Optional artifact {optional_artifact_id} not available (OK)")
+
+        # Call generic artifact generator with config params
+        logger.info(f"✅ All dependencies met for {artifact_id}, calling generator...")
+        return await self.artifact_service.generate_artifact(
+            artifact_id=artifact_id,
+            session_data=context,
+            **generator_config.get("params", {})
+        )
 
     async def _generate_artifact_background(
         self,
@@ -585,9 +705,25 @@ class LifecycleManager:
                 # Store in session
                 session.add_artifact(artifact)
 
+                # 🌟 Wu Wei: Config-driven validation (if defined in artifact_generators.yaml)
+                from app.config.artifact_manager import get_artifact_manager
+                artifact_manager = get_artifact_manager()
+                generator_config = artifact_manager.get_generator_config(artifact_id)
+
+                if generator_config and "validation" in generator_config:
+                    try:
+                        self._validate_artifact(artifact, generator_config["validation"])
+                    except Exception as e:
+                        logger.warning(f"⚠️ Artifact validation warning for {artifact_id}: {e}")
+
                 logger.info(
                     f"✅ Background generation complete: {artifact_id} "
                     f"({len(artifact.content)} chars) - artifact now available in session"
+                )
+                logger.info(
+                    f"📦 Stored artifact status: {artifact.status}, "
+                    f"exists: {artifact.exists}, is_ready: {artifact.is_ready}, "
+                    f"session_id: {id(session)}, artifacts_dict_id: {id(session.artifacts)}"
                 )
 
                 # 🌟 Wu Wei: Notify SSE clients that artifact is ready
@@ -601,11 +737,78 @@ class LifecycleManager:
                         artifact.content
                     )
                 )
+
+                # 🚨 CRITICAL: Re-evaluate cards now that artifact status changed
+                # The preparing card should hide, the ready card should show
+                from app.services.prerequisite_service import get_prerequisite_service
+                from app.config.card_generator import get_card_generator
+
+                prerequisite_service = get_prerequisite_service()
+                card_generator = get_card_generator()
+
+                # 🚨 FIX: Convert Artifact objects to dict format for card evaluation
+                # Cards use dot notation (artifacts.baseline_video_guidelines.status)
+                # which requires dict format, not Artifact objects
+                artifacts_dict = {}
+                for art_id, art_obj in session.artifacts.items():
+                    if hasattr(art_obj, 'exists'):
+                        # It's an Artifact object - convert to dict
+                        artifacts_dict[art_id] = {
+                            "exists": art_obj.exists,
+                            "status": art_obj.status,
+                            "artifact_id": art_obj.artifact_id
+                        }
+                    elif isinstance(art_obj, dict):
+                        # Already a dict
+                        artifacts_dict[art_id] = art_obj
+
+                # 🌟 Wu Wei: Get video count from FamilyState (graphiti)
+                from app.services.mock_graphiti import get_mock_graphiti
+                graphiti = get_mock_graphiti()
+                state = graphiti.get_or_create_state(family_id)
+                video_count = len(state.videos_uploaded)
+
+                # Build context for card evaluation (same as conversation_service does)
+                session_data = {
+                    "family_id": family_id,
+                    "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+                    "message_count": len(session.conversation_history),
+                    "artifacts": artifacts_dict,  # 🚨 FIX: Dict format for card evaluation
+                    "uploaded_video_count": video_count,  # 🌟 Wu Wei: From FamilyState
+                }
+
+                card_context = prerequisite_service.get_context_for_cards(session_data)
+                updated_cards = card_generator.get_visible_cards(card_context, max_cards=4)
+
+                # Notify frontend of card changes
+                asyncio.create_task(
+                    sse_notifier.notify_cards_updated(family_id, updated_cards)
+                )
+                logger.info(f"📡 SSE: Notified card update after {artifact_id} ready ({len(updated_cards)} cards)")
             else:
                 logger.error(
                     f"❌ Background generation failed: {artifact_id}: "
                     f"{artifact.error_message if artifact else 'Unknown error'}"
                 )
+
+                # 🚨 CRITICAL FIX: Update session artifact status to "error"
+                # Without this, the placeholder stays "generating" forever!
+                from app.models.artifact import Artifact
+                from datetime import datetime
+
+                error_artifact = Artifact(
+                    artifact_id=artifact_id,
+                    artifact_type=artifact_id,
+                    status="error",
+                    content=None,
+                    metadata={
+                        "error": artifact.error_message if artifact else "Unknown error",
+                        "failed_at": datetime.now().isoformat()
+                    },
+                    created_at=datetime.now()
+                )
+                session.add_artifact(error_artifact)
+                logger.info(f"📋 Updated session artifact to status='error' for {artifact_id}")
 
                 # Notify SSE clients of failure
                 import asyncio
@@ -623,6 +826,74 @@ class LifecycleManager:
                 f"❌ Background generation exception: {artifact_id}: {e}",
                 exc_info=True
             )
+
+            # 🚨 CRITICAL FIX: Update session artifact status to "error" on exception
+            # Without this, the placeholder stays "generating" forever!
+            from app.models.artifact import Artifact
+            from datetime import datetime
+
+            error_artifact = Artifact(
+                artifact_id=artifact_id,
+                artifact_type=artifact_id,
+                status="error",
+                content=None,
+                metadata={
+                    "error": str(e),
+                    "failed_at": datetime.now().isoformat()
+                },
+                created_at=datetime.now()
+            )
+            session.add_artifact(error_artifact)
+            logger.info(f"📋 Updated session artifact to status='error' after exception for {artifact_id}")
+
+    def _validate_artifact(self, artifact: Any, validation_config: Dict[str, Any]) -> None:
+        """
+        🌟 Wu Wei: Validate artifact content using config-driven rules.
+
+        Args:
+            artifact: Generated artifact
+            validation_config: Validation rules from artifact_generators.yaml
+
+        Raises:
+            ValueError: If validation fails
+        """
+        import json
+
+        validation_type = validation_config.get("type")
+
+        if validation_type == "json_structure":
+            # Validate JSON structure
+            try:
+                if isinstance(artifact.content, str):
+                    content = json.loads(artifact.content)
+                else:
+                    content = artifact.content
+
+                # Check each validation rule
+                checks = validation_config.get("checks", [])
+                for check in checks:
+                    path = check.get("path")
+                    expected_type = check.get("type")
+                    min_length = check.get("min_length")
+                    error_message = check.get("error_message", f"Validation failed for {path}")
+
+                    # Get value at path
+                    value = content.get(path)
+
+                    # Check type
+                    if expected_type == "array" and not isinstance(value, list):
+                        raise ValueError(f"{error_message}: expected array, got {type(value)}")
+
+                    # Check minimum length
+                    if min_length is not None and len(value) < min_length:
+                        raise ValueError(f"{error_message}: length {len(value)} < minimum {min_length}")
+
+                logger.info(f"✅ Artifact validation passed: {artifact.artifact_id}")
+
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON content: {e}")
+            except Exception as e:
+                raise ValueError(f"Validation error: {e}")
 
 
 # Singleton instance

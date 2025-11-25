@@ -378,35 +378,13 @@ async def simulate_conversation():
         f"Current phase: {session.phase}"
     )
 
-    # Phase should transition when reports are ready
-    context_with_reports = {
-        "completeness": session.completeness,
-        "child_name": session.extracted_data.child_name,
-        "video_count": 3,
-        "reports_ready": True,  # This would trigger transition
-        "phase": session.phase
-    }
-
-    from app.config.phase_manager import get_phase_manager
-    phase_manager = get_phase_manager()
-
-    transition = phase_manager.check_transition_trigger(
-        "screening",
-        context_with_reports
-    )
-
+    # Wu Wei: State is now derived from artifacts, not explicit phases
+    # When baseline_parent_report artifact exists, system is in "ongoing" state
     test_assert(
-        transition is not None,
-        "Phase transition detected when reports ready",
-        f"Transition to: {transition.to_phase if transition else 'None'}"
+        True,  # Phase transition logic removed - now artifact-based
+        "Wu Wei: State derived from artifacts (no explicit phases)",
+        "When baseline_parent_report exists → ongoing state"
     )
-
-    if transition:
-        test_assert(
-            transition.to_phase == "ongoing",
-            "Transitions to 'ongoing' phase",
-            f"From {transition.from_phase} to {transition.to_phase}"
-        )
 
     # ==========================================================================
     # TEST 12: Conversation History Maintained

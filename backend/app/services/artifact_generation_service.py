@@ -43,7 +43,7 @@ class ArtifactGenerationService:
         if llm_provider is None:
             # 🌟 Create strong LLM specifically for artifact generation
             # This ensures high-quality output for guidelines, reports, etc.
-            strong_model = os.getenv("STRONG_LLM_MODEL", "gemini-2.0-flash-exp")
+            strong_model = os.getenv("STRONG_LLM_MODEL", "gemini-3-pro-preview")
             provider_type = os.getenv("LLM_PROVIDER", "gemini")
 
             logger.info(f"🧠 Creating strong LLM for artifact generation: {strong_model}")
@@ -58,29 +58,151 @@ class ArtifactGenerationService:
         self.artifact_manager = get_artifact_manager()
         logger.info(f"ArtifactGenerationService initialized with model: {getattr(self.llm_provider, 'model_name', 'unknown')}")
 
-    async def generate_video_guidelines(
+    async def generate_interview_summary(
         self,
-        session_data: Dict[str, Any]
+        artifact_id: str,
+        session_data: Dict[str, Any],
+        **kwargs
     ) -> Artifact:
         """
-        Generate personalized video recording guidelines using two-stage LLM approach.
+        🌟 Wu Wei: Generate comprehensive interview summary (formerly Stage 1).
 
-        Wu Wei: This is triggered when knowledge is rich (qualitative check).
+        Extracts structured clinical data + parent persona from conversation transcript.
+        This holistic summary captures:
+        1. Clinical Data: difficulties, strengths, development
+        2. Parent Persona: emotional vibe, vocabulary, communication style
+        3. Contextual Assets: specific names, toys, places mentioned
 
-        Two-stage approach:
-        1. Extract structured JSON from interview transcript
-        2. Generate video guidelines from structured data
+        Used by: video_guidelines, video_analysis, professional_report
 
         Args:
-            session_data: Session data including extracted_data, child info, concerns, conversation_history
+            artifact_id: Artifact identifier (baseline_interview_summary, etc.)
+            session_data: Session data with conversation_history, extracted_data
+            **kwargs: Additional parameters from config
 
         Returns:
             Artifact with status 'ready' or 'error'
         """
-        artifact_id = "baseline_video_guidelines"
+        from app.services.llm.base import Message
+        import json
+
+        start_time = time.time()
+        logger.info(f"📝 Generating interview summary: {artifact_id}")
+
+        conversation_history = session_data.get("conversation_history", [])
+        child_name = session_data.get("child_name", "ילד/ה")
+
+        artifact = Artifact(
+            artifact_id=artifact_id,
+            artifact_type="analysis",
+            status="generating",
+            content_format="json",
+            generation_inputs={
+                "child_name": child_name,
+                "conversation_turns": len(conversation_history)
+            }
+        )
+
+        try:
+            # Build transcript from conversation history
+            transcript = self._build_transcript(conversation_history)
+
+            # Build extraction prompt with holistic parent persona layer
+            stage1_prompt_text = f"""# Stage 1: Extract Clinical Data & Parent Persona
+
+## Role
+You are a clinical psychologist specializing in child development interviews. You listen not just for symptoms, but for the "Voice of the Parent."
+
+## Task
+Extract and structure all information from the transcript. **Preserve parent quotes in Hebrew exactly as spoken.**
+
+This has THREE layers:
+1. **Clinical Data:** Specific difficulties, strengths, development (standard extraction)
+2. **Parent Persona:** Emotional state, vocabulary, communication style
+3. **Contextual Assets:** Specific names, toys, places mentioned
+
+## Critical Instructions
+
+### Clinical Data (Standard Extraction)
+✅ Copy exact parent quotes in Hebrew
+✅ Include at least 2-3 specific examples per difficulty
+✅ Extract strengths, development history, school info
+✅ Preserve Hebrew text exactly - spelling, grammar, colloquialisms
+
+### Parent Persona (Holistic Layer)
+✅ **Emotional Vibe:** Diagnose parent's state (e.g., "חרדה ומחפשת אישור", "מתוסכלת אך מעשית", "בהכחשה")
+✅ **Vocabulary Mirroring:** Identify specific HEBREW words parent uses for behaviors
+   - If they say "הוא מתפוצץ" (He explodes), map "Tantrum" -> "מתפוצץ"
+   - If they say "הוא מרחף" (He hovers/zones out), map "Inattention" -> "מרחף"
+   - This map will be used to personalize guidelines
+✅ **Contextual Assets:** List specific items/people mentioned (e.g., "סבתא רחל", "לגו נינג'ה גו", "השטיח האדום בסלון")
+
+### Rules
+❌ Don't invent information not in transcript
+❌ Don't interpret or analyze - just summarize
+❌ Don't translate Hebrew to English
+❌ Don't modify parent's words
+
+## Interview Transcript
+
+{transcript}
+"""
+
+            # Get structured output using Gemini's native JSON mode
+            logger.info("🔍 Extracting clinical data + parent persona from transcript...")
+            extracted_data = await self.llm_provider.chat_with_structured_output(
+                messages=[Message(role="user", content=stage1_prompt_text)],
+                response_schema=self._get_stage1_extraction_schema(),
+                temperature=0.1
+            )
+
+            logger.info(f"✅ Interview summary extracted: Parent Vibe = {extracted_data.get('parent_emotional_vibe', 'N/A')}")
+            logger.info("=" * 80)
+            logger.info("📊 INTERVIEW SUMMARY OUTPUT (Clinical Data + Parent Persona):")
+            logger.info(json.dumps(extracted_data, ensure_ascii=False, indent=2))
+            logger.info("=" * 80)
+
+            # Convert to JSON string
+            content = json.dumps(extracted_data, ensure_ascii=False, indent=2)
+
+            artifact.mark_ready(content)
+            artifact.generation_duration_seconds = time.time() - start_time
+            artifact.generation_model = getattr(self.llm_provider, "model_name", "unknown")
+
+            logger.info(f"✅ Interview summary generated in {artifact.generation_duration_seconds:.2f}s")
+
+        except Exception as e:
+            logger.error(f"❌ Error generating interview summary: {e}", exc_info=True)
+            artifact.mark_error(str(e))
+
+        return artifact
+
+    async def generate_video_guidelines(
+        self,
+        artifact_id: str,
+        session_data: Dict[str, Any],
+        **kwargs
+    ) -> Artifact:
+        """
+        🌟 Wu Wei: Generate personalized video recording guidelines from interview_summary artifact.
+
+        Requires: baseline_interview_summary artifact (contains clinical data + parent persona)
+        Generates: Video filming instructions with analyst_context for video analysis
+
+        This method now ONLY does Stage 2 (guideline generation).
+        Stage 1 (interview summary extraction) is a separate artifact.
+
+        Args:
+            artifact_id: Artifact identifier (baseline_video_guidelines, re_assessment_video_guidelines, etc.)
+            session_data: Session data including artifacts dictionary
+            **kwargs: Additional parameters from config (interview_summary_source)
+
+        Returns:
+            Artifact with status 'ready' or 'error'
+        """
         start_time = time.time()
 
-        logger.info(f"🎬 Generating video guidelines for child: {session_data.get('child_name', 'Unknown')}")
+        logger.info(f"🎬 Generating video guidelines: {artifact_id} for child: {session_data.get('child_name', 'Unknown')}")
 
         # Create artifact in 'generating' state
         artifact = Artifact(
@@ -98,10 +220,29 @@ class ArtifactGenerationService:
         )
 
         try:
-            # Generate using LLM
+            # 🌟 Wu Wei: Load interview_summary artifact (required dependency)
+            interview_summary_source = kwargs.get("interview_summary_source", "baseline_interview_summary")
+            interview_summary_artifact = session_data.get("artifacts", {}).get(interview_summary_source)
+
+            if not interview_summary_artifact or not interview_summary_artifact.get("exists"):
+                error_msg = f"Cannot generate video guidelines: {interview_summary_source} not available"
+                logger.error(f"❌ {error_msg}")
+                artifact.mark_error(error_msg)
+                return artifact
+
+            # Parse interview summary content
+            import json
+            if isinstance(interview_summary_artifact.get("content"), str):
+                interview_summary = json.loads(interview_summary_artifact.get("content"))
+            else:
+                interview_summary = interview_summary_artifact.get("content")
+
+            logger.info(f"✅ Loaded interview summary from {interview_summary_source}")
+
+            # Generate using LLM with interview summary
             if self.llm_provider:
-                logger.info("📝 Using two-stage LLM generation for video guidelines")
-                content = await self._generate_guidelines_with_llm(session_data)
+                logger.info("📝 Generating video guidelines from interview summary")
+                content = await self._generate_guidelines_with_llm(interview_summary)
             else:
                 logger.info("📝 Using template generation (no LLM provider)")
                 # Fallback to template only if no LLM provider
@@ -327,76 +468,54 @@ class ArtifactGenerationService:
 אנחנו כאן כדי לעזור! הסרטונים האלה יתנו לנו כלים להבין את {child_name} טוב יותר ולהציע המלצות מותאמות אישית.
 """
 
-    async def _generate_guidelines_with_llm(self, session_data: Dict[str, Any]) -> str:
+    async def _generate_guidelines_with_llm(
+        self,
+        interview_summary: Dict[str, Any]
+    ) -> str:
         """
-        Two-stage LLM generation for video guidelines using Gemini's structured output.
+        🌟 Wu Wei: Generate video guidelines from interview_summary artifact (Stage 2 only).
 
-        Stage 1: Extract structured JSON from interview transcript (native JSON mode)
-        Stage 2: Generate guidelines from structured data (native JSON mode)
+        Previously this method did Stage 1 (extraction) + Stage 2 (generation).
+        Now Stage 1 is a separate artifact (baseline_interview_summary), and this method
+        only does Stage 2 using the summary.
+
+        This holistic approach uses parent persona data to create anxiety-reducing,
+        personalized guidelines that mirror the parent's language.
 
         Args:
-            session_data: Session data with conversation_history, extracted_data, etc.
+            interview_summary: Interview summary artifact content (clinical data + parent persona)
 
         Returns:
-            Markdown formatted video guidelines in Hebrew
+            JSON structured video guidelines in Hebrew with embedded analyst_context for video analysis
         """
         from app.services.llm.base import Message
         import json
 
-        # Stage 1: Extract structured JSON using Gemini's native JSON mode
-        logger.info("🔍 Stage 1: Extracting structured JSON using Gemini structured output")
-        conversation_history = session_data.get("conversation_history", [])
+        logger.info("📝 Generating empathetic video guidelines from interview summary")
+        logger.info(f"✅ Using existing interview summary: Parent Vibe = {interview_summary.get('parent_emotional_vibe', 'N/A')}")
 
-        # Build transcript from conversation history
-        transcript = self._build_transcript(conversation_history)
+        # Extract persona data for personalization from interview_summary
+        parent_vibe = interview_summary.get('parent_emotional_vibe', 'לא זוהה')
 
-        # Build extraction prompt (simpler now that JSON schema is enforced)
-        stage1_prompt_text = f"""# Stage 1: Extract structured data from interview
+        # Convert vocab_map from array format to dict for easier use
+        vocab_map_array = interview_summary.get('specific_vocabulary_map', [])
+        vocab_map = {item['clinical_term']: item['parent_word'] for item in vocab_map_array} if vocab_map_array else {}
 
-## Role
-You are a clinical data analyst specializing in child development interviews.
+        context_assets = interview_summary.get('family_context_assets', [])
+        child_name = interview_summary.get('child', {}).get('name', 'הילד/ה')
 
-## Task
-Extract and structure all information from the transcript. **Preserve parent quotes in Hebrew exactly as spoken.**
-
-## Rules
-✅ Copy exact parent quotes in Hebrew
-✅ Include at least 2-3 specific examples per difficulty
-✅ If information missing → use null or empty string
-✅ Preserve Hebrew text exactly - spelling, grammar, colloquialisms
-❌ Don't invent information not in transcript
-❌ Don't interpret or analyze - just summarize
-❌ Don't translate Hebrew to English
-
-## Interview Transcript
-
-{transcript}
-"""
-
-        # Get structured output using Gemini's native JSON mode
-        try:
-            extracted_data = await self.llm_provider.chat_with_structured_output(
-                messages=[Message(role="user", content=stage1_prompt_text)],
-                response_schema=self._get_stage1_extraction_schema(),
-                temperature=0.1
-            )
-            logger.info(f"✅ Stage 1 complete: Extracted structured data using native JSON mode")
-            logger.info("=" * 80)
-            logger.info("📊 STAGE 1 OUTPUT (Extracted Data):")
-            logger.info(json.dumps(extracted_data, ensure_ascii=False, indent=2))
-            logger.info("=" * 80)
-        except Exception as e:
-            logger.error(f"❌ Stage 1 failed: {e}")
-            raise ValueError(f"Failed to extract structured data: {e}")
-
-        # Stage 2: Generate guidelines using Gemini's native JSON mode
-        logger.info("📝 Stage 2: Generating video guidelines using Gemini structured output")
-
-        json_input = json.dumps(extracted_data, ensure_ascii=False, indent=2)
-        stage2_prompt_text = f"""# Stage 2: Generate video filming guidelines
+        json_input = json.dumps(interview_summary, ensure_ascii=False, indent=2)
+        stage2_prompt_text = f"""# Stage 2: Generate Empathetic Video Guidelines (Hebrew)
 
 ## Role
-You are a clinical expert in child development creating PARENT-FRIENDLY filming guidelines.
+You are "Chitta," a supportive child development expert writing directly to the Israeli parent in Hebrew.
+**Your Goal:** Lower their anxiety while getting high-quality video data for analysis.
+
+## Parent Context (Use This!)
+**Parent Vibe:** {parent_vibe}
+**Child Name:** {child_name}
+**Parent's Vocabulary:** {json.dumps(vocab_map, ensure_ascii=False)}
+**Context Assets:** {json.dumps(context_assets, ensure_ascii=False)}
 
 ## Critical Instructions for Writing Guidelines
 
@@ -407,33 +526,65 @@ You are a clinical expert in child development creating PARENT-FRIENDLY filming 
 ❌ BAD: "צלמו פעילות יצירתית"
 ✅ GOOD: "הניחו דף A4 ועפרונות צבעוניים על השולחן. בקשו ממנה לצייר משפחה או בית. צלמו אותה בזמן הציור."
 
-### 2. RATIONALE Must Connect to Parent's Story or Clinical Reasoning
-- If reporting difficulty with attention during board games → rationale explains: "את ציינת שהיא מתקשה לחכות לתורה במשחקים - זה יעזור לנו לראות..."
-- If checking comorbidity (sensory) → rationale explains: "רצינו לבדוק אם יש גם רגישות חושית שיכולה להסביר את קשיי הריכוז..."
+### 2. The "Sandwich" Rationale (Emotional Regulation for Parents)
+The `rationale_for_parent` must follow this structure in Hebrew:
+1. **Validate:** "שמעתי כמה הבקרים שלכם עמוסים..." (I heard how exhausting mornings are...)
+2. **Explain:** "צילום של רגע כזה יעזור לנו להבין בדיוק מה הטריגר..." (Filming this helps us see the trigger...)
+3. **Reassure:** "אל תדאגו מ'לסדר' את המצב למצלמה. אנחנו רוצים לראות את החיים האמיתיים." (Don't worry about fixing it...)
 
-### 3. Focus Points (focus_points) are INTERNAL ONLY
+For strength_baseline scenarios, emphasize validation and completeness:
+- "ראיתי שהוא מצטיין ב... (I saw he excels at...)
+- "סרטון של הרגעים הטובים יעזור לנו לראות מה עובד ולבנות על זה..."
+- "זה חלק חשוב מהתמונה השלמה"
+
+### 3. Vocabulary Mirroring (CRITICAL)
+Use the **Vocabulary Map** above.
+- If parent uses "התקף" (Attack), YOU use "התקף" in instructions
+- If parent uses "מרחף" (Zones out), YOU use "מרחף"
+- Don't use clinical jargon unless parent used it
+
+### 4. Use Contextual Assets
+- Do NOT say: "שחקו עם צעצוע" (Play with a toy)
+- DO say: "שבו על {context_assets[0] if context_assets else 'השטיח'} עם ה{context_assets[1] if len(context_assets) > 1 else 'צעצוע האהוב'}..."
+- Make `example_situations` specific to their mentioned environment
+
+### 5. Focus Points (focus_points) are INTERNAL ONLY
 These are for YOU to analyze the video later. NOT for parents to worry about while filming.
 Write them as clinical observation notes: "האם נראית תנועת יתר?", "כמה זמן מחזיקה קשב?"
 
-### 4. Example Situations Must Be Concrete
+### 6. Example Situations Must Be Concrete
 ❌ "זמן משחק חופשי"
 ✅ "בסלון אחרי הצהריים, עם הצעצועים שיש לה בארון"
 
 ## Task
 1. Identify 1-2 main reported difficulties from the parent's descriptions
 2. Infer 1-2 additional areas to check (comorbidities) based on clinical framework below
-3. Create **EXACTLY 3-4 video filming guidelines** in Hebrew (minimum 3, maximum 5)
+3. **INCLUDE 1 strength/baseline scenario** - Show the child when regulated and thriving
+4. Create **EXACTLY 3-4 video filming guidelines** in Hebrew (minimum 3, maximum 5)
 
-**CRITICAL REQUIREMENT:** You MUST generate at least 3 complete video_guidelines entries. Each must have:
+**CRITICAL REQUIREMENT:** You MUST generate at least 3 complete video_guidelines entries:
+- At least 1 must be category: "reported_difficulty"
+- At least 1 must be category: "strength_baseline" (REQUIRED - strengths-based approach)
+- Optionally 1-2 can be category: "comorbidity_check"
+
+## Field Usage by Category
+
+### For "reported_difficulty" and "comorbidity_check":
+- difficulty_area: Problem area in Hebrew (e.g., "קשב במשחקים", "ויסות רגשי")
+
+### For "strength_baseline":
+- difficulty_area: Strength domain in Hebrew (e.g., "משחק עצמאי", "יצירתיות", "אינטראקציה חברתית")
+
+Each guideline must have:
 - Unique id (1, 2, 3, etc.)
-- Category (reported_difficulty or comorbidity_check)
-- difficulty_area: Short label in Hebrew
+- Category (reported_difficulty, comorbidity_check, or strength_baseline)
+- difficulty_area: Context-sensitive (problem area OR strength domain)
 - title: Short title in Hebrew (3-5 words)
-- instruction: CONCRETE, SIMPLE filming instruction (see examples above) - WHERE, WHAT, HOW LONG
-- example_situations: 2-3 CONCRETE situations (specific time, place, activity)
+- instruction: CONCRETE, SIMPLE filming instruction using parent's vocabulary
+- example_situations: 2-3 CONCRETE situations using their mentioned context
 - duration_suggestion: Clear time estimate ("5-7 דקות", "עד שהיא מאבדת עניין")
-- focus_points: 2-4 INTERNAL analysis points (what YOU will look for in video)
-- rationale_for_parent: Connects to parent's story OR explains clinical reasoning (2-3 sentences)
+- focus_points: 2-4 INTERNAL analysis points (clinical observation notes)
+- rationale_for_parent: "Sandwich" structure (Validate-Explain-Reassure) in Hebrew
 
 ## Clinical Comorbidity Framework
 
@@ -447,7 +598,7 @@ Write them as clinical observation notes: "האם נראית תנועת יתר?"
 
 {json_input}
 
-## Example of GOOD Guideline
+## Example of GOOD Difficulty Guideline
 
 {{
   "id": 1,
@@ -465,7 +616,28 @@ Write them as clinical observation notes: "האם נראית תנועת יתר?"
     "מה היא עושה בזמן ההמתנה לתור - מסתכלת, זזה, מדברת?",
     "איך היא מגיבה כשמזכירים לה לחזור למשחק?"
   ],
-  "rationale_for_parent": "את ציינת שהיא מתקשה לחכות לתורה במשחקים וש'המחשבות שלה בורחות'. סרטון זה יעזור לנו לראות בדיוק איך זה נראה - האם זה קושי בבלימה, קושי בהמתנה, או משהו אחר. זה יכוון אותנו איך לעזור לה בכיתה א'."
+  "rationale_for_parent": "שמעתי שהיא מתקשה לחכות לתורה במשחקים וש'המחשבות שלה בורחות' - זה בטח מאתגר בשבילכם. סרטון זה יעזור לנו לראות בדיוק איך זה נראה - האם זה קושי בבלימה, קושי בהמתנה, או משהו אחר. אל תדאגו לגרום למשחק להיראות 'מושלם' - אנחנו רוצים לראות את המציאות. זה יכוון אותנו איך לעזור לה בכיתה א'."
+}}
+
+## Example of GOOD Strength Guideline
+
+{{
+  "id": 3,
+  "category": "strength_baseline",
+  "difficulty_area": "משחק יצירתי",
+  "title": "זמן יצירה חופשית",
+  "instruction": "תנו לה דף ריק וצבעים, ותנו לה לצייר או ליצור מה שהיא רוצה. צלמו 5 דקות של יצירה חופשית.",
+  "example_situations": [
+    "אחר הצהריים בפינת היצירה",
+    "בשולחן המטבח עם עפרונות צבעוניים"
+  ],
+  "duration_suggestion": "5 דקות",
+  "focus_points": [
+    "כמה זמן היא נשארת ממוקדת בפעילות?",
+    "איך היא מתמודדת עם החומרים?",
+    "האם יש יצירתיות ודמיון?"
+  ],
+  "rationale_for_parent": "שמעתי שהיא אוהבת לצייר וליצור - זה חוזקה אמיתית! סרטון של הרגעים שבהם היא שקועה ביצירה יעזור לנו להבין מה עובד טוב ולבנות על זה. התמונה השלמה כוללת גם את מה שהיא עושה נהדר."
 }}
 """
 
@@ -503,8 +675,25 @@ Write them as clinical observation notes: "האם נראית תנועת יתר?"
         # Also transform to component-compatible format for frontend
         component_format = self._transform_to_component_format(guidelines_data)
 
-        logger.info(f"✅ Two-stage generation complete: {len(markdown_content)} chars markdown")
+        # Enrich with analyst context for video analysis (Bridge to Observation Agent)
+        guidelines_list = guidelines_data.get("video_guidelines", [])
+        for idx, scenario in enumerate(component_format.get("scenarios", [])):
+            if idx < len(guidelines_list):
+                guideline = guidelines_list[idx]
+                scenario["analyst_context"] = {
+                    "instruction_given_to_parent": scenario.get("what_to_film", ""),
+                    "internal_focus_points": guideline.get("focus_points", []),
+                    "parent_persona_data": {
+                        "emotional_vibe": extracted_data.get("parent_emotional_vibe", ""),
+                        "vocabulary_map": extracted_data.get("specific_vocabulary_map", []),  # Array format
+                        "context_assets": extracted_data.get("family_context_assets", [])
+                    },
+                    "clinical_goal": guideline.get("category", "")
+                }
+
+        logger.info(f"✅ Holistic generation complete: {len(markdown_content)} chars markdown")
         logger.info(f"📊 Component format: {len(component_format.get('scenarios', []))} scenarios generated")
+        logger.info(f"🎯 Analyst context embedded in all scenarios for video analysis")
         logger.debug(f"Guidelines data keys: {guidelines_data.keys()}")
         logger.debug(f"Video guidelines count: {len(guidelines_data.get('video_guidelines', []))}")
 
@@ -1072,7 +1261,7 @@ The extracted JSON will appear here:
     def _get_stage1_extraction_schema(self) -> dict:
         """
         Get JSON schema for Stage 1 extraction.
-        Defines the structure for extracting interview data.
+        Defines the structure for extracting interview data + parent persona (holistic diagnosis).
         """
         return {
             "type": "object",
@@ -1152,6 +1341,29 @@ The extracted JSON will appear here:
                         "what_tried": {"type": "string"},
                         "hopes": {"type": "string"}
                     }
+                },
+
+                # Holistic Diagnosis Fields (Parent Persona)
+                "parent_emotional_vibe": {
+                    "type": "string",
+                    "description": "Parent's emotional state in Hebrew (e.g., 'חרדה ומחפשת אישור', 'מתוסכלת אך מעשית')"
+                },
+                "specific_vocabulary_map": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "clinical_term": {"type": "string", "description": "Clinical term (e.g., 'Tantrum', 'Inattention')"},
+                            "parent_word": {"type": "string", "description": "Parent's specific Hebrew word (e.g., 'מתפוצץ', 'מרחף')"}
+                        },
+                        "required": ["clinical_term", "parent_word"]
+                    },
+                    "description": "Array of vocabulary mappings from clinical terms to parent's specific Hebrew words"
+                },
+                "family_context_assets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific toys, people, places mentioned in transcript (e.g., 'סבתא רחל', 'לגו נינג'ה גו', 'השטיח האדום בסלון')"
                 }
             }
         }
@@ -1188,8 +1400,8 @@ The extracted JSON will appear here:
                         "required": ["id", "category", "title", "instruction", "example_situations", "focus_points", "rationale_for_parent"],
                         "properties": {
                             "id": {"type": "integer"},
-                            "category": {"type": "string", "enum": ["reported_difficulty", "comorbidity_check"]},
-                            "difficulty_area": {"type": "string"},
+                            "category": {"type": "string", "enum": ["reported_difficulty", "comorbidity_check", "strength_baseline"]},
+                            "difficulty_area": {"type": "string", "description": "For difficulties: problem area. For strength_baseline: strength domain (e.g., 'יצירתיות', 'משחק חברתי')"},
                             "title": {"type": "string"},
                             "instruction": {"type": "string"},
                             "example_situations": {
@@ -1236,27 +1448,115 @@ The extracted JSON will appear here:
 
         return response.content
 
-    async def generate_parent_report(
+    async def generate_artifact(
         self,
+        artifact_id: str,
         session_data: Dict[str, Any],
-        video_analysis: Dict[str, Any]
+        **kwargs
     ) -> Artifact:
         """
-        Generate comprehensive parent report.
+        🌟 Wu Wei: Generic artifact generator - config-driven dispatch.
+
+        This method reads artifacts.yaml to determine how to generate each artifact.
+        No hardcoded artifact IDs in the dispatcher!
+
+        Args:
+            artifact_id: Artifact identifier (e.g., "baseline_video_guidelines")
+            session_data: Session context
+            **kwargs: Additional parameters (e.g., required artifacts)
+
+        Returns:
+            Generated Artifact with status 'ready' or 'error'
+        """
+        logger.info(f"🎬 Generic generator dispatching for: {artifact_id}")
+
+        # Get generator config from artifact_manager
+        generator_config = self.artifact_manager.get_generator_config(artifact_id)
+
+        if not generator_config:
+            logger.error(f"❌ No generator config found for artifact: {artifact_id}")
+            error_artifact = Artifact(
+                artifact_id=artifact_id,
+                artifact_type="unknown",
+                status="error"
+            )
+            error_artifact.mark_error(f"No generator configuration for {artifact_id}")
+            return error_artifact
+
+        # Get the generator method name from config
+        method_name = generator_config.get("method")
+
+        if not method_name:
+            logger.error(f"❌ No method specified in generator config for: {artifact_id}")
+            error_artifact = Artifact(
+                artifact_id=artifact_id,
+                artifact_type="unknown",
+                status="error"
+            )
+            error_artifact.mark_error(f"No method specified for {artifact_id}")
+            return error_artifact
+
+        # Get the method from this service
+        generator_method = getattr(self, method_name, None)
+
+        if not generator_method:
+            logger.error(f"❌ Generator method '{method_name}' not found for: {artifact_id}")
+            error_artifact = Artifact(
+                artifact_id=artifact_id,
+                artifact_type="unknown",
+                status="error"
+            )
+            error_artifact.mark_error(f"Generator method '{method_name}' not implemented")
+            return error_artifact
+
+        # Merge config params with kwargs
+        params = generator_config.get("params", {})
+        call_kwargs = {**params, **kwargs}
+
+        # Call the generator method
+        logger.info(f"✅ Calling {method_name} for {artifact_id}")
+        return await generator_method(artifact_id, session_data, **call_kwargs)
+
+    async def generate_professional_report(
+        self,
+        artifact_id: str,
+        session_data: Dict[str, Any],
+        video_analysis_source: str = "baseline_video_analysis",
+        **kwargs
+    ) -> Artifact:
+        """
+        Generate professional clinical report from video analysis.
 
         Wu Wei: This is triggered when video analysis is complete.
 
         Args:
-            session_data: Session data including extracted_data
-            video_analysis: Structured observations from video analysis
+            artifact_id: Artifact identifier (baseline_professional_report, etc.)
+            session_data: Session data including extracted_data and artifacts
+            video_analysis_source: Artifact ID of video analysis to use
 
         Returns:
             Artifact with status 'ready' or 'error'
         """
-        artifact_id = "baseline_parent_report"
         start_time = time.time()
 
-        logger.info(f"📋 Generating parent report for: {session_data.get('child_name', 'Unknown')}")
+        logger.info(f"📋 Generating professional report: {artifact_id}")
+
+        # Get video analysis from session artifacts
+        video_analysis_artifact = session_data.get("artifacts", {}).get(video_analysis_source)
+
+        if not video_analysis_artifact or not video_analysis_artifact.get("exists"):
+            logger.error(f"❌ Cannot generate professional report: {video_analysis_source} not found")
+            error_artifact = Artifact(
+                artifact_id=artifact_id,
+                artifact_type="report",
+                status="error"
+            )
+            error_artifact.mark_error(f"Required artifact {video_analysis_source} not available")
+            return error_artifact
+
+        # Parse video analysis content
+        import json
+        video_analysis = json.loads(video_analysis_artifact.get("content", "{}"))
 
         artifact = Artifact(
             artifact_id=artifact_id,
@@ -1265,13 +1565,84 @@ The extracted JSON will appear here:
             content_format="markdown",
             generation_inputs={
                 "child_name": session_data.get("child_name"),
-                "video_analysis": video_analysis,
+                "video_analysis_source": video_analysis_source,
                 "extracted_data": session_data.get("extracted_data", {})
             }
         )
 
         try:
-            # TODO: Implement parent report generation
+            # TODO: Implement professional report generation with LLM
+            # For now, create placeholder
+            content = self._generate_professional_report_placeholder(
+                child_name=session_data.get("child_name", "ילד/ה"),
+                session_data=session_data,
+                video_analysis=video_analysis
+            )
+
+            artifact.mark_ready(content)
+            artifact.generation_duration_seconds = time.time() - start_time
+
+            logger.info(f"✅ Professional report generated in {artifact.generation_duration_seconds:.2f}s")
+
+        except Exception as e:
+            logger.error(f"❌ Error generating professional report: {e}", exc_info=True)
+            artifact.mark_error(str(e))
+
+        return artifact
+
+    async def generate_parent_report(
+        self,
+        artifact_id: str,
+        session_data: Dict[str, Any],
+        professional_report_source: str = "baseline_professional_report",
+        **kwargs
+    ) -> Artifact:
+        """
+        Generate parent-friendly report derived from professional report.
+
+        Wu Wei: Parent report is a simplified, accessible version of the professional report.
+
+        Args:
+            artifact_id: Artifact identifier (baseline_parent_report, etc.)
+            session_data: Session data including extracted_data and artifacts
+            professional_report_source: Artifact ID of professional report to derive from
+
+        Returns:
+            Artifact with status 'ready' or 'error'
+        """
+        start_time = time.time()
+
+        logger.info(f"📋 Generating parent report from: {professional_report_source}")
+
+        # Get professional report from session artifacts
+        professional_report_artifact = session_data.get("artifacts", {}).get(professional_report_source)
+
+        if not professional_report_artifact or not professional_report_artifact.get("exists"):
+            logger.error(f"❌ Cannot generate parent report: {professional_report_source} not found")
+            error_artifact = Artifact(
+                artifact_id=artifact_id,
+                artifact_type="report",
+                status="error"
+            )
+            error_artifact.mark_error(f"Required artifact {professional_report_source} not available")
+            return error_artifact
+
+        professional_report_content = professional_report_artifact.get("content", "")
+
+        artifact = Artifact(
+            artifact_id=artifact_id,
+            artifact_type="report",
+            status="generating",
+            content_format="markdown",
+            generation_inputs={
+                "child_name": session_data.get("child_name"),
+                "professional_report_source": professional_report_source,
+                "extracted_data": session_data.get("extracted_data", {})
+            }
+        )
+
+        try:
+            # TODO: Implement parent report derivation from professional report using LLM
             # For now, create placeholder
             content = self._generate_parent_report_placeholder(
                 child_name=session_data.get("child_name", "ילד/ה"),
@@ -1281,7 +1652,7 @@ The extracted JSON will appear here:
             artifact.mark_ready(content)
             artifact.generation_duration_seconds = time.time() - start_time
 
-            logger.info(f"✅ Parent report generated successfully in {artifact.generation_duration_seconds:.2f}s")
+            logger.info(f"✅ Parent report generated in {artifact.generation_duration_seconds:.2f}s")
 
         except Exception as e:
             logger.error(f"❌ Error generating parent report: {e}", exc_info=True)
@@ -1289,17 +1660,84 @@ The extracted JSON will appear here:
 
         return artifact
 
+    def _generate_professional_report_placeholder(
+        self,
+        child_name: str,
+        session_data: Dict[str, Any],
+        video_analysis: Dict[str, Any]
+    ) -> str:
+        """Generate placeholder professional report."""
+        return f"""# דוח מקצועי - הערכה התפתחותית
+
+## פרטי המקרה
+
+**שם הילד/ה:** {child_name}
+**גיל:** {session_data.get('age', 'לא צוין')}
+**תאריך הערכה:** {datetime.now().strftime('%d/%m/%Y')}
+
+## מידע רקע
+
+[מידע מהראיון עם ההורה]
+
+## תצפיות התנהגותיות
+
+### ניתוח וידאו
+
+[ממצאים מניתוח הסרטונים - מבוסס על video_analysis]
+
+### דפוסים זוהו
+
+[דפוסים קליניים שזוהו]
+
+## רושם קליני
+
+### שיקולים אבחנתיים
+
+[שיקולים מבוססי DSM-5/ICD-11]
+
+### רמות ביטחון
+
+[רמות ביטחון בממצאים]
+
+## השלכות תפקודיות
+
+[השפעה על תפקוד יומיומי]
+
+## המלצות
+
+### הערכות נוספות נדרשות
+
+[המלצות להערכות נוספות]
+
+### התערבויות טיפוליות
+
+[המלצות טיפוליות]
+
+### הפניות למומחים
+
+[המלצות להפניה]
+
+## מגבלות ההערכה
+
+[הגבלות והערות חשובות לגבי תחום ההערכה]
+
+---
+
+*דוח מקצועי זה נוצר בתאריך: {datetime.now().strftime('%d/%m/%Y')}*
+*למטרות אבחון וטיפול בלבד*
+"""
+
     def _generate_parent_report_placeholder(
         self,
         child_name: str,
         session_data: Dict[str, Any]
     ) -> str:
-        """Generate placeholder parent report."""
+        """Generate placeholder parent report (derived from professional report)."""
         return f"""# דוח הערכה התפתחותית - {child_name}
 
 ## סיכום מנהלים
 
-[דוח זה ייווצר לאחר ניתוח הסרטונים]
+[דוח זה נגזר מהדוח המקצועי ומותאם להורים]
 
 ## פרופיל הילד/ה
 
@@ -1308,21 +1746,33 @@ The extracted JSON will appear here:
 
 ## תצפיות התפתחותיות
 
-[תצפיות יווצרו מניתוח הסרטונים]
+[תצפיות בשפה נגישה ומכילה]
 
 ## תחומי חוזקה
 
-[יזוהו מהסרטונים והשיחה]
+[מה {child_name} עושה נהדר]
 
 ## תחומים לתמיכה
 
-[יזוהו מהסרטונים והשיחה]
+[איפה {child_name} יכול/ה להשתפר עם תמיכה]
 
-## המלצות
+## המלצות מעשיות
 
-[המלצות מותאמות אישית]
+### צעדים מיידיים
+[פעולות קונקרטיות]
+
+### יעדים לטווח ארוך
+[מה לשאוף אליו]
+
+### משאבים
+[קישורים ומשאבים מועילים]
+
+## השלבים הבאים
+
+[תוכנית פעולה ברורה]
 
 ---
 
 *דוח זה נוצר בתאריך: {datetime.now().strftime('%d/%m/%Y')}*
+*נכתב בשפה פשוטה ומכילה להורים*
 """

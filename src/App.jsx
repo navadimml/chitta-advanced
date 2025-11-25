@@ -15,12 +15,39 @@ import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
 import VideoGuidelinesView from './components/VideoGuidelinesView';
 import { TestModeBannerPortal } from './components/TestModeBannerPortal.jsx';
+import DevPanel from './components/DevPanel';
+
+// Living Dashboard Components (Phase 2 & 3)
+import ChildSpaceHeader from './components/ChildSpaceHeader';
+import ChildSpace from './components/ChildSpace';
+import LivingDocument from './components/LivingDocument';
 
 // Generate unique family ID (in real app, from auth)
-const FAMILY_ID = 'family_' + Math.random().toString(36).substr(2, 9);
+// Persist family ID in localStorage to maintain session across page refreshes
+// Also check URL params for family ID (useful for dev mode)
+const getFamilyId = () => {
+  // Check URL params first (for dev mode)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlFamilyId = urlParams.get('family');
+  if (urlFamilyId) {
+    localStorage.setItem('chitta_family_id', urlFamilyId);
+    return urlFamilyId;
+  }
+
+  // Otherwise use localStorage or generate new
+  let familyId = localStorage.getItem('chitta_family_id');
+  if (!familyId) {
+    familyId = 'family_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('chitta_family_id', familyId);
+  }
+  return familyId;
+};
+
+const INITIAL_FAMILY_ID = getFamilyId();
 
 function App() {
   // Simple state
+  const [familyId, setFamilyId] = useState(INITIAL_FAMILY_ID);
   const [messages, setMessages] = useState([]);
   const [stage, setStage] = useState('welcome');
   const [cards, setCards] = useState([]);
@@ -46,6 +73,10 @@ function App() {
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const [testFamilyId, setTestFamilyId] = useState(null); // Track test mode family ID
 
+  // Living Dashboard state (Phase 2 & 3)
+  const [showChildSpace, setShowChildSpace] = useState(false);
+  const [livingDocumentArtifact, setLivingDocumentArtifact] = useState(null);
+
   // Ref to track last processed message (prevent duplicate triggers)
   const lastProcessedMessageRef = useRef(null);
 
@@ -54,7 +85,7 @@ function App() {
     async function loadJourney() {
       try {
         // Load complete state from backend
-        const response = await api.getState(FAMILY_ID);
+        const response = await api.getState(familyId);
         const { state, ui } = response;
 
         // Reconstruct UI from state - everything derives!
@@ -117,9 +148,16 @@ function App() {
       };
       setMessages(prev => [...prev, errorMessage]);
     };
+  }, []);
 
-    // 🌟 Wu Wei: Connect to Server-Sent Events for real-time updates
-    const eventSource = new EventSource(`/api/state/subscribe?family_id=${FAMILY_ID}`);
+  // 🌟 Wu Wei: SSE connection - dynamically updates when family_id changes (e.g., test mode)
+  useEffect(() => {
+    // Determine active family ID (test mode uses testFamilyId, normal mode uses familyId)
+    const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
+
+    console.log('📡 SSE: Connecting to family_id:', activeFamilyId);
+
+    const eventSource = new EventSource(`/api/state/subscribe?family_id=${activeFamilyId}`);
 
     eventSource.onmessage = (event) => {
       try {
@@ -128,6 +166,7 @@ function App() {
 
         if (update.type === 'cards') {
           // Update cards in real-time
+          console.log('📇 Updating cards from SSE:', update.data.cards.length, 'cards');
           setCards(update.data.cards);
         } else if (update.type === 'artifact') {
           // Artifact status changed - could trigger card refresh or UI updates
@@ -144,11 +183,12 @@ function App() {
       // Automatically reconnects on error
     };
 
-    // Cleanup on unmount
+    // Cleanup: close connection when family_id changes or component unmounts
     return () => {
+      console.log('📡 SSE: Closing connection for family_id:', activeFamilyId);
       eventSource.close();
     };
-  }, []);
+  }, [testMode, testFamilyId, familyId]); // Re-create SSE connection when family_id changes
 
   // 🧪 Monitor messages and trigger next response in test mode
   useEffect(() => {
@@ -176,7 +216,8 @@ function App() {
   }, [messages]);
 
   // Handle sending a message
-  const handleSend = async (message) => {
+  // overrideFamilyId: Optional explicit family_id (for test mode to bypass async state issues)
+  const handleSend = async (message, overrideFamilyId = null) => {
     if (!message.trim()) return;
 
     // Add user message to UI immediately
@@ -228,8 +269,9 @@ function App() {
         return;
       }
 
-      // Call backend API (use test family ID if in test mode)
-      const activeFamilyId = testMode && testFamilyId ? testFamilyId : FAMILY_ID;
+      // Call backend API (use override if provided, else test family ID if in test mode, else default)
+      // BUG FIX: overrideFamilyId bypasses async state issues when test mode starts
+      const activeFamilyId = overrideFamilyId || (testMode && testFamilyId ? testFamilyId : familyId);
       const response = await api.sendMessage(activeFamilyId, message);
 
       // Add assistant response (normal flow)
@@ -257,9 +299,18 @@ function App() {
         }
       }
 
-      // Update stage
-      if (response.stage) {
-        setStage(response.stage);
+      // 🌟 Wu Wei: Handle action validation (config-driven from action_graph.yaml)
+      if (response.action_validation) {
+        const { action, feasible, view_to_open, explanation } = response.action_validation;
+
+        if (feasible && view_to_open) {
+          // Action is allowed - open the specified view
+          console.log(`✅ Opening view: ${view_to_open} (action: ${action})`);
+          setActiveDeepView(view_to_open);
+        } else if (!feasible) {
+          // Action not allowed - Chitta's response already includes explanation
+          console.log(`❌ Action "${action}" not feasible: ${explanation || 'Prerequisites not met'}`);
+        }
       }
 
     } catch (error) {
@@ -282,9 +333,10 @@ function App() {
   const handleCardClick = async (action) => {
     if (!action) return; // Status cards have no action
 
-    if (action === 'view_guidelines') {
+    // Handle both 'view_guidelines' (old) and 'view_video_guidelines' (from action_graph.yaml)
+    if (action === 'view_guidelines' || action === 'view_video_guidelines') {
       // 🌟 Wu Wei: Fetch the artifact content before showing the view
-      const activeFamilyId = testMode && testFamilyId ? testFamilyId : FAMILY_ID;
+      const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
 
       console.log('📹 Fetching video guidelines for family:', activeFamilyId);
 
@@ -334,6 +386,67 @@ function App() {
       return;
     }
 
+    if (action === 'analyze_videos') {
+      // 🎥 Trigger video analysis
+      const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
+      console.log('🎬 Starting video analysis for family:', activeFamilyId);
+
+      try {
+        setIsTyping(true);
+        const result = await api.analyzeVideos(activeFamilyId);
+        console.log('✅ Video analysis result:', result);
+
+        // ⚠️ Check if confirmation is needed
+        if (result.needs_confirmation) {
+          setIsTyping(false);
+          console.log('⚠️ Confirmation needed:', result.confirmation_message);
+
+          // Show confirmation dialog
+          const confirmed = window.confirm(result.confirmation_message);
+
+          if (confirmed) {
+            // User confirmed - re-call with confirmed=true
+            console.log('✅ User confirmed - proceeding with analysis');
+            setIsTyping(true);
+            const confirmedResult = await api.analyzeVideos(activeFamilyId, true);
+            console.log('✅ Video analysis result (confirmed):', confirmedResult);
+            setIsTyping(false);
+          } else {
+            console.log('❌ User cancelled analysis');
+          }
+          return;
+        }
+
+        // Cards will update automatically via SSE
+        setIsTyping(false);
+      } catch (error) {
+        console.error('❌ Error analyzing videos:', error);
+        alert('שגיאה בניתוח הסרטונים. נא לנסות שוב.');
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    if (action === 'generate_report') {
+      // 📋 Generate report without videos
+      const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
+      console.log('📋 Generating report for family:', activeFamilyId);
+
+      try {
+        setIsTyping(true);
+        const result = await api.generateReports(activeFamilyId);
+        console.log('✅ Report generation result:', result);
+
+        // Cards will update automatically via SSE
+        setIsTyping(false);
+      } catch (error) {
+        console.error('❌ Error generating report:', error);
+        alert('שגיאה ביצירת הדוח. נא לנסות שוב.');
+        setIsTyping(false);
+      }
+      return;
+    }
+
     if (action === 'upload') {
       setActiveDeepView('upload');
       setActiveViewData(null);
@@ -379,7 +492,7 @@ function App() {
       // Refresh cards before API call to ensure clean state
       await refreshCards();
 
-      const response = await api.completeInterview(FAMILY_ID);
+      const response = await api.completeInterview(familyId);
 
       // Show video guidelines
       if (response.video_guidelines) {
@@ -411,7 +524,7 @@ function App() {
     setIsTyping(true);
 
     try {
-      const response = await api.analyzeVideos(FAMILY_ID);
+      const response = await api.analyzeVideos(familyId);
 
       if (response.success) {
         const msg = {
@@ -456,12 +569,77 @@ function App() {
     setActiveViewData(null);
   };
 
+  // Living Dashboard: Handle slot action from ChildSpace
+  const handleSlotAction = (action, slot) => {
+    console.log('Slot action:', action, slot);
+    setShowChildSpace(false);
+
+    // Map slot actions to deep views or living document
+    if (action === 'view_report') {
+      // Open as Living Document for threaded conversations
+      setLivingDocumentArtifact({
+        artifactId: 'baseline_parent_report',
+        title: 'דוח הורים'
+      });
+    } else if (action === 'view_guidelines') {
+      setShowGuidelinesView(true);
+    } else if (action === 'view_videos') {
+      setActiveDeepView('videoGallery');
+    } else if (action === 'view_journal') {
+      setActiveDeepView('journal');
+    } else if (action === 'upload_video') {
+      setActiveDeepView('upload');
+    } else if (action === 'add_journal_entry') {
+      setActiveDeepView('journal');
+    } else if (action === 'download_report') {
+      // Handle download
+      console.log('Download report');
+    } else if (action === 'view_artifact') {
+      // Open specific artifact version (from history)
+      const { artifact_id } = slot;
+      if (artifact_id) {
+        // Determine title based on artifact type
+        const titleMap = {
+          'baseline_parent_report': 'דוח הורים',
+          'baseline_parent_report_v0': 'דוח הורים (גרסה ראשונית)',
+          'baseline_parent_report_v1': 'דוח הורים (גרסה קודמת)',
+        };
+        const title = titleMap[artifact_id] || artifact_id.includes('report') ? 'דוח הורים' : 'מסמך';
+        setLivingDocumentArtifact({
+          artifactId: artifact_id,
+          title: title
+        });
+      }
+    }
+  };
+
+  // Living Dashboard: Handle header slot click
+  const handleHeaderSlotClick = (slotId) => {
+    // Direct navigation based on slot
+    const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
+
+    if (slotId === 'current_report') {
+      setLivingDocumentArtifact({
+        artifactId: 'baseline_parent_report',
+        title: 'דוח הורים'
+      });
+    } else if (slotId === 'filming_guidelines') {
+      setShowGuidelinesView(true);
+    } else if (slotId === 'videos') {
+      setActiveDeepView('videoGallery');
+    } else if (slotId === 'journal') {
+      setActiveDeepView('journal');
+    }
+  };
+
   // Function to refresh cards from backend
   const refreshCards = async () => {
     try {
-      const response = await api.getTimeline(FAMILY_ID);
-      if (response.ui_data && response.ui_data.cards) {
-        setCards(response.ui_data.cards);
+      // 🌟 Wu Wei: Use /state endpoint (YAML-driven cards), not /timeline (old stage-based)
+      const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
+      const response = await api.getState(activeFamilyId);
+      if (response.ui && response.ui.cards) {
+        setCards(response.ui.cards);
       }
     } catch (error) {
       console.error('Error refreshing cards:', error);
@@ -471,31 +649,25 @@ function App() {
   // CRUD handlers for videos
   const handleCreateVideo = async (videoData) => {
     const newVideo = {
-      id: 'vid_' + Date.now(),
+      id: videoData.id || 'vid_' + Date.now(), // Use existing ID from upload
       title: videoData.title || 'סרטון חדש',
       description: videoData.description || '',
       date: new Date().toLocaleDateString('he-IL'),
       duration: videoData.duration || '0:00',
       thumbnail: videoData.thumbnail || null,
       url: videoData.url || null,
+      file_path: videoData.file_path || null, // Server file path
       timestamp: Date.now()
     };
 
     setVideos(prev => [...prev, newVideo]);
 
-    // Upload to backend
+    // Note: Video is already uploaded by VideoUploadView component
+    // Just refresh cards to show updated progress
     try {
-      await api.uploadVideo(
-        FAMILY_ID,
-        newVideo.id,
-        videoData.scenario || 'general',
-        0
-      );
-
-      // Refresh cards to show updated progress
       await refreshCards();
     } catch (error) {
-      console.error('Error uploading video:', error);
+      console.error('Error refreshing cards:', error);
     }
 
     return { success: true, video: newVideo, message: 'הסרטון הועלה בהצלחה' };
@@ -532,6 +704,17 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-indigo-50" dir="rtl">
+      {/* Dev Panel (Development Only) */}
+      {import.meta.env.DEV && (
+        <DevPanel
+          currentFamilyId={familyId}
+          onFamilyChange={(newFamilyId) => {
+            setFamilyId(newFamilyId);
+            localStorage.setItem('chitta_family_id', newFamilyId);
+          }}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between shadow-sm">
         <button className="p-2 hover:bg-gray-100 rounded-full transition">
@@ -549,6 +732,14 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* Living Dashboard: Child Space Header (Phase 2) */}
+      <ChildSpaceHeader
+        familyId={testMode && testFamilyId ? testFamilyId : familyId}
+        childName={childName}
+        onSlotClick={handleHeaderSlotClick}
+        onExpandClick={(expanded) => setShowChildSpace(expanded)}
+      />
 
       {/* Conversation Transcript */}
       <ConversationTranscript messages={messages} isTyping={isTyping} />
@@ -586,6 +777,7 @@ function App() {
         onDeleteJournalEntry={handleDeleteJournalEntry}
         onCreateVideo={handleCreateVideo}
         onDeleteVideo={handleDeleteVideo}
+        familyId={testMode && testFamilyId ? testFamilyId : familyId}
       />
 
       {/* Video Guidelines View (works for both demo and real mode) */}
@@ -593,11 +785,41 @@ function App() {
         <VideoGuidelinesView
           guidelines={videoGuidelines}
           childName={childName || "דניאל"}
+          uploadedVideos={videos}
           onClose={() => setShowGuidelinesView(false)}
-          onStartFilming={() => {
+          onUploadForScenario={(selectedData) => {
+            // Pass selected data to upload view via activeViewData
+            setActiveViewData({
+              ...selectedData,
+              onBackToGuidelines: () => {
+                // Close upload view and return to guidelines view
+                setActiveDeepView(null);
+                setActiveViewData(null);
+                setShowGuidelinesView(true);
+              }
+            });
             setShowGuidelinesView(false);
             setActiveDeepView('upload');
           }}
+        />
+      )}
+
+      {/* Living Dashboard: Child Space Drawer (Phase 2) */}
+      <ChildSpace
+        familyId={testMode && testFamilyId ? testFamilyId : familyId}
+        isOpen={showChildSpace}
+        onClose={() => setShowChildSpace(false)}
+        onSlotAction={handleSlotAction}
+        childName={childName}
+      />
+
+      {/* Living Dashboard: Living Document (Phase 3) */}
+      {livingDocumentArtifact && (
+        <LivingDocument
+          familyId={testMode && testFamilyId ? testFamilyId : familyId}
+          artifactId={livingDocumentArtifact.artifactId}
+          title={livingDocumentArtifact.title}
+          onClose={() => setLivingDocumentArtifact(null)}
         />
       )}
 

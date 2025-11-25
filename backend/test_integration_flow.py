@@ -5,7 +5,7 @@ Integration Flow Test - Tests Wu Wei integrations without LLM calls
 Validates that all Wu Wei components work together correctly:
 - Schema registry → Interview service (completeness)
 - Action registry → Prerequisite service (actions)
-- Phase manager → Interview state (phases)
+- Lifecycle manager → Artifact-based state (Wu Wei)
 
 This tests the integration logic without requiring actual LLM API calls.
 """
@@ -19,7 +19,6 @@ sys.path.insert(0, str(backend_path))
 
 from app.services.interview_service import get_interview_service
 from app.services.prerequisite_service import get_prerequisite_service
-from app.config.phase_manager import get_phase_manager
 from app.config.schema_registry import calculate_completeness
 from app.config.action_registry import get_action_registry
 
@@ -240,107 +239,10 @@ def main():
     )
 
     # ==========================================================================
-    # TEST 3: Phase Manager Integration
+    # TEST 3: Cross-Component Integration
     # ==========================================================================
     print("\n" + "-" * 80)
-    print("TEST 3: Phase Manager Integration")
-    print("-" * 80)
-
-    phase_manager = get_phase_manager()
-
-    # Check initial phase
-    initial_phase = phase_manager.get_initial_phase()
-
-    test_assert(
-        initial_phase == "screening",
-        "Initial phase is 'screening'",
-        f"Initial: {initial_phase}"
-    )
-
-    # Check session phase
-    test_assert(
-        session.phase == "screening",
-        "Session starts in screening phase",
-        f"Session phase: {session.phase}"
-    )
-
-    # Test phase transition detection
-    transition_context = {
-        "completeness": 0.90,
-        "child_name": "Test Child",
-        "video_count": 3,
-        "reports_ready": True
-    }
-
-    transition = phase_manager.check_transition_trigger(
-        "screening",
-        transition_context
-    )
-
-    test_assert(
-        transition is not None,
-        "Phase transition detected when reports ready"
-    )
-
-    if transition:
-        test_assert(
-            transition.to_phase == "ongoing",
-            "Transitions to 'ongoing' phase",
-            f"From: {transition.from_phase} → To: {transition.to_phase}"
-        )
-
-        test_assert(
-            transition.trigger == "reports_generated",
-            "Correct transition trigger",
-            f"Trigger: {transition.trigger}"
-        )
-
-    # Test phase-specific behavior
-    screening_mode = phase_manager.get_conversation_mode("screening")
-    ongoing_mode = phase_manager.get_conversation_mode("ongoing")
-
-    test_assert(
-        screening_mode == "interview",
-        "Screening phase uses interview mode",
-        f"Mode: {screening_mode}"
-    )
-
-    test_assert(
-        ongoing_mode == "consultation",
-        "Ongoing phase uses consultation mode",
-        f"Mode: {ongoing_mode}"
-    )
-
-    # Test completeness threshold
-    screening_threshold = phase_manager.get_completeness_threshold("screening")
-
-    test_assert(
-        screening_threshold == 0.80,
-        "Screening phase has 80% threshold",
-        f"Threshold: {screening_threshold}"
-    )
-
-    # Test available actions per phase
-    screening_actions = phase_manager.get_available_actions_for_phase("screening")
-    ongoing_actions = phase_manager.get_available_actions_for_phase("ongoing")
-
-    test_assert(
-        "continue_interview" in screening_actions,
-        "Screening phase has interview actions",
-        f"Screening actions: {len(screening_actions)}"
-    )
-
-    test_assert(
-        "view_report" in ongoing_actions,
-        "Ongoing phase has report actions",
-        f"Ongoing actions: {len(ongoing_actions)}"
-    )
-
-    # ==========================================================================
-    # TEST 4: Cross-Component Integration
-    # ==========================================================================
-    print("\n" + "-" * 80)
-    print("TEST 4: Cross-Component Integration")
+    print("TEST 3: Cross-Component Integration")
     print("-" * 80)
 
     # Test that completeness from schema_registry affects actions from action_registry
@@ -389,16 +291,6 @@ def main():
         "Schema completeness affects action availability",
         f"Low completeness ({low_completeness:.1%}): {len(low_actions)} actions, "
         f"High completeness ({high_completeness:.1%}): {len(high_actions)} actions"
-    )
-
-    # Test that phase affects both completeness display and actions
-    screening_show_completeness = phase_manager.should_show_completeness("screening")
-    ongoing_show_completeness = phase_manager.should_show_completeness("ongoing")
-
-    test_assert(
-        screening_show_completeness and not ongoing_show_completeness,
-        "Phase controls completeness display",
-        f"Screening: {screening_show_completeness}, Ongoing: {ongoing_show_completeness}"
     )
 
     # ==========================================================================

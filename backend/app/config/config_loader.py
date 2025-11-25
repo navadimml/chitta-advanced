@@ -149,10 +149,15 @@ class WorkflowConfigLoader(ConfigLoader):
     Loads all workflow-related configs:
     - extraction_schema.yaml
     - action_graph.yaml
-    - phases.yaml
-    - artifacts.yaml
-    - context_cards.yaml
+    - artifacts.yaml (includes generator config)
     - deep_views.yaml
+    - workflow.yaml (Wu Wei moments + cards)
+
+    Consolidation history:
+    - v3.1: phases.yaml removed (state derived from artifacts)
+    - v3.2: context_cards.yaml merged into lifecycle_events.yaml
+    - v2.0: artifact_generators.yaml merged into artifacts.yaml
+    - v3.2: lifecycle_events.yaml renamed to workflow.yaml
     """
 
     def __init__(self):
@@ -190,20 +195,6 @@ class WorkflowConfigLoader(ConfigLoader):
         return self._cache["action_graph"]
 
     @lru_cache(maxsize=1)
-    def load_phases(self) -> Dict[str, Any]:
-        """Load phases configuration."""
-        if "phases" not in self._cache:
-            config = self.load_yaml(f"{self.workflows_path}/phases.yaml")
-            self.validate_required_fields(
-                config,
-                ["version", "workflow_name", "phases", "initial_phase"],
-                "phases.yaml"
-            )
-            self._cache["phases"] = config
-
-        return self._cache["phases"]
-
-    @lru_cache(maxsize=1)
     def load_artifacts(self) -> Dict[str, Any]:
         """Load artifacts configuration."""
         if "artifacts" not in self._cache:
@@ -216,20 +207,6 @@ class WorkflowConfigLoader(ConfigLoader):
             self._cache["artifacts"] = config
 
         return self._cache["artifacts"]
-
-    @lru_cache(maxsize=1)
-    def load_context_cards(self) -> Dict[str, Any]:
-        """Load context cards configuration."""
-        if "context_cards" not in self._cache:
-            config = self.load_yaml(f"{self.workflows_path}/context_cards.yaml")
-            self.validate_required_fields(
-                config,
-                ["version", "card_system_name", "cards"],
-                "context_cards.yaml"
-            )
-            self._cache["context_cards"] = config
-
-        return self._cache["context_cards"]
 
     @lru_cache(maxsize=1)
     def load_deep_views(self) -> Dict[str, Any]:
@@ -246,18 +223,18 @@ class WorkflowConfigLoader(ConfigLoader):
         return self._cache["deep_views"]
 
     @lru_cache(maxsize=1)
-    def load_lifecycle_events(self) -> Dict[str, Any]:
-        """Load lifecycle events configuration (Wu Wei simplified moments structure)."""
-        if "lifecycle_events" not in self._cache:
-            config = self.load_yaml(f"{self.workflows_path}/lifecycle_events.yaml")
+    def load_workflow(self) -> Dict[str, Any]:
+        """Load workflow configuration (Wu Wei moments + cards)."""
+        if "workflow" not in self._cache:
+            config = self.load_yaml(f"{self.workflows_path}/workflow.yaml")
             self.validate_required_fields(
                 config,
                 ["version", "workflow_name", "moments", "always_available"],
-                "lifecycle_events.yaml"
+                "workflow.yaml"
             )
-            self._cache["lifecycle_events"] = config
+            self._cache["workflow"] = config
 
-        return self._cache["lifecycle_events"]
+        return self._cache["workflow"]
 
     def load_all(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -269,11 +246,9 @@ class WorkflowConfigLoader(ConfigLoader):
         return {
             "extraction_schema": self.load_extraction_schema(),
             "action_graph": self.load_action_graph(),
-            "phases": self.load_phases(),
             "artifacts": self.load_artifacts(),
-            "context_cards": self.load_context_cards(),
             "deep_views": self.load_deep_views(),
-            "lifecycle_events": self.load_lifecycle_events(),
+            "workflow": self.load_workflow(),
         }
 
     def clear_cache(self) -> None:
@@ -281,11 +256,9 @@ class WorkflowConfigLoader(ConfigLoader):
         self._cache.clear()
         self.load_extraction_schema.cache_clear()
         self.load_action_graph.cache_clear()
-        self.load_phases.cache_clear()
         self.load_artifacts.cache_clear()
-        self.load_context_cards.cache_clear()
         self.load_deep_views.cache_clear()
-        self.load_lifecycle_events.cache_clear()
+        self.load_workflow.cache_clear()
         logger.info("Configuration cache cleared")
 
 
@@ -319,19 +292,9 @@ def load_action_graph() -> Dict[str, Any]:
     return get_workflow_config_loader().load_action_graph()
 
 
-def load_phases() -> Dict[str, Any]:
-    """Load phases configuration."""
-    return get_workflow_config_loader().load_phases()
-
-
 def load_artifacts() -> Dict[str, Any]:
     """Load artifacts configuration."""
     return get_workflow_config_loader().load_artifacts()
-
-
-def load_context_cards() -> Dict[str, Any]:
-    """Load context cards configuration."""
-    return get_workflow_config_loader().load_context_cards()
 
 
 def load_deep_views() -> Dict[str, Any]:
@@ -339,9 +302,9 @@ def load_deep_views() -> Dict[str, Any]:
     return get_workflow_config_loader().load_deep_views()
 
 
-def load_lifecycle_events() -> Dict[str, Any]:
-    """Load lifecycle events configuration (Wu Wei dependency graph)."""
-    return get_workflow_config_loader().load_lifecycle_events()
+def load_workflow() -> Dict[str, Any]:
+    """Load workflow configuration (Wu Wei moments + cards)."""
+    return get_workflow_config_loader().load_workflow()
 
 
 # === App Configuration Loader ===
@@ -389,10 +352,30 @@ class AppConfigLoader(ConfigLoader):
         config = self.load_app_config()
         return config.get("features", {}).get(feature_name, default)
 
+    @lru_cache(maxsize=1)
+    def load_app_messages(self) -> Dict[str, Any]:
+        """
+        🌟 Wu Wei: Load application messages configuration.
+
+        Contains all user-facing Hebrew text, system triggers, error messages, etc.
+        Enables changing text without modifying code.
+        """
+        if "app_messages" not in self._cache:
+            config = self.load_yaml("app_messages.yaml")
+            self.validate_required_fields(
+                config,
+                ["version", "message_catalog_name"],
+                "app_messages.yaml"
+            )
+            self._cache["app_messages"] = config
+
+        return self._cache["app_messages"]
+
     def clear_cache(self) -> None:
         """Clear configuration cache."""
         self._cache.clear()
         self.load_app_config.cache_clear()
+        self.load_app_messages.cache_clear()
         logger.info("App configuration cache cleared")
 
 
@@ -428,3 +411,8 @@ def get_conversation_architecture() -> str:
 def is_simplified_architecture() -> bool:
     """Check if simplified architecture is enabled"""
     return get_app_config_loader().is_simplified_architecture()
+
+
+def load_app_messages() -> Dict[str, Any]:
+    """🌟 Wu Wei: Load application messages (Hebrew text, system triggers, errors)."""
+    return get_app_config_loader().load_app_messages()

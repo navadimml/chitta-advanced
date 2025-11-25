@@ -2,7 +2,7 @@
 API Routes for Chitta
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -10,16 +10,17 @@ from datetime import datetime
 import asyncio
 import json
 import logging
+import os
+from pathlib import Path
 
 from app.core.app_state import app_state
 from app.services.llm.base import Message
-from app.services.conversation_service import get_conversation_service
 from app.services.conversation_service_simplified import get_simplified_conversation_service
 from app.services.session_service import get_session_service
 # Wu Wei Architecture: Import config-driven UI components
 from app.config.card_generator import get_card_generator
 from app.config.view_manager import get_view_manager
-from app.config.config_loader import is_simplified_architecture
+from app.config.config_loader import load_app_messages
 # Demo Mode: Import demo orchestrator
 from app.services.demo_orchestrator_service import get_demo_orchestrator
 # State-based architecture
@@ -33,9 +34,48 @@ from app.services.state_derivation import (
 from app.services.parent_simulator import get_parent_simulator
 # SSE for real-time updates
 from app.services.sse_notifier import get_sse_notifier
+# Dev routes for testing
+from app.api import dev_routes
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Include dev routes (only in development)
+if os.getenv("ENVIRONMENT", "development") == "development":
+    router.include_router(dev_routes.router)
+
+
+# 🌟 Wu Wei: Helper function for config-driven trigger detection
+def detect_system_trigger(message: str) -> Optional[str]:
+    """
+    Detect system triggers from user message using app_messages.yaml config.
+
+    Returns trigger action name (e.g., "start_demo") or None.
+    """
+    import re
+
+    messages_config = load_app_messages()
+    triggers = messages_config.get("system_triggers", {})
+    message_lower = message.lower()
+
+    for trigger_action, trigger_config in triggers.items():
+        keywords = trigger_config.get("keywords", {})
+        pattern_type = trigger_config.get("pattern", "word_boundary")
+
+        # Check English keywords
+        for keyword in keywords.get("en", []):
+            if pattern_type == "word_boundary":
+                if re.search(r'\b' + re.escape(keyword) + r'\b', message_lower):
+                    return trigger_action
+
+        # Check Hebrew keywords
+        for keyword in keywords.get("he", []):
+            # Hebrew word boundary: beginning/end of string or whitespace
+            if re.search(r'(?:^|[\s])' + re.escape(keyword) + r'(?:[\s]|$)', message_lower):
+                return trigger_action
+
+    return None
+
 
 # === Request/Response Models ===
 
@@ -46,19 +86,12 @@ class SendMessageRequest(BaseModel):
 
 class SendMessageResponse(BaseModel):
     response: str
-    stage: str
-    ui_data: dict
+    ui_data: dict  # Wu Wei: No stages - progressive unlocking via prerequisites
 
 class CompleteInterviewResponse(BaseModel):
     success: bool
     video_guidelines: dict
     next_stage: str
-
-class UploadVideoRequest(BaseModel):
-    family_id: str
-    video_id: str
-    scenario: str
-    duration_seconds: int
 
 class JournalEntryRequest(BaseModel):
     family_id: str
@@ -73,7 +106,7 @@ class JournalEntryResponse(BaseModel):
 class AvailableViewsResponse(BaseModel):
     """Response model for available views"""
     family_id: str
-    phase: str
+    # Wu Wei: No phases - removed phase field
     available_views: List[str]
 
 class ViewContentResponse(BaseModel):
@@ -151,28 +184,23 @@ async def send_message(request: SendMessageRequest):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    # Get services based on configuration
-    use_simplified = is_simplified_architecture()
-
-    if use_simplified:
-        conversation_service = get_simplified_conversation_service()
-        # Simplified service doesn't have knowledge_service, use full service for intent detection only
-        full_service = get_conversation_service()
-        knowledge_service = full_service.knowledge_service
-    else:
-        conversation_service = get_conversation_service()
-        knowledge_service = conversation_service.knowledge_service
-
+    # Get services (Wu Wei: simplified architecture only)
+    conversation_service = get_simplified_conversation_service()
     graphiti = get_mock_graphiti()
 
-    # 🎯 LLM-based Intent Detection: Check for system actions (test/demo mode)
-    # Use the intelligent intent detector instead of primitive string matching
-    from app.prompts.intent_types import IntentCategory
-    detected_intent = await knowledge_service.detect_unified_intent(request.message)
+    # 🌟 Wu Wei: Config-driven trigger detection (replaces hardcoded keywords)
+    action = detect_system_trigger(request.message)
+
+    # 🚨 Check if already in test mode (prevents recursive triggering)
+    simulator = get_parent_simulator()
+    is_in_test_mode = request.family_id in simulator.active_simulations
+
+    # Don't trigger test mode if already in it
+    if action == "start_test_mode" and is_in_test_mode:
+        action = None
 
     # Handle system/developer actions
-    if detected_intent.category == IntentCategory.ACTION_REQUEST:
-        action = detected_intent.specific_action
+    if action:
 
         # 🎬 Demo Mode
         if action == "start_demo":
@@ -181,15 +209,21 @@ async def send_message(request: SendMessageRequest):
             scenario_id = "language_concerns"  # Default scenario
             demo_result = await demo_orchestrator.start_demo(scenario_id)
 
+            # 🌟 Wu Wei: Load demo mode UI data from config
+            messages_config = load_app_messages()
+            demo_config = messages_config.get("demo_mode", {})
+            demo_ui = demo_config.get("ui_data", {})
+
             return SendMessageResponse(
                 response=demo_result["first_message"]["content"],
                 stage="demo",
                 ui_data={
-                    "demo_mode": True,
+                    "demo_mode": demo_ui.get("demo_mode", True),
                     "demo_family_id": demo_result["demo_family_id"],
                     "demo_scenario": demo_result["scenario"],
                     "cards": [demo_result["demo_card"]],
-                    "suggestions": ["המשך דמו", "עצור דמו", "דלג לשלב הבא"],
+                    "suggestions": demo_ui.get("suggestions", ["המשך דמו"]),
+                    "hint": demo_ui.get("hint"),
                     "progress": 0
                 }
             )
@@ -205,13 +239,26 @@ async def send_message(request: SendMessageRequest):
                 for p in personas[:5]  # Show first 5
             ])
 
+            # 🌟 Wu Wei: Load test mode message from config
+            messages_config = load_app_messages()
+            test_config = messages_config.get("test_mode", {})
+            response_template = test_config.get("response_template", "🧪 מצב בדיקה")
+            test_ui = test_config.get("ui_data", {})
+
+            # Format response with persona data
+            response = response_template.format(
+                persona_count=len(personas),
+                persona_list=persona_list
+            )
+
             return SendMessageResponse(
-                response=f"🧪 מצב בדיקה\n\nהבנתי שאת רוצה לבדוק את המערכת! יש לי {len(personas)} פרסונות הורים מוכנות:\n\n{persona_list}\n\nכדי להתחיל, השתמשי ב-API של מצב הבדיקה (/test/start) או בממשק המיוחד למפתחים.",
+                response=response,
                 stage="interview",
                 ui_data={
-                    "test_mode_available": True,
+                    "test_mode_available": test_ui.get("test_mode_available", True),
                     "personas": personas,
-                    "suggestions": ["המשך שיחה רגילה"],
+                    "suggestions": test_ui.get("suggestions", ["המשך שיחה רגילה"]),
+                    "hint": test_ui.get("hint"),
                     "cards": [],
                     "progress": 0
                 }
@@ -242,11 +289,7 @@ async def send_message(request: SendMessageRequest):
         # Get or create session for backward compatibility
         session = app_state.get_or_create_session(request.family_id)
 
-        # Update session stage based on completeness
-        if result["completeness"] >= 80:
-            session["current_stage"] = "video_upload"
-        else:
-            session["current_stage"] = "interview"
+        # Wu Wei: No stages - capabilities unlock via prerequisites defined in YAML
 
         # 🌟 Wu Wei: Get artifacts for frontend
         session_service = get_session_service()
@@ -292,7 +335,6 @@ async def send_message(request: SendMessageRequest):
 
         return SendMessageResponse(
             response=result["response"],
-            stage=session["current_stage"],
             ui_data=ui_data
         )
 
@@ -301,11 +343,14 @@ async def send_message(request: SendMessageRequest):
         import logging
         logging.error(f"Error in send_message: {e}", exc_info=True)
 
+        # 🌟 Wu Wei: Load error message from config
+        messages_config = load_app_messages()
+        error_config = messages_config.get("errors", {}).get("technical_error", {})
+
         return SendMessageResponse(
-            response="מצטערת, נתקלתי בבעיה טכנית. בואי ננסה שוב.",
-            stage="interview",
+            response=error_config.get("response", "מצטערת, נתקלתי בבעיה טכנית."),
             ui_data={
-                "suggestions": ["נסה שוב", "דבר עם תמיכה"],
+                "suggestions": error_config.get("suggestions", ["נסה שוב"]),
                 "cards": [],
                 "progress": 0,
                 "error": str(e)
@@ -354,92 +399,310 @@ async def complete_interview(family_id: str):
     )
 
 @router.post("/video/upload")
-async def upload_video(request: UploadVideoRequest):
+async def upload_video(
+    family_id: str = Form(...),
+    video_id: str = Form(...),
+    scenario: str = Form(...),
+    duration_seconds: int = Form(...),
+    file: UploadFile = File(...)
+):
     """
-    העלאת וידאו (simulated)
-    """
-    session = app_state.get_or_create_session(request.family_id)
+    🌟 Wu Wei: Upload actual video file and trigger lifecycle moments
 
-    # הוסף וידאו לsession
-    video_data = {
-        "video_id": request.video_id,
-        "scenario": request.scenario,
-        "duration_seconds": request.duration_seconds,
-        "uploaded_at": datetime.now().isoformat()
+    This endpoint:
+    1. Saves video file to uploads/{family_id}/{video_id}.{ext}
+    2. Adds video to FamilyState with file_path and analyst_context
+    3. Checks lifecycle moments (e.g., videos_ready when count >= 3)
+    4. Sends SSE notifications for card updates
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    # Get services
+    graphiti = get_mock_graphiti()
+    session_service = get_session_service()
+
+    # Get state
+    state = graphiti.get_or_create_state(family_id)
+    session = session_service.get_or_create_session(family_id)
+
+    # Create uploads directory structure
+    uploads_dir = Path("uploads") / family_id
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get file extension
+    file_ext = Path(file.filename).suffix or ".mp4"
+    file_path = uploads_dir / f"{video_id}{file_ext}"
+
+    # Save uploaded file
+    try:
+        logger.info(f"📤 Saving video file: {file_path}")
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        logger.info(f"✅ Video file saved: {file_path} ({len(content) / 1024 / 1024:.2f} MB)")
+    except Exception as e:
+        logger.error(f"❌ Error saving video file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save video: {str(e)}")
+
+    # Get analyst_context from video guidelines artifact if available
+    analyst_context = None
+    guidelines_artifact = session.artifacts.get("baseline_video_guidelines")
+    if guidelines_artifact and guidelines_artifact.status == "ready":
+        try:
+            guidelines_data = json.loads(guidelines_artifact.content)
+            # Find matching scenario in guidelines
+            for guideline_scenario in guidelines_data.get("scenarios", []):
+                if guideline_scenario.get("title") == scenario or guideline_scenario.get("scenario") == scenario:
+                    analyst_context = guideline_scenario.get("analyst_context")
+                    logger.info(f"✅ Found analyst_context for scenario: {scenario}")
+                    break
+        except Exception as e:
+            logger.warning(f"⚠️ Could not extract analyst_context from guidelines: {e}")
+
+    # Add video to state
+    from app.models.family_state import Video
+    video = Video(
+        id=video_id,
+        scenario=scenario,
+        uploaded_at=datetime.now(),
+        duration_seconds=duration_seconds,
+        file_path=str(file_path),
+        analyst_context=analyst_context
+    )
+    state.videos_uploaded.append(video)
+    state.last_active = datetime.now()
+
+    total_videos = len(state.videos_uploaded)
+    logger.info(f"📹 Video uploaded: {scenario} (total: {total_videos})")
+
+    # 🌟 Wu Wei: Generate updated cards (moments will trigger on next conversation turn)
+    from app.services.prerequisite_service import get_prerequisite_service
+    from app.config.card_generator import get_card_generator
+
+    prerequisite_service = get_prerequisite_service()
+    card_generator = get_card_generator()
+
+    # Build context for card evaluation
+    session_data = {
+        "family_id": family_id,
+        "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+        "message_count": len(session.conversation_history),
+        "artifacts": session.artifacts,
+        "uploaded_video_count": total_videos,  # 🌟 Key for Wu Wei moments!
     }
 
-    session["videos"].append(video_data)
+    context = prerequisite_service.get_context_for_cards(session_data)
+    updated_cards = card_generator.get_visible_cards(context)
 
-    # שמירה ב-Graphiti
-    await app_state.graphiti.add_episode(
-        name=f"video_upload_{request.video_id}",
-        episode_body=video_data,
-        group_id=request.family_id
-    )
+    logger.info(f"📇 Updated cards after video upload: {len(updated_cards)} cards")
 
-    total_videos = len(session["videos"])
-
-    # בדיקה אם הושלמו כל הסרטונים הנדרשים
-    num_required = len(session.get("video_guidelines", {}).get("scenarios", []))
-    if num_required == 0:
-        num_required = 3  # ברירת מחדל
-
-    analysis_started = False
-    if total_videos >= num_required:
-        # מעבר אוטומטי לשלב ניתוח
-        session["current_stage"] = "video_analysis"
-        analysis_started = True
+    # 🌟 Wu Wei: Send SSE notification for card update
+    await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
 
     return {
         "success": True,
-        "video_id": request.video_id,
+        "video_id": video_id,
         "total_videos": total_videos,
-        "required_videos": num_required,
-        "analysis_started": analysis_started,
-        "next_stage": session["current_stage"]
+        "file_path": str(file_path),
+        "file_size_mb": len(content) / 1024 / 1024,
+        "cards_updated": len(updated_cards)
     }
 
 @router.post("/video/analyze")
-async def analyze_videos(family_id: str):
+async def analyze_videos(family_id: str, confirmed: bool = False):
     """
-    ניתוח כל הוידאואים
+    🎥 Wu Wei: Holistic Clinical Video Analysis
+
+    Analyzes uploaded videos using comprehensive clinical + holistic framework.
+    Each video is analyzed separately with its specific analyst_context.
+
+    Args:
+        family_id: Family identifier
+        confirmed: True if user already confirmed action (skip confirmation check)
     """
-    session = app_state.get_or_create_session(family_id)
+    from app.services.video_analysis_service import VideoAnalysisService
+    from app.config.action_registry import get_action_registry
+    from app.services.prerequisite_service import get_prerequisite_service
 
-    if not session["videos"]:
-        raise HTTPException(status_code=400, detail="No videos to analyze")
+    # Get services
+    graphiti = get_mock_graphiti()
+    session_service = get_session_service()
+    action_registry = get_action_registry()
+    prerequisite_service = get_prerequisite_service()
 
-    # קריאה ל-LLM לניתוח
-    analysis_result = await app_state.llm.chat_with_structured_output(
-        messages=[Message(
-            role="system",
-            content=f"נתח {len(session['videos'])} וידאואים"
-        )],
-        response_schema={"behavioral_observations": [], "key_findings_summary": ""}
-    )
+    # Get state and session
+    state = graphiti.get_or_create_state(family_id)
+    session = session_service.get_or_create_session(family_id)
 
-    # שמירה ב-Graphiti
-    await app_state.graphiti.add_episode(
-        name=f"video_analysis_{family_id}",
-        episode_body=analysis_result,
-        group_id=family_id,
-        reference_time=datetime.now()
-    )
+    # Check if there are videos to analyze
+    if not state.videos_uploaded:
+        raise HTTPException(status_code=400, detail="No videos uploaded yet")
 
-    # שמירת תוצאות ניתוח ב-session
-    session["video_analysis"] = analysis_result
+    # ⚠️ Check if confirmation is needed (unless already confirmed)
+    if not confirmed:
+        # Build general context (same pattern used throughout the app)
+        session_data = {
+            "family_id": family_id,
+            "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+            "message_count": len(session.conversation_history),
+            "artifacts": session.artifacts,
+            "uploaded_video_count": len(state.videos_uploaded),
+            "guideline_scenario_count": session.guideline_scenario_count,
+        }
+        context = prerequisite_service.get_context_for_cards(session_data)
 
-    # מעבר אוטומטי ליצירת דוחות
-    session["current_stage"] = "report_generation"
+        # Check if action requires confirmation (generic check for any action)
+        confirmation_message = action_registry.check_confirmation_needed("analyze_videos", context)
 
-    # יצירה אוטומטית של דוחות
-    await _generate_reports_internal(family_id, session)
+        if confirmation_message:
+            logger.info(f"⚠️ Action requires confirmation: analyze_videos")
+            return {
+                "needs_confirmation": True,
+                "confirmation_message": confirmation_message
+            }
 
-    return {
-        "success": True,
-        "analysis": analysis_result,
-        "next_stage": session["current_stage"]
+    # Get child data from extracted_data (Pydantic object)
+    child_data = {
+        "name": session.extracted_data.child_name,
+        "age": session.extracted_data.age,
+        "gender": session.extracted_data.gender,
+        "concerns": session.extracted_data.primary_concerns or [],
     }
+
+    logger.info(f"🎬 Holistic video analysis for {family_id} ({len(state.videos_uploaded)} videos)")
+
+    # Initialize service
+    video_analysis_service = VideoAnalysisService()
+
+    # Prepare videos with analyst_context
+    videos_to_analyze = []
+    for video in state.videos_uploaded:
+        if not video.analyst_context:
+            logger.warning(f"⚠️ Video {video.id} missing analyst_context")
+            continue
+
+        videos_to_analyze.append({
+            "id": video.id,
+            "path": video.file_path or f"./uploads/{video.id}",
+            "guideline_title": video.analyst_context.get("guideline_title", video.scenario),
+            "analyst_context": video.analyst_context
+        })
+
+    if not videos_to_analyze:
+        raise HTTPException(status_code=400, detail="No videos with context found")
+
+    # Update status to "analyzing" and notify frontend
+    session.video_analysis_status = "analyzing"
+    logger.info(f"📊 Setting video_analysis_status to 'analyzing'")
+
+    # Generate updated cards to show "analyzing" state
+    from app.services.prerequisite_service import get_prerequisite_service
+
+    prerequisite_service = get_prerequisite_service()
+    card_generator = get_card_generator()
+
+    session_data = {
+        "family_id": family_id,
+        "extracted_data": session.extracted_data.model_dump(),
+        "message_count": len(session.conversation_history),
+        "artifacts": session.artifacts,
+        "uploaded_video_count": len(state.videos_uploaded),
+        "video_analysis_status": "analyzing",  # Updated status
+        "guideline_scenario_count": session.guideline_scenario_count,
+    }
+
+    context = prerequisite_service.get_context_for_cards(session_data)
+    updated_cards = card_generator.get_visible_cards(context, max_cards=4)
+
+    logger.info(f"📤 Sending {len(updated_cards)} cards with 'analyzing' state via SSE")
+
+    # Notify frontend with updated cards showing analyzing state
+    await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
+
+    try:
+        # Analyze all videos
+        analysis_artifact = await video_analysis_service.analyze_multiple_videos(
+            videos=videos_to_analyze,
+            child_data=child_data,
+            extracted_data=session.extracted_data.model_dump(mode='json')
+        )
+
+        # Store analysis artifact (as Artifact object, not dict!)
+        if analysis_artifact.status == "ready":
+            session.artifacts["baseline_video_analysis"] = analysis_artifact
+
+            # Update session status to "complete" (triggers card auto-dismiss)
+            session.video_analysis_status = "complete"
+            logger.info(f"📊 Setting video_analysis_status to 'complete'")
+
+            # Update video statuses
+            for video in state.videos_uploaded:
+                video.analysis_status = "ready"
+                video.analysis_artifact_id = "baseline_video_analysis"
+
+            logger.info(f"✅ Video analysis complete for {family_id}")
+
+            # 🌟 Process lifecycle events to check for "video_analysis_complete" moment
+            from app.services.lifecycle_manager import get_lifecycle_manager
+            from app.services.prerequisite_service import get_prerequisite_service
+
+            lifecycle_manager = get_lifecycle_manager()
+            prerequisite_service = get_prerequisite_service()
+
+            # Build context for lifecycle evaluation
+            session_data = {
+                "family_id": family_id,
+                "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+                "message_count": len(session.conversation_history),
+                "artifacts": session.artifacts,
+                "uploaded_video_count": len(state.videos_uploaded),
+                "video_analysis_status": session.video_analysis_status,  # Now "complete"!
+            }
+
+            context = prerequisite_service.get_context_for_cards(session_data)
+
+            # Process lifecycle events (will trigger "video_analysis_complete" moment)
+            lifecycle_result = await lifecycle_manager.process_lifecycle_events(
+                family_id=family_id,
+                context=context,
+                session=session
+            )
+
+            if lifecycle_result.get("events_triggered"):
+                logger.info(f"🌟 Lifecycle events triggered: {[e['event_name'] for e in lifecycle_result['events_triggered']]}")
+
+            if lifecycle_result.get("artifacts_generated"):
+                logger.info(f"🌟 Artifacts generated: {lifecycle_result['artifacts_generated']}")
+
+            # Trigger card update (now with potential new cards from lifecycle events)
+            await get_sse_notifier().notify_cards_updated(family_id, [])
+
+            return {
+                "success": True,
+                "artifact_id": "baseline_video_analysis",
+                "videos_analyzed": len(videos_to_analyze),
+                "next_steps": "Reports can now be generated"
+            }
+        else:
+            # Analysis failed - reset status to pending
+            session.video_analysis_status = "pending"
+            logger.error(f"❌ Video analysis failed: {analysis_artifact.error_message}")
+
+            # Notify frontend of failure
+            await get_sse_notifier().notify_cards_updated(family_id, [])
+
+            raise HTTPException(status_code=500, detail=analysis_artifact.error_message)
+
+    except Exception as e:
+        # Error occurred - reset status to pending
+        session.video_analysis_status = "pending"
+        logger.error(f"❌ Error in video analysis: {e}", exc_info=True)
+
+        # Notify frontend of error
+        await get_sse_notifier().notify_cards_updated(family_id, [])
+
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/reports/generate")
 async def generate_reports(family_id: str):
@@ -998,8 +1261,8 @@ async def get_available_views(family_id: str):
         }
 
     # Build context for view availability checks
+    # Wu Wei: No phases - removed phase from context
     context = {
-        "phase": session.phase,
         "completeness": session.completeness,
         "child_name": data.child_name,
         "artifacts": artifacts,  # 🌟 Wu Wei: Include artifacts
@@ -1012,7 +1275,6 @@ async def get_available_views(family_id: str):
 
     return AvailableViewsResponse(
         family_id=family_id,
-        phase=session.phase,
         available_views=available_views
     )
 
@@ -1050,8 +1312,8 @@ async def get_view_content(view_id: str, family_id: str):
         }
 
     # Build context for availability check
+    # Wu Wei: No phases - removed phase from context
     context = {
-        "phase": session.phase,
         "completeness": session.completeness,
         "child_name": data.child_name,
         "artifacts": artifacts,  # 🌟 Wu Wei: Include artifacts
@@ -1091,9 +1353,9 @@ async def get_view_content(view_id: str, family_id: str):
                 }
 
         # Enrich with context variables
+        # Wu Wei: No phases - removed phase from context
         view_content["context"] = {
             "child_name": data.child_name,
-            "phase": session.phase,
             "artifacts_available": list(artifacts.keys())
         }
 
@@ -1112,6 +1374,368 @@ async def get_view_content(view_id: str, family_id: str):
             available=False,
             reason_unavailable="View not available in current phase or missing required data"
         )
+
+
+# === Wu Wei Architecture: Daniel's Space (Child Space) Endpoints ===
+
+# Import child space service
+from app.services.child_space_service import get_child_space_service
+
+
+@router.get("/family/{family_id}/space")
+async def get_child_space(family_id: str):
+    """
+    🌟 Living Dashboard Phase 2: Get Daniel's Space
+
+    Returns the complete child space with:
+    - All artifact slots (report, guidelines, videos, journal)
+    - Header badges for quick status display
+    - Current/latest items in each slot
+    - Slot metadata (icons, names, actions)
+
+    This is the "Memory Drawer" / "Living Header" for quick artifact access.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    # Get services
+    graphiti = get_mock_graphiti()
+    child_space_service = get_child_space_service()
+
+    # Get family state
+    state = graphiti.get_or_create_state(family_id)
+
+    # Sync artifacts from session to family state
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
+
+    # Copy artifacts to state for slot population
+    for artifact_id, artifact in session.artifacts.items():
+        if artifact.is_ready or artifact.status == "generating":
+            state.artifacts[artifact_id] = artifact
+
+    # Get child space
+    space = child_space_service.get_child_space(state)
+
+    return {
+        "family_id": space.family_id,
+        "child_name": space.child_name,
+        "slots": [slot.model_dump() for slot in space.slots],
+        "header_badges": space.header_badges,
+        "last_updated": space.last_updated.isoformat() if space.last_updated else None
+    }
+
+
+@router.get("/family/{family_id}/space/header")
+async def get_child_space_header(family_id: str):
+    """
+    🌟 Living Dashboard Phase 2: Get header badges only
+
+    Lightweight endpoint for header pill display.
+    Returns only slots with content as compact badges.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    graphiti = get_mock_graphiti()
+    child_space_service = get_child_space_service()
+
+    state = graphiti.get_or_create_state(family_id)
+
+    # Sync artifacts from session
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
+    for artifact_id, artifact in session.artifacts.items():
+        if artifact.is_ready or artifact.status == "generating":
+            state.artifacts[artifact_id] = artifact
+
+    badges = child_space_service.get_header_summary(state)
+
+    return {
+        "family_id": family_id,
+        "badges": badges
+    }
+
+
+@router.get("/family/{family_id}/space/slot/{slot_id}")
+async def get_slot_detail(family_id: str, slot_id: str):
+    """
+    🌟 Living Dashboard Phase 2: Get detailed slot info
+
+    Returns full slot details including version history.
+    Used when user expands a slot in the UI.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    graphiti = get_mock_graphiti()
+    child_space_service = get_child_space_service()
+
+    state = graphiti.get_or_create_state(family_id)
+
+    # Sync artifacts from session
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
+    for artifact_id, artifact in session.artifacts.items():
+        if artifact.is_ready or artifact.status == "generating":
+            state.artifacts[artifact_id] = artifact
+
+    slot = child_space_service.get_slot_detail(state, slot_id)
+
+    if not slot:
+        raise HTTPException(status_code=404, detail=f"Slot '{slot_id}' not found")
+
+    return {
+        "slot": slot.model_dump()
+    }
+
+
+# === Wu Wei Architecture: Living Documents (Threaded Conversations) ===
+
+# Import thread service
+from app.services.artifact_thread_service import get_artifact_thread_service
+
+
+class CreateThreadRequest(BaseModel):
+    """Request to create a new thread on an artifact section."""
+    family_id: str
+    initial_question: str
+    section_title: Optional[str] = None
+    section_text: Optional[str] = None
+
+
+class ThreadMessageRequest(BaseModel):
+    """Request to add a message to a thread."""
+    family_id: str
+    content: str
+
+
+@router.get("/artifact/{artifact_id}/structured")
+async def get_structured_artifact(artifact_id: str, family_id: str):
+    """
+    🌟 Living Dashboard Phase 3: Get artifact with sections
+
+    Returns the artifact structured into sections with thread counts.
+    Used for rendering Living Documents with thread indicators.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    thread_service = get_artifact_thread_service()
+    structured = await thread_service.get_structured_artifact(family_id, artifact_id)
+
+    if not structured:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Artifact '{artifact_id}' not found or not ready"
+        )
+
+    return {
+        "artifact_id": structured.artifact_id,
+        "artifact_type": structured.artifact_type,
+        "title": structured.title,
+        "sections": [s.model_dump() for s in structured.sections],
+        "total_threads": structured.total_threads,
+        "sections_with_threads": structured.sections_with_threads,
+        "raw_content": structured.raw_content,
+        "content_format": structured.content_format
+    }
+
+
+@router.get("/artifact/{artifact_id}/threads")
+async def get_artifact_threads(artifact_id: str, family_id: str):
+    """
+    🌟 Living Dashboard Phase 3: Get all threads for an artifact
+
+    Returns thread summaries for display on the artifact.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    thread_service = get_artifact_thread_service()
+
+    # Ensure threads are loaded
+    await thread_service.get_threads_for_artifact(artifact_id, family_id)
+
+    summaries = await thread_service.get_thread_summaries(artifact_id)
+
+    return {
+        "artifact_id": artifact_id,
+        "threads": [s.model_dump() for s in summaries],
+        "total_threads": len(summaries)
+    }
+
+
+@router.post("/artifact/{artifact_id}/section/{section_id}/thread")
+async def create_thread(
+    artifact_id: str,
+    section_id: str,
+    request: CreateThreadRequest
+):
+    """
+    🌟 Living Dashboard Phase 3: Start a new thread on a section
+
+    Creates a new conversation thread attached to a specific section
+    of an artifact. Returns the created thread with initial message.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    thread_service = get_artifact_thread_service()
+
+    thread = await thread_service.create_thread(
+        family_id=request.family_id,
+        artifact_id=artifact_id,
+        section_id=section_id,
+        initial_question=request.initial_question,
+        section_title=request.section_title,
+        section_text=request.section_text
+    )
+
+    return {
+        "thread_id": thread.thread_id,
+        "artifact_id": artifact_id,
+        "section_id": section_id,
+        "messages": [m.model_dump() for m in thread.messages],
+        "created_at": thread.created_at.isoformat()
+    }
+
+
+@router.get("/thread/{thread_id}")
+async def get_thread(thread_id: str, artifact_id: str, family_id: str):
+    """
+    🌟 Living Dashboard Phase 3: Get a specific thread
+
+    Returns full thread with all messages.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    thread_service = get_artifact_thread_service()
+
+    # Ensure threads are loaded
+    await thread_service.get_threads_for_artifact(artifact_id, family_id)
+
+    thread = await thread_service.get_thread(thread_id, artifact_id)
+
+    if not thread:
+        raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+
+    return {
+        "thread_id": thread.thread_id,
+        "artifact_id": thread.artifact_id,
+        "section_id": thread.section_id,
+        "section_title": thread.section_title,
+        "section_text": thread.section_text,
+        "messages": [m.model_dump() for m in thread.messages],
+        "is_resolved": thread.is_resolved,
+        "created_at": thread.created_at.isoformat(),
+        "updated_at": thread.updated_at.isoformat()
+    }
+
+
+@router.post("/thread/{thread_id}/message")
+async def add_thread_message(
+    thread_id: str,
+    request: ThreadMessageRequest
+):
+    """
+    🌟 Living Dashboard Phase 3: Add message to thread and get AI response
+
+    Adds user message to thread and generates contextual AI response.
+    Returns both messages.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    thread_service = get_artifact_thread_service()
+
+    # First, find the thread to get artifact_id
+    # We need to search through cached threads
+    artifact_id = None
+    for aid, threads in thread_service._threads_cache.items():
+        if threads.get_thread(thread_id):
+            artifact_id = aid
+            break
+
+    if not artifact_id:
+        raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+
+    # Add user message
+    user_msg = await thread_service.add_message(
+        thread_id=thread_id,
+        artifact_id=artifact_id,
+        role="user",
+        content=request.content
+    )
+
+    if not user_msg:
+        raise HTTPException(status_code=500, detail="Failed to add message")
+
+    # Get context for AI response
+    context = await thread_service.get_thread_context(
+        thread_id=thread_id,
+        artifact_id=artifact_id,
+        family_id=request.family_id
+    )
+
+    # Generate AI response using LLM
+    try:
+        from app.services.llm.factory import create_llm_provider
+        from app.services.llm.base import Message
+
+        llm = create_llm_provider()
+        prompt = thread_service.build_thread_prompt(context, request.content)
+
+        response = await llm.chat(
+            messages=[Message(role="user", content=prompt)],
+            temperature=0.7
+        )
+
+        ai_content = response.content
+
+        # Add AI response to thread
+        ai_msg = await thread_service.add_message(
+            thread_id=thread_id,
+            artifact_id=artifact_id,
+            role="assistant",
+            content=ai_content
+        )
+
+        return {
+            "user_message": user_msg.model_dump(),
+            "assistant_message": ai_msg.model_dump() if ai_msg else None,
+            "thread_id": thread_id
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating thread response: {e}", exc_info=True)
+        # Return user message even if AI fails
+        return {
+            "user_message": user_msg.model_dump(),
+            "assistant_message": None,
+            "error": str(e),
+            "thread_id": thread_id
+        }
+
+
+@router.post("/thread/{thread_id}/resolve")
+async def resolve_thread(thread_id: str, artifact_id: str):
+    """
+    🌟 Living Dashboard Phase 3: Mark thread as resolved
+
+    User indicates they understood/got it.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    thread_service = get_artifact_thread_service()
+    success = await thread_service.resolve_thread(thread_id, artifact_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+
+    return {"success": True, "thread_id": thread_id, "resolved": True}
 
 
 # === Wu Wei Architecture: Artifact Endpoints ===
@@ -1173,6 +1797,14 @@ async def get_artifact(artifact_id: str, family_id: str):
             status_code=404,
             detail=f"Artifact '{artifact_id}' not found for family {family_id}"
         )
+
+    # 🐛 DEBUG: Log artifact retrieval details
+    logger.info(
+        f"📦 API fetch artifact '{artifact_id}' for {family_id}: "
+        f"status={artifact.status}, is_ready={artifact.is_ready}, "
+        f"has_content={artifact.content is not None}, "
+        f"session_id={id(session)}, artifacts_dict_id={id(session.artifacts)}"
+    )
 
     return ArtifactResponse(
         artifact_id=artifact.artifact_id,
@@ -1257,6 +1889,55 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
 
 # === State-Based Endpoints (Wu Wei Architecture) ===
 
+# IMPORTANT: SSE subscribe endpoint must come BEFORE /state/{family_id} to avoid route conflict
+@router.get("/state/subscribe")
+async def subscribe_to_state_updates(family_id: str):
+    """
+    🌟 Wu Wei SSE: Subscribe to real-time state updates
+
+    Frontend connects to this endpoint and receives Server-Sent Events when:
+    - Cards change (artifact status updates, lifecycle moments)
+    - Artifacts complete background generation
+    - Any state change that affects UI
+
+    Usage:
+        const eventSource = new EventSource('/api/state/subscribe?family_id=xyz');
+        eventSource.onmessage = (event) => {
+            const update = JSON.parse(event.data);
+            // update.type: "cards" | "artifact" | "lifecycle_event"
+            // update.data: { ... }
+        };
+    """
+    logger.info(f"📡 SSE: New connection from family_id={family_id}")
+    notifier = get_sse_notifier()
+    queue = await notifier.subscribe(family_id)
+
+    async def event_generator():
+        """Generate SSE events from the queue"""
+        try:
+            while True:
+                # Wait for next state change
+                event_data = await queue.get()
+
+                # Format as SSE event
+                yield f"data: {json.dumps(event_data)}\n\n"
+
+        except asyncio.CancelledError:
+            # Client disconnected
+            await notifier.unsubscribe(family_id, queue)
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
+
 @router.get("/state/{family_id}")
 async def get_family_state(family_id: str):
     """
@@ -1283,7 +1964,7 @@ async def get_family_state(family_id: str):
         "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
         "message_count": len(session.conversation_history),
         "artifacts": session.artifacts,
-        "uploaded_video_count": 0,  # TODO: Get from video storage
+        "uploaded_video_count": len(state.videos_uploaded),  # 🌟 Get actual video count from state
     }
 
     # Get Wu Wei context (includes artifacts, flags, etc.)
@@ -1438,48 +2119,49 @@ async def stop_test_mode(request: StopTestRequest):
         raise HTTPException(status_code=500, detail="Failed to stop simulation")
 
 
-@router.get("/state/subscribe")
-async def subscribe_to_state_updates(family_id: str):
+@router.get("/dev/export-artifacts/{family_id}")
+async def export_artifacts(family_id: str):
     """
-    🌟 Wu Wei SSE: Subscribe to real-time state updates
-
-    Frontend connects to this endpoint and receives Server-Sent Events when:
-    - Cards change (artifact status updates, lifecycle moments)
-    - Artifacts complete background generation
-    - Any state change that affects UI
-
-    Usage:
-        const eventSource = new EventSource('/api/state/subscribe?family_id=xyz');
-        eventSource.onmessage = (event) => {
-            const update = JSON.parse(event.data);
-            // update.type: "cards" | "artifact" | "lifecycle_event"
-            // update.data: { ... }
-        };
+    Export all artifacts for a family to JSON files for inspection.
+    Files are saved to backend/artifacts_export/{family_id}/
     """
-    notifier = get_sse_notifier()
-    queue = await notifier.subscribe(family_id)
-
-    async def event_generator():
-        """Generate SSE events from the queue"""
-        try:
-            while True:
-                # Wait for next state change
-                event_data = await queue.get()
-
-                # Format as SSE event
-                yield f"data: {json.dumps(event_data)}\n\n"
-
-        except asyncio.CancelledError:
-            # Client disconnected
-            await notifier.unsubscribe(family_id, queue)
-            raise
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # Disable nginx buffering
+    import json
+    import os
+    from pathlib import Path
+    
+    # Get session with artifacts
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
+    
+    # Create export directory
+    export_dir = Path(f"artifacts_export/{family_id}")
+    export_dir.mkdir(parents=True, exist_ok=True)
+    
+    exported_files = []
+    
+    # Export each artifact
+    for artifact_id, artifact in session.artifacts.items():
+        # Convert Artifact object to dict for JSON serialization
+        artifact_data = {
+            "artifact_id": artifact_id,
+            "status": artifact.status,
+            "content": artifact.content,
+            "error_message": artifact.error_message,
+            "created_at": str(artifact.created_at) if hasattr(artifact, 'created_at') else None,
         }
-    )
+        
+        # Save to file
+        file_path = export_dir / f"{artifact_id}.json"
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(artifact_data, f, ensure_ascii=False, indent=2)
+        
+        exported_files.append(str(file_path))
+        logger.info(f"📄 Exported {artifact_id} to {file_path}")
+    
+    return {
+        "success": True,
+        "family_id": family_id,
+        "artifacts_exported": len(exported_files),
+        "export_directory": str(export_dir.absolute()),
+        "files": exported_files
+    }

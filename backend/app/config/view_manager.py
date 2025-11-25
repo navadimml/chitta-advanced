@@ -55,6 +55,9 @@ class ViewManager:
         """
         Check if a view is available in current context.
 
+        🌟 Event-Driven Architecture: Views are available if any action that opens them is available.
+        No manual prerequisite checking - derives from action availability!
+
         Args:
             view_id: View identifier
             context: Session context
@@ -66,40 +69,21 @@ class ViewManager:
         if not view:
             return False
 
-        availability = view.get("availability", {})
+        # 🌟 Event-Driven: Derive from actions
+        # A view is available if ANY action opens it
+        from app.config.action_registry import get_action_registry, get_available_actions
 
-        # Check phase
-        phases = availability.get("phases", [])
-        current_phase = context.get("phase", "screening")
+        action_registry = get_action_registry()
+        available_action_ids = get_available_actions(context)
 
-        if phases and current_phase not in phases:
-            return False
+        # Check if any available action opens this view
+        for action_id in available_action_ids:
+            action = action_registry.get_action(action_id)
+            if action and action.opens_view == view_id:
+                return True
 
-        # 🌟 Wu Wei: Check requires (artifact-based)
-        requires = availability.get("requires", [])
-        for req in requires:
-            # Handle artifact requirements
-            if req == "interview_complete":
-                # Check if video guidelines artifact exists
-                artifacts = context.get("artifacts", {})
-                if not artifacts.get("baseline_video_guidelines", {}).get("exists", False):
-                    return False
-            elif req == "reports_available":
-                # Check if parent report artifact exists
-                artifacts = context.get("artifacts", {})
-                if not artifacts.get("baseline_parent_report", {}).get("exists", False):
-                    return False
-            elif req == "updated_reports_available":
-                # Check if updated report artifact exists
-                artifacts = context.get("artifacts", {})
-                if not artifacts.get("updated_parent_report", {}).get("exists", False):
-                    return False
-            # Legacy: old field-based checks
-            elif req == "reports_ready":
-                if not context.get("reports_ready", False):
-                    return False
-
-        return True
+        # No action opens this view or none are available
+        return False
 
     def get_available_views(
         self,

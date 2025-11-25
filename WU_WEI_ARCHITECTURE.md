@@ -1,10 +1,10 @@
 # Chitta's Wu Wei Architecture: Conversation-First, Dependency-Based Design
 
-**Document Version**: 3.0
-**Date**: November 11, 2025
+**Document Version**: 3.5
+**Date**: November 18, 2025
 **Status**: Implemented & Simplified (פשוט - נטול חלקים עודפים)
 
-**Latest Update**: Wu Wei v3.0 - Unified "moments" structure eliminates redundancy
+**Latest Update**: Wu Wei v3.5 - Event-Driven Card Architecture + Domain-Agnostic Context
 
 ---
 
@@ -13,6 +13,7 @@
 - **v1.0** (Nov 9, 2025): Phase-based workflow (`phases.yaml`) - Traditional stage gates
 - **v2.0** (Nov 9, 2025): Wu Wei dependency graph - Separate `artifacts`, `capabilities`, `lifecycle_events` sections
 - **v3.0** (Nov 11, 2025): **Simplified Wu Wei** - Unified `moments` structure (50% less configuration, 100% functionality)
+- **v3.5** (Nov 18, 2025): **Event-Driven Cards** - Cards unified with moments, domain-agnostic context, accurate message timing
 
 ### What's New in v3.0
 
@@ -46,6 +47,66 @@ moments:
 ```
 
 **Result**: 208 lines (down from 360), zero redundancy, same functionality.
+
+### What's New in v3.5
+
+**Event-Driven Card Architecture** - Cards now unified with moments:
+
+**Before (v3.0)** - Cards duplicated prerequisites:
+```yaml
+# lifecycle_events.yaml
+moments:
+  guidelines_ready:
+    when: { knowledge_is_rich: true }
+    artifact: "baseline_video_guidelines"
+    unlocks: ["view_video_guidelines"]
+
+# context_cards.yaml (separate file)
+cards:
+  guidelines_ready_card:
+    display_conditions:  # ❌ DUPLICATE prerequisites
+      artifacts.baseline_video_guidelines.exists: true
+      user_actions.viewed_guidelines: false
+    content:
+      title: "ההנחיות מוכנות! 🎬"
+```
+
+**After (v3.5)** - Cards live IN moments:
+```yaml
+moments:
+  guidelines_ready:
+    when: { knowledge_is_rich: true }
+    artifact: "baseline_video_guidelines"
+
+    # 🌟 Card displays when moment triggers (event-driven)
+    card:
+      card_type: success
+      title: "ההנחיות מוכנות! 🎬"
+      body: "הכנתי לך הנחיות..."
+      actions: [view_video_guidelines]
+```
+
+**Domain-Agnostic Context** - Backend no longer hardcodes fields:
+```python
+# Before: Domain-specific field extraction
+context = {
+    "child_name": extracted_data.get("child_name"),  # ❌ Hardcoded
+    "primary_concerns": extracted_data.get("primary_concerns"),
+}
+
+# After: Generic structure passing
+context = {
+    "extracted_data": session.extracted_data,  # ✅ Cards pick what they need
+    "artifacts": session.artifacts,
+}
+```
+
+**Accurate Message Timing** - User messages saved BEFORE lifecycle checks:
+- Fixes off-by-one message_count bug
+- Ensures knowledge_is_rich triggers at correct time
+- Moments appear when they should
+
+**Result**: Zero card duplication, domain-agnostic backend, accurate prerequisites.
 
 ---
 
@@ -585,6 +646,89 @@ always_available:
 | **Message location** | Separate `lifecycle_events` section | Directly in moment |
 | **UI guidance** | Nested `ui_context` with card-specific fields | Flat `ui` with platform fields |
 | **Total sections** | 7 (artifacts, capabilities, lifecycle_events, prerequisite_rules, state_indicators, metadata, philosophy) | 3 (always_available, moments, metadata) |
+
+### v3.5: Event-Driven Card Architecture
+
+**Two Types of Cards**:
+
+1. **Event-Triggered Cards** (in `lifecycle_events.yaml`)
+   - One-time celebrations/transitions
+   - Display when moment triggers
+   - Live IN the moment definition
+   - No separate display_conditions needed
+
+2. **State-Driven Cards** (in `context_cards.yaml`)
+   - Persistent indicators/reminders
+   - Display while conditions are true
+   - Examples: conversation_depth, video_guidelines_reminder
+
+**Example:**
+
+```yaml
+# lifecycle_events.yaml
+moments:
+  guidelines_ready:
+    when: { knowledge_is_rich: true }
+    artifact: "baseline_video_guidelines"
+
+    # 🌟 Card appears when moment triggers (event-driven)
+    card:
+      card_type: success
+      priority: 100
+      title: "ההנחיות מוכנות! 🎬"
+      body: "הכנתי לך הנחיות צילום מותאמות ל{child_name}."
+      actions: [view_video_guidelines]
+      dismissible: false
+```
+
+**Backend Flow:**
+
+```python
+# 1. Moment triggers
+lifecycle_result = await lifecycle_manager.process_lifecycle_events(...)
+
+# 2. Extract event cards
+event_cards = self._extract_event_cards(lifecycle_result)
+
+# 3. Generate state cards
+state_cards = card_generator.get_visible_cards(context)
+
+# 4. Merge: Event cards first (higher priority)
+context_cards = event_cards + state_cards
+
+# 5. Send to frontend
+return {"ui_data": {"cards": context_cards}}
+```
+
+**Domain-Agnostic Context:**
+
+Backend passes generic structures, cards resolve fields via placeholders:
+
+```python
+# Backend (domain-agnostic)
+context = {
+    "extracted_data": session.extracted_data,  # Whole object
+    "artifacts": session.artifacts,
+    "message_count": len(conversation_history),
+}
+
+# Card YAML (domain-specific)
+title: "פרופיל: {child_name}"  # Resolved from extracted_data.child_name
+body: "גיל {age}"               # Resolved from extracted_data.age
+```
+
+**Message Timing Fix:**
+
+User messages now saved BEFORE lifecycle checks for accurate message_count:
+
+```python
+# 1. Extract data from user message
+# 2. 💾 Save user message (NEW: moved before lifecycle)
+# 3. 🔄 Refresh session (get updated count)
+# 4. ✅ Check lifecycle events (sees correct message_count)
+# 5. Generate response
+# 6. 💾 Save assistant response
+```
 | **Lines of config** | 360 | 208 |
 
 #### Example: Complete Moment

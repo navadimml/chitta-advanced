@@ -1,0 +1,163 @@
+# ========================================
+# 🌟 WU WEI: APPLICATION MESSAGES
+# ========================================
+# Centralizes all user-facing messages and system triggers
+# No more hardcoded Hebrew text in Python code!
+#
+# Version: 1.0
+# Purpose: Separate domain content (Hebrew text) from framework code
+# Created: 2025-11-24
+
+version: "1.0"
+message_catalog_name: "chitta_app_messages"
+
+# ========================================
+# SYSTEM TRIGGERS
+# ========================================
+# Keywords that trigger system actions (demo mode, test mode, etc.)
+
+system_triggers:
+  start_demo:
+    keywords:
+      en:
+        - "demo"
+        - "start demo"
+        - "start_demo"
+      he:
+        - "דמו"
+        - "התחל דמו"
+    pattern: "word_boundary"  # Use \b regex word boundaries
+    description: "Triggers demo mode with simulated parent interaction"
+
+  start_test_mode:
+    keywords:
+      en:
+        - "test"
+        - "start test"
+        - "start_test"
+      he:
+        - "טסט"
+        - "מצב בדיקה"
+    pattern: "word_boundary"
+    description: "Triggers test mode for developers with parent personas"
+
+# ========================================
+# DEMO MODE MESSAGES
+# ========================================
+
+demo_mode:
+  ui_data:
+    demo_mode: true
+    suggestions:
+      - "המשך דמו"
+      - "עצור דמו"
+      - "דלג לשלב הבא"
+    hint: "זהו מצב דמו - התגובות מגיעות מתסריט מוכן מראש"
+
+# ========================================
+# TEST MODE MESSAGES
+# ========================================
+
+test_mode:
+  response_template: |
+    🧪 מצב בדיקה
+
+    הבנתי שאת רוצה לבדוק את המערכת! יש לי {persona_count} פרסונות הורים מוכנות:
+
+    {persona_list}
+
+    כדי להתחיל, השתמשי ב-API של מצב הבדיקה (/test/start) או בממשק המיוחד למפתחים.
+
+  ui_data:
+    test_mode_available: true
+    suggestions:
+      - "המשך שיחה רגילה"
+    hint: "מצב בדיקה זמין - השתמשי ב-API או בפאנל המפתחים"
+
+# ========================================
+# ERROR MESSAGES
+# ========================================
+
+errors:
+  technical_error:
+    response: "מצטערת, נתקלתי בבעיה טכנית. בואי ננסה שוב."
+    suggestions:
+      - "נסה שוב"
+      - "דבר עם תמיכה"
+    log_level: "error"
+
+  unknown_action:
+    explanation_template: "פעולה לא מוכרת: {action_id}"
+    log_level: "warning"
+
+  session_not_found:
+    response: "לא מצאתי את הפגישה. בואי נתחיל מחדש?"
+    suggestions:
+      - "התחל שיחה חדשה"
+    log_level: "warning"
+
+  action_validation_failed:
+    explanation_template: "לא ניתן לבצע את הפעולה: {reason}"
+    log_level: "info"
+
+# ========================================
+# SUCCESS MESSAGES
+# ========================================
+
+success:
+  action_completed:
+    response_template: "בוצע בהצלחה: {action_name}"
+    log_level: "info"
+
+# ========================================
+# SUGGESTIONS (CONTEXTUAL)
+# ========================================
+# Dynamic suggestions based on conversation state
+
+suggestions:
+  generic:
+    - "ספרי לי יותר"
+    - "מה הלאה?"
+    - "יש לי שאלה"
+
+  after_error:
+    - "נסה שוב"
+    - "דבר עם תמיכה"
+    - "התחל מחדש"
+
+  demo_active:
+    - "המשך דמו"
+    - "עצור דמו"
+    - "דלג לשלב הבא"
+
+  test_available:
+    - "המשך שיחה רגילה"
+    - "הפעל מצב בדיקה"
+
+# ========================================
+# UI HINTS
+# ========================================
+
+hints:
+  demo_mode: "זהו מצב דמו - התגובות מגיעות מתסריט מוכן מראש"
+  test_mode: "מצב בדיקה זמין - השתמשי ב-API או בפאנל המפתחים"
+  normal_conversation: "שיחה רגילה - אני כאן לעזור"
+
+# ========================================
+# METADATA
+# ========================================
+
+metadata:
+  language: "he"
+  fallback_language: "en"
+  last_updated: "2025-11-24"
+  maintainer: "Chitta Development Team"
+  notes: |
+    This file contains all user-facing messages and system triggers.
+
+    Guidelines:
+    - Keep Hebrew text natural and conversational
+    - Use {placeholders} for dynamic content
+    - Always provide suggestions for user guidance
+    - Include log_level for proper logging
+    - Test trigger keywords to avoid false positives
