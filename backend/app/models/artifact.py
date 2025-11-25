@@ -67,8 +67,15 @@ class Artifact(BaseModel):
 
     @property
     def exists(self) -> bool:
-        """Check if artifact exists and is ready."""
-        return self.status == "ready"
+        """
+        Check if artifact exists in the system.
+
+        Returns True if the artifact has been created (regardless of status).
+        Use is_ready to check if content is available.
+        """
+        # Artifact exists if it has any valid status (pending, generating, ready, or error)
+        # Only "not_created" or missing artifact should return False
+        return self.status in ("pending", "generating", "ready", "error")
 
     @property
     def is_pending(self) -> bool:

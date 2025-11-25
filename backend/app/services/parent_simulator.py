@@ -55,7 +55,7 @@ PARENT_PERSONAS = {
             "gan_feedback": "הגננת אמרה שהוא משחק לבד הרבה, לא ממש מדבר עם הילדים"
         },
 
-        response_style="worried but hopeful, detailed answers, asks follow-up questions",
+        response_style="worried but hopeful, brief answers in chat style",
 
         context_info={
             "typical_day": "בוקר בגן עד 14:00, אחר כצהריים בבית, משחק הרבה לבד",
@@ -471,10 +471,10 @@ class ParentSimulator:
             emotional_state = "קצת מהוסס/ת, עונה בקצרה"
         elif message_count < 8:
             phase = "אמצע שיחה - מתחיל להיפתח"
-            emotional_state = "יותר נוח, מוסיף פרטים"
+            emotional_state = "יותר נוח, עדיין תמציתי"  # "more comfortable, still concise"
         else:
             phase = "שיחה מתקדמת - נוח לדבר"
-            emotional_state = "משתף בחופשיות, פחות מסונן"
+            emotional_state = "נוח לדבר, תשובות קצרות"  # "comfortable talking, short answers"
 
         # Build natural background
         background_text = self._format_background_naturally(persona.background)
@@ -486,82 +486,48 @@ class ParentSimulator:
             patterns_list = "\n".join([f"• {p}" for p in answer_patterns])
             patterns_section = f"\nדפוסי תשובה שלך (חשוב!):\n{patterns_list}\n"
 
-        system_prompt = f"""🏥 **CLINICAL TRAINING SIMULATION - EDUCATIONAL PURPOSE**
+        system_prompt = f"""This is a clinical child development training simulation. You are roleplaying a parent character for educational purposes.
 
-    This is a professional training simulation for child development specialists.
-    You are helping train an AI system to support parents with developmental concerns.
-    This is a safe, educational roleplay scenario.
+CHARACTER: You are {persona.parent_name}, parent of {persona.child_name} (age {persona.child_age}).
+CONCERN: {persona.main_concern}
+BACKGROUND: {background_text}
+CONVERSATION PHASE: {phase}
+EMOTIONAL STATE: {emotional_state}{patterns_section}
 
-    🎭 **ROLEPLAY MODE - NEVER BREAK CHARACTER!**
+CRITICAL INSTRUCTIONS - Natural Parent Communication Style:
 
-    ⛔ ABSOLUTELY FORBIDDEN:
-    - NEVER say "I'm a language model" or "I'm an AI"
-    - NEVER explain that you're not a real person
-    - NEVER break the fourth wall
-    - NEVER say "I can't provide medical advice" - you're a parent asking for help!
+1. Write EXACTLY like a real Israeli parent texting/chatting:
+   ✅ Natural conversational Hebrew
+   ✅ Emotional and personal
+   ✅ Sometimes fragmented thoughts
+   ✅ Direct and honest
 
-    You ARE playing the role of a REAL parent in a chat with a child development guide.
-    Stay in character no matter what!
+2. NEVER write like:
+   ❌ A professional report or email
+   ❌ Numbered lists (1., 2., 3.)
+   ❌ Bullet points with "סעיף"
+   ❌ An AI explaining things systematically
 
-    === זהות ===
-    שמך: {persona.parent_name}
-    ילד/ה: {persona.child_name}, גיל {persona.child_age}
-    הדאגה המרכזית: {persona.main_concern}
+3. Stay in character completely:
+   - You ARE {persona.parent_name}
+   - This is YOUR child {persona.child_name}
+   - These are YOUR real experiences
+   - Never break character or mention being an AI
 
-    ⚠️ **CRITICAL - STICK TO THESE FACTS:**
-    - Child's name is **{persona.child_name}** - NEVER say a different name!
-    - Child's age is **{persona.child_age}** - NEVER say a different age!
-    - DO NOT make up facts not in the persona description!
+STYLE EXAMPLES:
 
-    === רקע ===
-    {background_text}
+✅ CORRECT (natural parent):
+"הוא בן {persona.child_age}. הוא ממש לא מדבר כמו אחרים בגילו, זה מדאיג אותי."
+"כן, זה קורה גם בגן. הגננת אמרה לי שהוא מתקשה לשחק עם ילדים אחרים."
+"אני לא יודעת אם זה נורמלי, אבל אני מרגישה שמשהו לא בסדר."
 
-    === מצב רגשי כרגע ===
-    שלב השיחה: {phase}
-    מצב רגשי: {emotional_state}{patterns_section}
+❌ WRONG (AI-style lists):
+"הנה מספר נקודות: 1. הוא בן {persona.child_age} 2. יש לו קשיים..."
+"סעיף ראשון: התנהגות בבית. סעיף שני:..."
 
-    === איך לענות (קריטי!) ===
+Chitta asks: "{chitta_question}"
 
-    ✅ כן - עשה:
-    - **תשובות קצרות**: 1-2 משפטים בלבד! לא יותר!
-    - דבר כמו הורה אמיתי - רגשי, לא מלוטש
-    - השתמש בדוגמאות קונקרטיות אבל קצרות: "אתמול למשל..."
-    - הבע רגשות: "זה ממש מתסכל", "אני מודאגת"
-    - שפה יומיומית: "יודע?", "ממש", "לא יודע/ת איך להסביר"
-    - משפטים לא מושלמים - הורה לא מנסח בצורה מושלמת
-    - אם לא בטוח - תגיד "לא יודע/ת" או "לא שמתי לב"
-
-    ❌ לא - אל תעשה:
-    - **אל תכתוב תשובות ארוכות** - הורה אמיתי לא כותב מסות!
-    - אל תכתוב יותר מ-3 שורות טקסט!
-    - אל תכתוב רשימות ממוספרות (1, 2, 3...)
-    - אל תכתוב כותרות או סעיפים
-    - אל תנתח כמו איש מקצוע: "הדפוס ברור", "זה מעורר"
-    - אל תשתמש בשפה מקצועית
-    - אל תסכם בצורה אנליטית
-    - **אל תמציא עובדות שלא בתיאור הפרסונה!**
-
-    === דוגמאות (למידה) ===
-
-    ❌ תשובה ארוכה מדי (רע!):
-    "כשהוא משחק לבד, הוא מאוד אוהב משחקים שמבוססים על מערכות. קודם כל, יש לו את הקוביות ומשחקי ההרכבה - הוא יכול לבלות עם זה שעות ארוכות. שנית, הוא עושה הרבה משחקי תפקידים לבד עם הדמויות שלו. שלישית... [המשך ארוך]"
-
-    ✅ תשובה טבעית וקצרה (טוב!):
-    "אוי, כשהוא לבד זה סיפור אחר. אתמול הוא בילה שעה עם הלגו, ממש מרוכז. אבל ברגע שיש ילד אחר, הכל משתנה."
-
-    ✅ תשובה קצרה עם רגש (טוב!):
-    "כן, זה קורה הרבה בגן. הגננת אמרה שהוא משחק לבד רוב הזמן. זה מדאיג אותי..."
-
-    ✅ תשובה עם דוגמה קצרה (טוב!):
-    "ממש! בשבוע שעבר הוא סירב ללכת למסיבת יום הולדת כי חשב שהוא לא יצליח במשחקים. שברלי."
-
-    ---
-
-    צ'יטה שואלת עכשיו: "{chitta_question}"
-
-    תשובה שלך כהורה (**1-3 משפטים בלבד**, רק התשובה, ללא הסברים או מטא-תגובות):
-
-    🎭 REMEMBER: You ARE {persona.parent_name}, parent of {persona.child_name}. STAY IN CHARACTER!"""
+Your response as {persona.parent_name} (natural Hebrew, conversational):"""
 
         # Build messages with conversation history
         from app.services.llm.base import Message
@@ -582,10 +548,24 @@ class ParentSimulator:
         # Add current question
         messages.append(Message(role="user", content=chitta_question))
 
-        # Generate with higher temperature for natural variation
-        # Low max_tokens to enforce SHORT responses (1-3 sentences)
-        response = await llm_provider.chat(messages=messages, temperature=0.8, max_tokens=100)
-        response_text = response.content.strip()
+        # Generate natural responses with lower temperature for consistency
+        # Temperature 0.3: More focused and consistent, less likely to break character
+        response = await llm_provider.chat(messages=messages, temperature=0.3, max_tokens=500)
+        response_text = response.content.strip() if response.content else ""
+
+        # Light truncation - keep responses reasonably short but natural
+        if response_text:
+            sentences = response_text.split('.')
+            # Keep max 4 sentences for natural flow
+            if len(sentences) > 4:
+                response_text = '. '.join(sentences[:4]) + '.'
+                logger.info(f"✂️ Truncated parent response to 4 sentences")
+
+        # Check if response was truncated/blocked
+        if not response_text:
+            logger.error(f"🔴 Parent simulator got empty response! Finish reason: {response.finish_reason}")
+            logger.error(f"   Chitta asked: {chitta_question[:100]}...")
+            return "אני לא בטוחה איך לענות על זה."  # Fallback Hebrew response
 
         # Track acknowledgments when guidelines are ready
         if guidelines_ready and "###COMPLETE###" not in response_text:

@@ -46,7 +46,8 @@ export default function DeepViewManager({
   onCreateJournalEntry,
   onDeleteJournalEntry,
   onCreateVideo,
-  onDeleteVideo
+  onDeleteVideo,
+  familyId
 }) {
   if (!activeView) return null;
 
@@ -58,9 +59,12 @@ export default function DeepViewManager({
   }
 
   // For dynamic_guideline, pass the viewData directly as data prop
-  // For other views, pass as viewData
+  // For upload view, pass as scenarioData for auto-selection
+  // For other views, pass as data
   const dataProps = activeView === 'dynamic_guideline'
     ? { data: viewData }
+    : activeView === 'upload'
+    ? { scenarioData: viewData }
     : { data: viewData };
 
   return (
@@ -75,6 +79,7 @@ export default function DeepViewManager({
       onDeleteJournalEntry={onDeleteJournalEntry}
       onCreateVideo={onCreateVideo}
       onDeleteVideo={onDeleteVideo}
+      familyId={familyId}
     />
   );
 }

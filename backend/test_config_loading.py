@@ -13,7 +13,7 @@ from pathlib import Path
 backend_path = Path(__file__).parent
 sys.path.insert(0, str(backend_path))
 
-from app.config import config_loader, schema_registry, action_registry, phase_manager
+from app.config import config_loader, schema_registry, action_registry
 from app.config import artifact_manager, card_generator, view_manager
 
 
@@ -31,10 +31,9 @@ def test_config_loader():
         configs = {
             "extraction_schema": loader.load_extraction_schema,
             "action_graph": loader.load_action_graph,
-            "phases": loader.load_phases,
             "artifacts": loader.load_artifacts,
-            "context_cards": loader.load_context_cards,
             "deep_views": loader.load_deep_views,
+            "workflow": loader.load_workflow,
         }
 
         for name, load_fn in configs.items():
@@ -138,50 +137,6 @@ def test_action_registry():
         return False
 
 
-def test_phase_manager():
-    """Test phase manager."""
-    print("=" * 60)
-    print("Testing PhaseManager...")
-    print("=" * 60)
-
-    try:
-        manager = phase_manager.get_phase_manager()
-        print("✓ PhaseManager initialized")
-
-        # Get all phases
-        phases = manager.get_all_phases()
-        print(f"✓ Found {len(phases)} phase definitions")
-        for phase_id in phases.keys():
-            print(f"  - {phase_id}")
-
-        # Get initial phase
-        initial = manager.get_initial_phase()
-        print(f"✓ Initial phase: {initial}")
-
-        # Get phase details
-        screening = manager.get_phase("screening")
-        if screening:
-            print(f"✓ Screening phase: {screening.name}")
-            print(f"  - Threshold: {screening.completeness_threshold}")
-            print(f"  - Mode: {screening.conversation_mode}")
-            print(f"  - Actions: {len(screening.available_actions)}")
-
-        # Test transition check
-        test_context = {"reports_ready": True, "child_name": "Test"}
-        transition = manager.check_transition_trigger("screening", test_context)
-        if transition:
-            print(f"✓ Transition available: {transition.from_phase} → {transition.to_phase}")
-
-        print("\n✅ PhaseManager working correctly!\n")
-        return True
-
-    except Exception as e:
-        print(f"\n❌ Error in PhaseManager: {e}\n")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
 def test_artifact_manager():
     """Test artifact manager."""
     print("=" * 60)
@@ -197,15 +152,20 @@ def test_artifact_manager():
         print(f"✓ Found {len(artifacts)} artifact definitions")
 
         # Get specific artifact
-        report = manager.get_artifact("parent_report")
+        report = manager.get_artifact("baseline_parent_report")
         if report:
-            print(f"✓ parent_report artifact: {report.get('name_en')}")
-            states = manager.get_artifact_states("parent_report")
+            print(f"✓ baseline_parent_report artifact: {report.get('name_en')}")
+            states = manager.get_artifact_states("baseline_parent_report")
             print(f"  - States: {states}")
 
-        # Get phase artifacts
-        screening_artifacts = manager.get_artifacts_for_phase("screening")
-        print(f"✓ {len(screening_artifacts)} artifacts in screening phase")
+        # Get system-generated artifacts (with generators)
+        system_artifacts = manager.get_system_generated_artifacts()
+        print(f"✓ {len(system_artifacts)} system-generated artifacts")
+
+        # Test generator config retrieval
+        gen_config = manager.get_generator_config("baseline_video_guidelines")
+        if gen_config:
+            print(f"✓ Generator config for baseline_video_guidelines: method={gen_config.get('method')}")
 
         print("\n✅ ArtifactManager working correctly!\n")
         return True
@@ -304,7 +264,6 @@ def main():
         ("ConfigLoader", test_config_loader),
         ("SchemaRegistry", test_schema_registry),
         ("ActionRegistry", test_action_registry),
-        ("PhaseManager", test_phase_manager),
         ("ArtifactManager", test_artifact_manager),
         ("CardGenerator", test_card_generator),
         ("ViewManager", test_view_manager),

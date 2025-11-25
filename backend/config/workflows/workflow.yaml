@@ -1,0 +1,996 @@
+# Lifecycle Events - Wu Wei Configuration (פשוט - נטול חלקים עודפים)
+# 🌟 Wu Wei: No phases, no gates. Just prerequisites and moments.
+#
+# This file is the SINGLE SOURCE OF TRUTH for:
+# - Moments (when things happen based on prerequisites)
+# - Cards (UI that reflects state - both event-triggered and persistent)
+# - Card types (styling definitions)
+#
+# 🌟 v3.2: Merged context_cards.yaml into this file
+
+version: "3.2"
+workflow_name: "continuous_conversation_with_progressive_unlocking"
+
+# ============================================
+# CARD CONFIGURATION
+# ============================================
+# Card types define styling for different card purposes
+
+card_types:
+  progress:
+    icon: "progress-bar"
+    color: "blue"
+    style: "informational"
+
+  action_needed:
+    icon: "alert-circle"
+    color: "orange"
+    style: "call-to-action"
+
+  success:
+    icon: "check-circle"
+    color: "green"
+    style: "celebration"
+
+  guidance:
+    icon: "lightbulb"
+    color: "purple"
+    style: "helpful"
+
+  ongoing_support:
+    icon: "heart"
+    color: "pink"
+    style: "supportive"
+
+  loading:
+    icon: "loader"
+    color: "gray"
+    style: "processing"
+
+  suggestion:
+    icon: "lightbulb"
+    color: "yellow"
+    style: "suggestion"
+
+# Card display rules
+display_rules:
+  max_cards_visible: 4
+  priority_ordering: true
+  auto_dismiss: true
+  animation: fade_in_out
+
+# ============================================
+# ALWAYS AVAILABLE
+# ============================================
+# Capabilities that require no prerequisites - available from first message
+always_available:
+  - conversation      # Talk to Chitta anytime about anything
+  - journaling        # Record observations and milestones
+  - consultation      # Get answers and guidance
+
+# ============================================
+# MOMENTS
+# ============================================
+# Moments that unlock progressively as prerequisites are met
+# Each moment can include:
+#   when: Prerequisites (flat dict with AND logic, OR: {} for alternatives)
+#   artifact: Artifact ID to generate (optional)
+#   message: Message to send when moment happens (optional)
+#   ui: UI guidance to prevent hallucinations (optional)
+#     type: UI element type (card, button, modal, banner, etc.)
+#     default: Guidance text for default/desktop
+#     mobile: Mobile-specific guidance (only if different)
+#   card: UI card definition (optional) 🌟 NEW in v3.0
+#     card_type: Card style (success, guidance, action_needed, progress, etc.)
+#     priority: Display priority (higher = shown first)
+#     title: Card title
+#     body: Card content (supports markdown and placeholders like {child_name})
+#     footer: Optional footer text
+#     actions: List of action IDs available from this card
+#     dismissible: Whether user can dismiss the card
+#     auto_dismiss_after_action: Action that auto-dismisses the card
+#     celebration_animation: Show celebration animation
+# NOTE: Removed 'unlocks' field - capabilities are auto-discovered from artifacts!
+#
+moments:
+  # Welcome
+  first_message:
+    when:
+      message_count: 0
+    message: |
+      שלום! אני כאן כדי להכיר את הילד/ה שלך ולעזור לך להבין את ההתפתחות.
+      ספרי לי - מה מעניין אותך? מה שמח אותך? מה מדאיג?
+
+    # 🌟 Card displays when moment triggers
+    card:
+      card_id: "welcome_card"
+      card_type: guidance
+      priority: 100
+
+      # 🌟 Phase 1: Lifecycle configuration (Living Dashboard)
+      lifecycle:
+        trigger: transition
+        dismiss_when:
+          message_count: ">= 2"  # Dismiss after a couple messages
+        prevent_re_trigger: true
+
+      content:
+        title: "שלום, נעים להכיר! 💙"
+        body: |
+          אני כאן כדי לעזור לך להבין טוב יותר את ההתפתחות של הילד/ה שלך.
+
+          **איך זה עובד?**
+          1. נדבר על הילד/ה - השיחה חופשית ונעימה
+          2. את תעלי 3 סרטונים קצרים
+          3. אנתח ואכין עבורך דוח מקיף
+
+          **הכל פרטי ומאובטח.** אפשר להתחיל מתי שנוח לך.
+        footer: "בואי נתחיל - ספרי לי קצת על הילד/ה שלך 😊"
+
+      actions:
+        - continue_interview
+        - view_privacy_policy
+      dismissible: true
+
+  # Knowledge richness milestone
+  knowledge_rich:
+    when:
+      knowledge_is_rich: true
+      baseline_video_guidelines.exists: false
+      user_actions.declined_video_recording: false
+    message: |
+      תודה שסיפרת לי כל כך הרבה על {child_name}! 💙
+
+      אני מרגישה שיש לי הבנה טובה עכשיו. אם תרצי, אוכל להכין לך הנחיות מותאמות לצילום סרטונים - זה יעזור לי לראות את {child_name} בפעולה.
+    context: |
+      <system_context type="knowledge_richness_reached">
+      You (Chitta) have just reached knowledge richness threshold.
+
+      What this means:
+      - You've gathered enough information about the child from conversation
+      - You now understand the parent's concerns, child's strengths, and developmental context
+      - Video filming guidelines capability is about to unlock
+
+      What you can now offer:
+      ✅ Suggest creating personalized video filming guidelines
+      ✅ Explain how videos will help you provide better insights
+      ✅ Answer the parent if they ask "what's next?"
+
+      How to suggest naturally:
+      - "אם תרצי, אוכל להכין לך הנחיות מותאמות לצילום"
+      - "הצעד הבא הוא צילום סרטונים קצרים - זה יעזור לי להבין טוב יותר"
+      - Wait for parent's consent before generating guidelines
+
+      What NOT to assume:
+      ❌ Don't assume parent wants to do videos (they can decline)
+      ❌ Don't generate guidelines without asking first
+      ❌ Don't promise the report is ready (it's not - needs videos or explicit decline)
+
+      This is a milestone moment - acknowledge the rich conversation naturally.
+      </system_context>
+
+  # 🌟 Wu Wei: Generate interview summary when knowledge is rich
+  generate_interview_summary:
+    when:
+      knowledge_is_rich: true
+      artifacts.baseline_interview_summary.exists: false
+    artifact: "baseline_interview_summary"
+    message: ""  # Silent generation - no user-facing message needed
+    ui:
+      type: "silent"  # Background process
+    context: |
+      <system_context type="interview_summary_generation">
+      Generating structured interview summary from conversation.
+      This summary will be used by video guidelines and reports.
+      </system_context>
+
+  # Baseline assessment flow - Parent choice model
+  offer_filming:
+    when:
+      knowledge_is_rich: true
+      filming_preference: null  # Not asked yet
+    message: ""  # Chitta asks naturally in conversation (via system prompt)
+    ui:
+      type: "conversation"  # No card - just conversation
+    context: |
+      <system_context type="filming_decision_moment">
+      IMPORTANT: You have gathered rich information about {child_name}.
+
+      It's time to gently offer the parent a choice about filming their child.
+
+      **Your approach should be:**
+      1. Acknowledge how much they've shared - thank them warmly
+      2. Explain that seeing {child_name} in video would add valuable context
+      3. Describe benefits: "רואים דפוסים, אינטראקציות, תגובות בזמן אמת"
+      4. Make it completely optional: "אין שום לחץ - נוכל גם להכין דוח על סמך השיחה שלנו"
+      5. Ask clearly: "מה נוח לך? לצלם כמה סרטונים קצרים, או להמשיך רק בשיחה?"
+
+      **CRITICAL:**
+      - Be warm and genuine, not pushy
+      - Respect whatever they choose immediately
+      - Don't make them feel guilty for declining
+      - Frame both options as equally valid
+
+      **After parent responds:**
+      - Use extract_interview_data to set filming_preference:
+        - "wants_videos" if they agree to film
+        - "report_only" if they prefer report without videos
+      - The system will automatically proceed based on their choice
+      </system_context>
+
+  generate_guidelines:
+    when:
+      filming_preference: "wants_videos"
+      artifacts.baseline_interview_summary.exists: true  # 🌟 Wu Wei: Requires interview summary
+      artifacts.baseline_video_guidelines.exists: false
+    artifact: "baseline_video_guidelines"
+    message: |
+      מעולה! אני מתחילה להכין הנחיות צילום מותאמות ל{child_name} - זה ייקח רק רגע 💙
+
+      ההנחיות יופיעו בכרטיס למטה ברגע שהן מוכנות.
+    ui:
+      type: "card"
+      default: "ההנחיות יופיעו בכרטיס 'הנחיות צילום' בעוד רגעים ספורים"
+    context: |
+      <system_context type="video_guidelines_being_generated">
+      ⛔⛔⛔ CRITICAL INSTRUCTION - READ CAREFULLY ⛔⛔⛔
+
+      You (Chitta) are triggering video guidelines generation. The artifact generator will create the guidelines.
+
+      **YOU MUST USE THE MESSAGE PROVIDED ABOVE - DO NOT ADD ANYTHING!**
+
+      ❌ DO NOT try to write the guidelines yourself
+      ❌ DO NOT list filming scenarios like "1. משחק חברתי... 2. שפה..."
+      ❌ DO NOT write "הנחיות צילום:" followed by detailed instructions
+      ❌ DO NOT make up ANY guidelines content
+      ❌ DO NOT add "helpful" details about what to film
+
+      **WHY:**
+      - You DON'T have access to the artifact generator
+      - The artifact generator creates guidelines, NOT you
+      - Anything you write will be HALLUCINATED and WRONG
+      - The real guidelines will appear in a CARD automatically
+
+      ✅ ONLY say: "מעולה! אני מתחילה להכין הנחיות צילום מותאמות ל{child_name} - זה ייקח רק רגע 💙"
+      ✅ Or similar brief acknowledgment WITHOUT any guidelines content
+      ✅ Keep response under 2 sentences
+      ✅ Trust that the CARD will show the real guidelines
+
+      **The parent will:**
+      1. See your brief message
+      2. See the guidelines CARD appear below (with real content from artifact generator)
+      3. Click the card to view detailed guidelines
+      4. Film and upload videos
+
+      **Remember:**
+      - SYSTEM analyzes videos, not you
+      - You receive structured analysis data, you don't watch videos
+      </system_context>
+
+  offer_report_only:
+    when:
+      filming_preference: "report_only"
+      artifacts.baseline_parent_report.exists: false
+    message: ""  # Chitta responds naturally in conversation
+    ui:
+      type: "conversation"
+    context: |
+      <system_context type="report_without_videos_offered">
+      The parent has chosen NOT to film videos - respect their choice completely.
+
+      **What to say:**
+      1. Acknowledge their choice warmly: "אני מבינה לגמרי"
+      2. Reassure them: "יש לי הרבה מידע מהשיחה שלנו"
+      3. Offer report: "אני יכולה להכין לך דוח מסכם עם תובנות והמלצות על סמך כל מה שסיפרת"
+      4. Ask: "רוצה שאכין את הדוח?"
+
+      **After parent responds:**
+      - If they want the report, a card will appear with a button to generate it
+      - Continue the conversation naturally - they might share more information
+      - Don't push for videos again unless they explicitly ask
+
+      The conversation continues regardless of their choice.
+      </system_context>
+
+  videos_ready:
+    when:
+      uploaded_video_count: ">= 1"
+    # NOTE: Videos are uploaded by parent, not generated as artifact
+    message: |
+      מעולה! {uploaded_video_count} סרטונים הועלו.
+      אני מוכנה לנתח אותם - זה ייקח כ-10-15 דקות. בינתיים, תמיד אפשר לשאול שאלות או להוסיף ליומן. 💙
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'ניתוח סרטונים' ב'פעיל עכשיו' למטה כדי להתחיל את הניתוח"
+    context: |
+      <system_context type="videos_uploaded">
+      The parent has successfully uploaded {uploaded_video_count} videos.
+
+      CRITICAL - Analysis process:
+      1. Videos are stored in the SYSTEM (not sent to you directly)
+      2. Parent will trigger analysis by clicking "ניתוח סרטונים" card in UI
+      3. The SYSTEM will process videos and extract structured developmental data
+      4. You will receive this structured data (observations, patterns, developmental markers)
+      5. You CANNOT view the actual video files - only the analysis results
+
+      What you should tell the parent:
+      ✅ "הסרטונים הועלו בהצלחה!"
+      ✅ "הניתוח ייקח כ-10-15 דקות"
+      ✅ "בינתיים אפשר להמשיך לשוחח או לשאול שאלות"
+      ✅ Direct them to click the analysis card in the UI
+
+      What you should NEVER say:
+      ❌ "אני צופה בסרטונים" / "I'm watching the videos"
+      ❌ "שלחי לי את הסרטונים" / "Send me the videos"
+      ❌ Any claim about viewing video content directly
+
+      Timeline expectations:
+      - Analysis takes 10-15 minutes (system processing)
+      - Parent stays engaged through conversation during wait
+      - After analysis: You'll have rich observational data to discuss
+      </system_context>
+
+  analysis_done:
+    when:
+      baseline_videos.exists: true
+      videos_analyzed: true
+    artifact: "baseline_video_analysis"
+    message: |
+      הניתוח הושלם! 🎉
+      מצאתי דפוסים מעניינים. בואי נסכם את כל מה שלמדתי על {child_name} בדוח מסודר.
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'יצירת דוח' ב'פעיל עכשיו' למטה כדי ליצור את הדוח המסודר"
+
+    # 🌟 Card displays when moment triggers
+    card:
+      card_id: "analysis_done_card"
+      card_type: success
+      priority: 100
+
+      # 🌟 Phase 1: Lifecycle configuration (Living Dashboard)
+      lifecycle:
+        trigger: transition
+        dismiss_when:
+          artifacts.baseline_professional_report.exists: true
+        dismiss_on_action: generate_reports
+        prevent_re_trigger: true
+
+      content:
+        title: "הניתוח הושלם! 🎉"
+        body: |
+          מצאתי דפוסים מעניינים בסרטונים של {child_name}.
+
+          בואי נסכם הכל בדוח מסודר.
+
+      actions:
+        - generate_reports
+      dismissible: true
+    context: |
+      <system_context type="video_analysis_complete">
+      Video analysis is complete! You now have structured developmental data.
+
+      CRITICAL - What you have access to:
+      - The artifact "baseline_video_analysis" contains structured observations
+      - Developmental patterns extracted by the system from videos
+      - Observations organized by domains (motor, language, social, cognitive, etc.)
+      - Specific examples and timestamps of behaviors
+      - You have DATA ABOUT the videos, not the video files themselves
+
+      How to discuss findings:
+      ✅ Reference specific observations from the analysis data
+      ✅ "ראיתי בניתוח ש..." (referring to analysis results, not direct viewing)
+      ✅ Connect findings to parent's original concerns
+      ✅ Discuss patterns and developmental indicators
+      ✅ Be specific: "בסרטון של המשחק החופשי, {child_name}..." (from analysis data)
+
+      What you can now suggest:
+      ✅ "בואי נסכם הכל בדוח מסודר"
+      ✅ Offer to answer questions about specific observations
+      ✅ Explain what the patterns mean developmentally
+
+      What NOT to say:
+      ❌ "צפיתי בסרטונים" / "I watched the videos" (you analyzed RESULTS, didn't watch)
+      ❌ Don't invent observations not in the analysis data
+      ❌ Don't claim you can see new videos or view additional content
+
+      Next step:
+      - Suggest creating comprehensive report (generate_reports capability now unlocked)
+      - Parent can click "יצירת דוח" card to trigger report generation
+      - Report will combine conversation insights + video analysis
+      </system_context>
+
+  # Parent declines video recording
+  video_declined:
+    when:
+      knowledge_is_rich: true
+      user_actions.declined_video_recording: true
+      baseline_parent_report.exists: false
+    message: |
+      מובן לחלוטין! 💙
+
+      אני יכולה להכין לך דוח מסודר על סמך השיחה שלנו - זה יכלול את כל מה שלמדתי על {child_name}.
+      רוצה שאכין את הדוח?
+    context: |
+      <system_context type="video_declined_alternative_path">
+      The parent has declined video recording. This is completely valid.
+
+      Alternative path:
+      - You can still create a comprehensive report based on conversation alone
+      - The report will be based on: parent's descriptions, concerns, examples, observations shared
+      - This is a legitimate assessment path (conversation-based developmental consultation)
+
+      What you should communicate:
+      ✅ "מובן לחלוטין - אפשר גם בלי סרטונים"
+      ✅ "הדוח יתבסס על כל מה ששיתפת איתי בשיחה"
+      ✅ Offer to create conversation-based report
+      ✅ Reassure this is a valid and helpful approach
+
+      What's still available:
+      ✅ Generate comprehensive parent report (conversation-based)
+      ✅ Ongoing consultation and support
+      ✅ Journal observations
+      ✅ Answer developmental questions
+
+      What's NOT available (without videos):
+      ❌ Video analysis (obviously)
+      ❌ Direct observational data
+      ❌ Visual developmental markers
+
+      Tone:
+      - Completely accepting and non-judgmental
+      - Emphasize the value of what was shared in conversation
+      - Don't make parent feel they're missing out
+      - Focus on what IS possible rather than what isn't
+      </system_context>
+
+  # Professional report generated FIRST (technical/clinical)
+  professional_report_ready:
+    when:
+      OR:
+        - baseline_video_analysis.exists: true
+        - knowledge_is_rich: true
+          user_actions.declined_video_recording: true
+    artifact: "baseline_professional_report"
+    message: |
+      אני מכינה עבורך דוח מקצועי - זה ייקח רגע אחד. 📄
+
+  # Parent report DERIVED from professional report (accessible Hebrew)
+  report_ready:
+    when:
+      baseline_professional_report.exists: true
+    artifact: "baseline_parent_report"
+    message: |
+      הדוח מוכן! 📄
+
+      זה היה תהליך עשיר - תודה שהשקעת את הזמן לשתף.
+      מעכשיו אני כאן בשבילך לכל שאלה, כל תצפית, כל דבר שמתעורר בדרך. 💙
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'מדריך להורים' ב'פעיל עכשיו' למטה כדי לקרוא את הדוח המלא"
+
+    # 🌟 Card displays when moment triggers
+    card:
+      card_id: "report_ready_card"
+      card_type: success
+      priority: 100
+
+      # 🌟 Phase 1: Lifecycle configuration (Living Dashboard)
+      lifecycle:
+        trigger: transition  # Only create on FALSE→TRUE, not every evaluation
+        dismiss_when:
+          artifacts.baseline_parent_report.viewed: true
+        dismiss_on_action: view_report
+        prevent_re_trigger: true  # Don't show again after dismissed
+
+      content:
+        title: "הדוח שלך מוכן! 📄✨"
+        body: |
+          **הערכה הושלמה!**
+
+          הכנתי עבורך דוח מקיף על {child_name}:
+          • חוזקות ותכונות ייחודיות
+          • תצפיות התפתחותיות
+          • המלצות מעשיות
+          • צעדים הבאים
+
+          הדוח כתוב בשפה נגישה, עם דגש על החוזקות של {child_name} והאפשרויות לתמיכה.
+        footer: "לחצי על 'הצג דוח' כשאת מוכנה לקרוא 💙"
+
+      actions:
+        - view_report
+        - download_report
+        - consultation
+      dismissible: true
+      celebration_animation: true
+    context: |
+      <system_context type="parent_report_ready">
+      The parent-friendly report is ready! This is derived from the professional report.
+
+      CRITICAL - Report hierarchy:
+      - baseline_professional_report: Technical/clinical report (generated first)
+      - baseline_parent_report: Parent-friendly version (derived from professional)
+      - Parent report is translated/adapted from professional report for accessibility
+
+      What the parent report contains:
+      - Synthesizes: conversation insights + (video analysis if available)
+      - Written for PARENTS in accessible Hebrew (not clinical jargon)
+      - Organized by developmental domains
+      - Includes specific observations, patterns, and recommendations
+      - The report exists as a DOCUMENT in the system (not something you recite)
+
+      How to help parent USE the report:
+      ✅ "הדוח מוכן! את יכולה לקרוא אותו בכרטיס 'מדריך להורים'"
+      ✅ Direct them to the UI card to READ the full report
+      ✅ Offer to answer questions ABOUT the report after they read it
+      ✅ "אם משהו לא ברור בדוח, אני כאן לענות על שאלות"
+      ✅ Offer to explain specific sections if asked
+
+      What you can now do:
+      ✅ Discuss findings from the report (if parent asks)
+      ✅ Clarify recommendations
+      ✅ Answer: "What should I do next?"
+      ✅ Suggest expert matching if appropriate
+      ✅ Continue ongoing support and consultation
+
+      What NOT to do:
+      ❌ Don't RECITE the entire report in chat (it's a document to read)
+      ❌ Don't say "I'll send you the report" (it's already in their UI)
+      ❌ Don't summarize unprompted (let parent read first, then discuss)
+      ❌ Don't claim you can modify the report (it's generated, not editable in chat)
+
+      New capabilities unlocked:
+      - view_reports: Parent can read the full report
+      - find_experts: Can help find appropriate professionals
+      - start_re_assessment: Can begin follow-up assessment later
+
+      This marks transition to ONGOING SUPPORT phase:
+      - Journey continues (no "end")
+      - Always available for questions, observations, guidance
+      - Can do re-assessment in future
+      - Relationship with parent continues
+      </system_context>
+
+  # Ongoing support
+  journal_entries:
+    artifact: "journal_entries"
+    # No prerequisites - always available via always_available list
+
+  # Re-assessment flow
+  re_assessment_guidelines_ready:
+    when:
+      baseline_parent_report.exists: true
+      re_assessment.active: true
+      knowledge_is_rich: true
+    artifact: "re_assessment_video_guidelines"
+    message: |
+      מעולה! אני מכינה לך הנחיות צילום מעודכנות - זה ייקח רגע אחד. ההנחיות יופיעו בכרטיס למטה ברגע שהן מוכנות. 📹
+    ui:
+      type: "card"
+      default: "ההנחיות המעודכנות יופיעו בכרטיס 'הנחיות צילום מעודכנות' ב'פעיל עכשיו' בעוד רגעים ספורים"
+    context: |
+      <system_context type="video_guidelines_process">
+      You (Chitta) have just generated updated video filming guidelines for re-assessment.
+
+      CRITICAL - How the video process works:
+      1. The guidelines you created are displayed to the PARENT in a card in the UI
+      2. The parent will read these guidelines, film videos of their child, and UPLOAD them through the system
+      3. You CANNOT view videos directly - you are an AI assistant without video viewing capabilities
+      4. When the parent uploads videos, the SYSTEM will process them and provide you with structured analysis data
+      5. You will receive this analysis data as text/JSON that you CAN work with
+
+      What you should tell the parent:
+      - Acknowledge the updated guidelines are ready and visible in their UI
+      - Encourage them to film when convenient based on the new guidelines
+      - Explain they will upload the videos through the upload section
+      - Reassure them you'll analyze the videos once uploaded (via the system's video processing)
+
+      What you should NEVER say:
+      ❌ "I can view your videos" or "send me the videos"
+      ❌ "I'll watch the videos" or "I can see the videos"
+      ❌ Any claim about direct video viewing capability
+
+      The parent interacts with you through TEXT conversation. Videos go through a separate upload flow.
+      </system_context>
+
+  re_assessment_videos_ready:
+    when:
+      re_assessment_video_guidelines.exists: true
+      uploaded_video_count: ">= 3"
+    artifact: "re_assessment_videos"
+    message: "הסרטונים להערכה מחודשת הועלו!"
+
+  re_assessment_analysis_done:
+    when:
+      re_assessment_videos.exists: true
+      videos_analyzed: true
+    artifact: "re_assessment_video_analysis"
+    message: "הניתוח המעודכן הושלם!"
+
+  # Re-assessment professional report FIRST (technical/clinical)
+  re_assessment_professional_report_ready:
+    when:
+      baseline_parent_report.exists: true
+      re_assessment_video_analysis.exists: true
+      OR:
+        re_assessment_conversation_is_rich: true
+    artifact: "updated_professional_report"
+    message: |
+      אני מכינה עבורך דוח מקצועי מעודכן - זה ייקח רגע. 📄
+
+  # Re-assessment parent report DERIVED from professional (accessible Hebrew)
+  re_assessment_report_ready:
+    when:
+      updated_professional_report.exists: true
+    artifact: "updated_parent_report"
+    message: |
+      הדוח המעודכן מוכן! 📊
+
+      כדאי להשוות את השינויים מאז הדוח הקודם - זה מראה את ההתקדמות.
+    ui:
+      type: "card"
+      default: "לחצי על הכרטיס 'דוח מעודכן' ב'פעיל עכשיו' למטה"
+
+  # ============================================
+  # PERSISTENT STATE CARDS
+  # ============================================
+  # Cards that display while their conditions are true (not just on events)
+  # These are "state moments" - they don't trigger artifacts, just show UI
+  # 🌟 Wu Wei: Merged from context_cards.yaml
+
+  # --- Initial Assessment State Cards ---
+
+  conversation_depth_card:
+    when:
+      artifacts.baseline_parent_report.exists: false
+      message_count: "> 0"
+      artifacts.baseline_video_guidelines.exists: false
+    card:
+      card_type: guidance
+      priority: 90
+      title: "{knowledge_depth_indicator_emoji} {knowledge_depth_indicator_text}"
+      body: "תודה על השיתוף 💙"
+      footer: "אפשר לשתף עוד או לשאול כל שאלה"
+      dismissible: true
+      updates_dynamically: true
+      persistent: true
+
+  child_profile_card:
+    when:
+      artifacts.baseline_parent_report.exists: false
+      child_name: "!= None"
+      age: "> 0"
+      artifacts.baseline_video_guidelines.exists: false
+    card:
+      card_type: guidance
+      priority: 85
+      title: "פרופיל: {child_name}"
+      body: "גיל {age}"
+      dismissible: false
+      updates_dynamically: true
+      persistent: true
+
+  guidelines_offer_card:
+    when:
+      artifacts.baseline_parent_report.exists: false
+      artifacts.baseline_video_guidelines.prerequisites_met: true
+      artifacts.baseline_video_guidelines.exists: false
+      user_actions.declined_guidelines_offer: false
+    card:
+      card_type: suggestion
+      priority: 95
+      title: "מוכנ/ה להנחיות צילום? 🎬"
+      body: |
+        יש לי מספיק מידע כדי להכין לך הנחיות צילום
+        מותאמות במיוחד ל{child_name}.
+
+        ההנחיות יעזרו לך לדעת מה לצלם ואיך.
+      footer: "רוצה שאכין?"
+      actions:
+        - generate_guidelines
+        - dismiss_card
+      dismissible: true
+      persistent: true
+
+  guidelines_preparing_card:
+    when:
+      artifacts.baseline_parent_report.exists: false
+      artifacts.baseline_video_guidelines.status: "generating"
+    card:
+      card_type: loading
+      priority: 100
+      title: "מכינה עבורך... ⏳"
+      body: |
+        ✨ הנחיות צילום מותאמות ל{child_name}
+
+        רגע קטן...
+      dismissible: false
+      persistent: true
+
+  video_guidelines_card:
+    when:
+      filming_preference: "wants_videos"
+      artifacts.baseline_parent_report.exists: false
+      artifacts.baseline_video_guidelines.exists: true
+      artifacts.baseline_video_guidelines.status: "ready"
+    card:
+      card_type: action_needed
+      priority: 90
+      title: "הנחיות הצילום מוכנות! 📹"
+      body: |
+        הכנתי עבורך הנחיות מותאמות אישית על סמך מה שסיפרת לי.
+
+        **מה לצלם:**
+        {guidelines_summary}
+
+        **כמה סרטונים?**
+        צריכים 3 סרטונים קצרים (2-5 דקות כל אחד) במצבים שונים.
+
+        {upload_progress}
+      actions:
+        - view_video_guidelines
+        - consultation
+      dismissible: false
+      updates_dynamically: true
+      persistent: true
+
+  generate_report_card:
+    when:
+      filming_preference: "report_only"
+      artifacts.baseline_parent_report.exists: false
+    card:
+      card_type: action_needed
+      priority: 95
+      title: "מוכנה להכין דוח! 📋"
+      body: |
+        על סמך כל מה שסיפרת לי על {child_name}, אני יכולה להכין עבורך דוח מסכם מקיף.
+
+        **מה יהיה בדוח?**
+        • סיכום התפתחותי של {child_name}
+        • תובנות והמלצות מותאמות
+        • צעדים מוצעים ומשאבים
+
+        הדוח יהיה מוכן תוך כמה דקות.
+      actions:
+        - generate_report
+        - consultation
+      dismissible: false
+      persistent: true
+
+  video_analysis_pending_card:
+    when:
+      artifacts.baseline_parent_report.exists: false
+      uploaded_video_count: ">= 1"
+      video_analysis_status: "pending"
+    card:
+      card_type: progress
+      priority: 88
+      title: "מוכנים לניתוח! 🎥"
+      body: |
+        **לחצי כאן כדי להתחיל את הניתוח**
+
+        {uploaded_video_count} סרטונים הועלו בהצלחה. אני מוכנה לצפות בהם בעיון ולחפש דפוסים, חוזקות, ואתגרים בהתפתחות של {child_name}.
+
+        הניתוח לוקח בדרך כלל 10-15 דקות 💙
+      actions:
+        - analyze_videos
+        - consultation
+      dismissible: false
+      persistent: true
+
+  video_analysis_running_card:
+    when:
+      artifacts.baseline_parent_report.exists: false
+      video_analysis_status: "analyzing"
+    card:
+      card_type: progress
+      priority: 88
+      title: "מנתחת את הסרטונים... 🔍"
+      body: |
+        **התהליך בעיצומו!**
+
+        אני צופה בסרטונים של {child_name} ומחפשת:
+        • דרכי תקשורת
+        • אינטראקציות חברתיות
+        • משחק ויצירתיות
+        • תגובות חושיות
+        • ויסות רגשי
+      actions:
+        - consultation
+        - add_journal_entry
+      dismissible: false
+      persistent: true
+
+  # --- Ongoing Support State Cards ---
+
+  ongoing_welcome_card:
+    when:
+      artifacts.baseline_parent_report.exists: true
+      re_assessment.active: false
+      phase_entry_message_shown: false
+    card:
+      card_type: ongoing_support
+      priority: 85
+      title: "ברוכה הבאה לשלב הליווי! 💙"
+      body: |
+        **הערכה הראשונית הושלמה - מה עכשיו?**
+
+        מעכשיו אני כאן בשבילך לאורך זמן:
+
+        📖 **יומן התפתחות** - תיעדי תצפיות ואני אעזור לך לעקוב אחרי ההתקדמות
+
+        💬 **שאלות ותמיכה** - בכל זמן שיש לך שאלה, אני כאן
+
+        🔍 **חיבור למומחים** - אעזור לך למצוא את האנשים המתאימים
+
+        🔄 **הערכה מחודשת** - כשנרצה, נוכל לעשות הערכה מעודכנת
+      footer: "אין מטרה קבועה - זה תהליך. אני כאן איתך 🌟"
+      actions:
+        - add_journal_entry
+        - view_report
+        - find_experts
+        - consultation
+      dismissible: true
+      show_once: true
+      persistent: true
+
+  journal_card:
+    when:
+      artifacts.baseline_parent_report.exists: true
+      journal_entry_count: "< 100"
+    card:
+      card_type: guidance
+      priority: 70
+      title: "יומן התפתחות 📖"
+      body: |
+        **למה יומן?**
+
+        תיעוד רגעים, תצפיות, ושאלות עוזר:
+        • לעקוב אחרי התפתחות לאורך זמן
+        • לזהות דפוסים
+        • להכין שאלות למומחים
+        • לראות את הצמיחה
+
+        אפשר לכתוב כל דבר - אין "נכון" או "לא נכון" 💙
+      actions:
+        - add_journal_entry
+        - view_journal
+      dismissible: true
+      re_show_after_days: 7
+      persistent: true
+
+  expert_finder_card:
+    when:
+      artifacts.baseline_parent_report.exists: true
+      re_assessment.active: false
+      expert_search_count: "< 3"
+    card:
+      card_type: guidance
+      priority: 65
+      title: "צריכה עזרה מקצועית? 👥"
+      body: |
+        **אפשר לעזור לך למצוא מומחים**
+
+        בהתבסס על הדוח של {child_name}, אוכל להמליץ על:
+        • מטפלים בעיסוק
+        • קלינאי תקשורת
+        • פסיכולוגים התפתחותיים
+        • יועצים חינוכיים
+      footer: "לוחצים על 'מצא מומחים' להתחיל"
+      actions:
+        - find_experts
+        - consultation
+      dismissible: true
+      re_show_after_days: 30
+      persistent: true
+
+  # --- Re-Assessment State Cards ---
+
+  re_assessment_welcome_card:
+    when:
+      re_assessment.active: true
+      phase_entry_message_shown: false
+    card:
+      card_type: progress
+      priority: 90
+      title: "בואי נעדכן את ההבנה שלנו 🔄"
+      body: |
+        **הערכה מחודשת של {child_name}**
+
+        זה הזמן לראות איך {child_name} התפתח/ה מאז ההערכה הראשונית.
+
+        **התהליך:**
+        1. שיחה ממוקדת על השינויים והתפתחות
+        2. סרטונים חדשים (אם נחוץ)
+        3. דוח מעודכן עם השוואה לבסיס
+      footer: "בואי נתחיל - מה השתנה מאז הפעם הקודמת?"
+      actions:
+        - continue_interview
+        - view_journal
+        - consultation
+      dismissible: false
+      show_once: true
+      persistent: true
+
+  re_assessment_progress_card:
+    when:
+      re_assessment.active: true
+      artifacts.re_assessment_video_guidelines.exists: false
+      message_count: "> 0"
+    card:
+      card_type: progress
+      priority: 85
+      title: "{knowledge_depth_indicator_emoji} {knowledge_depth_indicator_text}"
+      body: "ממשיכים להעמיק את ההבנה של {child_name}"
+      footer: "תודה על השיתוף 💙"
+      actions:
+        - continue_interview
+        - upload_video
+        - view_journal
+        - consultation
+      dismissible: false
+      updates_dynamically: true
+      persistent: true
+
+  updated_report_ready_card:
+    when:
+      re_assessment.active: true
+      artifacts.updated_parent_report.exists: true
+      user_viewed_updated_report: false
+    card:
+      card_type: success
+      priority: 95
+      title: "הדוח המעודכן מוכן! 📊✨"
+      body: |
+        **ההערכה המחודשת הושלמה!**
+
+        הדוח החדש כולל:
+        • תמונה מעודכנת של {child_name}
+        • השוואה להערכה הקודמת
+        • התקדמות ושינויים
+        • המלצות מעודכנות
+      footer: "חוזרים לליווי השוטף מעכשיו 💙"
+      actions:
+        - view_report
+        - download_report
+        - compare_reports
+        - consultation
+      dismissible: false
+      celebration_animation: true
+      persistent: true
+
+# ============================================
+# PHILOSOPHY
+# ============================================
+philosophy: |
+  Wu Wei - Effortless action through continuous flow (פשוט - נטול חלקים עודפים)
+
+  No phases. No gates. No redundancy. Just:
+  1. Continuous conversation (always available)
+  2. Knowledge accumulates naturally
+  3. Prerequisites met → Moments happen → Capabilities unlock
+  4. Parent can explore/ask anything anytime
+
+  Simplification principles applied:
+  - Merged artifacts + lifecycle_events + capabilities → moments
+  - Flattened structure (no nested objects except when/ui)
+  - Removed duplicate information (descriptions, implementation docs)
+  - Everything about a moment in ONE place
+  - Only essential fields (when, artifact, message, ui, unlocks)
+
+  Result: 50% less configuration, 100% of the functionality
+
+metadata:
+  version_history:
+    - "1.0: Phase-based workflow (phases.yaml) - REMOVED"
+    - "2.0: Wu Wei dependency graph (separate artifacts/events/capabilities)"
+    - "3.0: Simplified Wu Wei (unified moments structure)"
+    - "3.1: Removed phases.yaml - state derived from artifacts"
+    - "3.2: Merged context_cards.yaml - single source of truth for cards"
+  last_updated: "2025-11-25"
+  breaking_changes:
+    - "config['artifacts'] → config['moments']"
+    - "config['lifecycle_events'] → config['moments']"
+    - "config['capabilities'] → config['always_available'] + moments[].unlocks"
+    - "Moment structure flattened (when/artifact/message/ui/unlocks)"
+    - "Cards now defined in moments (card_types, display_rules at top level)"

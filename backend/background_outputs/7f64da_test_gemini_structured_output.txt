@@ -1,0 +1,18 @@
+Process: python test_gemini_structured_output.py
+Status: completed
+Exit code: 0
+
+Output:
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+Warning: there are non-text parts in the response: ['thought_signature'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+Testing model: gemini-3-pro-preview
+Provider created: gemini-3-pro-preview
+
+Testing simple schema...
+✅ Simple schema SUCCESS: {'name': 'דני', 'age': 3, 'concerns': ['קשיים בדיבור', 'קשיים באינטראקציה חברתית']}
+
+Testing guidelines schema...
+✅ Guidelines schema SUCCESS: {'scenarios': [{'title': 'Free Play and Vocalization', 'category': 'Play Skills', 'what_to_film': 'Record Danny playing with his favorite toys for 5 minutes without interruption. Focus on whether he uses toys functionally (e.g., pushing a car) or repetitively (e.g., spinning wheels), and capture any sounds, babbling, or words he produces while playing.'}, {'title': 'Requesting Desired Items', 'category': 'Communication', 'what_to_film': "Place a highly desired snack or toy in a clear container or on a high shelf where it is visible but out of reach. Film how Danny communicates his desire for the item (e.g., pointing, pulling an adult's hand, crying, looking back and forth, or using words)."}, {'title': 'Social Engagement and Name Response', 'category': 'Social Interaction', 'what_to_film': 'Film an interaction where a parent sits opposite Danny and tries to engage him in a simple game (like peek-a-boo or rolling a ball). Call his name clearly from a few feet away and record his reaction, specifically looking for eye contact and shared enjoyment.'}]}
+   Generated 3 scenarios
+
+Result: ✅ Gemini structured output is working correctly with both simple and complex schemas

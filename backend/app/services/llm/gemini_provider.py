@@ -105,18 +105,39 @@ class GeminiProvider(BaseLLMProvider):
         config_params = {
             "temperature": temp,
             "max_output_tokens": max_tokens,
-            "safety_settings": self.safety_settings,
             "tools": tools
         }
 
-        # CRITICAL FIX: Explicitly disable automatic function calling
+        # CRITICAL: Do NOT include safety_settings when using function calling!
+        # Safety settings can interfere with function calling behavior
+        if not tools:
+            config_params["safety_settings"] = self.safety_settings
+
+        # CRITICAL FIX: Explicitly disable automatic function calling (AFC)
         # The SDK enables AFC by default (as of 2024), but we need manual function calling
         # so we can process and save the function call results ourselves
-        # Setting tool_config with function_calling_config.mode = ANY ensures manual calling
+        #
+        # IMPORTANT: AFC must ALWAYS be disabled, even when no tools are provided!
+        # Otherwise Phase 2 (response without functions) gets very short responses (10 chars)
+        #
+        # TWO SEPARATE CONFIGURATIONS ARE NEEDED:
+        # 1. automatic_function_calling.disable = True  → Prevents SDK from auto-executing functions
+        # 2. tool_config.function_calling_config.mode = ANY → Forces model to call functions (only when tools provided)
+
+        # ALWAYS disable AFC to prevent short responses in Phase 2
+        # CRITICAL: Must set maximum_remote_calls=0 to fully disable AFC!
+        # Setting only disable=True isn't enough - the default maximum_remote_calls=10 re-enables it!
+        config_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(
+            disable=True,
+            maximum_remote_calls=0  # CRITICAL: Must be 0 to fully disable AFC
+        )
+
+        # Only configure function calling behavior if tools are provided
         if tools:
+            # Force function calling mode (model-level behavior)
             config_params["tool_config"] = types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(
-                    mode=types.FunctionCallingConfigMode.ANY  # Return function calls, don't auto-execute
+                    mode=types.FunctionCallingConfigMode.ANY  # Model MUST call a function
                 )
             )
 
@@ -170,11 +191,19 @@ class GeminiProvider(BaseLLMProvider):
         contents = self._convert_messages_to_contents(messages)
 
         # Create config with JSON mode
+        # CRITICAL: Must disable AFC to prevent schema validation errors!
+        # AFC (Automatic Function Calling) interferes with structured output schema validation
         config = types.GenerateContentConfig(
             temperature=temp,
+            max_output_tokens=8000,  # Increased from default to prevent MAX_TOKENS truncation
             response_mime_type="application/json",
             response_schema=response_schema,
-            safety_settings=self.safety_settings
+            safety_settings=self.safety_settings,
+            # CRITICAL: Disable AFC for structured output to prevent schema validation errors
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                disable=True,
+                maximum_remote_calls=0  # Must be 0 to fully disable AFC
+            )
         )
 
         try:
@@ -186,9 +215,37 @@ class GeminiProvider(BaseLLMProvider):
                 config=config
             )
 
+            # Check if response has text content
+            if not response.text:
+                # Gemini returned empty/None response - diagnose why
+                finish_reason = None
+                safety_info = ""
+
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+
+                    if hasattr(candidate, 'finish_reason'):
+                        finish_reason = str(candidate.finish_reason)
+
+                    if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
+                        safety_info = f"\nSafety ratings: {candidate.safety_ratings}"
+
+                error_msg = (
+                    f"Gemini returned empty response for structured output. "
+                    f"Finish reason: {finish_reason}.{safety_info}\n"
+                    f"This usually indicates content was blocked by safety filters, "
+                    f"token limit was hit, or an API error occurred."
+                )
+                logger.error(f"❌ {error_msg}")
+                raise ValueError(error_msg)
+
             # Parse JSON from text
             return json.loads(response.text)
 
+        except json.JSONDecodeError as e:
+            logger.error(f"Gemini returned invalid JSON: {e}")
+            logger.error(f"Response text: {response.text[:500] if response.text else 'None'}")
+            raise ValueError(f"Gemini returned invalid JSON: {str(e)}")
         except Exception as e:
             logger.error(f"Gemini structured output error: {e}")
             raise  # Re-raise instead of returning empty dict!
@@ -198,17 +255,22 @@ class GeminiProvider(BaseLLMProvider):
         Convert our Message format to Gemini Content format
 
         Gemini format:
-        - System message: Included as first user message with system prompt prefix
+        - System message: Send as separate user message (DO NOT combine - breaks function calling!)
         - User/Assistant: Content with role and parts
         - Function responses: Special Part.from_function_response format
         """
         contents = []
-        system_prompt = None
 
         for msg in messages:
             if msg.role == "system":
-                # Save system prompt to prepend to first user message
-                system_prompt = msg.content
+                # CRITICAL FIX: Send system prompt as separate user message
+                # Combining system+user into single message breaks function calling in some cases
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[types.Part(text=msg.content)]
+                    )
+                )
                 continue
 
             # Handle assistant messages with function calls (per Gemini docs)
@@ -271,17 +333,11 @@ class GeminiProvider(BaseLLMProvider):
             # Map our roles to Gemini roles
             role = "model" if msg.role == "assistant" else "user"
 
-            # If this is the first user message and we have a system prompt, prepend it
-            content_text = msg.content
-            if role == "user" and system_prompt and not contents:
-                content_text = f"{system_prompt}\n\n{msg.content}"
-                system_prompt = None  # Only use once
-
             # Create Content with Parts
             contents.append(
                 types.Content(
                     role=role,
-                    parts=[types.Part(text=content_text)]
+                    parts=[types.Part(text=msg.content)]
                 )
             )
 
@@ -352,11 +408,22 @@ class GeminiProvider(BaseLLMProvider):
 
                     if hasattr(candidate.content, 'parts') and candidate.content.parts:
                         for part in candidate.content.parts:
-                            # Text content
+                            # ⚠️ CRITICAL FIX: thought_signature is an ATTRIBUTE of the Part, not a separate part!
+                            # The same Part can have BOTH part.text (user-facing) and part.thought (internal reasoning).
+                            # We want the TEXT but not the thought.
+                            # DO NOT skip the entire part - just extract the text and ignore the thought attribute!
+
+                            # Text content (user-facing response)
                             if hasattr(part, 'text') and part.text:
                                 content += part.text
+                                # Log if this part also has thought_signature (for debugging)
+                                if hasattr(part, 'thought'):
+                                    logger.debug("🧠 Part has thought_signature (ignored, text extracted)")
 
-                            # Function call
+                            # DON'T skip parts with thought! They might also have function_call!
+                            # Just ignore the thought attribute itself
+
+                            # Function call (can coexist with thought attribute!)
                             if hasattr(part, 'function_call') and part.function_call:
                                 fc = part.function_call
                                 function_calls.append(
@@ -382,14 +449,18 @@ class GeminiProvider(BaseLLMProvider):
                         f"other API issues."
                     )
 
-            # Fallback to simple text if available
+            # ⚠️ CRITICAL: Do NOT use response.text as fallback!
+            # response.text concatenates ALL parts including thought_signature from Gemini 3 Pro,
+            # which leaks internal reasoning (<thinking> tags) to users.
+            # If there's no text content after parsing parts, it means Gemini returned
+            # ONLY non-text parts (thought_signature, function_calls, etc.) with no actual text response.
+            # In this case, returning empty string is correct behavior.
             if not content and not function_calls:
-                if hasattr(response, 'text'):
-                    content = response.text
-                else:
-                    logger.warning("No content found in response")
-                    # Try to extract any available text
-                    content = str(response) if response else "No response"
+                logger.warning(
+                    f"⚠️ Gemini response has no text content! "
+                    f"Only non-text parts returned (thought_signature, etc.). "
+                    f"This indicates the model didn't generate a user-facing response."
+                )
 
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {e}", exc_info=True)

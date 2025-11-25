@@ -27,13 +27,6 @@ from app.config.action_registry import (
     check_action_availability as config_check_availability
 )
 
-# Legacy imports for Action enum and Hebrew explanations
-from ..prompts.prerequisites import (
-    Action,
-    PrerequisiteType,
-    get_prerequisite_explanation,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -41,10 +34,10 @@ logger = logging.getLogger(__name__)
 class PrerequisiteCheckResult:
     """Result of checking if an action is feasible"""
     feasible: bool
-    action: Action
-    missing_prerequisites: List[PrerequisiteType]
+    action: str  # Wu Wei: String action ID, not enum
+    missing_prerequisites: List[str]  # Wu Wei: String prerequisite IDs, not enums
     explanation_to_user: str  # Hebrew explanation
-    enhanced_by: List[PrerequisiteType]  # Optional enhancements
+    enhanced_by: List[str]  # Wu Wei: String prerequisite IDs, not enums
 
 
 class PrerequisiteService:
@@ -147,6 +140,7 @@ class PrerequisiteService:
         # Extract core info
         extracted_data = session_data.get("extracted_data", {})
         message_count = session_data.get("message_count", 0)
+        conversation_history = session_data.get("conversation_history", [])
 
         # Build artifacts structure from session
         artifacts = {}
@@ -202,9 +196,11 @@ class PrerequisiteService:
             "concern_description": extracted_data.get("concern_details") or extracted_data.get("concern_description"),
             "strengths": extracted_data.get("strengths"),
             "other_info": other_info_combined or extracted_data.get("other_info"),  # Fallback to old field if exists
+            "filming_preference": extracted_data.get("filming_preference"),  # 🎬 For filming decision flow
 
             # Conversation state
             "message_count": message_count,
+            "conversation_history": conversation_history,  # For artifact generation
 
             # Artifacts (for prerequisite checking)
             "artifacts": artifacts,
@@ -216,6 +212,7 @@ class PrerequisiteService:
 
             # Video counts
             "uploaded_video_count": session_data.get("uploaded_video_count", 0),
+            "guideline_scenario_count": session_data.get("guideline_scenario_count"),  # Number of scenarios in guidelines
 
             # User actions tracking
             "user_actions": {
@@ -229,6 +226,10 @@ class PrerequisiteService:
 
             # Video analysis status
             "video_analysis_status": session_data.get("video_analysis_status", "pending"),
+
+            # Derived boolean for lifecycle event checking
+            # videos_analyzed: true when video_analysis_status == "complete"
+            "videos_analyzed": session_data.get("video_analysis_status") == "complete",
 
             # DEPRECATED: Phase (for backwards compatibility)
             "phase": self._infer_emergent_state(session_data),
@@ -262,50 +263,6 @@ class PrerequisiteService:
         else:
             return "screening"
 
-    # ========================================
-    # DEPRECATED Methods (Backwards Compatibility)
-    # ========================================
-    # These methods use the OLD phase-based, completeness-threshold logic.
-    # They're kept for backwards compatibility but should NOT be used in new code.
-    # Use Wu Wei methods above instead.
-
-    def check_state(self, context: Dict[str, Any]) -> Dict[PrerequisiteType, bool]:
-        """
-        DEPRECATED: Check which prerequisites are currently met (old completeness-based logic)
-
-        🌟 Wu Wei Alternative: Use check_knowledge_richness() or check_artifact_prerequisites()
-
-        Args:
-            context: Current interview/family state with:
-                - completeness: float (0.0 to 1.0)  # DEPRECATED
-                - video_count: int
-                - analysis_complete: bool
-                - reports_available: bool
-
-        Returns:
-            Dict mapping each PrerequisiteType to True/False
-        """
-        logger.warning(
-            "check_state() is DEPRECATED - uses completeness thresholds. "
-            "Use Wu Wei methods (check_knowledge_richness, check_artifact_prerequisites) instead."
-        )
-
-        completeness = context.get("completeness", 0.0)
-        video_count = context.get("video_count", 0)
-        analysis_complete = context.get("analysis_complete", False)
-        reports_available = context.get("reports_available", False)
-
-        state = {
-            PrerequisiteType.INTERVIEW_COMPLETE: completeness >= 0.80,  # DEPRECATED: Quantitative threshold
-            PrerequisiteType.VIDEOS_UPLOADED: video_count > 0,
-            PrerequisiteType.MINIMUM_VIDEOS: video_count >= 3,
-            PrerequisiteType.ANALYSIS_COMPLETE: analysis_complete,
-            PrerequisiteType.REPORTS_AVAILABLE: reports_available,
-        }
-
-        logger.debug(f"[DEPRECATED] Current state: {state}")
-        return state
-
     def check_action_feasible(
         self,
         action: str,
@@ -314,30 +271,16 @@ class PrerequisiteService:
         """
         Check if an action is currently feasible
 
-        🌟 Wu Wei Architecture: Now uses action_registry for config-driven checks!
+        🌟 Wu Wei Architecture: Config-driven via action_registry!
 
         Args:
-            action: Action name (string)
+            action: Action ID (string, e.g., "view_video_guidelines")
             context: Current state dict
 
         Returns:
             PrerequisiteCheckResult with feasibility and explanation
         """
-        # Convert string to Action enum
-        try:
-            action_enum = Action(action)
-        except ValueError:
-            logger.warning(f"Unknown action: {action}")
-            return PrerequisiteCheckResult(
-                feasible=False,
-                action=action,
-                missing_prerequisites=[],
-                explanation_to_user=f"פעולה לא מוכרת: {action}",
-                enhanced_by=[]
-            )
-
         # Build context for action_registry
-        # action_registry expects session object with attributes
         registry_context = self._build_registry_context(context)
 
         # Use action_registry for config-driven check
@@ -346,62 +289,43 @@ class PrerequisiteService:
         feasible = availability["available"]
         missing_prereq_ids = availability.get("missing_prerequisites", [])
 
-        # Convert prerequisite IDs to PrerequisiteType enums for compatibility
-        missing = self._convert_prerequisite_ids_to_enums(missing_prereq_ids)
-
         # Get enhanced_by from action definition
         action_def = get_action_registry().get_action(action)
-        enhanced_by = []
-        if action_def and action_def.enhanced_by:
-            enhanced_by = self._convert_prerequisite_ids_to_enums(action_def.enhanced_by)
+        enhanced_by = action_def.enhanced_by if action_def else []
 
-        # Get personalized Hebrew explanation if not feasible
-        if not feasible:
-            child_name = context.get("child_name", "הילד/ה")
-            video_count = context.get("video_count", 0)
-            completeness = context.get("completeness", 0.0)
-            current_state = self.check_state(context)
-            interview_complete = current_state.get(PrerequisiteType.INTERVIEW_COMPLETE, False)
-            analysis_complete = current_state.get(PrerequisiteType.ANALYSIS_COMPLETE, False)
+        # Wu Wei: Get explanation directly from action_graph.yaml
+        explanation = availability.get("explanation") or ""
 
-            # Use existing Hebrew explanation logic (from prerequisites.py)
-            explanation = get_prerequisite_explanation(
-                action_enum,
-                child_name=child_name,
-                video_count=video_count,
-                required_videos=3,
-                interview_complete=interview_complete,
-                analysis_complete=analysis_complete,
-                completeness=completeness
-            )
-        else:
-            explanation = ""
+        # Personalize explanation with child_name if available
+        if explanation and "{child_name}" in explanation:
+            child_name = context.get("child_name") or "הילד/ה"  # Ensure default is used if None
+            explanation = explanation.replace("{child_name}", child_name)
 
         logger.info(
             f"Action '{action}' feasibility check: {feasible} "
-            f"(missing: {missing if not feasible else 'none'}) "
+            f"(missing: {missing_prereq_ids if not feasible else 'none'}) "
             f"[config-driven via action_registry]"
         )
 
         return PrerequisiteCheckResult(
             feasible=feasible,
-            action=action_enum,
-            missing_prerequisites=missing,
+            action=action,
+            missing_prerequisites=missing_prereq_ids,
             explanation_to_user=explanation,
             enhanced_by=enhanced_by
         )
 
-    def get_available_actions(self, context: Dict[str, Any]) -> List[Action]:
+    def get_available_actions(self, context: Dict[str, Any]) -> List[str]:
         """
         Get list of actions that are currently available
 
-        🌟 Wu Wei Architecture: Now uses action_registry for config-driven checks!
+        🌟 Wu Wei Architecture: Config-driven via action_registry!
 
         Args:
             context: Current state
 
         Returns:
-            List of Action enums that are feasible right now
+            List of action IDs (strings) that are feasible right now
         """
         # Build context for action_registry
         registry_context = self._build_registry_context(context)
@@ -409,21 +333,13 @@ class PrerequisiteService:
         # Use config-driven available actions check
         available_action_ids = config_get_available_actions(registry_context)
 
-        # Convert action IDs to Action enums
-        available = []
-        for action_id in available_action_ids:
-            try:
-                available.append(Action(action_id))
-            except ValueError:
-                logger.warning(f"Unknown action ID from config: {action_id}")
-
         logger.debug(
-            f"Available actions: {[a.value for a in available]} "
+            f"Available actions: {available_action_ids} "
             f"[config-driven via action_registry]"
         )
-        return available
+        return available_action_ids
 
-    def get_next_logical_step(self, context: Dict[str, Any]) -> Optional[Action]:
+    def get_next_logical_step(self, context: Dict[str, Any]) -> Optional[str]:
         """
         Suggest what user should do next based on current state
 
@@ -440,84 +356,25 @@ class PrerequisiteService:
         analysis_complete = context.get("analysis_complete", False)
         reports_available = context.get("reports_available", False)
 
+        # DEPRECATED: Hardcoded logic, violates Wu Wei - consider removing
         # Logic for next step
         if completeness < 0.80:
-            return Action.CONTINUE_INTERVIEW
+            return "continue_interview"
 
         elif video_count == 0:
-            return Action.VIEW_VIDEO_GUIDELINES
+            return "view_video_guidelines"
 
         elif video_count < 3:
-            return Action.UPLOAD_VIDEO
+            return "upload_video"
 
         elif not analysis_complete:
             # Waiting for analysis - suggest journal or consultation
-            return Action.ADD_JOURNAL_ENTRY
+            return "add_journal_entry"
 
         elif reports_available:
-            return Action.VIEW_REPORT
+            return "view_report"
 
         return None
-
-    def build_prerequisite_context_for_prompt(
-        self,
-        context: Dict[str, Any]
-    ) -> str:
-        """
-        Build a string describing current state for LLM prompt
-
-        This tells the LLM what's currently possible so it can
-        respond appropriately to user requests.
-
-        Args:
-            context: Current state
-
-        Returns:
-            String description for prompt
-        """
-        current_state = self.check_state(context)
-        available_actions = self.get_available_actions(context)
-
-        # Build human-readable description
-        parts = ["## Current Capabilities\n"]
-
-        parts.append("**User can currently:**")
-        if available_actions:
-            for action in available_actions:
-                parts.append(f"- {action.value}")
-        else:
-            parts.append("- Continue interview")
-            parts.append("- Ask questions (consultation)")
-            parts.append("- Add journal entries")
-
-        parts.append("\n**Current state:**")
-        completeness = context.get("completeness", 0.0)
-        parts.append(f"- Interview: {completeness:.0%} complete")
-
-        if current_state[PrerequisiteType.INTERVIEW_COMPLETE]:
-            parts.append("- ✅ Interview completed")
-        else:
-            parts.append(f"- ⏳ Interview in progress ({completeness:.0%})")
-
-        video_count = context.get("video_count", 0)
-        if video_count > 0:
-            parts.append(f"- Videos: {video_count} uploaded")
-        else:
-            parts.append("- Videos: None yet")
-
-        if current_state[PrerequisiteType.REPORTS_AVAILABLE]:
-            parts.append("- ✅ Reports available")
-        elif current_state[PrerequisiteType.ANALYSIS_COMPLETE]:
-            parts.append("- ⏳ Analysis complete, generating reports")
-        else:
-            parts.append("- ⏳ Analysis pending")
-
-        parts.append("\n**When responding to action requests:**")
-        parts.append("- If action is available → facilitate it")
-        parts.append("- If action is NOT available → explain warmly what's needed first")
-        parts.append("- Use the explanations from prerequisites.py when appropriate")
-
-        return "\n".join(parts)
 
     def _build_registry_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -559,41 +416,6 @@ class PrerequisiteService:
             "uploaded_video_count": video_count,
             "reports_ready": reports_ready,
         }
-
-    def _convert_prerequisite_ids_to_enums(
-        self,
-        prerequisite_ids: List[str]
-    ) -> List[PrerequisiteType]:
-        """
-        Convert prerequisite IDs from action_graph.yaml to PrerequisiteType enums.
-
-        Maps config prerequisite names to Python enums for compatibility.
-
-        Args:
-            prerequisite_ids: List of prerequisite IDs from config
-
-        Returns:
-            List of PrerequisiteType enums
-        """
-        # Mapping from config IDs to PrerequisiteType enums
-        id_to_enum = {
-            "interview_complete": PrerequisiteType.INTERVIEW_COMPLETE,
-            "videos_uploaded": PrerequisiteType.VIDEOS_UPLOADED,
-            "minimum_videos": PrerequisiteType.MINIMUM_VIDEOS,
-            "analysis_complete": PrerequisiteType.ANALYSIS_COMPLETE,
-            "reports_available": PrerequisiteType.REPORTS_AVAILABLE,
-        }
-
-        result = []
-        for prereq_id in prerequisite_ids:
-            enum_val = id_to_enum.get(prereq_id)
-            if enum_val:
-                result.append(enum_val)
-            else:
-                logger.warning(f"Unknown prerequisite ID from config: {prereq_id}")
-
-        return result
-
 
 # Singleton instance
 _prerequisite_service = None

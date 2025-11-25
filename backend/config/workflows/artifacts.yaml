@@ -1,699 +1,294 @@
 # Artifacts - Documents and data that emerge throughout the workflow
-# Defines what gets created, when, and how it's accessed
+# 🌟 Wu Wei v2.1: Added slot configuration for Daniel's Space (Living Dashboard Phase 2)
+# Defines artifact metadata, storage, generation configuration, and UI slots
+#
+# Note: artifact_generators.yaml has been merged into this file
 
-version: "1.0"
+version: "2.1"
 artifact_catalog_name: "child_development_artifacts"
-description: "All artifacts (reports, videos, summaries) produced during the child development journey"
+description: "All artifacts produced during the child development journey"
 
-# Artifact types for categorization
+# ============================================
+# ARTIFACT TYPES
+# ============================================
 artifact_types:
   report:
-    description: "Comprehensive assessment documents"
+    description: "Assessment documents"
     format: "markdown/pdf"
     can_download: true
     can_share: true
 
-  video:
-    description: "Video recordings of behavioral observations"
-    format: "mp4/mov"
-    can_download: true
-    can_share: false  # Privacy
-
   analysis:
     description: "Structured analysis results"
+    format: "json"
+    can_download: false
+    can_share: false
+
+  guidelines:
+    description: "Personalized instructions"
     format: "json/markdown"
+    can_download: true
+    can_share: false
+
+  video:
+    description: "Video recordings"
+    format: "mp4/mov"
     can_download: true
     can_share: false
 
   journal:
-    description: "Timestamped observations and notes"
-    format: "json/markdown"
+    description: "Timestamped observations"
+    format: "json"
     can_download: true
     can_share: false
 
-  guidelines:
-    description: "Personalized instructions and guides"
-    format: "markdown"
-    can_download: true
-    can_share: false
+# ============================================
+# SLOTS (Daniel's Space - Living Dashboard Phase 2)
+# ============================================
+# Slots define how artifacts appear in Daniel's Space header
+# Each slot shows the "current" version of an artifact type
+# Multiple artifacts can map to the same slot (newer replaces older)
 
-# Artifacts in the system
+slots:
+  current_report:
+    slot_name: "הדוח הנוכחי"
+    slot_name_en: "Current Report"
+    icon: "📄"
+    description: "The latest development report"
+    primary_action: "view_report"
+    secondary_action: "download_report"
+
+  filming_guidelines:
+    slot_name: "הנחיות צילום"
+    slot_name_en: "Filming Guidelines"
+    icon: "🎬"
+    description: "Personalized video filming instructions"
+    primary_action: "view_guidelines"
+
+  videos:
+    slot_name: "הסרטונים"
+    slot_name_en: "Videos"
+    icon: "📹"
+    description: "Uploaded behavioral videos"
+    is_collection: true
+    primary_action: "view_videos"
+    secondary_action: "upload_video"
+
+  journal:
+    slot_name: "היומן"
+    slot_name_en: "Journal"
+    icon: "📝"
+    description: "Parent observations and notes"
+    is_collection: true
+    primary_action: "view_journal"
+    secondary_action: "add_journal_entry"
+
+# Slot display order in Daniel's Space
+slot_order:
+  - current_report
+  - filming_guidelines
+  - videos
+  - journal
+
+# ============================================
+# ARTIFACTS
+# ============================================
+# Each artifact defines:
+# - name/type: Display info
+# - states: Lifecycle states
+# - storage: Storage location pattern
+# - generator: Generation configuration (method, requires, params)
 artifacts:
   # ========================================
-  # SCREENING PHASE ARTIFACTS
+  # BASELINE ARTIFACTS (Initial Assessment)
   # ========================================
 
-  video_guidelines:
-    name: "הנחיות צילום מותאמות אישית"
-    name_en: "Personalized Video Recording Guidelines"
-    type: guidelines
-    description: "Custom guidelines for what videos to record based on interview insights"
-
-    # Lifecycle
-    created_by: system
-    trigger:
-      action: complete_interview
-      condition: "completeness >= 0.80"
-    generation_method: llm_synthesis
-    generation_inputs:
-      - extracted_data
-      - primary_concerns
-      - child_age
-
-    # Status states
-    states:
-      - pending  # Interview not complete yet
-      - generating  # LLM creating guidelines
-      - ready  # Available to view/download
-      - error  # Generation failed
-
-    # Storage
-    storage_pattern: "sessions/{session_id}/artifacts/video_guidelines.md"
-
-    # Access
-    available_in_phases: [screening]
-    view_action: view_video_guidelines
-    download_action: download_video_guidelines
-
-    # Content structure
-    content_schema:
-      sections:
-        - introduction  # Personalized intro
-        - situations_to_capture  # List of 3 specific scenarios
-        - filming_tips  # Technical guidance
-        - what_to_avoid  # Common mistakes
-        - upload_instructions  # How to upload
-
-    metadata:
-      language: he
-      estimated_length: "300-500 words"
-      tone: "warm, instructive, encouraging"
-
-  behavioral_videos:
-    name: "סרטוני התנהגות"
-    name_en: "Behavioral Observation Videos"
-    type: video
-    description: "Parent-uploaded videos showing child in natural settings"
-
-    # Lifecycle
-    created_by: user
-    trigger:
-      action: upload_video
-      condition: "interview_complete"
-    max_count: 3
-    min_count_for_analysis: 3
-
-    # Status states
-    states:
-      - pending_upload  # User needs to upload
-      - uploading  # Upload in progress
-      - processing  # Transcoding/validating
-      - ready  # Ready for analysis
-      - error  # Upload/processing failed
-
-    # Storage
-    storage_pattern: "sessions/{session_id}/videos/{video_id}.{ext}"
-
-    # Validation
-    validation:
-      max_size_mb: 500
-      max_duration_minutes: 10
-      min_duration_seconds: 30
-      allowed_formats: ["mp4", "mov", "avi"]
-      required_metadata:
-        - duration
-        - resolution
-        - upload_timestamp
-
-    # Access
-    available_in_phases: [screening, re_assessment]
-    view_action: view_uploaded_videos
-    delete_action: delete_video  # Allow re-upload if needed
-
-    # Metadata tracking
-    per_video_metadata:
-      video_id: string
-      filename: string
-      duration: float
-      file_size: int
-      upload_timestamp: datetime
-      user_description: string  # Optional: what situation this shows
-      analysis_status: string
-
-    notes: "Videos stored securely, never shared externally without explicit consent"
-
-  video_analysis_results:
-    name: "תוצאות ניתוח וידאו"
-    name_en: "Video Analysis Results"
+  baseline_interview_summary:
+    name: "סיכום ראיון"
+    name_en: "Interview Summary"
     type: analysis
-    description: "Structured observations extracted from uploaded videos"
+    description: "Holistic interview summary with clinical data and parent persona"
+    states: [pending, generating, ready, error]
+    storage: "sessions/{session_id}/artifacts/interview_summary.json"
+    # 🌟 Wu Wei: Generator config inline
+    generator:
+      method: "generate_interview_summary"
+      requires_artifacts: []  # Uses session data
+      description: "Synthesizes conversation + extracted_data"
 
-    # Lifecycle
-    created_by: system
-    trigger:
-      action: analyze_videos
-      condition: "len(uploaded_videos) >= 3"
-    generation_method: llm_analysis
-    generation_inputs:
-      - behavioral_videos
-      - extracted_data
-      - analysis_framework
+  baseline_video_guidelines:
+    name: "הנחיות צילום"
+    name_en: "Video Guidelines"
+    type: guidelines
+    description: "Personalized video filming instructions with analyst context"
+    states: [pending, generating, ready, error]
+    storage: "sessions/{session_id}/artifacts/video_guidelines.json"
+    generator:
+      method: "generate_video_guidelines"
+      requires_artifacts: [baseline_interview_summary]
+      validation:
+        type: "json_structure"
+        checks:
+          - path: "scenarios"
+            type: "array"
+            min_length: 1
+    # 🌟 Phase 2: Slot configuration for Daniel's Space
+    slot:
+      slot_id: "filming_guidelines"
+      replaces_previous: true
+      preview_field: "focus_areas"
 
-    # Status states
-    states:
-      - pending  # Not enough videos yet
-      - analyzing  # LLM processing videos
-      - ready  # Analysis complete
-      - error  # Analysis failed
+  baseline_video_analysis:
+    name: "ניתוח וידאו"
+    name_en: "Video Analysis"
+    type: analysis
+    description: "Clinical video analysis using interview context"
+    states: [pending, analyzing, ready, error]
+    storage: "sessions/{session_id}/artifacts/video_analysis.json"
+    generator:
+      method: "analyze_videos"
+      requires_artifacts: [baseline_interview_summary, baseline_video_guidelines]
+      requires_data: [uploaded_videos]
 
-    # Storage
-    storage_pattern: "sessions/{session_id}/artifacts/video_analysis.json"
-
-    # Content structure
-    content_schema:
-      per_video_analysis:
-        video_id: string
-        observations:
-          social_interaction: []
-          communication: []
-          motor_skills: []
-          play_behavior: []
-          sensory_responses: []
-          emotional_regulation: []
-      cross_video_patterns:
-        consistent_strengths: []
-        areas_of_concern: []
-        developmental_markers: []
-      confidence_scores:
-        overall_confidence: float
-        per_domain_confidence: dict
-
-    # Access
-    available_in_phases: [screening]
-    view_action: view_analysis_results
-    visibility: internal  # Not directly shown to user, feeds into reports
-
-    metadata:
-      analysis_timestamp: datetime
-      llm_model_used: string
-      processing_time_seconds: float
-
-  parent_report:
-    name: "דוח הורים"
-    name_en: "Parent Report"
-    type: report
-    description: "Comprehensive assessment report written for parents"
-
-    # Lifecycle
-    created_by: system
-    trigger:
-      artifact_available: video_analysis_results
-    generation_method: llm_synthesis
-    generation_inputs:
-      - extracted_data
-      - video_analysis_results
-      - developmental_frameworks
-      - evidence_based_guidelines
-
-    # Status states
-    states:
-      - pending  # Waiting for analysis
-      - generating  # LLM creating report
-      - ready  # Available to view/download
-      - error  # Generation failed
-
-    # Storage
-    storage_pattern: "sessions/{session_id}/artifacts/parent_report.md"
-    pdf_export_pattern: "sessions/{session_id}/artifacts/parent_report.pdf"
-
-    # Content structure
-    content_schema:
-      sections:
-        - executive_summary  # Key findings in 2-3 paragraphs
-        - child_profile  # Strengths and uniqueness
-        - developmental_observations:
-            - social_emotional
-            - communication
-            - cognitive
-            - motor
-            - sensory_processing
-        - areas_of_strength  # What child does well
-        - areas_for_support  # Gentle framing of concerns
-        - recommendations:
-            - immediate_steps
-            - long_term_goals
-            - resources
-            - expert_referrals
-        - next_steps  # Clear action plan
-        - questions_for_professionals  # If seeking diagnosis
-
-    # Access
-    available_in_phases: [screening, ongoing, re_assessment]
-    view_action: view_report
-    download_action: download_report
-    share_action: share_report
-
-    # Triggers phase transition
-    on_ready:
-      transition_phase:
-        from: screening
-        to: ongoing
-      notification: "reports_ready"
-
-    metadata:
-      language: he
-      estimated_length: "2000-3000 words"
-      tone: "empathetic, strengths-based, actionable"
-      reading_level: "accessible to all parents"
-      generation_timestamp: datetime
-      version: int  # For re-assessments
-
-  professional_report:
+  baseline_professional_report:
     name: "דוח מקצועי"
     name_en: "Professional Report"
     type: report
-    description: "Clinical assessment report for healthcare professionals"
+    description: "Clinical assessment report"
+    states: [pending, generating, ready, error]
+    storage: "sessions/{session_id}/artifacts/professional_report.md"
+    generator:
+      method: "generate_professional_report"
+      requires_artifacts: [baseline_interview_summary]
+      optional_artifacts: [baseline_video_analysis]
 
-    # Lifecycle
-    created_by: system
-    trigger:
-      same_as: parent_report  # Generated together
-    generation_method: llm_synthesis
-    generation_inputs:
-      - same as parent_report
-      - clinical_terminology_mapping
-      - DSM5_criteria_reference
-
-    # Status states
-    states:
-      - pending
-      - generating
-      - ready
-      - error
-
-    # Storage
-    storage_pattern: "sessions/{session_id}/artifacts/professional_report.md"
-    pdf_export_pattern: "sessions/{session_id}/artifacts/professional_report.pdf"
-
-    # Content structure
-    content_schema:
-      sections:
-        - referral_information  # Why assessment sought
-        - background_information  # From interview
-        - observational_data:
-            - behavioral_observations  # From videos
-            - parent_report_of_behaviors  # From interview
-        - clinical_impressions:
-            - diagnostic_considerations
-            - differential_diagnosis
-            - confidence_levels
-        - functional_impact_assessment
-        - recommendations:
-            - further_assessment_needed
-            - therapeutic_interventions
-            - educational_accommodations
-            - specialist_referrals
-        - assessment_limitations  # Clear about scope
-
-    # Access
-    available_in_phases: [screening, ongoing, re_assessment]
-    view_action: view_professional_report
-    download_action: download_professional_report
-    share_action: share_report
-
-    metadata:
-      language: he
-      estimated_length: "3000-4000 words"
-      tone: "clinical, evidence-based, precise"
-      includes_terminology: ["DSM-5", "ICD-11", "clinical markers"]
-      generation_timestamp: datetime
-      version: int
+  baseline_parent_report:
+    name: "דוח הורים"
+    name_en: "Parent Report"
+    type: report
+    description: "Parent-friendly report derived from professional report"
+    states: [pending, generating, ready, error]
+    storage: "sessions/{session_id}/artifacts/parent_report.md"
+    generator:
+      method: "generate_parent_report"
+      requires_artifacts: [baseline_professional_report]
+    # 🌟 Phase 2: Slot configuration for Daniel's Space
+    slot:
+      slot_id: "current_report"
+      replaces_previous: true
+      keep_history: true
+      preview_field: "summary"
 
   # ========================================
-  # ONGOING PHASE ARTIFACTS
+  # USER-CREATED ARTIFACTS
   # ========================================
+
+  behavioral_videos:
+    name: "סרטוני התנהגות"
+    name_en: "Behavioral Videos"
+    type: video
+    description: "Parent-uploaded videos"
+    states: [pending_upload, uploading, ready, error]
+    storage: "sessions/{session_id}/videos/{video_id}.{ext}"
+    created_by: user
+    validation:
+      max_size_mb: 500
+      max_duration_minutes: 10
+      allowed_formats: ["mp4", "mov", "avi"]
+    # 🌟 Phase 2: Slot configuration for Daniel's Space
+    slot:
+      slot_id: "videos"
+      is_collection: true
 
   journal_entries:
     name: "רשומות יומן"
     name_en: "Journal Entries"
     type: journal
-    description: "Parent observations and notes over time"
-
-    # Lifecycle
+    description: "Parent observations over time"
+    states: [draft, saved]
+    storage: "sessions/{session_id}/journal/{entry_id}.json"
     created_by: user
-    trigger:
-      action: add_journal_entry
-    is_collection: true  # Multiple entries over time
-
-    # Status states
-    states:
-      - draft  # User writing
-      - saved  # Stored
-
-    # Storage
-    storage_pattern: "sessions/{session_id}/journal/{entry_id}.json"
-
-    # Content structure
-    per_entry_schema:
-      entry_id: string
-      timestamp: datetime
-      entry_type:
-        - observation  # Something noticed
-        - milestone  # Developmental achievement
-        - concern  # New worry
-        - question  # For consultation
-        - success  # Positive moment
-      content: string  # Free text
-      tags: []  # User or AI-generated tags
-      mood: string  # Optional: parent's emotional state
-      child_mood: string  # Optional: child's state
-      llm_analysis:
-        extracted_themes: []
-        developmental_markers: []
-        questions_raised: []
-
-    # Access
-    available_in_phases: [screening, ongoing, re_assessment]
-    add_action: add_journal_entry
-    view_action: view_journal
-    edit_action: edit_journal_entry
-    delete_action: delete_journal_entry
-
-    # Processing
-    ai_processing:
-      on_save:
-        - extract_themes
-        - identify_patterns
-        - detect_concerns_needing_attention
-        - suggest_tags
-      periodic:
-        - generate_follow_up_summary  # Every N entries or M days
-
-    notes: "Journal is private, user-controlled, builds long-term understanding"
-
-  follow_up_summaries:
-    name: "סיכומי מעקב"
-    name_en: "Follow-up Summaries"
-    type: report
-    description: "Periodic summaries of journal entries and developmental progress"
-
-    # Lifecycle
-    created_by: system
-    trigger:
-      type: periodic_or_request
-      conditions:
-        - "journal_entries >= 10"
-        - "days_since_last_summary >= 30"
-        - "user_requests_summary"
-    generation_method: llm_synthesis
-    generation_inputs:
-      - journal_entries
-      - previous_summaries
-      - parent_report  # Baseline
-
-    # Status states
-    states:
-      - pending
-      - generating
-      - ready
-
-    # Storage
-    storage_pattern: "sessions/{session_id}/artifacts/summaries/{summary_id}.md"
-
-    # Content structure
-    content_schema:
-      time_period:
-        start_date: date
-        end_date: date
-        entries_reviewed: int
-      key_observations:
-        - progress_areas  # Improvements noted
-        - new_strengths  # Emerging skills
-        - ongoing_challenges  # Persistent concerns
-        - patterns_identified  # Themes across entries
-      developmental_trajectory:
-        - comparison_to_baseline
-        - areas_of_growth
-        - areas_needing_support
-      parent_wellbeing:
-        - stress_indicators
-        - confidence_levels
-        - support_needs
-      recommendations:
-        - continue_current_approaches
-        - try_new_strategies
-        - consider_re_assessment
-        - seek_additional_support
-
-    # Access
-    available_in_phases: [ongoing]
-    view_action: view_follow_up_summaries
-    download_action: download_summary
-
-    metadata:
-      language: he
-      tone: "supportive, reflective, forward-looking"
-      estimated_length: "800-1200 words"
-
-  expert_recommendations:
-    name: "המלצות למומחים"
-    name_en: "Expert Recommendations"
-    type: analysis
-    description: "Personalized expert matches based on child's needs"
-
-    # Lifecycle
-    created_by: system
-    trigger:
-      action: find_experts
-      enhanced_by: reports_available
-    generation_method: matching_algorithm
-    generation_inputs:
-      - parent_report
-      - professional_report
-      - location_data
-      - expert_database
-
-    # Status states
-    states:
-      - generating
-      - ready
-
-    # Storage
-    storage_pattern: "sessions/{session_id}/artifacts/expert_recommendations.json"
-
-    # Content structure
-    content_schema:
-      recommended_experts:
-        - expert_id: string
-          name: string
-          specialty: []
-          match_score: float
-          match_reasons: []
-          location: string
-          availability: string
-          languages: []
-          contact_info: dict
-      search_criteria:
-        primary_needs: []
-        secondary_needs: []
-        location: string
-        preferences: dict
-
-    # Access
-    available_in_phases: [ongoing]
-    view_action: view_expert_recommendations
-    contact_action: contact_expert
-
-    notes: "Recommendations update as child's needs evolve"
+    is_collection: true
+    # 🌟 Phase 2: Slot configuration for Daniel's Space
+    slot:
+      slot_id: "journal"
+      is_collection: true
 
   # ========================================
-  # RE-ASSESSMENT PHASE ARTIFACTS
+  # RE-ASSESSMENT ARTIFACTS
   # ========================================
 
-  updated_video_guidelines:
+  re_assessment_video_guidelines:
     name: "הנחיות צילום מעודכנות"
     name_en: "Updated Video Guidelines"
     type: guidelines
-    description: "Targeted video guidelines for re-assessment"
-
-    # Lifecycle
-    created_by: system
-    trigger:
-      phase_transition: ongoing_to_re_assessment
-    generation_method: llm_synthesis
-    generation_inputs:
-      - parent_report  # Baseline
-      - journal_entries  # Recent observations
-      - re_assessment_focus  # What to evaluate
-
-    # Similar structure to video_guidelines
+    description: "Targeted guidelines for re-assessment"
     states: [pending, generating, ready, error]
-    storage_pattern: "sessions/{session_id}/artifacts/re_assessment_video_guidelines.md"
-    available_in_phases: [re_assessment]
+    storage: "sessions/{session_id}/artifacts/re_assessment_video_guidelines.json"
+    generator:
+      method: "generate_video_guidelines"
+      requires_artifacts: [baseline_interview_summary]
 
-    notes: "More focused than initial guidelines - targets specific areas"
-
-  updated_parent_report:
-    name: "דוח הורים מעודכן"
-    name_en: "Updated Parent Report"
-    type: report
-    description: "Re-assessment report showing progress and current state"
-
-    # Lifecycle
-    created_by: system
-    trigger:
-      artifact_available: re_assessment_video_analysis
-    generation_method: llm_synthesis
-    generation_inputs:
-      - parent_report  # Baseline for comparison
-      - re_assessment_videos
-      - re_assessment_analysis
-      - journal_entries  # Progress tracking
-
-    # Similar structure to parent_report plus comparison section
-    states: [pending, generating, ready, error]
-    storage_pattern: "sessions/{session_id}/artifacts/parent_report_v{version}.md"
-
-    content_schema:
-      # All sections from parent_report PLUS:
-      additional_sections:
-        - comparison_to_baseline:
-            - progress_made
-            - skills_gained
-            - areas_still_challenging
-            - trajectory_analysis
-        - impact_of_interventions:
-            - what_helped
-            - what_didnt_help
-            - adjustments_recommended
-
-    # Access
-    available_in_phases: [re_assessment, ongoing]
-    view_action: view_report
-    download_action: download_report
-
-    # Triggers phase transition back to ongoing
-    on_ready:
-      transition_phase:
-        from: re_assessment
-        to: ongoing
-      notification: "re_assessment_complete"
+  re_assessment_video_analysis:
+    name: "ניתוח וידאו מעודכן"
+    name_en: "Updated Video Analysis"
+    type: analysis
+    description: "Re-assessment video analysis"
+    states: [pending, analyzing, ready, error]
+    storage: "sessions/{session_id}/artifacts/re_assessment_video_analysis.json"
+    generator:
+      method: "analyze_videos"
+      requires_artifacts: [baseline_interview_summary, re_assessment_video_guidelines]
 
   updated_professional_report:
     name: "דוח מקצועי מעודכן"
     name_en: "Updated Professional Report"
     type: report
     description: "Clinical re-assessment with comparison to baseline"
-
-    # Lifecycle
-    created_by: system
-    trigger:
-      same_as: updated_parent_report
-
-    # Similar to professional_report with comparison sections
     states: [pending, generating, ready, error]
-    storage_pattern: "sessions/{session_id}/artifacts/professional_report_v{version}.md"
-    available_in_phases: [re_assessment, ongoing]
+    storage: "sessions/{session_id}/artifacts/professional_report_v{version}.md"
+    generator:
+      method: "generate_professional_report"
+      requires_artifacts: [baseline_interview_summary, baseline_professional_report]
+      optional_artifacts: [re_assessment_video_analysis]
 
-# Artifact dependencies and flows
-artifact_flows:
-  screening_flow:
-    sequence:
-      - step: 1
-        artifact: video_guidelines
-        triggers: "interview completion"
-      - step: 2
-        artifact: behavioral_videos
-        requires: video_guidelines
-        user_action: true
-      - step: 3
-        artifact: video_analysis_results
-        requires: behavioral_videos
-      - step: 4
-        artifacts: [parent_report, professional_report]
-        requires: video_analysis_results
-      - step: 5
-        phase_transition: "screening → ongoing"
+  updated_parent_report:
+    name: "דוח הורים מעודכן"
+    name_en: "Updated Parent Report"
+    type: report
+    description: "Re-assessment report with progress comparison"
+    states: [pending, generating, ready, error]
+    storage: "sessions/{session_id}/artifacts/parent_report_v{version}.md"
+    generator:
+      method: "generate_parent_report"
+      requires_artifacts: [updated_professional_report]
+    # 🌟 Phase 2: Slot configuration - replaces baseline in same slot
+    slot:
+      slot_id: "current_report"
+      replaces_previous: true
+      keep_history: true
+      preview_field: "summary"
 
-  ongoing_flow:
-    continuous:
-      - artifact: journal_entries
-        frequency: user_driven
-      - artifact: follow_up_summaries
-        frequency: periodic
-      - artifact: expert_recommendations
-        frequency: on_demand
-
-  re_assessment_flow:
-    sequence:
-      - step: 1
-        artifact: updated_video_guidelines
-        triggers: "phase transition"
-      - step: 2
-        artifact: re_assessment_videos
-        user_action: true
-      - step: 3
-        artifact: re_assessment_video_analysis
-        requires: re_assessment_videos
-      - step: 4
-        artifacts: [updated_parent_report, updated_professional_report]
-        requires: re_assessment_video_analysis
-      - step: 5
-        phase_transition: "re_assessment → ongoing"
-
-# Artifact lifecycle management
-lifecycle_rules:
-  retention:
-    video_guidelines: permanent
-    behavioral_videos: permanent  # User data
-    video_analysis_results: permanent
-    parent_report: permanent
-    professional_report: permanent
-    journal_entries: permanent  # User data
-    follow_up_summaries: permanent
-    expert_recommendations: 90_days  # Refresh periodically
-
-  versioning:
-    parent_report: true  # Track versions across re-assessments
-    professional_report: true
-    video_guidelines: true
-    follow_up_summaries: false  # Each is unique
-    journal_entries: false  # Immutable once saved
-
-  privacy:
-    behavioral_videos: high_security  # Most sensitive
-    journal_entries: high_security
-    parent_report: medium_security  # Can be shared
-    professional_report: medium_security
-    video_analysis_results: high_security  # Raw data
-    expert_recommendations: low_security  # Public info
-
-# Metadata
+# ============================================
+# METADATA
+# ============================================
 metadata:
-  designed_for: "child_development_workflow"
-  last_updated: "2025-11-08"
+  last_updated: "2025-11-25"
+  version_history:
+    - "1.0: Verbose artifact definitions with phase-based logic"
+    - "2.0: Simplified with inline generator config (Wu Wei)"
+    - "2.1: Added slot configuration for Daniel's Space (Living Dashboard Phase 2)"
   notes: |
-    Artifacts represent the tangible outputs of the workflow:
+    🌟 Wu Wei v2.1: Added Daniel's Space slot configuration
 
-    1. SCREENING artifacts = intensive assessment
-       - Guidelines (AI-generated)
-       - Videos (user-uploaded)
-       - Analysis (AI-processed)
-       - Reports (AI-synthesized)
+    Key changes in v2.1:
+    - Added 'slots' section defining UI slots for Daniel's Space
+    - Added 'slot_order' for display ordering
+    - Each artifact can have a 'slot' field mapping it to a UI slot
+    - Slots support: replaces_previous, keep_history, is_collection, preview_field
+    - Multiple artifacts can map to the same slot (e.g., baseline + updated reports)
 
-    2. ONGOING artifacts = continuous tracking
-       - Journal (user-created)
-       - Summaries (AI-synthesized periodically)
-       - Expert matches (AI-generated on-demand)
-
-    3. RE-ASSESSMENT artifacts = updated evaluation
-       - Updated versions of screening artifacts
-       - Comparison to baseline built in
-
-    Key principles:
-    - Artifacts have clear lifecycles (trigger → states → ready)
-    - Artifacts can depend on other artifacts
-    - Artifacts can trigger phase transitions
-    - Artifacts have different access controls
-    - Some artifacts are user-created, most are system-generated
-    - Versioning for longitudinal tracking
+    Previous changes (v2.0):
+    - Merged artifact_generators.yaml into this file
+    - Removed phase-based logic (available_in_phases)
+    - Simplified each artifact to: name, type, states, storage, generator

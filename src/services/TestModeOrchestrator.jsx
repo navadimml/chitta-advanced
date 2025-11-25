@@ -158,8 +158,9 @@ class TestModeOrchestrator {
       await this._sleep(500); // Small delay before submitting
 
       if (this.autoRunning && this.active) {
-        console.log('🧪 Auto-submitting parent response');
-        await sendMessageCallback(parentResponse);
+        console.log('🧪 Auto-submitting parent response with family_id:', this.familyId);
+        // BUG FIX: Pass family_id directly to bypass async state issues
+        await sendMessageCallback(parentResponse, this.familyId);
       }
 
     } catch (error) {
