@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, Video, Upload, Camera, Play, Pause, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 
-export default function VideoUploadView({ onClose, scenarioData, videoGuidelines, onCreateVideo }) {
+export default function VideoUploadView({ onClose, scenarioData, videoGuidelines, onCreateVideo, familyId = 'demo_family_001' }) {
   const [uploadStatus, setUploadStatus] = useState('idle'); // idle, uploading, success, error
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -13,47 +13,100 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
 
-  // Simulate file upload
-  const handleFileSelect = (event) => {
+  // Auto-select scenario if provided from guidelines view
+  useEffect(() => {
+    if (scenarioData) {
+      setSelectedGuideline(scenarioData);
+      setVideoTitle(scenarioData.title || '');
+      setVideoDescription(scenarioData.what_to_film || scenarioData.description || '');
+    }
+  }, [scenarioData]);
+
+  // Handle file selection and upload
+  const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (file && file.type.startsWith('video/')) {
-      setVideoPreview(URL.createObjectURL(file));
+      const blobUrl = URL.createObjectURL(file);
+      setVideoPreview(blobUrl);
       setVideoTitle(file.name.replace(/\.[^/.]+$/, '')); // Remove file extension
-      simulateUpload(file);
+
+      // Get video duration
+      const duration = await getVideoDuration(file);
+
+      // Upload the actual file
+      await uploadVideoFile(file, blobUrl, duration);
     }
   };
 
-  // Simulate upload progress
-  const simulateUpload = async (file) => {
+  // Get video duration from file
+  const getVideoDuration = (file) => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        const durationSeconds = Math.floor(video.duration);
+        resolve(durationSeconds);
+      };
+
+      video.onerror = () => {
+        resolve(0); // Fallback if we can't read duration
+      };
+
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Upload video file with real progress
+  const uploadVideoFile = async (file, blobUrl, durationSeconds) => {
     setUploadStatus('uploading');
     setUploadProgress(0);
 
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
+    try {
+      // Import API client
+      const { api } = await import('../../api/client.js');
+
+      // Generate video ID if not already set
+      const videoId = 'vid_' + Date.now();
+
+      // Upload with progress callback
+      const result = await api.uploadVideo(
+        familyId,
+        videoId,
+        selectedGuideline?.title || videoTitle || 'כללי',
+        durationSeconds,
+        file,
+        (progress) => {
+          setUploadProgress(progress);
         }
-        return prev + 10;
-      });
-    }, 300);
+      );
 
-    // Wait for upload to complete
-    await new Promise(resolve => setTimeout(resolve, 3000));
+      console.log('✅ Upload successful:', result);
 
-    // Save the video to the app state
-    if (onCreateVideo) {
-      const videoData = {
-        title: videoTitle || 'סרטון חדש',
-        description: videoDescription || 'סרטון שהועלה',
-        duration: '0:00', // In a real app, would get this from the video file
-        url: videoPreview,
-        scenario: selectedGuideline?.title || 'כללי'
-      };
-      await onCreateVideo(videoData);
+      // Save the video to the app state
+      if (onCreateVideo) {
+        const mins = Math.floor(durationSeconds / 60);
+        const secs = durationSeconds % 60;
+        const duration = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+        const videoData = {
+          id: videoId,
+          title: videoTitle || 'סרטון חדש',
+          description: videoDescription || 'סרטון שהועלה',
+          duration: duration,
+          url: blobUrl,  // Keep blob URL for preview
+          scenario: selectedGuideline?.title || 'כללי',
+          file_path: result.file_path // Server file path
+        };
+        await onCreateVideo(videoData);
+      }
+
+      setUploadStatus('success');
+    } catch (error) {
+      console.error('❌ Upload failed:', error);
+      setUploadStatus('error');
     }
-
-    setUploadStatus('success');
   };
 
   // Handle recording start/stop (simplified simulation)
@@ -105,13 +158,15 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
   // Handler to select a guideline and auto-fill form
   const handleSelectGuideline = (scenario) => {
     setSelectedGuideline(scenario);
-    setVideoTitle(scenario.title);
-    setVideoDescription(scenario.description);
+    setVideoTitle(scenario.title || '');
+    // Try multiple field names for description (different scenario structures)
+    setVideoDescription(scenario.what_to_film || scenario.context || scenario.description || '');
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-2xl max-h-[100vh] overflow-hidden flex flex-col animate-slideUp" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 animate-backdropIn" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative bg-white rounded-t-3xl md:rounded-3xl w-full max-w-2xl max-h-[100vh] overflow-hidden flex flex-col animate-panelUp" onClick={(e) => e.stopPropagation()}>
         
         <div className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-5 flex items-center justify-between">
           <h3 className="text-lg font-bold">צילום והעלאת וידאו</h3>
@@ -143,7 +198,7 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                       </span>
                       <div className="flex-1">
                         <h6 className="font-bold text-purple-900 text-sm mb-1">{scenario.title}</h6>
-                        <p className="text-xs text-purple-700 leading-relaxed">{scenario.description}</p>
+                        <p className="text-xs text-purple-700 leading-relaxed">{scenario.context || scenario.description || ''}</p>
                         <div className="flex items-center gap-2 mt-2">
                           {scenario.priority === 'essential' && (
                             <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">
@@ -168,12 +223,52 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
               <div className="flex items-center justify-between mb-4">
                 <h5 className="font-bold text-purple-900 text-lg">{selectedGuideline.title}</h5>
                 <button
-                  onClick={() => setSelectedGuideline(null)}
+                  onClick={() => {
+                    // If we came from guidelines view, go back there
+                    if (scenarioData?.onBackToGuidelines) {
+                      scenarioData.onBackToGuidelines();
+                    } else {
+                      // Otherwise, just clear selection to show list
+                      setSelectedGuideline(null);
+                    }
+                  }}
                   className="text-purple-600 hover:text-purple-800 text-sm font-semibold"
                 >
                   ← חזרה לרשימה
                 </button>
               </div>
+
+              {/* Basic Context (fallback when rich fields don't exist) */}
+              {!selectedGuideline.detailed_description && selectedGuideline.context && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                  <p className="text-sm text-indigo-800 leading-relaxed">
+                    {selectedGuideline.context}
+                  </p>
+                </div>
+              )}
+
+              {/* What to Film (fallback) */}
+              {!selectedGuideline.detailed_description && selectedGuideline.what_to_film && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <h6 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
+                    <Video className="w-4 h-4" />
+                    מה לצלם:
+                  </h6>
+                  <p className="text-sm text-purple-800 leading-relaxed">
+                    {selectedGuideline.what_to_film}
+                  </p>
+                </div>
+              )}
+
+              {/* Why This Matters (fallback) */}
+              {!selectedGuideline.detailed_rationale && selectedGuideline.why_matters && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                  <p className="text-sm text-indigo-800">
+                    <span className="font-semibold">💡 למה זה חשוב: </span>
+                    {selectedGuideline.why_matters}
+                  </p>
+                </div>
+              )}
 
               {/* Why I Chose This - New Section */}
               {selectedGuideline.why_i_chose_this && (
@@ -399,9 +494,15 @@ export default function VideoUploadView({ onClose, scenarioData, videoGuidelines
                     </button>
                     <button
                       onClick={() => {
-                        setUploadStatus('idle');
-                        setVideoPreview(null);
-                        setSelectedGuideline(null);
+                        // If we came from guidelines view, go back there
+                        if (scenarioData?.onBackToGuidelines) {
+                          scenarioData.onBackToGuidelines();
+                        } else {
+                          // Otherwise, reset to show list within upload view
+                          setUploadStatus('idle');
+                          setVideoPreview(null);
+                          setSelectedGuideline(null);
+                        }
                       }}
                       className="bg-white border-2 border-indigo-500 text-indigo-600 py-3 px-4 rounded-xl font-bold hover:bg-indigo-50 transition"
                     >

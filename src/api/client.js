@@ -46,34 +46,71 @@ class ChittaAPIClient {
   }
 
   /**
-   * העלאת וידאו
+   * העלאת וידאו (actual file upload with progress callback)
    */
-  async uploadVideo(familyId, videoId, scenario, durationSeconds) {
-    const response = await fetch(`${API_BASE_URL}/video/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        family_id: familyId,
-        video_id: videoId,
-        scenario: scenario,
-        duration_seconds: durationSeconds
-      })
+  async uploadVideo(familyId, videoId, scenario, durationSeconds, videoFile, onProgress = null) {
+    // Create FormData for multipart/form-data upload
+    const formData = new FormData();
+    formData.append('family_id', familyId);
+    formData.append('video_id', videoId);
+    formData.append('scenario', scenario);
+    formData.append('duration_seconds', durationSeconds);
+    formData.append('file', videoFile);
+
+    // Use XMLHttpRequest for upload progress tracking
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            onProgress(percentComplete);
+          }
+        });
+      }
+
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            resolve(result);
+          } catch (e) {
+            reject(new Error('Failed to parse response'));
+          }
+        } else {
+          reject(new Error(`Upload failed: ${xhr.statusText}`));
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload cancelled'));
+      });
+
+      // Send request
+      xhr.open('POST', `${API_BASE_URL}/video/upload`);
+      xhr.send(formData);
     });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
   /**
    * ניתוח וידאואים
    */
-  async analyzeVideos(familyId) {
-    const response = await fetch(`${API_BASE_URL}/video/analyze?family_id=${familyId}`, {
+  async analyzeVideos(familyId, confirmed = false) {
+    const url = new URL(`${API_BASE_URL}/video/analyze`);
+    url.searchParams.append('family_id', familyId);
+    if (confirmed) {
+      url.searchParams.append('confirmed', 'true');
+    }
+
+    const response = await fetch(url.toString(), {
       method: 'POST'
     });
 
@@ -196,6 +233,168 @@ class ChittaAPIClient {
    */
   async getArtifact(familyId, artifactId) {
     const response = await fetch(`${API_BASE_URL}/artifacts/${artifactId}?family_id=${familyId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // ==========================================
+  // Living Dashboard Phase 2: Daniel's Space
+  // ==========================================
+
+  /**
+   * Get full child space with all slots
+   */
+  async getChildSpace(familyId) {
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get header badges only (lightweight)
+   */
+  async getChildSpaceHeader(familyId) {
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/header`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get slot detail with history
+   */
+  async getSlotDetail(familyId, slotId) {
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/slot/${slotId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // ==========================================
+  // Living Dashboard Phase 3: Living Documents
+  // ==========================================
+
+  /**
+   * Get structured artifact with sections
+   */
+  async getStructuredArtifact(familyId, artifactId) {
+    const response = await fetch(
+      `${API_BASE_URL}/artifact/${artifactId}/structured?family_id=${familyId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get all threads for an artifact
+   */
+  async getArtifactThreads(familyId, artifactId) {
+    const response = await fetch(
+      `${API_BASE_URL}/artifact/${artifactId}/threads?family_id=${familyId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Create a new thread on an artifact section
+   */
+  async createThread(familyId, artifactId, sectionId, question, sectionTitle = null, sectionText = null) {
+    const response = await fetch(
+      `${API_BASE_URL}/artifact/${artifactId}/section/${sectionId}/thread`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          family_id: familyId,
+          initial_question: question,
+          section_title: sectionTitle,
+          section_text: sectionText
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get a specific thread
+   */
+  async getThread(threadId, artifactId, familyId) {
+    const response = await fetch(
+      `${API_BASE_URL}/thread/${threadId}?artifact_id=${artifactId}&family_id=${familyId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Add message to thread and get AI response
+   */
+  async addThreadMessage(threadId, familyId, content) {
+    const response = await fetch(
+      `${API_BASE_URL}/thread/${threadId}/message`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          family_id: familyId,
+          content: content
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Mark thread as resolved
+   */
+  async resolveThread(threadId, artifactId) {
+    const response = await fetch(
+      `${API_BASE_URL}/thread/${threadId}/resolve?artifact_id=${artifactId}`,
+      {
+        method: 'POST'
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);

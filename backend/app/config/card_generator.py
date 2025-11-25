@@ -1,14 +1,14 @@
 """
 Card generator for context card management.
 
-Generates and manages context cards based on session state,
-using context_cards.yaml configuration.
+Generates and manages context cards based on session state.
+🌟 Wu Wei v3.2: Cards are now defined in workflow.yaml moments.
 """
 
 from typing import Dict, Any, List, Optional
 import logging
 
-from app.config.config_loader import load_context_cards
+from app.config.config_loader import load_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -19,27 +19,76 @@ class CardGenerator:
 
     Evaluates display conditions and generates appropriate cards
     based on current session state.
+
+    🌟 Wu Wei v3.2: Cards are now extracted from moments in workflow.yaml
     """
 
     def __init__(self):
         """Initialize card generator."""
-        self._card_config = load_context_cards()
+        self._workflow_config = load_workflow()
         self._cards: Dict[str, Dict[str, Any]] = {}
         self._card_types: Dict[str, Dict[str, Any]] = {}
+        self._display_rules: Dict[str, Any] = {}
         self._load_card_types()
-        self._load_cards()
+        self._load_display_rules()
+        self._load_cards_from_moments()
 
     def _load_card_types(self) -> None:
-        """🌟 Wu Wei: Load card type definitions from YAML."""
-        card_types_config = self._card_config.get("card_types", {})
+        """🌟 Wu Wei: Load card type definitions from workflow.yaml."""
+        card_types_config = self._workflow_config.get("card_types", {})
         self._card_types = card_types_config
-        logger.info(f"Loaded {len(self._card_types)} card type definitions from YAML")
+        logger.info(f"Loaded {len(self._card_types)} card type definitions from workflow.yaml")
 
-    def _load_cards(self) -> None:
-        """Load card definitions from configuration."""
-        cards_config = self._card_config.get("cards", {})
-        self._cards = cards_config
-        logger.info(f"Loaded {len(self._cards)} card definitions")
+    def _load_display_rules(self) -> None:
+        """🌟 Wu Wei: Load display rules from workflow.yaml."""
+        self._display_rules = self._workflow_config.get("display_rules", {
+            "max_cards_visible": 4,
+            "priority_ordering": True,
+            "auto_dismiss": True
+        })
+        logger.info(f"Loaded display rules: max_cards={self._display_rules.get('max_cards_visible', 4)}")
+
+    def _load_cards_from_moments(self) -> None:
+        """
+        🌟 Wu Wei v3.2: Extract cards from moments in workflow.yaml.
+
+        Each moment can have a 'card' field that defines a UI card.
+        The moment's 'when' conditions become the card's display_conditions.
+        """
+        moments = self._workflow_config.get("moments", {})
+        cards_found = 0
+
+        for moment_id, moment_config in moments.items():
+            if not isinstance(moment_config, dict):
+                continue
+
+            card_config = moment_config.get("card")
+            if card_config:
+                # Convert moment format to card format
+                # The 'when' conditions become 'display_conditions'
+                card_data = {
+                    "name": card_config.get("title", moment_id),
+                    "card_type": card_config.get("card_type", "guidance"),
+                    "priority": card_config.get("priority", 50),
+                    "display_conditions": moment_config.get("when", {}),
+                    "content": {
+                        "title": card_config.get("title", ""),
+                        "body": card_config.get("body", ""),
+                        "footer": card_config.get("footer", "")
+                    },
+                    "available_actions": card_config.get("actions", []),
+                    "dismissible": card_config.get("dismissible", True),
+                    "updates_dynamically": card_config.get("updates_dynamically", False),
+                    "show_once": card_config.get("show_once", False),
+                    "celebration_animation": card_config.get("celebration_animation", False),
+                    "persistent": card_config.get("persistent", False),
+                    "re_show_after_days": card_config.get("re_show_after_days"),
+                    "auto_dismiss_after_action": card_config.get("auto_dismiss_after_action"),
+                }
+                self._cards[moment_id] = card_data
+                cards_found += 1
+
+        logger.info(f"Loaded {cards_found} cards from moments in workflow.yaml")
 
     def get_card(self, card_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -80,24 +129,12 @@ class CardGenerator:
         if not conditions:
             return True  # No conditions = always show
 
-        # DEPRECATED: Phase-based conditions (keeping for backwards compatibility)
-        # 🌟 Wu Wei: Cards now use artifact-based prerequisites instead of phases
-        required_phase = conditions.get("phase")
-        if required_phase:
-            current_phase = context.get("phase", "screening")
-            if isinstance(required_phase, list):
-                if current_phase not in required_phase:
-                    return False
-            elif required_phase != current_phase:
-                return False
-
         # Behavioral flags that should not be evaluated as context conditions
         behavioral_flags = {
             "show_once",
             "auto_dismiss_when",
             "re_show_after_days",
             "updates_dynamically",
-            "phase",  # DEPRECATED: phase is no longer a display condition
         }
 
         # 🌟 Wu Wei: Check all prerequisite conditions
@@ -126,6 +163,8 @@ class CardGenerator:
                 expected_exists = bool(condition_value)
 
                 if actual_exists != expected_exists:
+                    if card_id == "video_guidelines_card":
+                        logger.warning(f"❌ Card '{card_id}' HIDDEN: {condition_key} = {actual_exists} (expected: {expected_exists})")
                     return False
 
                 continue  # Condition checked, move to next
@@ -136,24 +175,40 @@ class CardGenerator:
                 # Debug logging for artifact status checks
                 if card_id == "guidelines_preparing_card" and ".status" in condition_key:
                     logger.info(f"🔍 Card '{card_id}': checking {condition_key} = {context_value} (expected: {condition_value})")
+                # Debug logging for video_guidelines_card disappearance
+                if card_id == "video_guidelines_card":
+                    logger.info(f"🔍 Card '{card_id}': checking {condition_key} = {context_value} (expected: {condition_value})")
             else:
                 context_value = context.get(condition_key)
+                # 🔍 DEBUG: Log filming_preference reads from context
+                if condition_key == "filming_preference":
+                    logger.info(f"🔍 DEBUG reading filming_preference from context:")
+                    logger.info(f"   context_value = {context_value}")
+                    logger.info(f"   context keys = {list(context.keys())}")
 
             # Handle string conditions with operators (e.g., "< 0.80", ">= 3", "!= ready")
             if isinstance(condition_value, str):
                 if not self._evaluate_string_condition(condition_value, context_value):
+                    if card_id == "video_guidelines_card":
+                        logger.warning(f"❌ Card '{card_id}' HIDDEN: {condition_key} = {context_value} (expected: {condition_value})")
                     return False
             # Handle boolean conditions
             elif isinstance(condition_value, bool):
                 if context_value != condition_value:
+                    if card_id == "video_guidelines_card":
+                        logger.warning(f"❌ Card '{card_id}' HIDDEN: {condition_key} = {context_value} (expected: {condition_value})")
                     return False
             # Handle numeric conditions
             elif isinstance(condition_value, (int, float)):
                 if context_value != condition_value:
+                    if card_id == "video_guidelines_card":
+                        logger.warning(f"❌ Card '{card_id}' HIDDEN: {condition_key} = {context_value} (expected: {condition_value})")
                     return False
             # Handle list conditions (value must be in list)
             elif isinstance(condition_value, list):
                 if context_value not in condition_value:
+                    if card_id == "video_guidelines_card":
+                        logger.warning(f"❌ Card '{card_id}' HIDDEN: {condition_key} = {context_value} (expected: one of {condition_value})")
                     return False
 
         return True
@@ -217,11 +272,21 @@ class CardGenerator:
         Returns:
             Tuple of (emoji, text_in_hebrew)
         """
+        # 🌟 Wu Wei: Domain-agnostic - check extracted_data
+        extracted = context.get("extracted_data", {})
+
+        # Handle both dict and Pydantic model
+        def safe_get(obj, key):
+            if hasattr(obj, 'get'):
+                return obj.get(key)
+            else:
+                return getattr(obj, key, None)
+
         # Check what information we have
-        has_basic_info = bool(context.get("child_name") and context.get("age"))
-        has_concerns = bool(context.get("primary_concerns") or context.get("concerns"))
-        has_strengths = bool(context.get("strengths"))
-        has_context = bool(context.get("other_info"))
+        has_basic_info = bool(safe_get(extracted, "child_name") and safe_get(extracted, "age"))
+        has_concerns = bool(safe_get(extracted, "primary_concerns") or safe_get(extracted, "concerns"))
+        has_strengths = bool(safe_get(extracted, "strengths"))
+        has_context = bool(safe_get(extracted, "other_info"))
         message_count = context.get("message_count", 0)
 
         # Qualitative assessment based on knowledge richness
@@ -394,18 +459,27 @@ class CardGenerator:
 
             else:
                 # Simple variable replacement (parent_name, child_name, etc.)
+                # 🌟 Wu Wei: Check top-level first, then extracted_data (domain-agnostic)
                 value = context.get(placeholder)
+
+                if value is None:
+                    # Check extracted_data for domain-specific fields
+                    extracted_data = context.get("extracted_data", {})
+                    # Handle both dict and Pydantic model
+                    if hasattr(extracted_data, 'get'):
+                        value = extracted_data.get(placeholder)
+                    else:
+                        # Pydantic model - use getattr
+                        value = getattr(extracted_data, placeholder, None)
 
                 if value is not None:
                     formatted = str(value)
                 else:
-                    # Check common mappings
+                    # Fallback to special handlers and defaults
                     if placeholder == "parent_name":
                         formatted = "הורה"
                     elif placeholder == "child_name":
-                        formatted = context.get("child_name", "הילד/ה")
-                    elif placeholder == "child_age":
-                        formatted = str(context.get("child_age", ""))
+                        formatted = "הילד/ה"
                     elif placeholder == "knowledge_depth_indicator_emoji":
                         # 🌟 Wu Wei: Qualitative depth indicator (emoji only)
                         emoji, _ = self._get_knowledge_depth_indicator(context)
@@ -539,9 +613,34 @@ class CardGenerator:
         for card_id, card in self._cards.items():
             if self.evaluate_display_conditions(card_id, context):
                 logger.info(f"✅ Card '{card_id}' matched display conditions")
+
+                # 🌟 Check auto_dismiss_when condition (if card should be hidden)
+                display_conditions = card.get("display_conditions", {})
+                auto_dismiss_condition = display_conditions.get("auto_dismiss_when")
+
+                if auto_dismiss_condition:
+                    # Parse condition like "uploaded_video_count >= guideline_scenario_count"
+                    should_dismiss = False
+
+                    if ">=" in auto_dismiss_condition:
+                        parts = auto_dismiss_condition.split(">=")
+                        if len(parts) == 2:
+                            left_var = parts[0].strip()
+                            right_var = parts[1].strip()
+                            left_val = context.get(left_var)
+                            right_val = context.get(right_var)
+
+                            if left_val is not None and right_val is not None:
+                                should_dismiss = left_val >= right_val
+                                logger.info(f"🔍 Auto-dismiss check for '{card_id}': {left_var}({left_val}) >= {right_var}({right_val}) = {should_dismiss}")
+
+                    if should_dismiss:
+                        logger.info(f"🚫 Card '{card_id}' auto-dismissed (condition met: {auto_dismiss_condition})")
+                        continue  # Skip this card - it should be dismissed
+
                 card_type = card.get("card_type", "guidance")
 
-                # Get content (could be content dict or content_by_state dict)
+                # Get content (could be content dict, content_by_state dict, or content_by_status dict)
                 content = card.get("content", {})
 
                 # Handle content_by_state (like journal_card)
@@ -551,6 +650,33 @@ class CardGenerator:
                     if content_by_state:
                         first_state_key = list(content_by_state.keys())[0]
                         content = content_by_state[first_state_key]
+
+                # 🌟 Handle content_by_status (like video_analysis_card)
+                # This selects content based on a status value from context
+                if not content and "content_by_status" in card:
+                    content_by_status = card.get("content_by_status", {})
+
+                    # Determine which status key to use (e.g., "video_analysis_status")
+                    # Look for keys ending with "_status" in display_conditions
+                    status_key = None
+                    status_value = None
+                    display_conditions = card.get("display_conditions", {})
+
+                    for key in display_conditions.keys():
+                        if key.endswith("_status"):
+                            status_key = key
+                            status_value = context.get(key, "pending")  # Default to "pending"
+                            break
+
+                    # Select content based on status value
+                    if status_key and status_value and status_value in content_by_status:
+                        content = content_by_status[status_value]
+                        logger.info(f"📊 Card '{card_id}': Using content_by_status['{status_value}'] (status_key='{status_key}')")
+                    elif content_by_status:
+                        # Fallback to first status if current status not found
+                        first_status = list(content_by_status.keys())[0]
+                        content = content_by_status[first_status]
+                        logger.warning(f"⚠️ Card '{card_id}': Status '{status_value}' not found, using fallback '{first_status}'")
 
                 # Extract title and subtitle
                 title = content.get("title", card.get("name", ""))
@@ -573,6 +699,35 @@ class CardGenerator:
 
                     # Replace {progress_description} in body
                     body = body.replace("{progress_description}", progress_desc)
+
+                # Handle video_count_warning (conditional warning for video analysis)
+                if "video_count_warning" in content:
+                    warning_config = content["video_count_warning"]
+                    condition = warning_config.get("condition", "")
+                    warning_text = warning_config.get("text", "")
+
+                    # Evaluate condition using existing _evaluate_string_condition logic
+                    # Parse "uploaded_video_count < guideline_scenario_count"
+                    warning_should_show = False
+                    if "<" in condition:
+                        parts = condition.split("<")
+                        if len(parts) == 2:
+                            left_var = parts[0].strip()
+                            right_var = parts[1].strip()
+                            left_val = context.get(left_var)
+                            right_val = context.get(right_var)
+
+                            if left_val is not None and right_val is not None:
+                                warning_should_show = left_val < right_val
+
+                    # Replace {video_count_warning} with actual warning or empty string
+                    if warning_should_show:
+                        # Apply formatters to warning text before inserting
+                        formatted_warning = self._apply_formatters(warning_text, context)
+                        body = body.replace("{video_count_warning}", formatted_warning)
+                    else:
+                        # No warning needed - remove placeholder
+                        body = body.replace("{video_count_warning}", "")
 
                 # 🌟 Wu Wei: Apply convention-based formatters to ALL placeholders
                 title = self._apply_formatters(title, context)
@@ -620,9 +775,10 @@ class CardGenerator:
                 # Actions can be:
                 # - Simple string: "upload_video"
                 # - Complex dict: {"name": "לחצי לצפייה", "action": "view_guidelines", "tracks": "..."}
+                # Actions can be in content (content_by_status) or at card root level
                 action = None
                 action_label = None
-                available_actions = card.get("available_actions", [])
+                available_actions = content.get("actions", []) or card.get("available_actions", [])
                 if available_actions:
                     first_action = available_actions[0]
                     if isinstance(first_action, str):

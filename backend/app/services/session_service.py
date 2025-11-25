@@ -51,6 +51,9 @@ class ExtractedData(BaseModel):
     parent_goals: Optional[str] = None
     urgent_flags: List[str] = []
 
+    # Parent preferences and decisions
+    filming_preference: Optional[str] = None  # "wants_videos" | "report_only" | None
+
     # Metadata
     last_updated: datetime = datetime.now()
     extraction_count: int = 0  # How many times data was extracted
@@ -78,8 +81,20 @@ class ExtractedData(BaseModel):
             logger.warning(f"🚫 Rejected too-short child_name: '{v}'")
             return None
 
+        # Reject gibberish: Check if name contains only non-alphabetic characters
+        cleaned = v.strip()
+        alpha_chars = sum(1 for c in cleaned if c.isalpha())
+        if alpha_chars == 0:
+            logger.warning(f"🚫 Rejected gibberish child_name (no letters): '{v}'")
+            return None
+
+        # Reject if more than 50% non-alphabetic (too much gibberish)
+        if len(cleaned) > 0 and alpha_chars / len(cleaned) < 0.5:
+            logger.warning(f"🚫 Rejected gibberish child_name (too many non-letters): '{v}'")
+            return None
+
         # Return cleaned name
-        return v.strip()
+        return cleaned
 
     @validator('age')
     def validate_age(cls, v):
@@ -126,6 +141,12 @@ class ExtractedData(BaseModel):
             else:
                 logger.warning(f"🚫 Rejected invalid concern: '{concern}'")
 
+        # CRITICAL: Reject 'other' if it's the ONLY concern (likely gibberish/off-topic)
+        # 'other' should only be valid when combined with specific concerns
+        if validated == ['other']:
+            logger.warning("🚫 Rejected 'other' as sole concern (likely off-topic or gibberish)")
+            return []
+
         return validated
 
 
@@ -142,6 +163,17 @@ class SessionState(BaseModel):
     # 🔍 Semantic completeness verification (LLM-based quality assessment)
     semantic_verification: Optional[Dict[str, Any]] = None  # Result from verify_semantic_completeness()
     semantic_verification_turn: int = 0  # Last turn when semantic verification was run
+
+    # 🔄 Background completeness check (non-blocking)
+    pending_completeness_check: Optional[Dict[str, Any]] = None  # Metadata about running background check
+    completed_check_result: Optional[Dict[str, Any]] = None  # Completed check result waiting to be used
+
+    # 🌟 Wu Wei: Moment context tracking (for persistent moment guidance)
+    last_triggered_moment: Optional[Dict[str, Any]] = None  # Last triggered moment {id, context, ...}
+
+    # 🎥 Domain: Video analysis tracking
+    guideline_scenario_count: Optional[int] = None  # Number of video scenarios in generated guidelines (for comparison)
+    video_analysis_status: Optional[str] = None  # "pending", "analyzing", "complete"
 
     # 🌟 Wu Wei: No phases - continuous conversation flow
     # DEPRECATED: phase field removed - workflow state derived from artifacts and context
@@ -253,22 +285,36 @@ class SessionService:
         # Update scalar fields
         # Reject string literals that represent null/missing values
         invalid_values = ['None', 'null', 'NULL', 'unknown', '(not mentioned yet)']
-        for field in ['child_name', 'age', 'gender']:
+        for field in ['child_name', 'age', 'gender', 'filming_preference']:
             if field not in new_data:
                 continue  # Field not provided in this extraction
 
             value = new_data[field]
 
+            # 🔍 DEBUG: Trace filming_preference processing
+            if field == 'filming_preference':
+                logger.info(f"🔍 DEBUG filming_preference:")
+                logger.info(f"   BEFORE: current.filming_preference = {getattr(current, field, 'ATTR_NOT_FOUND')}")
+                logger.info(f"   VALUE TO SET: {value} (type: {type(value).__name__})")
+
             # Skip if None (field not mentioned in conversation yet)
             if value is None:
+                if field == 'filming_preference':
+                    logger.info(f"   SKIPPED: value is None")
                 continue
 
             # For string fields, reject invalid placeholder strings
             if isinstance(value, str) and value in invalid_values:
+                if field == 'filming_preference':
+                    logger.info(f"   SKIPPED: value in invalid_values")
                 continue
 
             # Save the valid value
             setattr(current, field, value)
+
+            # 🔍 DEBUG: Confirm filming_preference was set
+            if field == 'filming_preference':
+                logger.info(f"   AFTER setattr: current.filming_preference = {getattr(current, field, 'ATTR_NOT_FOUND')}")
 
         # Merge arrays (concerns, urgent_flags)
         if 'primary_concerns' in new_data:

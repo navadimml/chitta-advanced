@@ -38,16 +38,6 @@ views:
     view_type: fullscreen
     priority: 100
 
-    # When available
-    availability:
-      phases: [screening, ongoing, re_assessment]
-      requires:
-        - reports_available
-      triggered_by_actions:
-        - view_report
-      triggered_by_cards:
-        - reports_ready_card
-        - updated_report_ready_card
 
     # Data sources
     data_sources:
@@ -177,15 +167,6 @@ views:
     view_type: fullscreen
     priority: 90
 
-    # When available
-    availability:
-      phases: [re_assessment, ongoing]
-      requires:
-        - updated_reports_available
-      triggered_by_actions:
-        - compare_reports
-      triggered_by_cards:
-        - updated_report_ready_card
 
     # Data sources
     data_sources:
@@ -266,16 +247,6 @@ views:
     view_type: sidebar
     priority: 85
 
-    # When available
-    availability:
-      phases: [screening, ongoing, re_assessment]
-      requires: []  # Always available
-      triggered_by_actions:
-        - view_journal
-        - add_journal_entry
-      triggered_by_cards:
-        - journal_card
-        - ongoing_welcome_card
 
     # Data sources
     data_sources:
@@ -402,16 +373,6 @@ views:
     view_type: modal
     priority: 80
 
-    # When available
-    availability:
-      phases: [screening, re_assessment]
-      requires:
-        - interview_complete
-      triggered_by_actions:
-        - view_video_guidelines
-      triggered_by_cards:
-        - interview_complete_card
-        - video_guidelines_card
 
     # Data sources
     data_sources:
@@ -495,15 +456,6 @@ views:
     view_type: modal
     priority: 85
 
-    # When available
-    availability:
-      phases: [screening, re_assessment]
-      requires:
-        - interview_complete
-      triggered_by_actions:
-        - upload_video
-      triggered_by_cards:
-        - video_guidelines_card
 
     # Data sources
     data_sources:
@@ -596,17 +548,6 @@ views:
     view_type: fullscreen
     priority: 75
 
-    # When available
-    availability:
-      phases: [ongoing]
-      requires: []  # Can browse anytime
-      enhanced_by:
-        - reports_available  # Better matching
-      triggered_by_actions:
-        - find_experts
-      triggered_by_cards:
-        - expert_finder_card
-        - ongoing_welcome_card
 
     # Data sources
     data_sources:
@@ -730,14 +671,6 @@ views:
     view_type: inline
     priority: 100
 
-    # When available
-    availability:
-      phases: [screening, ongoing, re_assessment]
-      requires: []  # Always available
-      triggered_by_actions:
-        - consultation
-      triggered_by_cards:
-        - any_card  # All cards offer consultation
 
     # Data sources
     data_sources:
@@ -805,13 +738,6 @@ views:
     view_type: modal
     priority: 70
 
-    # When available
-    availability:
-      phases: [screening, ongoing, re_assessment]
-      requires:
-        - reports_available
-      triggered_by_actions:
-        - share_report
 
     # Data sources
     data_sources:

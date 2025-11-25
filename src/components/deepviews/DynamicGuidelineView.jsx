@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Video, CheckCircle, Camera, Upload, Target, Lightbulb } from 'lucide-react';
 import VideoUploadView from './VideoUploadView';
 
-export default function DynamicGuidelineView({ viewKey, onClose, data, onCreateVideo }) {
+export default function DynamicGuidelineView({ viewKey, onClose, data, onCreateVideo, familyId }) {
   const [showVideoUpload, setShowVideoUpload] = useState(false);
 
   if (!data) {
@@ -26,11 +26,12 @@ export default function DynamicGuidelineView({ viewKey, onClose, data, onCreateV
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 animate-backdropIn"
       onClick={onClose}
     >
+      <div className="absolute inset-0 bg-black/50" />
       <div
-        className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-slideUp"
+        className="relative bg-white rounded-t-3xl md:rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-panelUp"
         onClick={(e) => e.stopPropagation()}
       >
 
@@ -161,6 +162,7 @@ export default function DynamicGuidelineView({ viewKey, onClose, data, onCreateV
           }}
           onCreateVideo={onCreateVideo}
           scenarioData={{ title, subtitle }}
+          familyId={familyId}
         />
       )}
     </div>

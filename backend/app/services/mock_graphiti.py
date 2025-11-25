@@ -19,12 +19,19 @@ class MockGraphiti:
 
     def get_or_create_state(self, family_id: str) -> FamilyState:
         """Get existing state or create new one"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         if family_id not in self.states:
+            logger.info(f"🆕 CREATING NEW STATE for family_id: {family_id}")
             self.states[family_id] = FamilyState(
                 family_id=family_id,
                 created_at=datetime.now(),
                 last_active=datetime.now()
             )
+        else:
+            conv_count = len(self.states[family_id].conversation)
+            logger.info(f"♻️ REUSING EXISTING STATE for family_id: {family_id} ({conv_count} messages in history)")
         return self.states[family_id]
 
     async def add_message(
