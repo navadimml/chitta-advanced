@@ -89,3 +89,4 @@ ENV/
 .env
 backend/.env
 .env.local
+backend/uploads/
