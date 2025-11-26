@@ -30,6 +30,7 @@ class ActionDefinition(BaseModel):
     requires_confirmation: Optional[Dict[str, Any]] = None
     processing: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
+    enhanced_by: Optional[List[str]] = None
 
 
 class ActionRegistry:

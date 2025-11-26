@@ -1867,6 +1867,140 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
     }
 
 
+# === Timeline Generation ===
+
+class TimelineGenerateRequest(BaseModel):
+    """Request to generate a timeline infographic."""
+    family_id: str
+    style: Optional[str] = "warm"  # warm, professional, playful
+
+
+@router.post("/timeline/generate")
+async def generate_timeline(request: TimelineGenerateRequest):
+    """
+    Generate a visual timeline infographic for a child's journey.
+
+    Uses Gemini image generation to create a beautiful infographic
+    showing key moments and milestones.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        from app.services.timeline_image_service import get_timeline_service
+
+        session_service = get_session_service()
+        session = session_service.get_or_create_session(request.family_id)
+
+        # Get child name from extracted data (SessionState has extracted_data directly)
+        extracted = session.extracted_data
+        child_name = extracted.child_name if extracted and extracted.child_name else "הילד/ה"
+
+        # Build events from session state
+        timeline_service = get_timeline_service()
+        events = timeline_service.build_events_from_family_state(
+            session.model_dump()
+        )
+
+        if not events:
+            return {
+                "success": False,
+                "error": "לא נמצאו אירועים ליצירת ציר זמן",
+                "message": "יש להמשיך בשיחה כדי ליצור ציר זמן"
+            }
+
+        # Generate the timeline image
+        result = await timeline_service.generate_timeline_image(
+            child_name=child_name,
+            events=events,
+            family_id=request.family_id,
+            style=request.style
+        )
+
+        if not result:
+            return {
+                "success": False,
+                "error": "שגיאה ביצירת ציר הזמן",
+                "message": "נסה שוב מאוחר יותר"
+            }
+
+        # Store as artifact
+        from app.models.artifact import Artifact
+
+        artifact = Artifact(
+            artifact_id=f"timeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            artifact_type="timeline_infographic",
+            status="ready",
+            content=result["image_url"],  # Store image URL as content
+            metadata={
+                "image_url": result["image_url"],
+                "image_path": result["image_path"],
+                "child_name": child_name,
+                "event_count": result["event_count"],
+                "style": result["style"],
+                "generated_at": result["generated_at"],
+                "mime_type": result["mime_type"]
+            }
+        )
+
+        session.add_artifact(artifact)
+
+        logger.info(f"📊 Timeline generated for {child_name}: {result['image_url']}")
+
+        return {
+            "success": True,
+            "artifact_id": artifact.artifact_id,
+            "image_url": result["image_url"],
+            "child_name": child_name,
+            "event_count": result["event_count"],
+            "message": f"ציר הזמן של {child_name} נוצר בהצלחה!"
+        }
+
+    except Exception as e:
+        logger.error(f"Timeline generation error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "שגיאה ביצירת ציר הזמן"
+        }
+
+
+@router.get("/timeline/{family_id}")
+async def get_timeline(family_id: str):
+    """Get the latest timeline artifact for a family."""
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    session_service = get_session_service()
+    session = session_service.get_or_create_session(family_id)
+
+    # Find timeline artifacts
+    timelines = [
+        a for a in session.family_state.artifacts.values()
+        if a.artifact_type == "timeline_infographic"
+    ]
+
+    if not timelines:
+        return {
+            "success": False,
+            "has_timeline": False,
+            "message": "לא נמצא ציר זמן"
+        }
+
+    # Get the most recent
+    latest = max(timelines, key=lambda a: a.created_at or "")
+
+    return {
+        "success": True,
+        "has_timeline": True,
+        "artifact_id": latest.artifact_id,
+        "image_url": latest.data.get("image_url"),
+        "child_name": latest.data.get("child_name"),
+        "event_count": latest.data.get("event_count"),
+        "generated_at": latest.metadata.get("generated_at")
+    }
+
+
 # === Demo Mode Endpoints (DEPRECATED - Use Test Mode Instead) ===
 # Demo mode has been replaced with Test Mode which uses real backend processing
 # Old demo endpoints are disabled to prevent confusion

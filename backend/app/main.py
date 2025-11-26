@@ -4,6 +4,8 @@ Chitta Backend - FastAPI Application
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 import logging
 import os
 from dotenv import load_dotenv
@@ -41,6 +43,11 @@ app.add_middleware(
 
 # Include routes
 app.include_router(router, prefix="/api")
+
+# Serve uploaded files (timelines, etc.)
+uploads_dir = Path(__file__).parent.parent / "uploads"
+uploads_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # Startup/Shutdown events
 @app.on_event("startup")

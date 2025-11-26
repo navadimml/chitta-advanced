@@ -403,6 +403,41 @@ class ChittaAPIClient {
     return response.json();
   }
 
+  /**
+   * Generate timeline infographic
+   */
+  async generateTimeline(familyId, style = 'warm') {
+    const response = await fetch(`${API_BASE_URL}/timeline/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        family_id: familyId,
+        style: style
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get existing timeline
+   */
+  async getTimeline(familyId) {
+    const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
 }
 
 // Singleton instance
