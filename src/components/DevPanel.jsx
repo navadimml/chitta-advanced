@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Cog, Database, Trash2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Cog, Database, Trash2, RefreshCw, ChevronDown, ChevronUp, Clock, Loader2, Image } from 'lucide-react';
+import { api } from '../api/client';
 
 /**
  * Development Panel - Quick scenario seeding for testing
@@ -22,6 +23,9 @@ export default function DevPanel({ currentFamilyId, onFamilyChange }) {
     const saved = localStorage.getItem('chitta_dev_sessions');
     return saved ? JSON.parse(saved) : [];
   });
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineResult, setTimelineResult] = useState(null);
+  const [selectedTimelineStyle, setSelectedTimelineStyle] = useState('warm');
 
   // Load available scenarios on mount
   useEffect(() => {
@@ -122,6 +126,33 @@ export default function DevPanel({ currentFamilyId, onFamilyChange }) {
     setRecentSessions([]);
     localStorage.removeItem('chitta_dev_sessions');
     setMessage('🗑️ Cleared all sessions');
+  };
+
+  const generateTimeline = async () => {
+    if (!currentFamilyId) {
+      setMessage('❌ No active session - seed a scenario first');
+      return;
+    }
+
+    setTimelineLoading(true);
+    setTimelineResult(null);
+    setMessage('');
+
+    try {
+      const result = await api.generateTimeline(currentFamilyId, selectedTimelineStyle);
+
+      if (result.success !== false) {
+        setTimelineResult(result);
+        setMessage(`✅ Timeline generated! ${result.event_count || 0} events`);
+      } else {
+        setMessage(`❌ Timeline error: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMessage(`❌ Timeline error: ${error.message}`);
+      console.error('Timeline generation error:', error);
+    } finally {
+      setTimelineLoading(false);
+    }
   };
 
   return (
@@ -257,6 +288,89 @@ export default function DevPanel({ currentFamilyId, onFamilyChange }) {
               </div>
             </div>
           )}
+
+          {/* Timeline Generator */}
+          <div className="p-4 border-t border-gray-200">
+            <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Timeline Generator
+              <span className="text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Gemini 3 Pro</span>
+            </h4>
+
+            {/* Style Selection */}
+            <div className="flex gap-2 mb-3">
+              {[
+                { id: 'warm', label: 'חמים', emoji: '🌅' },
+                { id: 'professional', label: 'מקצועי', emoji: '💼' },
+                { id: 'playful', label: 'משחקי', emoji: '🎨' }
+              ].map(style => (
+                <button
+                  key={style.id}
+                  onClick={() => setSelectedTimelineStyle(style.id)}
+                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                    selectedTimelineStyle === style.id
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {style.emoji} {style.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Generate Button */}
+            <button
+              onClick={generateTimeline}
+              disabled={timelineLoading || !currentFamilyId}
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {timelineLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Image className="w-5 h-5" />
+                  Generate Timeline Infographic
+                </>
+              )}
+            </button>
+
+            {/* Result Preview */}
+            {timelineResult && timelineResult.image_url && (
+              <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <img
+                  src={timelineResult.image_url}
+                  alt="Generated Timeline"
+                  className="w-full rounded-lg shadow-sm"
+                />
+                <div className="mt-2 flex gap-2">
+                  <a
+                    href={timelineResult.image_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 text-center text-amber-700 bg-white border border-amber-300 rounded-lg text-sm font-medium hover:bg-amber-50"
+                  >
+                    Open Full Size
+                  </a>
+                  <a
+                    href={timelineResult.image_url}
+                    download={`timeline_${currentFamilyId}.png`}
+                    className="flex-1 py-2 text-center text-white bg-amber-500 rounded-lg text-sm font-medium hover:bg-amber-600"
+                  >
+                    Download
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {!currentFamilyId && (
+              <p className="mt-2 text-xs text-gray-500 text-center">
+                Seed a scenario first to generate timeline
+              </p>
+            )}
+          </div>
 
           {/* Footer */}
           <div className="p-3 bg-gray-50 rounded-b-lg text-xs text-gray-500 text-center border-t border-gray-200">

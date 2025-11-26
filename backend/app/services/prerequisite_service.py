@@ -291,7 +291,7 @@ class PrerequisiteService:
 
         # Get enhanced_by from action definition
         action_def = get_action_registry().get_action(action)
-        enhanced_by = action_def.enhanced_by if action_def else []
+        enhanced_by = (action_def.enhanced_by or []) if action_def else []
 
         # Wu Wei: Get explanation directly from action_graph.yaml
         explanation = availability.get("explanation") or ""
