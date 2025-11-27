@@ -2,21 +2,30 @@
 State Derivation - Pure Functions
 Cards, greetings, suggestions all derive from state.
 Nothing is stored - everything is computed.
+
+🌟 Wu Wei: Now includes time-aware context for intermittent users
+🌟 Uses i18n for all user-facing text
 """
-from typing import List, Dict
+from typing import List, Dict, Optional, Any
+from datetime import datetime, timedelta
 from ..models.family_state import FamilyState
+from .i18n_service import t, get_i18n
 
 
 def derive_active_cards(state: FamilyState) -> List[dict]:
     """
     Cards are COMPUTED from state, not stored.
     This is Wu Wei - system organizes itself.
+
+    Note: Card text comes from i18n, card structure is framework logic.
     """
     cards = []
+    i18n = get_i18n()
 
     # Rule 1: If guidelines exist but videos < 3, show upload + guidelines cards
     if "baseline_video_guidelines" in state.artifacts:
         videos_count = len(state.videos_uploaded)
+        videos_remaining = 3 - videos_count
 
         if videos_count < 3:
             # Upload card
@@ -24,8 +33,10 @@ def derive_active_cards(state: FamilyState) -> List[dict]:
                 "card_type": "action",
                 "status": "pending",
                 "icon": "Upload",
-                "title": f"העלה סרטונים ({videos_count}/3)",
-                "subtitle": f"עוד {3 - videos_count} סרטונים נדרשים",
+                "title": t("cards.upload_videos.title",
+                          videos_uploaded=videos_count, videos_total=3),
+                "subtitle": t("cards.upload_videos.body",
+                             videos_remaining=videos_remaining),
                 "action": "upload",
                 "color": "orange",
                 "priority": 9
@@ -36,8 +47,8 @@ def derive_active_cards(state: FamilyState) -> List[dict]:
             "card_type": "artifact",
             "status": "ready",
             "icon": "FileText",
-            "title": "הנחיות צילום מוכנות",
-            "subtitle": "לחץ לצפייה בהנחיות",
+            "title": t("cards.guidelines_ready.title"),
+            "subtitle": t("ui.buttons.view_guidelines"),
             "action": "view_guidelines",
             "color": "blue",
             "priority": 8
@@ -45,12 +56,13 @@ def derive_active_cards(state: FamilyState) -> List[dict]:
 
     # Rule 2: If parent report exists, show it
     if "parent_report" in state.artifacts:
+        child_name = state.child.get("name", "") if state.child else ""
         cards.append({
             "card_type": "artifact",
             "status": "new",
             "icon": "FileCheck",
-            "title": "דוח הורים מוכן",
-            "subtitle": "תובנות מפורטות על הילד",
+            "title": t("cards.report_ready.title"),
+            "subtitle": t("cards.report_ready.body", child_name=child_name),
             "action": "parentReport",
             "color": "purple",
             "priority": 10
@@ -62,8 +74,8 @@ def derive_active_cards(state: FamilyState) -> List[dict]:
             "card_type": "artifact",
             "status": "new",
             "icon": "FileText",
-            "title": "דוח מקצועי מוכן",
-            "subtitle": "המלצות מקצועיות",
+            "title": t("cards.report_ready.title"),  # Reuse same key
+            "subtitle": t("cards.report_ready.footer"),
             "action": "proReport",
             "color": "green",
             "priority": 9
@@ -75,8 +87,8 @@ def derive_active_cards(state: FamilyState) -> List[dict]:
             "card_type": "progress",
             "status": "processing",
             "icon": "MessageCircle",
-            "title": "השיחה מתקדמת יפה",
-            "subtitle": "ספרי עוד על הילד",
+            "title": t("cards.welcome.title"),
+            "subtitle": t("moments.first_message"),
             "color": "cyan",
             "priority": 7
         })
@@ -87,8 +99,8 @@ def derive_active_cards(state: FamilyState) -> List[dict]:
             "card_type": "progress",
             "status": "processing",
             "icon": "Loader",
-            "title": "מנתח סרטונים",
-            "subtitle": "זה יכול לקחת יום עבודה",
+            "title": t("greetings.stage.videos_analyzing"),
+            "subtitle": "",
             "color": "yellow",
             "priority": 8
         })
@@ -98,65 +110,123 @@ def derive_active_cards(state: FamilyState) -> List[dict]:
     return sorted_cards[:4]
 
 
+def calculate_time_gap(last_active: Optional[datetime]) -> Dict[str, Any]:
+    """
+    Calculate time gap since last activity.
+
+    This is a pure framework function - no text, just data.
+
+    Returns:
+        Dict with hours, days, category, and is_returning flag
+    """
+    if not last_active:
+        return {
+            "hours": 0,
+            "days": 0,
+            "category": "same_session",
+            "is_returning": False
+        }
+
+    now = datetime.now()
+
+    # Handle timezone-aware datetimes
+    if last_active.tzinfo is not None and now.tzinfo is None:
+        now = datetime.now(last_active.tzinfo)
+
+    time_diff = now - last_active
+    hours = time_diff.total_seconds() / 3600
+    days = time_diff.days
+
+    # Categorize
+    if hours < 1:
+        category = "same_session"
+        is_returning = False
+    elif hours < 24:
+        category = "short_break"
+        is_returning = False
+    elif hours < 168:  # 7 days
+        category = "returning"
+        is_returning = True
+    else:
+        category = "long_absence"
+        is_returning = True
+
+    return {
+        "hours": round(hours, 1),
+        "days": days,
+        "category": category,
+        "is_returning": is_returning
+    }
+
+
 def derive_contextual_greeting(state: FamilyState) -> str:
     """
-    Greeting is COMPUTED from state.
+    Greeting is COMPUTED from state using i18n translations.
     System knows where family is by looking at DNA.
+
+    🌟 Wu Wei: Time-aware, uses i18n for all text
     """
+    i18n = get_i18n()
 
     # First visit
     if not state.conversation:
-        return (
-            "שלום! אני צ'יטה 💙\n\n"
-            "נעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. "
-            "נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\n"
-            "בואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?"
-        )
+        return t("greetings.first_visit")
 
-    child_name = state.child.get("name") if state.child else "הילד"
+    child_name = state.child.get("name") if state.child else "הילד/ה"
 
-    # Returning mid-interview
-    if not state.artifacts:
-        return (
-            f"שלום שוב! 💙 נחמד לראות אותך.\n\n"
-            f"המשכנו לדבר על {child_name}. איפה עצרנו?"
-        )
+    # Calculate time gap for returning users
+    time_gap = calculate_time_gap(state.last_active)
+    days = time_gap["days"]
 
-    # Guidelines ready, waiting for videos
-    if "baseline_video_guidelines" in state.artifacts:
-        videos_count = len(state.videos_uploaded)
+    # Returning after long absence (7+ days)
+    if time_gap["category"] == "long_absence":
+        return t("greetings.returning.long_absence", child_name=child_name)
 
-        if videos_count == 0:
-            return (
-                f"שלום! 💙 ההנחיות לצילום מוכנות.\n\n"
-                f"כשתעלי את הסרטונים של {child_name}, אוכל להתחיל לנתח."
-            )
-        elif videos_count < 3:
-            return (
-                f"היי! 💙 ראיתי שהעלית {videos_count} סרטונים.\n\n"
-                f"עוד {3 - videos_count} יעזרו לי להבין את {child_name} טוב יותר."
-            )
-        elif "parent_report" not in state.artifacts:
-            return (
-                f"מעולה! 💙 קיבלתי את כל הסרטונים.\n\n"
-                f"אני מנתח אותם עכשיו. זה יכול לקחת יום עבודה."
-            )
+    # Returning after 1-7 days
+    if time_gap["category"] == "returning":
+        time_ago = i18n.format_time_ago(days)
 
-    # Reports ready
+        # Customize based on journey stage
+        if not state.artifacts:
+            return t("greetings.returning.after_days",
+                    child_name=child_name, time_ago=time_ago)
+
+        if "baseline_video_guidelines" in state.artifacts and len(state.videos_uploaded) == 0:
+            return t("greetings.stage.guidelines_ready",
+                    child_name=child_name, time_ago=time_ago)
+
+    # Same session or short break - use stage-based greetings
+    videos_count = len(state.videos_uploaded)
+
+    # Report ready
     if "parent_report" in state.artifacts:
-        return (
-            f"היי! 💙 הדוח על {child_name} מוכן!\n\n"
-            f"גיליתי כמה דברים מעניינים. בואי נראה ביחד?"
-        )
+        return t("greetings.stage.report_ready", child_name=child_name)
 
-    # Default
-    return f"שלום! 💙 איך {child_name} היום?"
+    # Videos analyzing
+    if videos_count >= 3 and "parent_report" not in state.artifacts:
+        return t("greetings.stage.videos_analyzing", child_name=child_name)
+
+    # Partial videos
+    if "baseline_video_guidelines" in state.artifacts:
+        if videos_count == 0:
+            return t("greetings.stage.guidelines_ready",
+                    child_name=child_name, time_ago="")
+        elif videos_count < 3:
+            return t("greetings.stage.videos_partial",
+                    child_name=child_name,
+                    videos_uploaded=videos_count,
+                    videos_remaining=3 - videos_count)
+
+    # Mid-interview (default)
+    return t("greetings.returning.short_break", child_name=child_name)
 
 
 def derive_suggestions(state: FamilyState) -> List[dict]:
     """
     Suggestions derive from state.
     Guide user on what to do next.
+
+    Note: Suggestions are kept simple - could be moved to i18n if needed.
     """
     suggestions = []
 
@@ -183,15 +253,15 @@ def derive_suggestions(state: FamilyState) -> List[dict]:
         videos_count = len(state.videos_uploaded)
         if videos_count < 3:
             return [
-                {"text": "הראה לי את ההנחיות", "action": "view_guidelines"},
-                {"text": "אעלה סרטון", "action": "upload"},
+                {"text": t("ui.buttons.view_guidelines"), "action": "view_guidelines"},
+                {"text": t("ui.buttons.upload_video"), "action": "upload"},
                 {"text": "יש לי שאלה על הצילום", "action": None}
             ]
 
     # Reports ready - encourage viewing
     if "parent_report" in state.artifacts:
         return [
-            {"text": "הראה לי את הדוח", "action": "parentReport"},
+            {"text": t("ui.buttons.view_report"), "action": "parentReport"},
             {"text": "מה המלצות", "action": None},
             {"text": "צריך עזרה להבין", "action": None}
         ]

@@ -6,6 +6,7 @@ Wu Wei Prerequisites Evaluator - Implements pure dependency graph logic
 - Just: What exists? What's ready? Prerequisites met?
 - Qualitative checks (knowledge_is_rich) not quantitative (>= 80%)
 - Continuous conversation, capabilities unlock naturally
+- Time-aware context for intermittent users
 
 This service implements the prerequisite evaluation logic from lifecycle_events.yaml
 """
@@ -13,6 +14,7 @@ This service implements the prerequisite evaluation logic from lifecycle_events.
 import logging
 from typing import Dict, Any, List, Optional, Set
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -498,6 +500,14 @@ class WuWeiPrerequisites:
                     all_met = False
                     all_missing.extend(result.missing)
 
+            # Time-based condition check (hours_since_last_active, days_since_last_active)
+            elif key in ["hours_since_last_active", "days_since_last_active"] and isinstance(value, str):
+                result = self._evaluate_time_condition(key, value, context)
+                all_details[key] = result.details
+                if not result.met:
+                    all_met = False
+                    all_missing.extend(result.missing)
+
             # Numeric comparison check
             elif isinstance(value, str) and any(op in value for op in [">=", "<=", ">", "<", "!="]):
                 result = self._evaluate_numeric_condition(key, value, context)
@@ -575,6 +585,150 @@ class WuWeiPrerequisites:
                 "actual_value": actual_value
             }
         )
+
+    def calculate_time_gap_context(
+        self,
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        🌟 Wu Wei: Calculate time-based context for intermittent users
+
+        Adds computed time fields to context that can be used in prerequisites:
+        - hours_since_last_active: Hours since last interaction
+        - days_since_last_active: Days since last interaction
+        - is_returning_user: True if gap > 24 hours
+        - time_gap_category: "same_session" | "short_break" | "returning" | "long_absence"
+
+        Args:
+            context: Session context with last_active timestamp
+
+        Returns:
+            Dict with computed time fields
+        """
+        time_context = {
+            "hours_since_last_active": 0,
+            "days_since_last_active": 0,
+            "is_returning_user": False,
+            "time_gap_category": "same_session"
+        }
+
+        # Get last_active from context
+        last_active = context.get("last_active")
+
+        if not last_active:
+            logger.debug("No last_active in context, assuming same session")
+            return time_context
+
+        # Parse last_active if it's a string
+        if isinstance(last_active, str):
+            try:
+                last_active = datetime.fromisoformat(last_active.replace('Z', '+00:00'))
+            except ValueError:
+                logger.warning(f"Could not parse last_active: {last_active}")
+                return time_context
+
+        # Calculate time difference
+        now = datetime.now()
+        if last_active.tzinfo is not None:
+            # Make now timezone-aware if last_active is
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+
+        time_diff = now - last_active
+        hours = time_diff.total_seconds() / 3600
+        days = time_diff.days
+
+        time_context["hours_since_last_active"] = round(hours, 1)
+        time_context["days_since_last_active"] = days
+
+        # Categorize the time gap
+        if hours < 1:
+            time_context["time_gap_category"] = "same_session"
+            time_context["is_returning_user"] = False
+        elif hours < 24:
+            time_context["time_gap_category"] = "short_break"
+            time_context["is_returning_user"] = False
+        elif hours < 168:  # 7 days
+            time_context["time_gap_category"] = "returning"
+            time_context["is_returning_user"] = True
+        else:
+            time_context["time_gap_category"] = "long_absence"
+            time_context["is_returning_user"] = True
+
+        logger.info(
+            f"⏰ Time gap context: {time_context['time_gap_category']} "
+            f"({time_context['hours_since_last_active']:.1f}h / {time_context['days_since_last_active']}d)"
+        )
+
+        return time_context
+
+    def build_returning_user_summary(
+        self,
+        context: Dict[str, Any]
+    ) -> str:
+        """
+        🌟 Wu Wei: Build a summary for returning users
+
+        Creates a localized summary of what we know about the child,
+        suitable for including in greetings or catch-up cards.
+
+        Uses domain_text_builder for localized text construction.
+
+        Args:
+            context: Session context with extracted data
+
+        Returns:
+            Localized summary string
+        """
+        # Delegate to domain text builder for localized summary
+        from .domain_text_builder import get_text_builder
+
+        # Build extracted_data dict from context for the text builder
+        extracted_data = {
+            "child_name": context.get("child_name"),
+            "child_age": context.get("age"),
+            "concerns": context.get("primary_concerns") or [],
+            "strengths": context.get("strengths")
+        }
+
+        # Build context dict expected by text builder
+        builder_context = {
+            "extracted_data": extracted_data,
+            "artifacts": context.get("artifacts", {}),
+            "videos_uploaded": context.get("videos_uploaded", [])
+        }
+
+        builder = get_text_builder()
+        return builder.build_returning_user_summary(builder_context)
+
+    def _evaluate_time_condition(
+        self,
+        key: str,
+        condition: str,
+        context: Dict[str, Any]
+    ) -> PrerequisiteEvaluation:
+        """
+        Evaluate time-based condition like "hours_since_last_active: > 24"
+
+        Supports:
+        - hours_since_last_active
+        - days_since_last_active
+
+        Args:
+            key: Time field to check
+            condition: Condition string like "> 24"
+            context: Session context (will compute time if needed)
+
+        Returns:
+            PrerequisiteEvaluation
+        """
+        # Calculate time context if not already present
+        if key not in context:
+            time_context = self.calculate_time_gap_context(context)
+            context.update(time_context)
+
+        # Now use standard numeric evaluation
+        return self._evaluate_numeric_condition(key, condition, context)
 
 
 # Singleton
