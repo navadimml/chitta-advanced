@@ -79,10 +79,21 @@ def detect_system_trigger(message: str) -> Optional[str]:
 
 # === Request/Response Models ===
 
+class UIStateUpdate(BaseModel):
+    """UI state sent with each message from frontend"""
+    current_view: Optional[str] = None  # chat, guidelines, upload, report, etc.
+    progress: Optional[dict] = None  # {"videos_uploaded": 2, "videos_required": 3}
+    recent_interactions: Optional[List[str]] = None  # ["viewed_guidelines", "clicked_upload"]
+    dismissed_cards: Optional[List[str]] = None
+    expanded_cards: Optional[List[str]] = None
+    current_deep_view: Optional[str] = None
+
+
 class SendMessageRequest(BaseModel):
     family_id: str
     message: str
     parent_name: Optional[str] = "הורה"
+    ui_state: Optional[UIStateUpdate] = None  # 🌟 Wu Wei: UI awareness
 
 class SendMessageResponse(BaseModel):
     response: str
@@ -263,6 +274,15 @@ async def send_message(request: SendMessageRequest):
                     "progress": 0
                 }
             )
+
+    # 🌟 Wu Wei: Update UI state from frontend (if provided)
+    if request.ui_state:
+        from app.services.ui_state_tracker import get_ui_state_tracker
+        ui_tracker = get_ui_state_tracker()
+        ui_tracker.update_from_request(
+            family_id=request.family_id,
+            ui_state_data=request.ui_state.model_dump(exclude_none=True)
+        )
 
     # Save user message to state
     await graphiti.add_message(

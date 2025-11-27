@@ -331,6 +331,7 @@ Set to "report_only" if parent DECLINES: {negative}
         - child.*: Child info (name, age, concerns, strengths)
         - artifacts.*: Artifact existence and status
         - ui.*: UI locations and guidance
+        - ui_state.*: Current UI state (view, progress, interactions)
         - actions.*: Available/blocked actions
         - moment.*: Active moment context
         - session.*: Session state (returning user, completeness)
@@ -354,36 +355,36 @@ artifacts.*
   - artifacts.has_guidelines, artifacts.has_report
 
 ui.*
-  - ui.guidelines.location (where to find guidelines)
-  - ui.report.location (where to find report)
+  - ui.guidelines.location, ui.report.location
   - ui.{moment_id}.location (UI guidance from moments)
 
+ui_state.* (current UI state - what user sees/does NOW)
+  - ui_state.current_view, ui_state.previous_view
+  - ui_state.videos_uploaded, ui_state.videos_required, ui_state.videos_remaining
+  - ui_state.videos_analyzing, ui_state.video_analysis_progress
+  - ui_state.report_generating, ui_state.report_generation_progress
+  - ui_state.has_viewed_guidelines, ui_state.has_viewed_report
+  - ui_state.recent_interactions (last 5 user actions)
+  - ui_state.current_deep_view
+
 actions.*
-  - actions.available_list (actions parent can take)
-  - actions.blocked_list (actions not yet available)
-  - actions.{action_id}.available (true/false)
-  - actions.{action_id}.blocked_reason
+  - actions.available_list, actions.blocked_list
+  - actions.{action_id}.available, actions.{action_id}.blocked_reason
 
 session.*
   - session.is_returning_user, session.returning_user_summary
-  - session.message_count, session.completeness
-  - session.days_since_active
+  - session.message_count, session.completeness, session.days_since_active
 
 moment.*
-  - moment.active (currently active moment)
-  - moment.active_context (full context for active moment)
-  - moment.{id}.context (context for specific moment)
+  - moment.active, moment.active_context
+  - moment.{id}.context
 
 **Example queries:**
 
-Parent asks "איפה ההנחיות?" (Where are the guidelines?)
-→ get_context(keys=["artifacts.has_guidelines", "ui.guidelines.location"])
-
-Parent asks "מה עוד אפשר לעשות?" (What else can I do?)
-→ get_context(keys=["actions.available_list"])
-
-Returning user first message:
-→ get_context(keys=["session.is_returning_user", "session.returning_user_summary", "child.name"])
+Location question → get_context(keys=["artifacts.has_guidelines", "ui.guidelines.location"])
+Progress question → get_context(keys=["ui_state.videos_uploaded", "ui_state.videos_remaining"])
+Available actions → get_context(keys=["actions.available_list"])
+Returning user → get_context(keys=["session.is_returning_user", "session.returning_user_summary"])
 """,
             "parameters": {
                 "type": "object",
