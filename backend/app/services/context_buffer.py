@@ -225,6 +225,10 @@ class ContextBuffer:
         if lifecycle_manager:
             self._load_ui_context(lifecycle_manager, session)
 
+        # === UI STATE CONTEXT ===
+        # Load current UI state (view, progress, interactions) from tracker
+        self._load_ui_state_context(family_id)
+
         # === ACTION CONTEXT ===
         if prerequisite_service:
             self._load_action_context(prerequisite_service, session)
@@ -263,6 +267,30 @@ class ContextBuffer:
 
         except Exception as e:
             logger.warning(f"Failed to load UI context: {e}")
+
+    def _load_ui_state_context(self, family_id: str):
+        """
+        Load current UI state from the UI state tracker.
+
+        This provides awareness of:
+        - Current view/page the user is on
+        - Progress states (video uploads, report generation)
+        - Recent interactions (what user viewed/clicked)
+        """
+        try:
+            from .ui_state_tracker import get_ui_state_tracker
+
+            tracker = get_ui_state_tracker()
+            ui_context = tracker.get_context_dict(family_id)
+
+            # Add all UI state context to buffer
+            for key, value in ui_context.items():
+                self.set(key, value)
+
+            logger.debug(f"Loaded {len(ui_context)} UI state keys")
+
+        except Exception as e:
+            logger.warning(f"Failed to load UI state context: {e}")
 
     def _load_action_context(self, prerequisite_service, session):
         """Load action availability context"""
