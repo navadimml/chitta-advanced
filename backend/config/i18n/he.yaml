@@ -409,6 +409,25 @@ context:
     baseline_professional_report: "הדוח המקצועי"
     baseline_interview_summary: "סיכום השיחה"
 
+  # Returning user context injection (for LLM understanding)
+  returning_user:
+    title: "RETURNING USER CONTEXT"
+    time_gap_intro: "The parent is returning after {time_description}."
+    what_we_know: "What we know about this family:"
+    task_title: "Your task:"
+    task_warmly_greet: "Warmly acknowledge their return (but don't overdo it)"
+    task_remind_briefly: "Briefly remind them where you left off (without overwhelming with information)"
+    task_ask_changes: "Ask if anything has changed or if they want to continue from where you stopped"
+    task_be_natural: "Don't say 'I see time has passed' or 'the system detected' - just be natural and warm"
+    # Time descriptions for context (English for LLM)
+    time_descriptions:
+      one_day: "about a day"
+      few_days: "{days} days"
+      about_week: "about a week"
+      about_two_weeks: "about two weeks"
+      few_weeks: "a few weeks"
+      long_time: "quite some time"
+
 # ============================================
 # PROMPTS
 # ============================================

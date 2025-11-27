@@ -48,19 +48,28 @@ class FunctionBuilder:
             logger.warning(f"Extraction schema not found: {schema_path}")
             self._extraction_schema = {}
 
-    def get_conversation_functions(self) -> List[Dict[str, Any]]:
+    def get_conversation_functions(self, include_get_context: bool = False) -> List[Dict[str, Any]]:
         """
         Build all conversation function definitions.
 
+        Args:
+            include_get_context: If True, include get_context function for
+                                 selective context querying (Phase 1 optimization)
+
         Returns list of function defs ready for LLM tool use.
         """
-        return [
+        functions = [
             self._build_extract_interview_data(),
             self._build_ask_developmental_question(),
             self._build_ask_about_analysis(),
             self._build_ask_about_app(),
             self._build_request_action()
         ]
+
+        if include_get_context:
+            functions.append(self._build_get_context())
+
+        return functions
 
     def _build_extract_interview_data(self) -> Dict[str, Any]:
         """Build the extract_interview_data function from config + i18n"""
@@ -311,6 +320,84 @@ Set to "report_only" if parent DECLINES: {negative}
             }
         }
 
+    def _build_get_context(self) -> Dict[str, Any]:
+        """
+        Build get_context function for selective context querying.
+
+        🌟 Wu Wei: Instead of sending all context every turn, the LLM
+        requests only the context keys it needs to answer the parent.
+
+        Available context categories:
+        - child.*: Child info (name, age, concerns, strengths)
+        - artifacts.*: Artifact existence and status
+        - ui.*: UI locations and guidance
+        - actions.*: Available/blocked actions
+        - moment.*: Active moment context
+        - session.*: Session state (returning user, completeness)
+        """
+        return {
+            "name": "get_context",
+            "description": """Query specific context needed to respond to the parent.
+
+Call this function to get ONLY the context you need - don't request everything.
+
+**Available context keys:**
+
+child.*
+  - child.name, child.age, child.gender
+  - child.concerns, child.concerns_text
+  - child.strengths, child.concern_details
+  - child.filming_preference
+
+artifacts.*
+  - artifacts.{id}.exists, artifacts.{id}.status
+  - artifacts.has_guidelines, artifacts.has_report
+
+ui.*
+  - ui.guidelines.location (where to find guidelines)
+  - ui.report.location (where to find report)
+  - ui.{moment_id}.location (UI guidance from moments)
+
+actions.*
+  - actions.available_list (actions parent can take)
+  - actions.blocked_list (actions not yet available)
+  - actions.{action_id}.available (true/false)
+  - actions.{action_id}.blocked_reason
+
+session.*
+  - session.is_returning_user, session.returning_user_summary
+  - session.message_count, session.completeness
+  - session.days_since_active
+
+moment.*
+  - moment.active (currently active moment)
+  - moment.active_context (full context for active moment)
+  - moment.{id}.context (context for specific moment)
+
+**Example queries:**
+
+Parent asks "איפה ההנחיות?" (Where are the guidelines?)
+→ get_context(keys=["artifacts.has_guidelines", "ui.guidelines.location"])
+
+Parent asks "מה עוד אפשר לעשות?" (What else can I do?)
+→ get_context(keys=["actions.available_list"])
+
+Returning user first message:
+→ get_context(keys=["session.is_returning_user", "session.returning_user_summary", "child.name"])
+""",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keys": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of context keys to query. Use category.* for all keys in a category."
+                    }
+                },
+                "required": ["keys"]
+            }
+        }
+
 
 # Singleton
 _function_builder: Optional[FunctionBuilder] = None
@@ -324,6 +411,15 @@ def get_function_builder(language: str = None) -> FunctionBuilder:
     return _function_builder
 
 
-def get_conversation_functions(language: str = None) -> List[Dict[str, Any]]:
-    """Convenience function to get conversation functions"""
-    return get_function_builder(language).get_conversation_functions()
+def get_conversation_functions(language: str = None, include_get_context: bool = False) -> List[Dict[str, Any]]:
+    """
+    Convenience function to get conversation functions.
+
+    Args:
+        language: Language code for i18n
+        include_get_context: If True, include get_context function for Phase 1
+
+    Returns:
+        List of function definitions for LLM
+    """
+    return get_function_builder(language).get_conversation_functions(include_get_context=include_get_context)
