@@ -240,6 +240,20 @@ class PrerequisiteService:
         knowledge_eval = self.check_knowledge_richness(context)
         context["knowledge_is_rich"] = knowledge_eval.met
         logger.info(f"🔍 PrerequisiteService: knowledge_is_rich = {knowledge_eval.met}")
+
+        # 🌟 Wu Wei: Add time-gap context for intermittent users
+        # Get last_active from session_data and compute time-based fields
+        last_active = session_data.get("last_active") or session_data.get("updated_at")
+        if last_active:
+            context["last_active"] = last_active
+            time_context = self.wu_wei.calculate_time_gap_context(context)
+            context.update(time_context)
+
+            # Build returning user summary for use in cards/greetings
+            if time_context.get("is_returning_user"):
+                context["returning_user_summary"] = self.wu_wei.build_returning_user_summary(context)
+                logger.info(f"⏰ PrerequisiteService: Returning user detected ({time_context['time_gap_category']})")
+
         logger.info(f"🔍 PrerequisiteService: Context built with {len(context)} keys")
 
         return context

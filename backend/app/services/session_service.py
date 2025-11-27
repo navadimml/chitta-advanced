@@ -9,6 +9,7 @@ This service:
 3. Tracks conversation history
 4. Manages artifacts (video guidelines, reports, etc.)
 5. No phases - state emerges from artifacts and prerequisites
+6. Persists sessions to survive server restarts (interim solution)
 """
 
 import logging
@@ -17,6 +18,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, validator
 import json
 import os
+import asyncio
 
 # Wu Wei Architecture: Import schema registry for config-driven completeness
 from app.config.schema_registry import get_schema_registry, calculate_completeness as config_calculate_completeness
@@ -205,12 +207,16 @@ class SessionService:
 
     Renamed from InterviewService to reflect continuous conversation flow.
     In production, integrates with Graphiti for persistent storage.
-    For now, uses in-memory storage.
+    For now, uses in-memory storage with file/Redis persistence backup.
     """
 
     def __init__(self, llm_provider=None):
         # In-memory storage: family_id -> SessionState
         self.sessions: Dict[str, SessionState] = {}
+
+        # 🌟 Persistence layer for surviving server restarts
+        self._persistence = None
+        self._persistence_enabled = os.getenv("SESSION_PERSISTENCE_ENABLED", "true").lower() == "true"
 
         # LLM for semantic completeness verification
         if llm_provider is None:
@@ -226,11 +232,134 @@ class SessionService:
         else:
             self.verification_llm = llm_provider
 
-        logger.info("SessionService initialized (in-memory mode)")
+        # Initialize persistence if enabled
+        if self._persistence_enabled:
+            self._init_persistence()
+
+        logger.info(f"SessionService initialized (persistence: {self._persistence_enabled})")
+
+    def _init_persistence(self):
+        """Initialize persistence layer"""
+        try:
+            from app.services.session_persistence import get_session_persistence
+            self._persistence = get_session_persistence()
+            logger.info("Session persistence layer initialized")
+        except Exception as e:
+            logger.warning(f"Could not initialize persistence: {e}")
+            self._persistence = None
+
+    async def _persist_session(self, family_id: str):
+        """Persist session to storage (non-blocking)"""
+        if not self._persistence or family_id not in self.sessions:
+            return
+
+        try:
+            session = self.sessions[family_id]
+            # Convert to dict for persistence
+            session_data = {
+                "family_id": session.family_id,
+                "extracted_data": session.extracted_data.dict(),
+                "completeness": session.completeness,
+                "conversation_history": session.conversation_history,
+                "artifacts": {k: v.dict() if hasattr(v, 'dict') else v for k, v in session.artifacts.items()},
+                "created_at": session.created_at.isoformat(),
+                "updated_at": session.updated_at.isoformat(),
+                "semantic_verification": session.semantic_verification,
+                "semantic_verification_turn": session.semantic_verification_turn,
+            }
+
+            # Save asynchronously
+            await self._persistence.save_session(family_id, session_data)
+
+        except Exception as e:
+            logger.warning(f"Failed to persist session {family_id}: {e}")
+
+    async def _load_persisted_session(self, family_id: str) -> Optional[SessionState]:
+        """Load session from persistent storage"""
+        if not self._persistence:
+            return None
+
+        try:
+            data = await self._persistence.load_session(family_id)
+            if not data:
+                return None
+
+            # Reconstruct SessionState from persisted data
+            extracted_data = ExtractedData(**data.get("extracted_data", {}))
+
+            session = SessionState(
+                family_id=family_id,
+                extracted_data=extracted_data,
+                completeness=data.get("completeness", 0.0),
+                conversation_history=data.get("conversation_history", []),
+                semantic_verification=data.get("semantic_verification"),
+                semantic_verification_turn=data.get("semantic_verification_turn", 0),
+            )
+
+            # Restore timestamps
+            if data.get("created_at"):
+                session.created_at = datetime.fromisoformat(data["created_at"])
+            if data.get("updated_at"):
+                session.updated_at = datetime.fromisoformat(data["updated_at"])
+
+            # Restore artifacts
+            for artifact_id, artifact_data in data.get("artifacts", {}).items():
+                if isinstance(artifact_data, dict):
+                    session.artifacts[artifact_id] = Artifact(**artifact_data)
+
+            logger.info(f"Restored persisted session for {family_id}")
+            return session
+
+        except Exception as e:
+            logger.warning(f"Failed to load persisted session {family_id}: {e}")
+            return None
 
     def get_or_create_session(self, family_id: str) -> SessionState:
         """Get existing session or create new one"""
         if family_id not in self.sessions:
+            # Try to load from persistence first
+            if self._persistence_enabled:
+                # Use asyncio to run async load in sync context
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # We're in an async context, schedule the coroutine
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(
+                                asyncio.run,
+                                self._load_persisted_session(family_id)
+                            )
+                            persisted = future.result(timeout=5)
+                    else:
+                        persisted = loop.run_until_complete(
+                            self._load_persisted_session(family_id)
+                        )
+
+                    if persisted:
+                        self.sessions[family_id] = persisted
+                        logger.info(f"Restored session from persistence for family: {family_id}")
+                        return self.sessions[family_id]
+                except Exception as e:
+                    logger.warning(f"Could not load persisted session: {e}")
+
+            # Create new session
+            self.sessions[family_id] = SessionState(family_id=family_id)
+            logger.info(f"Created new conversation session for family: {family_id}")
+        return self.sessions[family_id]
+
+    async def get_or_create_session_async(self, family_id: str) -> SessionState:
+        """Async version: Get existing session or create new one"""
+        if family_id not in self.sessions:
+            # Try to load from persistence first
+            if self._persistence_enabled:
+                persisted = await self._load_persisted_session(family_id)
+                if persisted:
+                    self.sessions[family_id] = persisted
+                    logger.info(f"Restored session from persistence for family: {family_id}")
+                    return self.sessions[family_id]
+
+            # Create new session
             self.sessions[family_id] = SessionState(family_id=family_id)
             logger.info(f"Created new conversation session for family: {family_id}")
         return self.sessions[family_id]
@@ -607,6 +736,29 @@ class SessionService:
             "timestamp": datetime.now().isoformat()
         })
         session.updated_at = datetime.now()
+
+        # 🌟 Persist session after each turn (fire and forget)
+        if self._persistence_enabled:
+            asyncio.create_task(self._persist_session(family_id))
+
+    async def add_conversation_turn_async(
+        self,
+        family_id: str,
+        role: str,
+        content: str
+    ):
+        """Async version: Add a message to conversation history"""
+        session = await self.get_or_create_session_async(family_id)
+        session.conversation_history.append({
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now().isoformat()
+        })
+        session.updated_at = datetime.now()
+
+        # 🌟 Persist session after each turn
+        if self._persistence_enabled:
+            await self._persist_session(family_id)
 
     def get_conversation_history(
         self,

@@ -132,6 +132,125 @@ moments:
         - view_privacy_policy
       dismissible: true
 
+  # ============================================
+  # RETURNING USER MOMENTS
+  # ============================================
+  # 🌟 Wu Wei: Handle intermittent users who return after time gaps
+  # Time-based prerequisites: hours_since_last_active, days_since_last_active
+
+  # Returning after 1-7 days (common pattern)
+  returning_user_short:
+    when:
+      hours_since_last_active: "> 24"
+      hours_since_last_active: "< 168"  # Less than 7 days
+      message_count: "> 2"  # Has had previous conversation
+    message: ""  # Greeting handled by state_derivation, context injected to LLM
+    context: |
+      <system_context type="returning_user">
+      ⏰ The parent is returning after {hours_since_last_active} hours ({days_since_last_active} days).
+
+      **What you know about them:**
+      {returning_user_summary}
+
+      **Your approach:**
+      1. Greet them warmly - acknowledge the time gap naturally (don't make it awkward)
+      2. Briefly remind them where you were in the conversation
+      3. Ask if anything has changed or if they want to continue
+      4. Be ready to pick up exactly where you left off
+
+      **Example opening:**
+      "היי! 💙 נחמד לראות אותך שוב. עברו כמה ימים - איך {child_name}?"
+
+      **Don't:**
+      - Make them feel guilty for being away
+      - Ask them to repeat information they already shared
+      - Start from scratch as if you don't remember
+      </system_context>
+
+    card:
+      card_id: "returning_user_card"
+      card_type: guidance
+      priority: 95
+
+      lifecycle:
+        trigger: transition
+        dismiss_when:
+          message_count: ">= 1"  # Dismiss after first message
+        prevent_re_trigger: false  # Can trigger again on future returns
+
+      content:
+        title: "שלום שוב! 💙"
+        body: |
+          נחמד לראות אותך.
+
+          **איפה עצרנו:**
+          {returning_user_summary}
+
+          רוצה להמשיך משם?
+        footer: "אפשר גם להתחיל נושא חדש"
+
+      actions:
+        - continue_interview
+      dismissible: true
+
+  # Returning after 7+ days (longer absence)
+  returning_user_long:
+    when:
+      hours_since_last_active: ">= 168"  # 7+ days
+      message_count: "> 2"
+    message: ""
+    context: |
+      <system_context type="returning_user_long_absence">
+      ⏰ The parent is returning after a longer absence ({days_since_last_active} days).
+
+      **What you know:**
+      {returning_user_summary}
+
+      **Your approach:**
+      1. Welcome them back warmly
+      2. Acknowledge time has passed - things might have changed
+      3. Offer a brief recap of what you discussed
+      4. Ask explicitly if anything has changed with the child
+      5. Be ready to update your understanding based on new information
+
+      **Example opening:**
+      "היי! 💙 עבר קצת זמן. מה נשמע? משהו השתנה עם {child_name}?"
+
+      **Important:**
+      - Children develop - what was true weeks ago might have changed
+      - Don't assume previous concerns are still the same
+      - Ask open-ended questions to catch up on changes
+      - Celebrate progress if they share any
+      </system_context>
+
+    card:
+      card_id: "returning_user_long_card"
+      card_type: guidance
+      priority: 95
+
+      lifecycle:
+        trigger: transition
+        dismiss_when:
+          message_count: ">= 1"
+        prevent_re_trigger: false
+
+      content:
+        title: "שלום שוב! 💙"
+        body: |
+          עבר קצת זמן - נחמד לראות אותך!
+
+          **מה שזכור לי:**
+          {returning_user_summary}
+
+          **משהו השתנה מאז?**
+          ילדים מתפתחים כל הזמן - אשמח לשמוע מה חדש.
+        footer: "ספרי לי מה נשמע"
+
+      actions:
+        - continue_interview
+        - add_journal_entry
+      dismissible: true
+
   # Knowledge richness milestone
   knowledge_rich:
     when:
