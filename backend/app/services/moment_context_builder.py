@@ -7,11 +7,14 @@ Wu Wei: Builds dynamic context that grounds Chitta in current reality.
 - No stages, just continuous conversation with progressive unlocking
 
 Configuration-first: All domain knowledge from YAML configs, no hardcoded logic.
+🌟 Uses i18n for all context text templates
 """
 
 import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+
+from .i18n_service import t, t_section
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +100,10 @@ class MomentContextBuilder:
             parts.append("</current_moment>")
             parts.append("")
 
-        # Philosophy reminder
-        parts.append("You are in CONTINUOUS CONVERSATION with the parent.")
-        parts.append("No stages or phases - just ongoing dialogue with progressive capability unlocking.")
-        parts.append("Guide based on what's currently available and what will unlock next.")
+        # Philosophy reminder (from i18n)
+        parts.append(t("context.journey.continuous_conversation"))
+        parts.append(t("context.journey.no_stages"))
+        parts.append(t("context.journey.guide_by_available"))
         parts.append("</journey_context>")
 
         return "\n".join(parts)
@@ -120,52 +123,62 @@ class MomentContextBuilder:
         # Get available and blocked actions (config-driven)
         available_actions, blocked_actions = self._get_action_status(session_state)
 
-        # Build context
+        # Build context using i18n templates
         parts = ["<available_now>"]
 
         # Artifacts (use IDs directly)
-        parts.append("Existing artifacts:")
+        parts.append(t("context.available.existing_artifacts"))
         if existing_artifacts:
             for artifact_id in existing_artifacts:
                 parts.append(f"  - {artifact_id}")
         else:
-            parts.append("  - none yet")
+            parts.append(f"  - {t('context.available.none_yet')}")
         parts.append("")
 
         # Available actions (from action_registry)
-        parts.append("Available actions:")
+        parts.append(t("context.available.available_actions"))
         if available_actions:
             for action_id in available_actions:
                 parts.append(f"  - {action_id}")
         else:
-            parts.append("  - none yet")
+            parts.append(f"  - {t('context.available.none_yet')}")
         parts.append("")
 
         # Blocked actions (with reasons from prerequisite_service)
         if blocked_actions:
-            parts.append("Blocked actions:")
+            parts.append(t("context.available.blocked_actions"))
             for action in blocked_actions:
                 parts.append(f"  - {action['id']} → {action['reason']}")
             parts.append("")
 
-        # Guidance for using IDs
-        parts.append("Note: Artifact and action IDs are in English for clarity.")
-        parts.append("When discussing with parent, translate naturally to Hebrew.")
-        parts.append("Example: 'baseline_video_guidelines' → 'הנחיות הצילום שהכנתי'")
+        # Guidance for using IDs (from i18n)
+        parts.append(t("context.available.translation_note"))
+
+        # Get artifact translation example from i18n
+        artifact_translations = t_section("context.artifact_translations")
+        if artifact_translations:
+            # Use first translation as example
+            example_id = next(iter(artifact_translations.keys()), "baseline_video_guidelines")
+            example_translation = artifact_translations.get(example_id, "")
+            if example_translation:
+                parts.append(t("context.available.translation_example",
+                              id=example_id, translation=example_translation))
         parts.append("")
 
-        # Critical boundaries
-        parts.append("🛡️ STRICT BOUNDARIES - Prevent Hallucination:")
-        parts.append("1. You can ONLY reference, discuss, or offer items explicitly listed above")
-        parts.append("2. If something is NOT in the lists above, it does NOT exist in the system")
-        parts.append("3. NEVER promise to: send, create, generate, show, or summarize anything not listed")
-        parts.append("4. If asked about unlisted items, explain what's needed to unlock them")
+        # Critical boundaries (from i18n)
+        parts.append(f"🛡️ {t('context.boundaries.title')}")
+        parts.append(f"1. {t('context.boundaries.rule_only_listed')}")
+        parts.append(f"2. {t('context.boundaries.rule_not_exist')}")
+        parts.append(f"3. {t('context.boundaries.rule_never_promise')}")
+        parts.append(f"4. {t('context.boundaries.rule_explain_unlock')}")
         parts.append("")
-        parts.append("✨ PROACTIVE GUIDANCE - Reveal Capabilities:")
-        parts.append("1. When contextually relevant, SUGGEST available capabilities")
-        parts.append("2. Connect available items to the user's current concerns")
-        parts.append("3. Make capabilities feel natural and helpful, not pushy")
-        parts.append("4. Example: \"אגב, הכנתי עבורך הנחיות לצילום - רוצה לראות?\"")
+
+        # Proactive guidance (from i18n)
+        parts.append(f"✨ {t('context.proactive.title')}")
+        parts.append(f"1. {t('context.proactive.suggest_capabilities')}")
+        parts.append(f"2. {t('context.proactive.connect_concerns')}")
+        parts.append(f"3. {t('context.proactive.natural_helpful')}")
+        parts.append(f"4. Example: \"{t('context.proactive.example')}\"")
         parts.append("</available_now>")
 
         return "\n".join(parts)

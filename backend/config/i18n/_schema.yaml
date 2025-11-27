@@ -1,0 +1,768 @@
+# Translation Schema - Source of Truth for All Translation Keys
+#
+# This file defines EVERY translation key used in the application.
+# All language files (he.yaml, en.yaml, etc.) must implement these keys.
+#
+# Format:
+#   key:
+#     description: When/where this text is used
+#     placeholders: List of available {placeholder} variables
+#     context: Additional context for translators
+#     max_length: Optional character limit
+#
+# Language File Metadata (required at top of each language file):
+#   language: ISO language code (e.g., "he", "en", "ar")
+#   direction: Text direction - "rtl" or "ltr"
+#   name: Native language name (e.g., "עברית", "English")
+#   locale: Full locale code (e.g., "he-IL", "en-US")
+
+version: "1.0"
+
+# ============================================
+# LANGUAGE METADATA SCHEMA
+# ============================================
+# Every language file must include these fields at the top
+
+_metadata:
+  language:
+    description: "ISO 639-1 language code"
+    required: true
+    examples: ["he", "en", "ar", "ru"]
+
+  direction:
+    description: "Text direction for UI layout"
+    required: true
+    values: ["rtl", "ltr"]
+    usage: |
+      RTL languages: Hebrew (he), Arabic (ar), Persian (fa), Urdu (ur)
+      LTR languages: English (en), Spanish (es), French (fr), Russian (ru)
+
+  name:
+    description: "Language name in its native script"
+    required: true
+    examples: ["עברית", "English", "العربية"]
+
+  locale:
+    description: "Full locale code for formatting (dates, numbers)"
+    required: false
+    examples: ["he-IL", "en-US", "ar-SA"]
+
+  font_family:
+    description: "Recommended font family for this language"
+    required: false
+    examples: ["Heebo", "Inter", "Noto Sans Arabic"]
+
+# ============================================
+# GREETINGS
+# ============================================
+# User-facing greetings based on conversation state and time context
+
+greetings:
+
+  first_visit:
+    description: "Shown when user opens app for the first time (no conversation history)"
+    placeholders: []
+    context: "Warm, welcoming tone. Introduce Chitta and ask for child's name/age."
+
+  returning.same_session:
+    description: "User returns within same session (< 1 hour)"
+    placeholders:
+      - child_name
+    context: "Brief, continuing tone. No need to re-introduce."
+
+  returning.short_break:
+    description: "User returns after short break (1-24 hours)"
+    placeholders:
+      - child_name
+    context: "Warm continuation. Acknowledge they're back."
+
+  returning.after_days:
+    description: "User returns after 1-7 days"
+    placeholders:
+      - child_name
+      - time_ago  # Localized time expression (e.g., 'אתמול', '3 days ago')
+    context: "Acknowledge time gap. Offer to continue where they left off."
+
+  returning.long_absence:
+    description: "User returns after 7+ days"
+    placeholders:
+      - child_name
+      - days_count
+    context: "Warm welcome back. Ask if anything has changed with the child."
+
+  # Stage-specific greetings (when returning to specific journey points)
+
+  stage.guidelines_ready:
+    description: "User returns when video guidelines are ready but no videos uploaded"
+    placeholders:
+      - child_name
+    context: "Remind them guidelines are waiting."
+
+  stage.videos_partial:
+    description: "User returns with some videos uploaded"
+    placeholders:
+      - child_name
+      - videos_uploaded
+      - videos_remaining
+    context: "Acknowledge progress, encourage completion."
+
+  stage.videos_analyzing:
+    description: "User returns while videos are being analyzed"
+    placeholders:
+      - child_name
+    context: "Reassure them analysis is in progress."
+
+  stage.report_ready:
+    description: "User returns when report is ready"
+    placeholders:
+      - child_name
+    context: "Excited tone. Invite them to see the report."
+
+# ============================================
+# TIME EXPRESSIONS
+# ============================================
+# Localized time expressions for natural language
+
+time:
+  yesterday:
+    description: "Expression for 'yesterday'"
+    placeholders: []
+
+  days_ago:
+    description: "Expression for 'X days ago'"
+    placeholders:
+      - days
+
+  week_ago:
+    description: "Expression for 'a week ago'"
+    placeholders: []
+
+  weeks_ago:
+    description: "Expression for 'X weeks ago'"
+    placeholders:
+      - weeks
+
+# ============================================
+# CARDS
+# ============================================
+# UI card content - each card has title, body, footer
+
+cards:
+
+  welcome:
+    title:
+      description: "Welcome card title"
+      placeholders: []
+    body:
+      description: "Welcome card body - explain how Chitta works"
+      placeholders: []
+      context: "Clear, simple explanation. 3 steps."
+    footer:
+      description: "Welcome card footer - call to action"
+      placeholders: []
+
+  returning_user:
+    title:
+      description: "Returning user card title"
+      placeholders: []
+    body:
+      description: "Returning user card body"
+      placeholders:
+        - summary  # Built from domain.summary_templates
+      context: "Show what we remember, invite to continue."
+    footer:
+      description: "Returning user card footer"
+      placeholders: []
+
+  returning_user_long:
+    title:
+      description: "Long absence card title"
+      placeholders: []
+    body:
+      description: "Long absence card body"
+      placeholders:
+        - summary
+      context: "Acknowledge time passed, ask about changes."
+    footer:
+      description: "Long absence card footer"
+      placeholders: []
+
+  guidelines_ready:
+    title:
+      description: "Video guidelines ready card title"
+      placeholders: []
+    body:
+      description: "Guidelines ready card body"
+      placeholders:
+        - child_name
+    footer:
+      description: "Guidelines ready card footer"
+      placeholders: []
+
+  upload_videos:
+    title:
+      description: "Upload videos card title"
+      placeholders:
+        - videos_uploaded
+        - videos_total
+    body:
+      description: "Upload videos card body"
+      placeholders:
+        - videos_remaining
+    footer:
+      description: "Upload videos card footer"
+      placeholders: []
+
+  report_ready:
+    title:
+      description: "Report ready card title"
+      placeholders: []
+    body:
+      description: "Report ready card body"
+      placeholders:
+        - child_name
+    footer:
+      description: "Report ready card footer"
+      placeholders: []
+
+# ============================================
+# DOMAIN VALUES
+# ============================================
+# Labels for domain-specific values (enums, categories, etc.)
+
+domain:
+
+  # Concern categories
+  concerns:
+    speech:
+      description: "Label for 'speech' concern"
+    social:
+      description: "Label for 'social' concern"
+    attention:
+      description: "Label for 'attention' concern"
+    motor:
+      description: "Label for 'motor' concern"
+    sensory:
+      description: "Label for 'sensory' concern"
+    emotional:
+      description: "Label for 'emotional' concern"
+    behavioral:
+      description: "Label for 'behavioral' concern"
+    learning:
+      description: "Label for 'learning' concern"
+    sleep:
+      description: "Label for 'sleep' concern"
+    eating:
+      description: "Label for 'eating' concern"
+    other:
+      description: "Label for 'other' concern"
+
+  # Summary templates for building context summaries
+  summary_templates:
+    child_info:
+      description: "Template for child basic info line"
+      placeholders:
+        - child_name
+        - age
+    concerns_discussed:
+      description: "Template for concerns line"
+      placeholders:
+        - concerns  # Comma-separated translated concern labels
+    strengths_noted:
+      description: "Template for strengths line"
+      placeholders:
+        - strengths  # Abbreviated strengths text
+    guidelines_ready:
+      description: "Template for guidelines status"
+      placeholders: []
+    videos_uploaded:
+      description: "Template for videos status"
+      placeholders:
+        - count
+    report_ready:
+      description: "Template for report ready status"
+      placeholders: []
+    getting_started:
+      description: "Template when minimal info collected"
+      placeholders: []
+
+# ============================================
+# MOMENTS
+# ============================================
+# Messages triggered by lifecycle moments
+
+moments:
+
+  first_message:
+    description: "System message on first interaction"
+    placeholders: []
+    context: "Welcoming, open-ended invitation to share."
+
+  knowledge_rich:
+    description: "Message when enough information gathered for guidelines"
+    placeholders:
+      - child_name
+    context: "Thank parent, offer to create guidelines."
+
+  offer_filming:
+    description: "Message offering the choice to film or not"
+    placeholders:
+      - child_name
+    context: "Gentle, no pressure. Both options equally valid."
+
+  generate_guidelines:
+    description: "Message when starting to generate guidelines"
+    placeholders:
+      - child_name
+    context: "Brief acknowledgment. Don't list guidelines content!"
+
+  offer_report_only:
+    description: "Message when parent chose report without videos"
+    placeholders:
+      - child_name
+    context: "Respect choice, offer report based on conversation."
+
+  videos_uploaded:
+    description: "Message acknowledging video uploads"
+    placeholders:
+      - count
+      - remaining
+    context: "Encouraging, acknowledge progress."
+
+# ============================================
+# UI ELEMENTS
+# ============================================
+# General UI text (buttons, labels, etc.)
+
+ui:
+  buttons:
+    continue:
+      description: "Continue button text"
+    view_guidelines:
+      description: "View guidelines button"
+    upload_video:
+      description: "Upload video button"
+    view_report:
+      description: "View report button"
+
+  labels:
+    videos_count:
+      description: "Videos count label"
+      placeholders:
+        - current
+        - total
+
+# ============================================
+# EXTRACTION
+# ============================================
+# LLM extraction guidance - descriptions, examples, keywords
+# Used to build function definitions for intent detection
+
+extraction:
+
+  # Field descriptions and examples for LLM
+  fields:
+    child_name:
+      description: "How to describe the child_name field to LLM"
+      examples: "Example names in this language"
+
+    age:
+      description: "How to describe age extraction"
+      examples: "Example age expressions"
+
+    gender:
+      description: "How to describe gender inference"
+      inference_hints: "Language-specific hints for inferring gender"
+
+    concern_details:
+      description: "What to extract for concern details"
+      guidance: "Extraction guidance"
+
+    strengths:
+      description: "What to extract for strengths"
+
+    developmental_history:
+      description: "What to extract for history"
+
+    family_context:
+      description: "What to extract for family context"
+
+    daily_routines:
+      description: "What to extract for routines"
+
+    parent_goals:
+      description: "What to extract for goals"
+
+  # Concern category keywords for detection
+  concerns:
+    description: "Overall extraction guidance for concerns"
+    speech:
+      keywords: "Keywords indicating speech concerns"
+    social:
+      keywords: "Keywords indicating social concerns"
+    attention:
+      keywords: "Keywords indicating attention concerns"
+    motor:
+      keywords: "Keywords indicating motor concerns"
+    sensory:
+      keywords: "Keywords indicating sensory concerns"
+    emotional:
+      keywords: "Keywords indicating emotional concerns"
+    behavioral:
+      keywords: "Keywords indicating behavioral concerns"
+    learning:
+      keywords: "Keywords indicating learning concerns"
+    sleep:
+      keywords: "Keywords indicating sleep concerns"
+    eating:
+      keywords: "Keywords indicating eating concerns"
+
+  # Decision field indicators
+  decisions:
+    filming_preference:
+      description: "How to detect filming preference"
+      positive_indicators: "Phrases indicating wants videos"
+      negative_indicators: "Phrases indicating report only"
+      guard: "When NOT to extract"
+
+  # Safety flags
+  safety:
+    urgent_flags:
+      description: "Safety concern indicators"
+
+# ============================================
+# INTENTS
+# ============================================
+# Intent detection - function descriptions and examples
+
+intents:
+
+  # Function descriptions for LLM
+  extract_interview_data:
+    description: "When to call extract_interview_data"
+    examples: "Example triggers"
+
+  ask_developmental_question:
+    description: "When to call ask_developmental_question"
+    examples: "Example questions"
+    topics:
+      developmental_milestone: "Label for this topic"
+      diagnosis_explanation: "Label"
+      therapy_options: "Label"
+      behavior_understanding: "Label"
+      parenting_strategy: "Label"
+      educational_approach: "Label"
+      general_developmental: "Label"
+
+  ask_about_analysis:
+    description: "When to call ask_about_analysis"
+    examples: "Example questions"
+    elements:
+      video_observation: "Label"
+      concern_identification: "Label"
+      strength_identification: "Label"
+      recommendation: "Label"
+      general_conclusion: "Label"
+
+  ask_about_app:
+    description: "When to call ask_about_app"
+    examples: "Example questions"
+    topics:
+      how_to_upload_video: "Label"
+      where_to_find_report: "Label"
+      process_explanation: "Label"
+      next_steps: "Label"
+      app_features: "Label"
+      technical_issue: "Label"
+      general_help: "Label"
+
+  request_action:
+    description: "When to call request_action"
+    examples: "Example requests"
+    actions:
+      generate_guidelines: "Label"
+      view_guidelines: "Label"
+      upload_video: "Label"
+      view_report: "Label"
+      schedule_consultation: "Label"
+      find_experts: "Label"
+      share_report: "Label"
+
+# ============================================
+# MILESTONES
+# ============================================
+# Conversation milestone descriptions for progress tracking
+
+milestones:
+  met_child:
+    description: "First milestone when child name is known"
+    placeholders:
+      - child_name
+  concerns_identified:
+    description: "Milestone when concerns are identified"
+    placeholders:
+      - count
+  strengths_identified:
+    description: "Milestone when strengths are discussed"
+    placeholders: []
+  deep_conversation:
+    description: "Milestone for extensive conversation"
+    placeholders: []
+
+# ============================================
+# CONTEXT
+# ============================================
+# Context templates for LLM prompts
+
+context:
+
+  # Journey context section
+  journey:
+    continuous_conversation:
+      description: "Reminder about continuous conversation mode"
+    no_stages:
+      description: "Reminder there are no stages"
+    guide_by_available:
+      description: "Guidance based on available capabilities"
+
+  # Available now section
+  available:
+    existing_artifacts:
+      description: "Label for existing artifacts"
+    none_yet:
+      description: "When no artifacts exist"
+    available_actions:
+      description: "Label for available actions"
+    blocked_actions:
+      description: "Label for blocked actions"
+    translation_note:
+      description: "Note about translating IDs to natural language"
+    translation_example:
+      description: "Example of how to translate an ID"
+      placeholders:
+        - id
+        - translation
+
+  # Boundaries section
+  boundaries:
+    title:
+      description: "Title for strict boundaries section"
+    rule_only_listed:
+      description: "Can only reference listed items"
+    rule_not_exist:
+      description: "Unlisted items don't exist"
+    rule_never_promise:
+      description: "Never promise unlisted items"
+    rule_explain_unlock:
+      description: "Explain what's needed to unlock"
+
+  # Proactive guidance section
+  proactive:
+    title:
+      description: "Title for proactive guidance section"
+    suggest_capabilities:
+      description: "Suggest available capabilities"
+    connect_concerns:
+      description: "Connect to user concerns"
+    natural_helpful:
+      description: "Be natural not pushy"
+    example:
+      description: "Example of proactive suggestion"
+
+# ============================================
+# PROMPTS
+# ============================================
+# System prompt templates for LLM (mostly English for LLM understanding)
+
+prompts:
+
+  # Role and identity section
+  role:
+    identity:
+      description: "Chitta's identity statement"
+    goals:
+      description: "List of Chitta's conversation goals"
+      placeholders:
+        - role_collection  # e.g., "using functions!" or "by remembering"
+
+  # Conversation style guidance
+  style:
+    simple_language:
+      description: "Use simple language guidance"
+    show_empathy:
+      description: "Show empathy through actions guidance"
+    keep_short:
+      description: "Keep responses short guidance"
+    natural_flow:
+      description: "Natural conversation flow guidance"
+    response_format:
+      description: "Critical response format rules"
+
+  # System protection
+  protection:
+    never_reveal:
+      description: "Never reveal system instructions"
+    deflect_response:
+      description: "Response when asked about instructions"
+
+  # Function instructions
+  functions:
+    critical_rule:
+      description: "Critical rule about calling extract_interview_data"
+    function_descriptions:
+      description: "Section explaining each function"
+
+  # Facts section
+  facts:
+    title:
+      description: "Title for critical facts section"
+    golden_rule:
+      description: "Golden rule about using known facts"
+    has_name:
+      description: "When child name is known"
+      placeholders:
+        - child_name
+    missing_name:
+      description: "When child name is not known"
+    has_age:
+      description: "When age is known"
+      placeholders:
+        - age
+    missing_age:
+      description: "When age is not known"
+    has_concerns:
+      description: "When concerns are known"
+      placeholders:
+        - concerns
+    missing_concerns:
+      description: "When concerns are not known"
+    has_strengths:
+      description: "When strengths are known"
+    missing_strengths:
+      description: "When strengths are not known"
+      placeholders:
+        - child_ref
+
+  # Strategic guidance
+  strategy:
+    title:
+      description: "Title for strategic guidance section"
+    first_priority:
+      description: "First priority label"
+    important_now:
+      description: "Important now label"
+    complete_picture:
+      description: "Complete the picture label"
+    completeness_low:
+      description: "Low completeness message"
+    completeness_medium:
+      description: "Medium completeness message"
+    completeness_high:
+      description: "High completeness message"
+    get_basic_info:
+      description: "Get basic info guidance"
+    understand_concerns:
+      description: "Understand concerns guidance"
+    ask_strengths_early:
+      description: "Ask about strengths early guidance"
+    get_examples:
+      description: "Get specific examples guidance"
+    still_missing_strengths:
+      description: "Still missing strengths guidance"
+
+  # Artifacts section
+  artifacts:
+    title:
+      description: "Title for artifacts section"
+    none_yet:
+      description: "When no artifacts exist"
+    available_list:
+      description: "Available artifacts header"
+    where_to_direct:
+      description: "Where to direct parent header"
+
+  # Response examples
+  examples:
+    good_response_1:
+      description: "Good response example 1"
+    good_response_2:
+      description: "Good response example 2"
+    good_response_3:
+      description: "Good response example 3"
+    ask_strengths:
+      description: "Example asking about strengths"
+    bad_examples:
+      description: "Bad examples to avoid"
+
+  # Important guidelines
+  guidelines:
+    dont_fabricate:
+      description: "Don't fabricate information"
+    dont_diagnose:
+      description: "Don't diagnose"
+    refer_expert:
+      description: "Refer to expert for red flags"
+    keep_focused:
+      description: "Keep it short and focused"
+    remember:
+      description: "Remember reminder"
+
+  # Special situations
+  special:
+    jailbreak_response:
+      description: "Response when jailbreak attempted"
+    ending_early_response:
+      description: "Response when trying to end early"
+      placeholders:
+        - completeness_pct
+        - child_name
+    missing_concerns_question:
+      description: "Question when concerns missing"
+      placeholders:
+        - child_name
+
+  # Stage-specific guidance
+  stages:
+    opening:
+      title:
+        description: "Opening stage title"
+      goals:
+        description: "Opening stage goals"
+    deep_dive:
+      title:
+        description: "Deep dive stage title"
+      goals:
+        description: "Deep dive exploration points"
+    context:
+      title:
+        description: "Context stage title"
+      ask_about:
+        description: "Context stage ask about items"
+    wrapping:
+      title:
+        description: "Wrapping stage title"
+      steps:
+        description: "Wrapping stage steps"
+
+  # Detection keywords
+  detection:
+    jailbreak_keywords:
+      description: "Keywords indicating jailbreak attempt"
+    ending_keywords:
+      description: "Keywords indicating trying to end"
+
+# ============================================
+# ERRORS
+# ============================================
+# Error messages shown to users
+
+errors:
+  generic:
+    description: "Generic error message"
+    placeholders: []
+  session_expired:
+    description: "Session expired error"
+    placeholders: []
+  upload_failed:
+    description: "Video upload failed"
+    placeholders: []

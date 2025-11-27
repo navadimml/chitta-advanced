@@ -1,0 +1,112 @@
+# Extraction Schema - Domain-Specific Data Model
+#
+# This file defines WHAT data to extract from conversations.
+# Structure only - no language-specific content.
+# All text/examples/keywords are in i18n files.
+#
+# 🌟 Wu Wei: Structure in domain config, text in i18n
+
+version: "1.0"
+domain: "child_development"
+
+# ============================================
+# ENTITY: The primary subject being discussed
+# ============================================
+entity:
+  name: "child"
+  i18n_key: "domain.entity.child"
+
+# ============================================
+# BASIC FIELDS
+# ============================================
+
+basic_fields:
+  child_name:
+    type: string
+    i18n_key: "extraction.fields.child_name"
+
+  age:
+    type: number
+    unit: years
+    allow_decimal: true
+    i18n_key: "extraction.fields.age"
+
+  gender:
+    type: enum
+    values: ["male", "female", "unknown"]
+    i18n_key: "extraction.fields.gender"
+
+# ============================================
+# CONCERN CATEGORIES
+# ============================================
+
+concerns:
+  type: array
+  i18n_key: "extraction.concerns"
+
+  categories:
+    - speech
+    - social
+    - attention
+    - motor
+    - sensory
+    - emotional
+    - behavioral
+    - learning
+    - sleep
+    - eating
+    - other
+
+# ============================================
+# TEXT FIELDS
+# ============================================
+
+text_fields:
+  concern_details:
+    type: string
+    i18n_key: "extraction.fields.concern_details"
+
+  strengths:
+    type: string
+    i18n_key: "extraction.fields.strengths"
+
+  developmental_history:
+    type: string
+    i18n_key: "extraction.fields.developmental_history"
+
+  family_context:
+    type: string
+    i18n_key: "extraction.fields.family_context"
+
+  daily_routines:
+    type: string
+    i18n_key: "extraction.fields.daily_routines"
+
+  parent_goals:
+    type: string
+    i18n_key: "extraction.fields.parent_goals"
+
+# ============================================
+# SAFETY FLAGS
+# ============================================
+
+safety:
+  urgent_flags:
+    type: array
+    i18n_key: "extraction.safety.urgent_flags"
+    values:
+      - self_harm
+      - harm_to_others
+      - neglect
+      - abuse
+      - medical_emergency
+
+# ============================================
+# DECISION FIELDS
+# ============================================
+
+decisions:
+  filming_preference:
+    type: enum
+    values: ["wants_videos", "report_only"]
+    i18n_key: "extraction.decisions.filming_preference"
