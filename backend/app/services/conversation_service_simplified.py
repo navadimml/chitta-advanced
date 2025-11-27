@@ -31,6 +31,9 @@ from .llm.factory import create_llm_provider
 from .session_service import SessionState, get_session_service
 from .lifecycle_manager import get_lifecycle_manager
 from .prerequisite_service import get_prerequisite_service
+from .wu_wei_prerequisites import get_wu_wei_prerequisites
+from .i18n_service import t_section
+from .context_buffer import get_context_buffer, ContextBuffer
 from ..prompts.comprehensive_prompt_builder import build_comprehensive_prompt
 from ..prompts.extraction_prompt import build_extraction_prompt
 from ..prompts.conversation_functions import CONVERSATION_FUNCTIONS_COMPREHENSIVE
@@ -146,6 +149,26 @@ class SimplifiedConversationService:
         data = session.extracted_data
         history = self.session_service.get_conversation_history(family_id) or []
 
+        # 1.5. Check for returning user (BEFORE processing - uses session.updated_at)
+        # This must happen before any updates to session, so time gap is accurate
+        returning_user_context = self._check_returning_user(session, data)
+        if returning_user_context:
+            logger.info(f"⏰ Returning user detected: {returning_user_context['time_gap_category']} ({returning_user_context['days_since']} days)")
+
+        # 1.6. Initialize context buffer (Wu Wei: selective context querying)
+        # Buffer is populated with all available context, LLM will query only what it needs
+        context_buffer = get_context_buffer(family_id)
+        context_buffer.update_from_session(
+            session=session,
+            family_id=family_id,
+            prerequisite_service=self.prerequisite_service,
+            lifecycle_manager=self.lifecycle_manager
+        )
+        logger.info(f"📦 Context buffer initialized with {len(context_buffer.get_available_keys())} keys")
+
+        # Track context keys requested by LLM during Phase 1
+        requested_context_keys: List[str] = []
+
         # DEBUG: Log history length and extracted data
         logger.info(f"📚 Conversation history: {len(history)} messages")
         logger.info(f"👤 Extracted data: name={data.child_name}, age={data.age}, concerns={data.primary_concerns}")
@@ -184,7 +207,8 @@ class SimplifiedConversationService:
             messages=extraction_messages,
             temperature=0.0,  # Low temp for reliable extraction
             family_id=family_id,
-            max_tokens=2000  # Should be plenty for extraction only
+            max_tokens=2000,  # Should be plenty for extraction only
+            context_buffer=context_buffer  # 🌟 Wu Wei: for selective context queries
         )
 
         logger.info(f"📝 Phase 1 - Got {len(extraction_result['function_calls'])} function calls")
@@ -194,8 +218,11 @@ class SimplifiedConversationService:
         developmental_question = extraction_result["developmental_question"]
         analysis_question = extraction_result["analysis_question"]
         app_help_request = extraction_result["app_help_request"]
+        requested_context_keys = extraction_result.get("requested_context_keys", [])
 
         logger.info(f"✅ Phase 1 complete: {len(all_extractions)} extractions, {len(extraction_result['function_calls'])} function calls")
+        if requested_context_keys:
+            logger.info(f"📦 LLM requested context: {requested_context_keys}")
 
         # 4.5. Validate requested action using config-driven action_registry (Wu Wei: domain-agnostic)
         action_validation = None
@@ -336,6 +363,12 @@ class SimplifiedConversationService:
             updated_system_prompt += faq_context_injection
             logger.info(f"✅ FAQ context injected into Phase 2 prompt ({len(faq_context_injection)} chars)")
 
+        # 5.55. Inject returning user context if this is first message after return (Wu Wei: time-aware continuity)
+        if returning_user_context:
+            returning_context_injection = self._build_returning_user_context_injection(returning_user_context)
+            updated_system_prompt += returning_context_injection
+            logger.info(f"✅ Returning user context injected ({returning_user_context['time_gap_category']}, {returning_user_context['days_since']} days)")
+
         # 5.6. Inject completeness check result if available (Wu Wei: async check with staleness context)
         if session.completed_check_result:
             check_data = session.completed_check_result
@@ -374,6 +407,14 @@ Since then, {messages_since_check} new messages have been added (messages {messa
 
             # Clear the result - only use it once
             session.completed_check_result = None
+
+        # 5.7. Inject requested context from context buffer (Wu Wei: selective context)
+        # If LLM requested specific context in Phase 1, inject only those keys
+        if requested_context_keys:
+            requested_context = context_buffer.format_for_llm(requested_context_keys)
+            if requested_context:
+                updated_system_prompt += f"\n{requested_context}"
+                logger.info(f"📦 Injected requested context ({len(requested_context_keys)} keys, {len(requested_context)} chars)")
 
         # Rebuild messages with updated system prompt for Phase 2
         updated_messages = [Message(role="system", content=updated_system_prompt)]
@@ -533,7 +574,8 @@ Since then, {messages_since_check} new messages have been added (messages {messa
         messages: List[Message],
         temperature: float,
         family_id: str,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        context_buffer: Optional[ContextBuffer] = None
     ) -> Dict[str, Any]:
         """
         Phase 1: EXTRACTION - Single LLM call with functions enabled.
@@ -541,13 +583,19 @@ Since then, {messages_since_check} new messages have been added (messages {messa
         The model will call functions like extract_interview_data() and return
         NO TEXT (or minimal text). This is EXPECTED and NORMAL for function calling!
 
+        Now includes get_context function for selective context querying.
+
         Returns:
-            Dict with extractions, function_calls, and intents
+            Dict with extractions, function_calls, intents, and requested_context_keys
         """
+        # Get functions including get_context for selective querying
+        from app.services.function_builder import get_conversation_functions
+        functions = get_conversation_functions(include_get_context=True)
+
         # Call LLM with functions enabled
         llm_response = await self.llm.chat(
             messages=messages,
-            functions=CONVERSATION_FUNCTIONS_COMPREHENSIVE,
+            functions=functions,
             temperature=temperature,
             max_tokens=max_tokens
         )
@@ -563,6 +611,7 @@ Since then, {messages_since_check} new messages have been added (messages {messa
 
         # Process function calls
         extractions = []
+        requested_context_keys = []
         intents = {
             "action_requested": None,
             "developmental_question": None,
@@ -577,19 +626,25 @@ Since then, {messages_since_check} new messages have been added (messages {messa
                 ""
             )
 
-            new_extractions, new_intents = await self._process_function_calls(
+            new_extractions, new_intents, new_context_keys = await self._process_function_calls(
                 llm_response.function_calls,
                 family_id,
-                user_message
+                user_message,
+                context_buffer=context_buffer
             )
             extractions.extend(new_extractions)
             intents.update({k: v for k, v in new_intents.items() if v is not None})
+            requested_context_keys.extend(new_context_keys)
 
         # CRITICAL: Verify session data was actually saved
         if llm_response.function_calls:
             verification_session = self.session_service.get_or_create_session(family_id)
             verification_data = verification_session.extracted_data
             logger.info(f"🔍 POST-EXTRACTION VERIFICATION: name={verification_data.child_name}, age={verification_data.age}, concerns={verification_data.primary_concerns}")
+
+        # Log requested context
+        if requested_context_keys:
+            logger.info(f"📦 Phase 1 requested context keys: {requested_context_keys}")
 
         return {
             "extractions": extractions,
@@ -600,7 +655,8 @@ Since then, {messages_since_check} new messages have been added (messages {messa
             "action_requested": intents.get("action_requested"),
             "developmental_question": intents.get("developmental_question"),
             "analysis_question": intents.get("analysis_question"),
-            "app_help_request": intents.get("app_help_request")
+            "app_help_request": intents.get("app_help_request"),
+            "requested_context_keys": requested_context_keys  # 🌟 Wu Wei: selective context
         }
 
     async def _response_phase(
@@ -768,21 +824,24 @@ Examples:
         self,
         function_calls: List[Any],
         family_id: str,
-        user_message: str
-    ) -> Tuple[List[Dict], Dict[str, Any]]:
+        user_message: str,
+        context_buffer: Optional[ContextBuffer] = None
+    ) -> Tuple[List[Dict], Dict[str, Any], List[str]]:
         """
-        Process function calls and return extractions and intents.
+        Process function calls and return extractions, intents, and requested context keys.
 
         Args:
             function_calls: List of function calls from LLM
             family_id: Family ID
             user_message: Parent's message (for context in normalization)
+            context_buffer: Optional context buffer for get_context calls
 
         Returns:
-            Tuple of (extractions_list, intents_dict)
+            Tuple of (extractions_list, intents_dict, requested_context_keys)
         """
         extractions = []
         intents = {}
+        requested_context_keys = []
 
         logger.info(f"🔧 Processing {len(function_calls)} function call(s)")
 
@@ -826,7 +885,13 @@ Examples:
                 intents["action_requested"] = action
                 logger.info(f"🎬 Action requested: {action}")
 
-        return extractions, intents
+            elif func_call.name == "get_context":
+                # 🌟 Wu Wei: LLM requests specific context keys
+                keys = func_call.arguments.get('keys', [])
+                requested_context_keys.extend(keys)
+                logger.info(f"📦 Context requested: {keys}")
+
+        return extractions, intents, requested_context_keys
 
     # OLD METHODS REMOVED: _detect_function_loop, _log_function_calls
     # These were only needed for the loop-based approach.
@@ -1088,6 +1153,114 @@ Examples:
         """Count user messages in conversation history"""
         conversation_history = session.conversation_history or []
         return len([m for m in conversation_history if m.get('role') == 'user'])
+
+    def _check_returning_user(
+        self,
+        session: SessionState,
+        extracted_data: Any
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if this is a returning user (first message after a time gap).
+
+        Uses session.updated_at to detect time gaps. This check must happen
+        BEFORE any processing updates the session, so the time gap is accurate.
+
+        Returns:
+            Dict with time context if returning user, None otherwise
+        """
+        wu_wei = get_wu_wei_prerequisites()
+
+        # Calculate time gap from last activity
+        time_context = wu_wei.calculate_time_gap_context({
+            "last_active": session.updated_at
+        })
+
+        # Only return context if this is a returning user
+        if not time_context.get("is_returning_user"):
+            return None
+
+        # Build context for the returning user
+        # Include what we know about the child for the summary
+        context_for_summary = {
+            "child_name": extracted_data.child_name,
+            "age": extracted_data.age,
+            "primary_concerns": extracted_data.primary_concerns,
+            "strengths": extracted_data.strengths,
+            "artifacts": {k: {"status": v.status} for k, v in session.artifacts.items()} if session.artifacts else {}
+        }
+
+        summary = wu_wei.build_returning_user_summary(context_for_summary)
+
+        return {
+            "time_gap_category": time_context["time_gap_category"],
+            "days_since": time_context["days_since_last_active"],
+            "hours_since": time_context["hours_since_last_active"],
+            "summary": summary
+        }
+
+    def _build_returning_user_context_injection(
+        self,
+        returning_user_context: Dict[str, Any]
+    ) -> str:
+        """
+        Build the returning user context injection for Phase 2 prompt.
+
+        Uses i18n templates from context.returning_user section.
+
+        Args:
+            returning_user_context: Dict with time_gap_category, days_since, summary
+
+        Returns:
+            Context injection string for the system prompt
+        """
+        # Get i18n templates
+        ctx_templates = t_section("context.returning_user")
+
+        # Build time description based on days
+        days = returning_user_context["days_since"]
+        time_descs = ctx_templates.get("time_descriptions", {})
+
+        if days <= 1:
+            time_description = time_descs.get("one_day", "about a day")
+        elif days < 7:
+            time_description = time_descs.get("few_days", "{days} days").format(days=days)
+        elif days < 10:
+            time_description = time_descs.get("about_week", "about a week")
+        elif days < 18:
+            time_description = time_descs.get("about_two_weeks", "about two weeks")
+        elif days < 30:
+            time_description = time_descs.get("few_weeks", "a few weeks")
+        else:
+            time_description = time_descs.get("long_time", "quite some time")
+
+        # Build the context injection
+        title = ctx_templates.get("title", "RETURNING USER CONTEXT")
+        time_gap_intro = ctx_templates.get("time_gap_intro", "The parent is returning after {time_description}.").format(
+            time_description=time_description
+        )
+        what_we_know = ctx_templates.get("what_we_know", "What we know about this family:")
+        task_title = ctx_templates.get("task_title", "Your task:")
+        task_1 = ctx_templates.get("task_warmly_greet", "Warmly acknowledge their return")
+        task_2 = ctx_templates.get("task_remind_briefly", "Briefly remind them where you left off")
+        task_3 = ctx_templates.get("task_ask_changes", "Ask if anything has changed")
+        task_4 = ctx_templates.get("task_be_natural", "Be natural and warm")
+
+        return f"""
+
+<returning_user_context>
+**{title}**
+{time_gap_intro}
+
+**{what_we_know}**
+{returning_user_context['summary']}
+
+**{task_title}**
+1. {task_1}
+2. {task_2}
+3. {task_3}
+4. {task_4}
+</returning_user_context>
+"""
 
     def _should_run_verification(self, session: SessionState) -> bool:
         """
