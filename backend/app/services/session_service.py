@@ -1,6 +1,10 @@
 """
 Session Service - Manages conversation session state and completeness calculation
 
+🌟 MIGRATION NOTE: This module now delegates to UnifiedStateService internally
+while maintaining backwards-compatible APIs. The ExtractedData and SessionState
+classes are kept for compatibility with existing code.
+
 🌟 Wu Wei: Renamed from InterviewService - reflects continuous conversation, not staged interview
 
 This service:
