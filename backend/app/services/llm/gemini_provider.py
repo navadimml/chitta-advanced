@@ -76,7 +76,8 @@ class GeminiProvider(BaseLLMProvider):
         functions: Optional[List[Dict[str, Any]]] = None,
         temperature: float = None,
         max_tokens: int = 1000,
-        response_format: Optional[str] = None  # Support "json" for JSON mode
+        response_format: Optional[str] = None,  # Support "json" for JSON mode
+        enable_thinking: bool = True  # Control thinking mode for Gemini 2.5+
     ) -> LLMResponse:
         """
         Send chat completion with optional function calling
@@ -87,6 +88,9 @@ class GeminiProvider(BaseLLMProvider):
             temperature: Sampling temperature
             max_tokens: Maximum output tokens
             response_format: If "json", requests JSON-formatted output
+            enable_thinking: If False, disables Gemini's thinking mode to prevent
+                           chain-of-thought leaking into user-facing responses.
+                           Default True for processing phases, set False for response phases.
 
         Returns:
             LLMResponse with content and function calls
@@ -144,6 +148,20 @@ class GeminiProvider(BaseLLMProvider):
         # Add JSON mode if requested
         if response_format == "json":
             config_params["response_mime_type"] = "application/json"
+
+        # Configure thinking mode for Gemini 2.5+ models
+        # When disabled (enable_thinking=False), sets thinking_budget=0 to prevent
+        # chain-of-thought reasoning from leaking into user-facing responses.
+        # When enabled (default), allows the model to use its thinking capabilities.
+        if not enable_thinking:
+            try:
+                config_params["thinking_config"] = types.ThinkingConfig(
+                    thinking_budget=0  # Disable thinking to prevent leaks
+                )
+                logger.debug("🧠 Thinking mode disabled for this request")
+            except (AttributeError, TypeError) as e:
+                # ThinkingConfig may not exist in older SDK versions
+                logger.debug(f"ThinkingConfig not available (older SDK): {e}")
 
         config = types.GenerateContentConfig(**config_params)
 

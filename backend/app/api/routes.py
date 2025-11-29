@@ -1709,7 +1709,8 @@ async def add_thread_message(
 
         response = await llm.chat(
             messages=[Message(role="user", content=prompt)],
-            temperature=0.7
+            temperature=0.7,
+            enable_thinking=False  # User-facing response - disable thinking
         )
 
         ai_content = response.content

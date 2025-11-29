@@ -109,7 +109,8 @@ class GeminiProviderEnhanced(GeminiProvider):
         messages: List[Message],
         functions: Optional[List[Dict[str, Any]]] = None,
         temperature: float = None,
-        max_tokens: int = 1000
+        max_tokens: int = 1000,
+        enable_thinking: bool = True  # Pass through to base Gemini provider
     ) -> LLMResponse:
         """
         Enhanced chat with function calling improvements
@@ -132,7 +133,8 @@ class GeminiProviderEnhanced(GeminiProvider):
             messages=messages,
             functions=functions,
             temperature=optimized_temp,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            enable_thinking=enable_thinking
         )
 
         # Track function calling statistics

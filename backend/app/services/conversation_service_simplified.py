@@ -720,12 +720,15 @@ Since then, {messages_since_check} new messages have been added (messages {messa
                 logger.info(f"💡 Added message guidance: {message_guidance[:100]}...")
 
         # Call LLM WITHOUT functions - this forces it to return text
+        # CRITICAL: Disable thinking mode to prevent chain-of-thought leaking
+        # into user-facing responses (Plan:, Self-Correction:, Drafting:, etc.)
         try:
             llm_response = await self.llm.chat(
                 messages=phase2_messages,
                 functions=None,  # NO FUNCTIONS! This is the key!
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                enable_thinking=False  # Disable thinking for user-facing response
             )
 
             # Clean response to remove any thinking/reasoning tags

@@ -106,12 +106,14 @@ class ConsultationService:
         messages.append(Message(role="user", content=question))
 
         # Call LLM
+        # Disable thinking to prevent chain-of-thought leaking into user response
         try:
             llm_response = await self.llm.chat(
                 messages=messages,
                 functions=None,
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=2000,
+                enable_thinking=False  # User-facing response
             )
 
             response_text = llm_response.content
