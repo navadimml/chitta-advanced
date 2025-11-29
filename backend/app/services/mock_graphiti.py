@@ -1,38 +1,144 @@
 """
 Mock Graphiti - Simulates Temporal Knowledge Graph
-Actually just smart state management that looks like Graphiti
+
+🌟 MIGRATION NOTE: This module now delegates to UnifiedStateService for
+the actual state storage. FamilyState is now a view that combines data
+from Child (shared) and UserSession (per-user).
+
+This maintains backwards compatibility with existing code while using
+the new unified storage underneath.
 """
 from typing import Dict, Optional
 from datetime import datetime
 import json
+import logging
 from ..models.family_state import FamilyState, Message, Artifact
+
+logger = logging.getLogger(__name__)
 
 
 class MockGraphiti:
     """
     Simulates Graphiti's temporal knowledge graph.
-    Provides Graphiti-like query interface but uses simple state storage.
+
+    🌟 MIGRATION: Now delegates to UnifiedStateService internally.
+    FamilyState is built dynamically from Child + UserSession.
     """
 
     def __init__(self):
-        self.states: Dict[str, FamilyState] = {}
+        # Cache for FamilyState views (rebuilt from unified service on access)
+        self._state_cache: Dict[str, FamilyState] = {}
+        self._unified_service = None  # Lazy initialization to avoid circular imports
+
+    def _get_unified_service(self):
+        """Lazy load unified service to avoid circular imports"""
+        if self._unified_service is None:
+            from app.services.unified_state_service import get_unified_state_service
+            self._unified_service = get_unified_state_service()
+        return self._unified_service
 
     def get_or_create_state(self, family_id: str) -> FamilyState:
-        """Get existing state or create new one"""
-        import logging
-        logger = logging.getLogger(__name__)
+        """
+        Get existing state or create new one.
 
-        if family_id not in self.states:
-            logger.info(f"🆕 CREATING NEW STATE for family_id: {family_id}")
-            self.states[family_id] = FamilyState(
-                family_id=family_id,
-                created_at=datetime.now(),
-                last_active=datetime.now()
-            )
+        🌟 MIGRATION: Now builds FamilyState from Child + UserSession data
+        """
+        # Get unified service
+        unified = self._get_unified_service()
+
+        # Get child and session data
+        child = unified.get_child(family_id)
+        session = unified.get_or_create_session(family_id)
+
+        # Check if we have a cached state and if it's current
+        if family_id in self._state_cache:
+            cached = self._state_cache[family_id]
+            # Use cached version if it exists and was updated recently
+            # (within same request cycle - we update on each access)
+            logger.debug(f"♻️ Using cached state for {family_id}")
         else:
-            conv_count = len(self.states[family_id].conversation)
-            logger.info(f"♻️ REUSING EXISTING STATE for family_id: {family_id} ({conv_count} messages in history)")
-        return self.states[family_id]
+            logger.info(f"🔄 Building state from unified service for {family_id}")
+
+        # Build/update FamilyState from unified data
+        state = self._build_family_state(family_id, child, session)
+        self._state_cache[family_id] = state
+
+        conv_count = len(state.conversation)
+        if conv_count > 0:
+            logger.info(f"♻️ State loaded for {family_id} ({conv_count} messages)")
+        else:
+            logger.info(f"🆕 New state for {family_id}")
+
+        return state
+
+    def _build_family_state(self, family_id: str, child, session) -> FamilyState:
+        """Build FamilyState view from Child and UserSession"""
+        data = child.developmental_data
+
+        # Build child dict for profile
+        child_dict = None
+        if data.child_name or data.age:
+            child_dict = {
+                "name": data.child_name,
+                "age": data.age,
+            }
+            if data.gender:
+                child_dict["gender"] = data.gender
+
+        # Convert messages to FamilyState Message format
+        conversation = []
+        for msg in session.messages:
+            conversation.append(Message(
+                role=msg.role,
+                content=msg.content,
+                timestamp=msg.timestamp
+            ))
+
+        # Convert artifacts
+        artifacts = {}
+        for artifact_id, artifact in child.artifacts.items():
+            artifacts[artifact_id] = Artifact(
+                type=artifact.artifact_type,
+                content=artifact.content if isinstance(artifact.content, dict) else {"data": artifact.content},
+                created_at=artifact.created_at
+            )
+
+        # Convert videos
+        from ..models.family_state import Video as FamilyVideo
+        videos = []
+        for video in child.videos:
+            videos.append(FamilyVideo(
+                id=video.id,
+                scenario=video.scenario,
+                uploaded_at=video.uploaded_at,
+                duration_seconds=video.duration_seconds,
+                file_path=video.file_path,
+                file_url=video.file_url,
+                analyst_context=video.observation_context,
+                analysis_status=video.analysis_status,
+                analysis_artifact_id=video.analysis_artifact_id,
+                analysis_error=video.analysis_error,
+            ))
+
+        # Build FamilyState
+        state = FamilyState(
+            family_id=family_id,
+            child=child_dict,
+            parent=None,  # Not used in current implementation
+            conversation=conversation,
+            artifacts=artifacts,
+            videos_uploaded=videos,
+            journal_entries=[],  # TODO: Convert journal entries if needed
+            created_at=child.created_at,
+            last_active=session.updated_at,
+            active_cards=session.active_cards,
+            dismissed_card_moments={
+                k: v for k, v in session.dismissed_card_moments.items()
+            },
+            previous_context_snapshot=session.previous_context_snapshot,
+        )
+
+        return state
 
     async def add_message(
         self,
@@ -41,20 +147,20 @@ class MockGraphiti:
         content: str,
         timestamp: Optional[datetime] = None
     ):
-        """Add a message to conversation"""
-        state = self.get_or_create_state(family_id)
+        """
+        Add a message to conversation.
 
-        message = Message(
-            role=role,
-            content=content,
-            timestamp=timestamp or datetime.now()
-        )
+        🌟 MIGRATION: Delegates to unified service
+        """
+        unified = self._get_unified_service()
+        await unified.add_conversation_turn_async(family_id, role, content)
 
-        state.conversation.append(message)
-        state.last_active = datetime.now()
+        # Invalidate cache so next access rebuilds state
+        if family_id in self._state_cache:
+            del self._state_cache[family_id]
 
-        # Extract entities from message
-        await self._extract_entities(state, content)
+        # Note: Entity extraction is now handled by the conversation service
+        # through the extraction functions, not here
 
     async def add_artifact(
         self,
@@ -62,17 +168,29 @@ class MockGraphiti:
         artifact_type: str,
         content: dict
     ):
-        """Add an artifact to state"""
-        state = self.get_or_create_state(family_id)
+        """
+        Add an artifact to state.
 
-        artifact = Artifact(
-            type=artifact_type,
+        🌟 MIGRATION: Delegates to unified service
+        """
+        from app.models.artifact import Artifact as ArtifactModel
+
+        unified = self._get_unified_service()
+
+        # Create artifact using the proper model
+        artifact = ArtifactModel(
+            artifact_id=artifact_type,
+            artifact_type=artifact_type,
             content=content,
-            created_at=datetime.now()
+            created_at=datetime.now(),
+            is_ready=True
         )
 
-        state.artifacts[artifact_type] = artifact
-        state.last_active = datetime.now()
+        unified.add_artifact(family_id, artifact)
+
+        # Invalidate cache
+        if family_id in self._state_cache:
+            del self._state_cache[family_id]
 
     async def query(
         self,
@@ -82,74 +200,50 @@ class MockGraphiti:
         """
         Simulate Graphiti's semantic search.
         Returns relevant parts of state based on query.
+
+        🌟 MIGRATION: Uses unified service data
         """
-        state = self.states.get(family_id)
-        if not state:
-            return {}
+        unified = self._get_unified_service()
+        child = unified.get_child(family_id)
+        session = unified.get_or_create_session(family_id)
 
         query_lower = query.lower()
 
         # Query interpretation
         if "video" in query_lower:
             return {
-                "videos_uploaded": [v.dict() for v in state.videos_uploaded],
-                "videos_count": len(state.videos_uploaded),
-                "videos_needed": 3 - len(state.videos_uploaded)
+                "videos_uploaded": [v.dict() for v in child.videos],
+                "videos_count": child.video_count,
+                "videos_needed": max(0, 3 - child.video_count)
             }
 
         if "guideline" in query_lower:
-            guidelines = state.artifacts.get("baseline_video_guidelines")
+            guidelines = child.get_artifact("baseline_video_guidelines")
             return {
                 "guidelines": guidelines.dict() if guidelines else None
             }
 
         if "conversation" in query_lower or "history" in query_lower:
             return {
-                "messages": [m.dict() for m in state.conversation[-10:]]
+                "messages": session.get_conversation_history(last_n=10)
             }
 
         if "artifact" in query_lower or "report" in query_lower:
             return {
-                "artifacts": {k: v.dict() for k, v in state.artifacts.items()}
+                "artifacts": {k: v.dict() for k, v in child.artifacts.items()}
             }
 
-        # Return full state for complex queries
-        return state.dict()
+        # Return full context for complex queries
+        return unified.build_full_context(family_id)
 
     async def _extract_entities(self, state: FamilyState, text: str):
-        """Extract entities from text and update state (simplified)"""
-        text_lower = text.lower()
-
-        # Extract child name
-        if "שמו" in text or "שמה" in text:
-            # Simple extraction - in real version would use LLM
-            words = text.split()
-            for i, word in enumerate(words):
-                if word in ["שמו", "שמה"] and i + 1 < len(words):
-                    child_name = words[i + 1].rstrip(',').rstrip('.')
-                    if not state.child:
-                        state.child = {}
-                    state.child["name"] = child_name
-                    break
-
-        # Extract age
-        if "בן" in text or "בת" in text:
-            words = text.split()
-            for i, word in enumerate(words):
-                if word in ["בן", "בת"] and i + 1 < len(words):
-                    try:
-                        age_str = words[i + 1].rstrip(',').rstrip('.')
-                        # Handle "3.5" or "3 וחצי"
-                        if "וחצי" in text:
-                            age = float(age_str) + 0.5
-                        else:
-                            age = float(age_str)
-                        if not state.child:
-                            state.child = {}
-                        state.child["age"] = age
-                    except ValueError:
-                        pass
-                    break
+        """
+        DEPRECATED: Entity extraction is now handled by conversation service.
+        This method is kept for backwards compatibility but does nothing.
+        """
+        # Entity extraction is now done by the conversation service
+        # through its extraction functions and stored in Child.developmental_data
+        pass
 
 
 # Global instance
