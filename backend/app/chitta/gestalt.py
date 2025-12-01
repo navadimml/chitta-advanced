@@ -34,9 +34,10 @@ from datetime import datetime, timedelta
 from app.models.child import (
     Child, DevelopmentalData, Essence, Strengths as StrengthsModel,
     DevelopmentalDomains, ChildHistory, Family, LivingEdge,
-    Pattern, Hypothesis, OpenQuestion,
-    ExplorationActivity, VideoExplorationCycle, SynthesisSnapshot,
-    CurrentFocus, VideoScenario
+    Pattern, Hypothesis, OpenQuestion, EvidenceItem,
+    ExplorationActivity, ExplorationCycle, SynthesisSnapshot,
+    CurrentFocus, VideoScenario, ConversationQuestion,
+    ConversationMethod, VideoMethod
 )
 from app.models.user_session import UserSession
 
@@ -256,43 +257,68 @@ class GestaltStories:
 
 
 @dataclass
-class GestaltVideoExploration:
+class GestaltExploration:
     """
-    Current video exploration state - activity-based, not count-based.
+    Current exploration state - unified across conversation and video.
 
-    This replaces the old "has_video_guidelines" boolean with
-    purpose-driven tracking: Why are we exploring? What are we waiting for?
+    Tracks what we're actively exploring, regardless of method.
     """
-    # === Current State ===
-    has_active_exploration: bool = False
-    exploration_purpose: Optional[str] = None  # What hypotheses are we testing?
-
-    # === What We're Waiting For ===
-    pending_scenarios: List[Dict[str, Any]] = field(default_factory=list)
-    # Each: {scenario, why_we_want_to_see, requested_at}
-
-    pending_analyses: List[str] = field(default_factory=list)  # video IDs being analyzed
-
-    # === What's New ===
-    new_videos_not_discussed: List[str] = field(default_factory=list)
-    new_analyses_not_discussed: List[str] = field(default_factory=list)
-
-    # === Current Cycle Info ===
+    # === Current Cycle ===
+    has_active_cycle: bool = False
     current_cycle_id: Optional[str] = None
     current_cycle_started: Optional[datetime] = None
+    exploration_goal: Optional[str] = None  # What we're trying to understand
+
+    # === Methods Being Used ===
+    methods_used: List[str] = field(default_factory=list)  # ["conversation", "video"]
+
+    # === Purpose: What We're Exploring ===
     hypotheses_being_tested: List[str] = field(default_factory=list)
+    questions_being_explored: List[str] = field(default_factory=list)
+
+    # === Conversation Method State ===
+    pending_questions: List[Dict[str, Any]] = field(default_factory=list)
+    # Each: {question, what_we_hoped_to_learn, target_hypothesis}
+
+    # === Video Method State ===
+    pending_video_scenarios: List[Dict[str, Any]] = field(default_factory=list)
+    # Each: {scenario, why_we_want_to_see, requested_at}
+    pending_video_analyses: List[str] = field(default_factory=list)
+
+    # === What's New (needs discussion) ===
+    new_videos_not_discussed: List[str] = field(default_factory=list)
+    new_analyses_not_discussed: List[str] = field(default_factory=list)
+    new_evidence_not_discussed: List[str] = field(default_factory=list)
 
     # === History Summary ===
     completed_cycles_count: int = 0
     total_videos_analyzed: int = 0
+    total_evidence_items: int = 0
+
+    @property
+    def is_waiting(self) -> bool:
+        """Are we waiting for anything?"""
+        return (len(self.pending_questions) > 0 or
+                len(self.pending_video_scenarios) > 0 or
+                len(self.pending_video_analyses) > 0)
 
     @property
     def is_waiting_for_videos(self) -> bool:
-        return len(self.pending_scenarios) > 0
+        return len(self.pending_video_scenarios) > 0
 
     @property
     def has_new_content(self) -> bool:
-        return bool(self.new_videos_not_discussed or self.new_analyses_not_discussed)
+        return bool(self.new_videos_not_discussed or
+                    self.new_analyses_not_discussed or
+                    self.new_evidence_not_discussed)
+
+    @property
+    def uses_video(self) -> bool:
+        return "video" in self.methods_used
+
+    @property
+    def uses_conversation(self) -> bool:
+        return "conversation" in self.methods_used
 
 
 @dataclass
@@ -403,7 +429,7 @@ class Gestalt:
     10. Open questions (what we're wondering)
 
     Activity tracking (not state-based):
-    - Video exploration cycles (purpose-driven, not count-driven)
+    - Exploration cycles (unified - conversation/video/mixed)
     - Synthesis snapshots (temporal, not boolean)
     - Current focus (what's active NOW)
     """
@@ -426,8 +452,8 @@ class Gestalt:
     # === Stories (gold) ===
     stories: GestaltStories = field(default_factory=GestaltStories)
 
-    # === Activity-Based Tracking (replaces old state-based) ===
-    video_exploration: GestaltVideoExploration = field(default_factory=GestaltVideoExploration)
+    # === Activity-Based Tracking (unified exploration) ===
+    exploration: GestaltExploration = field(default_factory=GestaltExploration)
     syntheses: GestaltSyntheses = field(default_factory=GestaltSyntheses)
 
     # === Session and Completeness ===
@@ -494,14 +520,18 @@ class Gestalt:
                 "count": self.stories.story_count,
                 "recent": self.stories.recent_stories,
             },
-            "video_exploration": {
-                "has_active_exploration": self.video_exploration.has_active_exploration,
-                "exploration_purpose": self.video_exploration.exploration_purpose,
-                "pending_scenarios": self.video_exploration.pending_scenarios,
-                "hypotheses_being_tested": self.video_exploration.hypotheses_being_tested,
-                "is_waiting_for_videos": self.video_exploration.is_waiting_for_videos,
-                "has_new_content": self.video_exploration.has_new_content,
-                "completed_cycles_count": self.video_exploration.completed_cycles_count,
+            "exploration": {
+                "has_active_cycle": self.exploration.has_active_cycle,
+                "exploration_goal": self.exploration.exploration_goal,
+                "methods_used": self.exploration.methods_used,
+                "hypotheses_being_tested": self.exploration.hypotheses_being_tested,
+                "questions_being_explored": self.exploration.questions_being_explored,
+                "pending_questions": self.exploration.pending_questions,
+                "pending_video_scenarios": self.exploration.pending_video_scenarios,
+                "is_waiting": self.exploration.is_waiting,
+                "is_waiting_for_videos": self.exploration.is_waiting_for_videos,
+                "has_new_content": self.exploration.has_new_content,
+                "completed_cycles_count": self.exploration.completed_cycles_count,
             },
             "syntheses": {
                 "has_current_synthesis": self.syntheses.has_current_synthesis,
@@ -670,35 +700,55 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
         recent_stories=recent_stories,
     )
 
-    # === VIDEO EXPLORATION (activity-based) ===
-    exploration = data.exploration
-    current_cycle = exploration.current_video_cycle
+    # === EXPLORATION (unified - conversation/video/mixed) ===
+    exploration_activity = data.exploration
+    current_cycle = exploration_activity.current_cycle
     current_focus = data.current_focus
 
-    video_exploration = GestaltVideoExploration(
-        has_active_exploration=exploration.has_active_exploration,
-        exploration_purpose=_get_exploration_purpose(current_cycle) if current_cycle else None,
-        pending_scenarios=[
+    # Build pending questions from conversation method
+    pending_questions = []
+    if current_cycle and current_cycle.conversation:
+        pending_questions = [
+            {
+                "question": q.question,
+                "what_we_hoped_to_learn": q.what_we_hoped_to_learn,
+                "target_hypothesis": q.target_hypothesis_id,
+            }
+            for q in current_cycle.conversation.pending_questions
+        ]
+
+    # Build pending video scenarios from video method
+    pending_video_scenarios = []
+    if current_cycle and current_cycle.video:
+        pending_video_scenarios = [
             {
                 "scenario": s.scenario,
                 "why_we_want_to_see": s.why_we_want_to_see,
                 "requested_at": s.requested_at.isoformat() if s.requested_at else None,
             }
-            for s in exploration.pending_video_scenarios
-        ],
-        pending_analyses=[v.id for v in child.videos if v.analysis_status == "analyzing"],
-        new_videos_not_discussed=current_focus.new_videos_not_discussed,
-        new_analyses_not_discussed=current_focus.new_analyses_not_discussed,
+            for s in current_cycle.video.pending_scenarios
+        ]
+
+    exploration = GestaltExploration(
+        has_active_cycle=exploration_activity.has_active_exploration,
         current_cycle_id=current_cycle.id if current_cycle else None,
         current_cycle_started=current_cycle.started_at if current_cycle else None,
-        hypotheses_being_tested=current_cycle.hypotheses_being_explored if current_cycle else [],
-        completed_cycles_count=len(exploration.get_past_cycles(100)),
+        exploration_goal=current_cycle.exploration_goal if current_cycle else None,
+        methods_used=current_cycle.methods_used if current_cycle else [],
+        hypotheses_being_tested=current_cycle.hypothesis_ids if current_cycle else [],
+        questions_being_explored=current_cycle.open_question_ids if current_cycle else [],
+        pending_questions=pending_questions,
+        pending_video_scenarios=pending_video_scenarios,
+        pending_video_analyses=[v.id for v in child.videos if v.analysis_status == "analyzing"],
+        new_videos_not_discussed=current_focus.new_videos_not_discussed,
+        new_analyses_not_discussed=current_focus.new_analyses_not_discussed,
+        completed_cycles_count=len(exploration_activity.get_completed_cycles(100)),
         total_videos_analyzed=child.analyzed_video_count,
     )
 
     # === SYNTHESES (activity-based) ===
-    current_synthesis = exploration.current_synthesis
-    days_since = exploration.days_since_last_synthesis()
+    current_synthesis = exploration_activity.current_synthesis
+    days_since = exploration_activity.days_since_last_synthesis()
 
     syntheses = GestaltSyntheses(
         has_current_synthesis=current_synthesis is not None,
@@ -710,7 +760,7 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
             current_synthesis is not None and
             (not current_synthesis.is_current or (days_since and days_since > 30))
         ),
-        total_syntheses_count=len(exploration.syntheses),
+        total_syntheses_count=len(exploration_activity.syntheses),
         new_syntheses_not_discussed=current_focus.new_syntheses_not_discussed,
     )
 
@@ -741,7 +791,7 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
         hypotheses=hypotheses,
         open_questions=open_questions,
         stories=stories,
-        video_exploration=video_exploration,
+        exploration=exploration,
         syntheses=syntheses,
         session=session_info,
         completeness=completeness,
@@ -749,17 +799,6 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
         parent_goals=data.parent_goals,
         parent_emotional_state=data.parent_emotional_state,
     )
-
-
-def _get_exploration_purpose(cycle: VideoExplorationCycle) -> str:
-    """Summarize the purpose of the current exploration cycle."""
-    if cycle.hypotheses_being_explored:
-        return f"Testing: {cycle.hypotheses_being_explored[0]}"
-    elif cycle.questions_driving_exploration:
-        return f"Exploring: {cycle.questions_driving_exploration[0]}"
-    elif cycle.what_conversation_cant_answer:
-        return cycle.what_conversation_cant_answer
-    return "General observation"
 
 
 def _calculate_time_since_last(focus: CurrentFocus) -> Optional[timedelta]:
@@ -947,16 +986,22 @@ def get_what_we_know(gestalt: Gestalt) -> Dict[str, Any]:
     if gestalt.stories.story_count > 0:
         known["stories_captured"] = gestalt.stories.story_count
 
-    # Video Exploration (activity-based)
-    if gestalt.video_exploration.has_active_exploration:
-        known["video_exploration"] = {
-            "purpose": gestalt.video_exploration.exploration_purpose,
-            "hypotheses_being_tested": gestalt.video_exploration.hypotheses_being_tested,
-            "waiting_for_videos": gestalt.video_exploration.is_waiting_for_videos,
-            "pending_scenarios_count": len(gestalt.video_exploration.pending_scenarios),
+    # Exploration (unified - conversation/video/mixed)
+    if gestalt.exploration.has_active_cycle:
+        known["exploration"] = {
+            "goal": gestalt.exploration.exploration_goal,
+            "methods": gestalt.exploration.methods_used,
+            "hypotheses_being_tested": gestalt.exploration.hypotheses_being_tested,
+            "questions_being_explored": gestalt.exploration.questions_being_explored,
+            "is_waiting": gestalt.exploration.is_waiting,
+            "waiting_for_videos": gestalt.exploration.is_waiting_for_videos,
+            "pending_questions_count": len(gestalt.exploration.pending_questions),
+            "pending_video_scenarios_count": len(gestalt.exploration.pending_video_scenarios),
         }
-    if gestalt.video_exploration.total_videos_analyzed > 0:
-        known["videos_analyzed"] = gestalt.video_exploration.total_videos_analyzed
+    if gestalt.exploration.total_videos_analyzed > 0:
+        known["videos_analyzed"] = gestalt.exploration.total_videos_analyzed
+    if gestalt.exploration.completed_cycles_count > 0:
+        known["completed_exploration_cycles"] = gestalt.exploration.completed_cycles_count
 
     # Syntheses (activity-based)
     if gestalt.syntheses.has_current_synthesis:
@@ -1006,10 +1051,10 @@ def get_what_we_need(gestalt: Gestalt) -> List[str]:
     elif not gestalt.concerns.has_details:
         needs.append("concern_details")
 
-    # 7. Video exploration (if they want videos and we haven't started)
-    if gestalt.filming_preference != "report_only":
-        if not gestalt.video_exploration.has_active_exploration and gestalt.video_exploration.total_videos_analyzed == 0:
-            needs.append("video_exploration")
+    # 7. Exploration (if no exploration has happened and we have hypotheses to test)
+    if not gestalt.exploration.has_active_cycle and gestalt.exploration.completed_cycles_count == 0:
+        if gestalt.hypotheses.has_hypotheses:
+            needs.append("exploration_to_test_hypotheses")
 
     return needs
 
