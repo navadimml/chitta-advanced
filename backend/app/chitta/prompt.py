@@ -167,7 +167,76 @@ PHASE 5: EXPLORATION
 
 6. **Hold Uncertainty Honestly**:
    - "I'm wondering if..." not "It's clear that..."
-   - Hypotheses are theories, held lightly"""
+   - Hypotheses are theories, held lightly
+
+## Hypothesis Formation: Three Sources
+
+Hypotheses are working theories that drive exploration. They come from THREE sources:
+
+### 1. DOMAIN KNOWLEDGE (Comorbidity/Clinical Patterns)
+
+You have vast clinical knowledge. When a concern is mentioned, related areas
+naturally come to mind. USE THIS - but as questions, not assumptions.
+
+**When parent mentions:**         **Your knowledge activates:**
+- Speech/language delay      →    Check: hearing, social communication, motor planning,
+                                  receptive vs expressive, pragmatics, context-dependency
+- Attention difficulties     →    Check: sensory processing, emotional regulation, sleep,
+                                  anxiety, working memory, motor restlessness
+- Social difficulties        →    Check: language (pragmatics), sensory (overwhelm),
+                                  temperament (slow-to-warm vs deficit), anxiety
+- Motor delays               →    Check: sensory processing, motor planning (praxis),
+                                  hypotonia, attention during motor tasks
+- Behavioral challenges      →    Check: sensory triggers, communication frustration,
+                                  anxiety, sleep, transitions, underlying delays
+- Sensory sensitivities      →    Check: anxiety, motor planning, attention,
+                                  emotional regulation, sleep
+
+**How to use this:**
+- Form hypotheses: "The attention issue might have sensory components"
+- Ask questions: "How is he with noise? Textures? Busy environments?"
+- Don't assume - explore with curiosity
+
+### 2. PATTERNS (Themes Connecting Observations)
+
+Multiple observations connecting:
+- "Mornings are hard" + "car seat battles" + "leaving playground" → "Transitions are difficult"
+- "Silent when asked to perform" + "watches 20 min before joining" → "Approach caution pattern"
+
+Patterns become hypotheses when we ask WHY:
+- Pattern: Transitions are hard
+- Hypotheses: Sensory? Anxiety? Need for control? All three?
+
+### 3. CONTRADICTIONS (Things That Don't Fit)
+
+When something contradicts the emerging picture:
+- "Usually withdraws from new people, but grandma says he's spontaneous with her"
+- "Can't sit still at home, but focuses for hours on Lego"
+
+Contradictions are GOLD. They reveal:
+- Context matters (what's different about grandma?)
+- Capacity exists (he CAN focus - when?)
+- The picture is more nuanced
+
+**Form hypotheses from contradictions:**
+- "His withdrawal might be about perceived evaluation, not inability"
+- "His attention difficulty might be motivation/interest-based, not global"
+
+## Using Domain Knowledge Right
+
+**DO:** Let clinical knowledge generate QUESTIONS
+"Given speech delay, I'm curious about motor planning. How is he with new physical activities?"
+
+**DON'T:** Let clinical knowledge generate CONCLUSIONS
+"Speech delay often comes with motor issues, so he probably has that too."
+
+**DO:** Form hypotheses from knowledge
+"The attention + sensory combination makes me wonder if sensory overwhelm is driving the attention difficulty"
+
+**DON'T:** Apply checklists mechanically
+"Attention concern → must check all 10 related areas"
+
+Your knowledge FOCUSES exploration. It doesn't determine conclusions."""
 
 
 def _build_gestalt_section(gestalt: Gestalt) -> str:
@@ -254,17 +323,29 @@ def _build_gestalt_section(gestalt: Gestalt) -> str:
         obs_lines.append(f"Videos analyzed: {known['videos_analyzed']}")
     observations_text = ", ".join(obs_lines) if obs_lines else "None yet"
 
-    # === VIDEO EXPLORATION ===
+    # === EXPLORATION (unified) ===
     exploration_lines = []
-    if known.get("video_exploration"):
-        ve = known["video_exploration"]
-        if ve.get("purpose"):
-            exploration_lines.append(f"Purpose: {ve['purpose']}")
-        if ve.get("hypotheses_being_tested"):
-            exploration_lines.append(f"Testing: {', '.join(ve['hypotheses_being_tested'][:2])}")
-        if ve.get("waiting_for_videos"):
-            exploration_lines.append(f"Waiting for {ve.get('pending_scenarios_count', 0)} scenario(s)")
-    exploration_text = "\n".join(exploration_lines) if exploration_lines else "Not yet started"
+    if known.get("exploration"):
+        exp = known["exploration"]
+        if exp.get("goal"):
+            exploration_lines.append(f"Goal: {exp['goal']}")
+        if exp.get("methods"):
+            exploration_lines.append(f"Methods: {', '.join(exp['methods'])}")
+        if exp.get("hypotheses_being_tested"):
+            exploration_lines.append(f"Testing hypotheses: {', '.join(exp['hypotheses_being_tested'][:2])}")
+        if exp.get("questions_being_explored"):
+            exploration_lines.append(f"Exploring questions: {', '.join(exp['questions_being_explored'][:2])}")
+        if exp.get("is_waiting"):
+            waiting_for = []
+            if exp.get("pending_questions_count", 0) > 0:
+                waiting_for.append(f"{exp['pending_questions_count']} question(s)")
+            if exp.get("pending_video_scenarios_count", 0) > 0:
+                waiting_for.append(f"{exp['pending_video_scenarios_count']} video scenario(s)")
+            if waiting_for:
+                exploration_lines.append(f"Waiting for: {', '.join(waiting_for)}")
+    if known.get("completed_exploration_cycles"):
+        exploration_lines.append(f"Completed cycles: {known['completed_exploration_cycles']}")
+    exploration_text = "\n".join(exploration_lines) if exploration_lines else "No active exploration"
 
     # === SYNTHESIS STATE ===
     synthesis_lines = []
@@ -290,7 +371,7 @@ def _build_gestalt_section(gestalt: Gestalt) -> str:
         "family_family_history": "Family developmental history",
         "primary_concerns": "What concerns brought them here",
         "concern_details": "Specific examples of concerns",
-        "video_exploration": "Video observations to test hypotheses",
+        "exploration_to_test_hypotheses": "Exploration (conversation or video) to test hypotheses",
     }
     needs_list = [need_mappings.get(n, n) for n in needs]
     needs_text = "\n".join([f"- {n}" for n in needs_list]) if needs_list else "Understanding is comprehensive"
@@ -327,7 +408,7 @@ def _build_gestalt_section(gestalt: Gestalt) -> str:
 ## Observations
 {observations_text}
 
-## Video Exploration (Current Activity)
+## Active Exploration
 {exploration_text}
 
 ## Synthesis State (Reports)
@@ -366,30 +447,39 @@ def _build_tools_section(gestalt: Gestalt) -> str:
     # Exploration tools - depend on current activity state
     exploration_guidance = []
 
-    # Video exploration
-    if gestalt.filming_preference == "report_only":
-        exploration_guidance.append("Parent chose report-only - no video tools needed")
-    elif gestalt.video_exploration.has_active_exploration:
+    if gestalt.exploration.has_active_cycle:
         # Active exploration - guide based on state
-        if gestalt.video_exploration.is_waiting_for_videos:
+        methods = gestalt.exploration.methods_used
+        exploration_guidance.append(f"Active exploration using: {', '.join(methods) if methods else 'conversation'}")
+
+        if gestalt.exploration.is_waiting:
+            if gestalt.exploration.pending_questions:
+                exploration_guidance.append(
+                    f"Waiting for answers to {len(gestalt.exploration.pending_questions)} question(s)"
+                )
+            if gestalt.exploration.is_waiting_for_videos:
+                exploration_guidance.append(
+                    f"Waiting for {len(gestalt.exploration.pending_video_scenarios)} video scenario(s) - "
+                    "acknowledge when parent mentions filming"
+                )
+        if gestalt.exploration.has_new_content:
             exploration_guidance.append(
-                f"Waiting for {len(gestalt.video_exploration.pending_scenarios)} video scenario(s) - "
-                "acknowledge when parent mentions filming"
+                "New content available - discuss what we learned"
             )
-        if gestalt.video_exploration.has_new_content:
+        # Can escalate to video if not using it yet
+        if not gestalt.exploration.uses_video and gestalt.filming_preference != "report_only":
             exploration_guidance.append(
-                "New videos/analyses available - discuss what we learned"
+                "escalate_to_video - If conversation alone can't answer what we're wondering"
             )
     else:
         # No active exploration - when might we want one?
         if gestalt.hypotheses.has_hypotheses:
             exploration_guidance.append(
-                "start_video_exploration - When hypotheses need visual observation to test"
+                "start_exploration - When hypotheses need testing through questions or observation"
             )
         else:
             exploration_guidance.append(
-                "start_video_exploration - When conversation alone can't answer "
-                "what we're wondering (need to see the child in action)"
+                "start_exploration - When we form a hypothesis and want to explore it"
             )
 
     # Synthesis tools
@@ -420,7 +510,7 @@ def _build_tools_section(gestalt: Gestalt) -> str:
 ## Core Tools (Always Available)
 {core_text}
 
-## Video Exploration
+## Exploration (Hypothesis Testing)
 {exploration_text}
 
 ## Synthesis (Reports)
@@ -430,15 +520,18 @@ def _build_tools_section(gestalt: Gestalt) -> str:
 
 **NEVER by threshold. ALWAYS by purpose.**
 
-DON'T think: "Completeness is 0.4, so I can now offer video guidelines"
-DO think: "I have a hypothesis that needs visual observation. The parent seems
-          comfortable. Would seeing [child] in [situation] help us understand?"
+DON'T think: "Completeness is 0.4, so I can now start exploring"
+DO think: "I have a hypothesis. What's the best way to test it - conversation or video?"
 
-**Video exploration happens when:**
-- Conversation reveals something we need to SEE, not just hear about
-- We have hypotheses that observation could confirm or challenge
-- We've hit the limits of what words can convey
-- The parent is ready and interested
+**Exploration happens when:**
+- We form a hypothesis and want to gather evidence
+- The parent shares something that raises new questions
+- We need to understand something more deeply
+
+**Exploration methods:**
+- CONVERSATION: Ask targeted questions, elicit stories, probe specific areas
+- VIDEO: When we need to SEE the child in action (can escalate from conversation)
+- Both methods can be used in the same exploration cycle
 
 **Synthesis happens when:**
 - Parent wants to share understanding with a partner, professional, etc.

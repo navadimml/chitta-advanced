@@ -179,12 +179,33 @@ class Pattern(BaseModel):
     Patterns emerge when we notice the same theme in different contexts:
     - "Mornings are hard" + "car seat battles" + "bedtime struggles"
       = Pattern: "Transitions are difficult"
+
+    Patterns can trigger hypotheses and be explored further.
     """
+    id: str  # Unique identifier for linking
     theme: str  # "transitions are difficult"
     observations: List[str] = Field(default_factory=list)  # the evidence
     domains_involved: List[str] = Field(default_factory=list)  # which areas
     detected_at: datetime = Field(default_factory=datetime.now)
     confidence: float = 0.5  # 0-1
+
+    # Linking
+    spawned_hypothesis_ids: List[str] = Field(default_factory=list)  # Hypotheses formed from this pattern
+    detected_in_cycle: Optional[str] = None  # Which exploration cycle found this
+
+
+class EvidenceItem(BaseModel):
+    """
+    A piece of evidence for or against a hypothesis.
+
+    Evidence can come from conversation, video, or external sources.
+    Tracking evidence allows us to see HOW understanding evolved.
+    """
+    content: str  # What was observed/said
+    source_type: str  # "conversation", "video_analysis", "parent_report", "story"
+    source_id: Optional[str] = None  # Reference to source (story_id, video_id, etc.)
+    collected_at: datetime = Field(default_factory=datetime.now)
+    collected_in_cycle: Optional[str] = None  # Which exploration cycle found this
 
 
 class Hypothesis(BaseModel):
@@ -193,13 +214,79 @@ class Hypothesis(BaseModel):
 
     Not "Daniel has autism" but "Daniel's speech delay might be
     primarily temperament-related - capacity is there, safety is the key."
+
+    Hypotheses come from THREE SOURCES:
+    1. DOMAIN KNOWLEDGE - Clinical patterns (comorbidity)
+       e.g., "Speech delay → motor planning might be involved"
+    2. PATTERNS - Themes connecting observations
+       e.g., "Mornings hard + car seat + bedtime → Transitions are difficult"
+    3. CONTRADICTIONS - Things that don't fit
+       e.g., "Usually withdrawn but spontaneous with grandma"
+
+    Hypotheses are LINKED to exploration cycles that test them,
+    creating a traceable history of how understanding evolved.
     """
+    id: str  # Unique identifier for linking
     theory: str
-    supporting_evidence: List[str] = Field(default_factory=list)
-    contradicting_evidence: List[str] = Field(default_factory=list)
-    status: str = "exploring"  # "exploring", "strengthening", "weakening", "resolved"
-    arose_from: Optional[str] = None  # what triggered this hypothesis
+
+    # === SOURCE: Where did this hypothesis come from? ===
+    source: str = "pattern"  # "pattern", "domain_knowledge", "contradiction"
+    source_details: Optional[str] = None  # Specific trigger description
+
+    # For pattern-based hypotheses
+    arose_from_pattern_id: Optional[str] = None
+
+    # For domain-knowledge hypotheses (comorbidity)
+    triggered_by_concern: Optional[str] = None  # e.g., "speech_delay"
+    clinical_connection: Optional[str] = None  # e.g., "motor planning often co-occurs"
+
+    # For contradiction-based hypotheses
+    contradiction: Optional[str] = None  # e.g., "Usually X but with grandma Y"
+
+    # Related developmental domains
+    related_domains: List[str] = Field(default_factory=list)
+
+    # Questions that would test this hypothesis
+    questions_to_explore: List[str] = Field(default_factory=list)
+
+    # === EVIDENCE ===
+    supporting_evidence: List[EvidenceItem] = Field(default_factory=list)
+    contradicting_evidence: List[EvidenceItem] = Field(default_factory=list)
+
+    # === STATUS ===
+    status: str = "exploring"  # "exploring", "strengthening", "weakening", "supported", "contradicted", "revised", "archived"
     formed_at: datetime = Field(default_factory=datetime.now)
+
+    # === EXPLORATION TRACKING ===
+    exploration_cycles: List[str] = Field(default_factory=list)  # IDs of cycles that explored this
+
+    # === EVOLUTION ===
+    revised_to: Optional[str] = None  # ID of hypothesis this evolved into
+    revision_reason: Optional[str] = None
+
+    @property
+    def evidence_count(self) -> int:
+        return len(self.supporting_evidence) + len(self.contradicting_evidence)
+
+    @property
+    def support_ratio(self) -> float:
+        """Ratio of supporting to total evidence (0-1)."""
+        total = self.evidence_count
+        if total == 0:
+            return 0.5  # No evidence = neutral
+        return len(self.supporting_evidence) / total
+
+    @property
+    def is_from_domain_knowledge(self) -> bool:
+        return self.source == "domain_knowledge"
+
+    @property
+    def is_from_pattern(self) -> bool:
+        return self.source == "pattern"
+
+    @property
+    def is_from_contradiction(self) -> bool:
+        return self.source == "contradiction"
 
 
 class OpenQuestion(BaseModel):
@@ -207,12 +294,20 @@ class OpenQuestion(BaseModel):
     Something we're still wondering about.
 
     Open questions keep the Gestalt alive. They drive curiosity
-    and guide future exploration.
+    and guide future exploration. Questions can drive exploration cycles.
     """
+    id: str  # Unique identifier for linking
     question: str  # "What's different about grandmother?"
     arose_from: Optional[str] = None  # context
+    arose_from_cycle: Optional[str] = None  # Which exploration cycle raised this
     priority: str = "medium"  # "high", "medium", "low"
     created_at: datetime = Field(default_factory=datetime.now)
+
+    # Resolution
+    status: str = "open"  # "open", "exploring", "answered", "archived"
+    explored_in_cycles: List[str] = Field(default_factory=list)  # Cycles that explored this
+    answer: Optional[str] = None  # What we learned
+    answered_at: Optional[datetime] = None
 
 
 class LivingEdge(BaseModel):
@@ -221,6 +316,9 @@ class LivingEdge(BaseModel):
 
     This holds the dynamic elements: patterns we've noticed,
     theories we're exploring, questions we're wondering about.
+
+    All elements can link to exploration cycles, creating a traceable
+    history of how understanding evolved.
     """
     patterns: List[Pattern] = Field(default_factory=list)
     hypotheses: List[Hypothesis] = Field(default_factory=list)
@@ -228,15 +326,93 @@ class LivingEdge(BaseModel):
     contradictions: List[str] = Field(default_factory=list)
     # Things that don't fit yet: "Usually cautious but spontaneous with grandma"
 
+    # === Convenience Methods ===
+
+    def get_hypothesis(self, hypothesis_id: str) -> Optional[Hypothesis]:
+        """Get a hypothesis by ID."""
+        for h in self.hypotheses:
+            if h.id == hypothesis_id:
+                return h
+        return None
+
+    def get_pattern(self, pattern_id: str) -> Optional[Pattern]:
+        """Get a pattern by ID."""
+        for p in self.patterns:
+            if p.id == pattern_id:
+                return p
+        return None
+
+    def get_question(self, question_id: str) -> Optional[OpenQuestion]:
+        """Get a question by ID."""
+        for q in self.open_questions:
+            if q.id == question_id:
+                return q
+        return None
+
+    @property
+    def active_hypotheses(self) -> List[Hypothesis]:
+        """Hypotheses currently being explored (not archived/resolved)."""
+        return [h for h in self.hypotheses if h.status in ["exploring", "strengthening", "weakening"]]
+
+    @property
+    def open_questions_list(self) -> List[OpenQuestion]:
+        """Questions that are still open."""
+        return [q for q in self.open_questions if q.status == "open"]
+
+    @property
+    def high_priority_questions(self) -> List[OpenQuestion]:
+        """High priority open questions."""
+        return [q for q in self.open_questions if q.status == "open" and q.priority == "high"]
+
 
 # === Activity-Based Tracking Models ===
 # These replace the old state-based tracking (has_video_guidelines, has_parent_report)
 # with purpose-driven, ongoing activity tracking.
 
+
+# --- Method-Specific Details (nested in ExplorationCycle) ---
+
+class ConversationQuestion(BaseModel):
+    """
+    A question asked during conversation exploration.
+
+    Tracks what we asked and what we learned from the answer.
+    """
+    question: str  # What we asked
+    target_hypothesis_id: Optional[str] = None  # Hypothesis ID this tests
+    what_we_hoped_to_learn: str  # Why we asked this
+    asked_at: datetime = Field(default_factory=datetime.now)
+
+    # Response tracking
+    response_summary: Optional[str] = None  # What the parent said
+    evidence_produced: Optional[str] = None  # What this revealed
+    evidence_direction: Optional[str] = None  # "supports", "contradicts", "neutral", "unclear"
+    answered_at: Optional[datetime] = None
+
+
+class ConversationMethod(BaseModel):
+    """
+    Conversation-specific exploration details.
+
+    Tracks questions asked and stories elicited through dialogue.
+    """
+    questions: List[ConversationQuestion] = Field(default_factory=list)
+    stories_elicited: List[str] = Field(default_factory=list)  # Story/journal entry IDs
+
+    @property
+    def has_pending_questions(self) -> bool:
+        return any(q.response_summary is None for q in self.questions)
+
+    @property
+    def pending_questions(self) -> List[ConversationQuestion]:
+        return [q for q in self.questions if q.response_summary is None]
+
+
 class VideoScenario(BaseModel):
-    """A specific video scenario requested within an exploration."""
+    """A specific video scenario requested."""
     scenario: str  # "playing alone with blocks"
     why_we_want_to_see: str  # "to observe focus and frustration tolerance"
+    target_hypothesis_id: Optional[str] = None  # What hypothesis this tests
     focus_points: List[str] = Field(default_factory=list)
     duration_guidance: str = "medium"  # "short", "medium", "long"
 
@@ -244,68 +420,131 @@ class VideoScenario(BaseModel):
     requested_at: datetime = Field(default_factory=datetime.now)
     video_id: Optional[str] = None  # filled when video received
     received_at: Optional[datetime] = None
+    analysis_id: Optional[str] = None  # filled when analyzed
 
 
-class VideoExplorationCycle(BaseModel):
+class VideoMethod(BaseModel):
     """
-    One cycle of hypothesis → video → analysis → learning.
+    Video-specific exploration details.
 
-    Videos are not collected arbitrarily. Each exploration cycle has:
-    - A PURPOSE: What hypotheses are we testing?
-    - REQUESTS: What specific scenarios did we ask for?
-    - OUTCOMES: What did we learn?
-
-    This replaces the old "has_video_guidelines" boolean with
-    purpose-driven tracking.
+    Tracks scenarios requested, videos received, and analyses completed.
     """
-    id: str
-    started_at: datetime = Field(default_factory=datetime.now)
-    status: str = "active"  # "active", "waiting_for_videos", "analyzing", "complete", "paused"
-
-    # === PURPOSE: Why are we exploring through video? ===
-    hypotheses_being_explored: List[str] = Field(default_factory=list)
-    # e.g., ["Speech delay might be temperament-related"]
-
-    questions_driving_exploration: List[str] = Field(default_factory=list)
-    # e.g., ["Does he produce more language when relaxed?"]
-
+    # Why we need video (not just conversation)
     what_conversation_cant_answer: Optional[str] = None
-    # e.g., "We need to SEE his body language during speech attempts"
 
-    # === REQUESTS: What did we ask to observe? ===
-    scenarios_requested: List[VideoScenario] = Field(default_factory=list)
+    # Requests
+    scenarios: List[VideoScenario] = Field(default_factory=list)
+    guidelines_artifact_id: Optional[str] = None  # The filming guide artifact
 
-    # Guidelines artifact (if generated)
-    guidelines_artifact_id: Optional[str] = None
-
-    # === OUTCOMES: What did we receive and learn? ===
+    # Outcomes
     videos_received: List[str] = Field(default_factory=list)  # video IDs
     analysis_artifact_ids: List[str] = Field(default_factory=list)
 
-    # What we learned from this cycle
-    hypotheses_supported: List[str] = Field(default_factory=list)
+    @property
+    def is_waiting_for_videos(self) -> bool:
+        return any(s.video_id is None for s in self.scenarios)
+
+    @property
+    def pending_scenarios(self) -> List[VideoScenario]:
+        return [s for s in self.scenarios if s.video_id is None]
+
+    @property
+    def has_unanalyzed_videos(self) -> bool:
+        return any(s.video_id and not s.analysis_id for s in self.scenarios)
+
+
+# --- The Unified Exploration Cycle ---
+
+class ExplorationCycle(BaseModel):
+    """
+    A unified exploration cycle - testing hypotheses through any method.
+
+    This is the CORE exploration pattern:
+    1. PURPOSE: What hypotheses/questions are we exploring?
+    2. METHODS: How are we exploring? (conversation, video, or both)
+    3. EVIDENCE: What have we collected?
+    4. LEARNINGS: What did we discover?
+
+    A single cycle can use multiple methods:
+    - Start with conversation, escalate to video if needed
+    - Use video from the start
+    - Mix both throughout
+
+    The method is an implementation detail - the cycle tracks
+    the exploration regardless of how it happens.
+    """
+    id: str
+    started_at: datetime = Field(default_factory=datetime.now)
+    status: str = "active"  # "active", "waiting", "complete", "paused", "archived"
+
+    # === PURPOSE: What are we exploring? ===
+    hypothesis_ids: List[str] = Field(default_factory=list)  # Hypotheses being tested
+    open_question_ids: List[str] = Field(default_factory=list)  # Questions driving this
+    exploration_goal: Optional[str] = None  # What we hope to understand
+
+    # === METHODS: How are we exploring? ===
+    methods_used: List[str] = Field(default_factory=list)  # ["conversation", "video"]
+
+    # Method-specific details (populated based on methods_used)
+    conversation: Optional[ConversationMethod] = None
+    video: Optional[VideoMethod] = None
+    # Future methods can be added here without changing the cycle structure
+
+    # === EVIDENCE: What have we collected? ===
+    evidence: List[EvidenceItem] = Field(default_factory=list)
+
+    # === LEARNINGS: What did we discover? ===
+    hypotheses_supported: List[str] = Field(default_factory=list)  # Hypothesis IDs
     hypotheses_contradicted: List[str] = Field(default_factory=list)
-    new_patterns_noticed: List[str] = Field(default_factory=list)
-    new_questions_raised: List[str] = Field(default_factory=list)
+    hypotheses_revised: List[str] = Field(default_factory=list)  # Hypothesis IDs that were revised
+    new_hypotheses_formed: List[str] = Field(default_factory=list)  # New hypothesis IDs
+    new_patterns_noticed: List[str] = Field(default_factory=list)  # Pattern IDs
+    new_questions_raised: List[str] = Field(default_factory=list)  # Question IDs
     key_insights: List[str] = Field(default_factory=list)
 
     # === COMPLETION ===
     completed_at: Optional[datetime] = None
-    completion_notes: Optional[str] = None
+    completion_summary: Optional[str] = None  # What we ultimately learned
+    spawned_cycle_id: Optional[str] = None  # If this led to a follow-up cycle
+
+    # === Convenience Properties ===
 
     @property
     def is_active(self) -> bool:
-        return self.status in ["active", "waiting_for_videos", "analyzing"]
+        return self.status in ["active", "waiting"]
 
     @property
-    def is_waiting_for_videos(self) -> bool:
-        # Have we requested scenarios that haven't been fulfilled?
-        unfulfilled = [s for s in self.scenarios_requested if s.video_id is None]
-        return len(unfulfilled) > 0
+    def is_waiting(self) -> bool:
+        """Are we waiting for something (video, response, etc.)?"""
+        if self.conversation and self.conversation.has_pending_questions:
+            return True
+        if self.video and self.video.is_waiting_for_videos:
+            return True
+        return False
 
     @property
-    def pending_scenarios(self) -> List[VideoScenario]:
-        return [s for s in self.scenarios_requested if s.video_id is None]
+    def uses_video(self) -> bool:
+        return "video" in self.methods_used or self.video is not None
+
+    @property
+    def uses_conversation(self) -> bool:
+        return "conversation" in self.methods_used or self.conversation is not None
+
+    def add_conversation_method(self) -> ConversationMethod:
+        """Enable conversation method for this cycle."""
+        if self.conversation is None:
+            self.conversation = ConversationMethod()
+        if "conversation" not in self.methods_used:
+            self.methods_used.append("conversation")
+        return self.conversation
+
+    def add_video_method(self, why_needed: Optional[str] = None) -> VideoMethod:
+        """Enable video method for this cycle (escalate from conversation)."""
+        if self.video is None:
+            self.video = VideoMethod(what_conversation_cant_answer=why_needed)
+        if "video" not in self.methods_used:
+            self.methods_used.append("video")
+        return self.video
 
 
 class SynthesisSnapshot(BaseModel):
@@ -348,11 +587,15 @@ class ExplorationActivity(BaseModel):
     """
     Tracks all exploration activity over time.
 
-    This is the container for video exploration cycles and synthesis snapshots,
+    This is the container for exploration cycles and synthesis snapshots,
     providing a complete history of how understanding has been built.
+
+    Exploration cycles are unified - they can use conversation, video,
+    or both methods. The history shows how hypotheses were explored
+    regardless of method.
     """
-    # === Video Explorations ===
-    video_cycles: List[VideoExplorationCycle] = Field(default_factory=list)
+    # === Exploration Cycles (unified - can be conversation, video, or mixed) ===
+    cycles: List[ExplorationCycle] = Field(default_factory=list)
 
     # === Syntheses (Reports) ===
     syntheses: List[SynthesisSnapshot] = Field(default_factory=list)
@@ -360,27 +603,45 @@ class ExplorationActivity(BaseModel):
     # === Convenience Methods ===
 
     @property
-    def current_video_cycle(self) -> Optional[VideoExplorationCycle]:
+    def current_cycle(self) -> Optional[ExplorationCycle]:
         """The currently active exploration cycle, if any."""
-        active = [c for c in self.video_cycles if c.is_active]
+        active = [c for c in self.cycles if c.is_active]
         return active[-1] if active else None
 
     @property
     def has_active_exploration(self) -> bool:
-        return self.current_video_cycle is not None
+        return self.current_cycle is not None
+
+    @property
+    def is_waiting(self) -> bool:
+        """Are we waiting for videos or responses?"""
+        cycle = self.current_cycle
+        return cycle is not None and cycle.is_waiting
 
     @property
     def waiting_for_videos(self) -> bool:
-        cycle = self.current_video_cycle
-        return cycle is not None and cycle.is_waiting_for_videos
+        """Specifically waiting for video uploads?"""
+        cycle = self.current_cycle
+        return (cycle is not None and
+                cycle.video is not None and
+                cycle.video.is_waiting_for_videos)
 
     @property
     def pending_video_scenarios(self) -> List[VideoScenario]:
         """All unfulfilled video requests across active cycles."""
         pending = []
-        for cycle in self.video_cycles:
-            if cycle.is_active:
-                pending.extend(cycle.pending_scenarios)
+        for cycle in self.cycles:
+            if cycle.is_active and cycle.video:
+                pending.extend(cycle.video.pending_scenarios)
+        return pending
+
+    @property
+    def pending_questions(self) -> List[ConversationQuestion]:
+        """All unanswered questions across active cycles."""
+        pending = []
+        for cycle in self.cycles:
+            if cycle.is_active and cycle.conversation:
+                pending.extend(cycle.conversation.pending_questions)
         return pending
 
     @property
@@ -406,11 +667,15 @@ class ExplorationActivity(BaseModel):
         delta = datetime.now() - recent.created_at
         return delta.days
 
-    def get_past_cycles(self, limit: int = 5) -> List[VideoExplorationCycle]:
+    def get_completed_cycles(self, limit: int = 10) -> List[ExplorationCycle]:
         """Get completed exploration cycles for history."""
-        completed = [c for c in self.video_cycles if not c.is_active]
+        completed = [c for c in self.cycles if not c.is_active]
         completed.sort(key=lambda c: c.started_at, reverse=True)
         return completed[:limit]
+
+    def get_cycles_for_hypothesis(self, hypothesis_id: str) -> List[ExplorationCycle]:
+        """Get all cycles that explored a specific hypothesis."""
+        return [c for c in self.cycles if hypothesis_id in c.hypothesis_ids]
 
 
 class CurrentFocus(BaseModel):

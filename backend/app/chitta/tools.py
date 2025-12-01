@@ -48,9 +48,12 @@ def get_chitta_tools(gestalt: Gestalt = None) -> List[Dict[str, Any]]:
         _tool_note_pattern(),
         _tool_form_hypothesis(),
 
-        # === Exploration Tools (Video - Activity-Based) ===
+        # === Exploration Tools (Unified - Conversation/Video/Mixed) ===
         _tool_start_exploration(),
-        _tool_add_scenario(),
+        _tool_add_exploration_question(),
+        _tool_record_question_response(),
+        _tool_escalate_to_video(),
+        _tool_add_video_scenario(),
         _tool_analyze_video(),
         _tool_complete_exploration(),
 
@@ -398,24 +401,48 @@ def _tool_form_hypothesis() -> Dict[str, Any]:
 Hypotheses are NOT diagnoses. They are working theories that:
 - Explain patterns we're seeing
 - Guide what questions to ask
-- Drive video observation requests
+- Drive exploration (conversation or video)
 - Are held LIGHTLY and revised with new information
 
+## THREE SOURCES OF HYPOTHESES
+
+1. **DOMAIN KNOWLEDGE** (comorbidity/clinical patterns)
+   - Parent mentions speech delay → "Motor planning might be involved"
+   - Attention concerns → "Sensory processing could be a factor"
+   - Use your clinical knowledge to generate exploration paths
+
+2. **PATTERNS** (themes connecting observations)
+   - Multiple observations connect → "Transitions are hard across contexts"
+   - Pattern suggests explanation → "Sensory overwhelm during transitions?"
+
+3. **CONTRADICTIONS** (things that don't fit)
+   - "Usually X but sometimes Y" → "Context matters - what's different?"
+   - Contradiction reveals nuance → "Capacity exists when..."
+
+## EXAMPLES
+
 Good hypotheses:
-- "Speech delay might be primarily temperament-related - capacity is there, safety is the key"
+- "Speech delay might be primarily temperament-related - capacity is there, safety is key"
 - "The transition difficulty could be sensory-based - each transition involves sensory shift"
-- "Slow-to-warm is temperament, not social deficit - he CAN connect, just needs time"
+- "Attention with Lego but not homework suggests interest-based, not global deficit"
+- "Given the motor delays, motor planning (praxis) might be involved"
 
 Bad (too diagnostic):
 - "Has autism"
 - "ADHD confirmed"
+- "Sensory processing disorder"
 
-Use when:
-- Patterns suggest an explanation
-- You want to explore a theory
-- You're guiding video observation
+## WHEN TO USE
 
-Always indicate evidence for AND against.
+- When patterns suggest an explanation
+- When domain knowledge suggests related areas to explore
+- When contradictions reveal something interesting
+- When you want to guide exploration
+
+Always indicate:
+- Source (pattern, domain knowledge, or contradiction)
+- Evidence for AND against
+- Questions that would test it
 """,
         "parameters": {
             "type": "object",
@@ -423,6 +450,15 @@ Always indicate evidence for AND against.
                 "theory": {
                     "type": "string",
                     "description": "The hypothesis - descriptive, not diagnostic"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": ["pattern", "domain_knowledge", "contradiction"],
+                    "description": "What triggered this hypothesis"
+                },
+                "source_details": {
+                    "type": "string",
+                    "description": "Specific pattern, clinical connection, or contradiction that led to this"
                 },
                 "supporting_evidence": {
                     "type": "array",
@@ -434,124 +470,265 @@ Always indicate evidence for AND against.
                     "items": {"type": "string"},
                     "description": "What contradicts or complicates this hypothesis"
                 },
-                "arose_from": {
-                    "type": "string",
-                    "description": "What triggered this hypothesis"
-                },
                 "questions_to_explore": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Questions that would test this hypothesis"
+                },
+                "related_domains": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Developmental domains this hypothesis touches"
                 }
             },
-            "required": ["theory"]
+            "required": ["theory", "source"]
         }
     }
 
 
-# === Exploration Tools (Activity-Based) ===
+# === Exploration Tools (Unified - Conversation/Video/Mixed) ===
 
 def _tool_start_exploration() -> Dict[str, Any]:
     """
-    Start a video exploration cycle - hypothesis-driven, not threshold-based.
+    Start an exploration cycle to test hypotheses.
 
-    This replaces the old generate_video_guidelines tool.
+    Exploration can use conversation, video, or both methods.
     """
     return {
-        "name": "start_video_exploration",
-        "description": """Start a video exploration cycle to test hypotheses or answer questions.
+        "name": "start_exploration",
+        "description": """Start an exploration cycle to test hypotheses or answer questions.
+
+WHAT IS EXPLORATION?
+An exploration cycle is a focused effort to gather evidence about specific
+hypotheses or questions. It can use:
+- CONVERSATION: Targeted questions, eliciting stories
+- VIDEO: Observing the child in specific situations
+- BOTH: Start with conversation, escalate to video if needed
 
 WHEN TO USE:
-- When conversation alone can't answer what we're wondering
-- When hypotheses need visual observation to test
-- When we've hit the limits of what words can convey
-- When the parent seems ready and interested in filming
-
-WHEN NOT TO USE:
-- Parent chose report_only
-- Still in early rapport-building (know the child first)
-- No clear purpose for observation (never "just to see")
+- After forming a hypothesis that needs testing
+- When an open question needs deeper investigation
+- When patterns suggest something worth exploring
 
 HOW IT WORKS:
-1. This tool starts an exploration CYCLE
-2. The cycle has a PURPOSE (hypotheses or questions driving it)
-3. We request specific SCENARIOS to observe
-4. Parent films and uploads
-5. We analyze and learn
-6. Cycle completes when we've learned what we needed
+1. Start with a PURPOSE (what hypotheses/questions we're exploring)
+2. Choose METHOD(s) - conversation, video, or both
+3. Gather EVIDENCE through questions or observations
+4. LEARN - evidence supports/contradicts hypotheses
+5. COMPLETE when we've learned what we needed (or pause for later)
 
-Example:
+Example (conversation):
+- Hypothesis: "Sleep issues might be affecting daytime behavior"
+- Questions: "How is sleep usually?", "What happens on good sleep nights vs bad?"
+- Evidence: Parent's answers reveal correlation
+
+Example (video):
 - Hypothesis: "His slow-to-warm is temperament, not social deficit"
 - Scenarios: "playing alone (comfort)", "new adult enters room (response)"
-- Analysis: Look for capacity vs. caution patterns
+- Evidence: Video shows capacity when comfortable
 
-The guidelines artifact is created to help the parent know what to film.
-But the artifact is just a TOOL for the exploration, not the goal.
+Example (mixed):
+- Start with conversation questions
+- Realize we need to SEE something to understand
+- Escalate to video without starting a new cycle
 """,
         "parameters": {
             "type": "object",
             "properties": {
-                "exploration_purpose": {
+                "exploration_goal": {
                     "type": "string",
-                    "description": "What question or hypothesis drives this exploration?"
+                    "description": "What we're trying to understand"
                 },
-                "hypotheses_to_test": {
+                "hypothesis_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Specific hypotheses to test through observation"
+                    "description": "IDs of hypotheses being tested"
                 },
-                "what_conversation_cant_answer": {
+                "question_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "IDs of open questions driving this"
+                },
+                "initial_method": {
                     "type": "string",
-                    "description": "What do we need to SEE that we can't learn from talking?"
+                    "enum": ["conversation", "video", "both"],
+                    "description": "How to start exploring"
+                },
+                "conversation_questions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "question": {"type": "string"},
+                            "what_we_hope_to_learn": {"type": "string"},
+                            "target_hypothesis_id": {"type": "string"}
+                        },
+                        "required": ["question", "what_we_hope_to_learn"]
+                    },
+                    "description": "Questions to ask (if using conversation method)"
+                },
+                "video_scenarios": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "scenario": {"type": "string"},
+                            "why_we_want_to_see": {"type": "string"},
+                            "target_hypothesis_id": {"type": "string"},
+                            "focus_points": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["scenario", "why_we_want_to_see"]
+                    },
+                    "description": "Scenarios to film (if using video method)"
+                }
+            },
+            "required": ["exploration_goal", "initial_method"]
+        }
+    }
+
+
+def _tool_add_exploration_question() -> Dict[str, Any]:
+    """
+    Add a question to the active exploration cycle.
+    """
+    return {
+        "name": "add_exploration_question",
+        "description": """Add a conversation question to the active exploration.
+
+Use when:
+- You want to test a hypothesis through conversation
+- Parent's response raises a follow-up question
+- New angle emerges during the exploration
+
+Only works when an exploration cycle is active.
+""",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question to ask"
+                },
+                "what_we_hope_to_learn": {
+                    "type": "string",
+                    "description": "What this question should reveal"
+                },
+                "target_hypothesis_id": {
+                    "type": "string",
+                    "description": "Which hypothesis this tests (optional)"
+                }
+            },
+            "required": ["question", "what_we_hope_to_learn"]
+        }
+    }
+
+
+def _tool_record_question_response() -> Dict[str, Any]:
+    """
+    Record the response to an exploration question.
+    """
+    return {
+        "name": "record_question_response",
+        "description": """Record what we learned from a question's answer.
+
+Use after the parent answers an exploration question to capture:
+- What they said (summary)
+- What evidence this provides
+- Whether it supports/contradicts/is neutral to hypotheses
+""",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question that was answered"
+                },
+                "response_summary": {
+                    "type": "string",
+                    "description": "Summary of what the parent said"
+                },
+                "evidence_produced": {
+                    "type": "string",
+                    "description": "What evidence this provides"
+                },
+                "evidence_direction": {
+                    "type": "string",
+                    "enum": ["supports", "contradicts", "neutral", "unclear"],
+                    "description": "How this evidence relates to the hypothesis"
+                },
+                "target_hypothesis_id": {
+                    "type": "string",
+                    "description": "Which hypothesis this evidence relates to"
+                }
+            },
+            "required": ["question", "response_summary", "evidence_direction"]
+        }
+    }
+
+
+def _tool_escalate_to_video() -> Dict[str, Any]:
+    """
+    Add video method to the active exploration cycle.
+    """
+    return {
+        "name": "escalate_to_video",
+        "description": """Add video observation to the active exploration.
+
+Use when conversation alone can't answer what we're wondering.
+This doesn't start a new cycle - it adds video as a method to the current one.
+
+Example:
+- We're exploring a hypothesis through conversation
+- Parent describes something we need to SEE to understand
+- We escalate to video while continuing the same exploration
+""",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "why_video_needed": {
+                    "type": "string",
+                    "description": "What conversation can't answer that video can"
                 },
                 "scenarios": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "scenario": {
-                                "type": "string",
-                                "description": "What to film: 'playing alone', 'with sibling'"
-                            },
-                            "why_we_want_to_see": {
-                                "type": "string",
-                                "description": "What this scenario reveals"
-                            },
+                            "scenario": {"type": "string"},
+                            "why_we_want_to_see": {"type": "string"},
+                            "target_hypothesis_id": {"type": "string"},
                             "focus_points": {
                                 "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Specific things to watch for"
-                            },
-                            "duration": {
-                                "type": "string",
-                                "enum": ["short", "medium", "long"],
-                                "description": "How long to film"
+                                "items": {"type": "string"}
                             }
                         },
                         "required": ["scenario", "why_we_want_to_see"]
                     },
-                    "description": "Specific scenarios to capture"
+                    "description": "Video scenarios to request"
                 }
             },
-            "required": ["exploration_purpose", "scenarios"]
+            "required": ["why_video_needed", "scenarios"]
         }
     }
 
 
-def _tool_add_scenario() -> Dict[str, Any]:
+def _tool_add_video_scenario() -> Dict[str, Any]:
     """
-    Add a scenario to an active exploration cycle.
+    Add a video scenario to the active exploration cycle.
     """
     return {
-        "name": "add_exploration_scenario",
+        "name": "add_video_scenario",
         "description": """Add another video scenario to the active exploration.
 
 Use when:
-- New hypothesis emerges during conversation
+- New hypothesis emerges that needs visual observation
 - Parent mentions something that would be good to observe
 - We realize we need another angle on what we're exploring
 
-Only works when an exploration cycle is active.
+Only works when video method is active in the exploration.
 """,
         "parameters": {
             "type": "object",
@@ -564,7 +741,7 @@ Only works when an exploration cycle is active.
                     "type": "string",
                     "description": "What this scenario reveals"
                 },
-                "connects_to_hypothesis": {
+                "target_hypothesis_id": {
                     "type": "string",
                     "description": "Which hypothesis this helps test"
                 },
