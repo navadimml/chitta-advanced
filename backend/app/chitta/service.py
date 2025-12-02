@@ -203,6 +203,17 @@ class ChittaService:
             # Persist state
             await self._unified._persist_session(session)
 
+            # Check if reflection should run (background - deep processing)
+            if session.needs_reflection():
+                from .reflection import get_reflection_service
+                reflection = get_reflection_service()
+                await reflection.queue_conversation_reflection(family_id, session)
+                session.mark_reflection_queued()
+                await self._unified._persist_session(session)
+                # Process in background
+                asyncio.create_task(reflection.process_pending(family_id))
+                logger.info(f"🧠 Queued background reflection (turn {session.turn_count})")
+
             # Check if semantic verification should run (background)
             should_verify = self._should_run_verification(session, updated_gestalt)
             if should_verify:
@@ -242,20 +253,66 @@ class ChittaService:
         session: UserSession,
         system_prompt: str
     ) -> List[Dict[str, Any]]:
-        """Build message list for LLM (Phase 2 - full history)"""
+        """Build message list for LLM (Phase 2 - active window + memory)"""
         from app.services.llm.base import Message
 
-        messages = [Message(role="system", content=system_prompt)]
+        # Include memory context in system prompt if available
+        enhanced_prompt = system_prompt
+        if session.memory and self._has_useful_memory(session.memory):
+            memory_context = self._build_memory_context(session.memory)
+            enhanced_prompt = f"{system_prompt}\n\n{memory_context}"
 
-        # Add conversation history (last N turns to stay within context)
-        history = session.get_conversation_history(last_n=20)
-        for msg in history:
+        messages = [Message(role="system", content=enhanced_prompt)]
+
+        # Use active window messages (sliding window architecture)
+        context = session.get_context_for_llm()
+        for msg in context:
             messages.append(Message(
                 role=msg["role"],
                 content=msg["content"]
             ))
 
         return messages
+
+    def _has_useful_memory(self, memory) -> bool:
+        """Check if memory has useful information to include."""
+        if not memory:
+            return False
+        return bool(
+            memory.parent_style or
+            memory.vocabulary_preferences or
+            memory.context_assets or
+            memory.topics_discussed
+        )
+
+    def _build_memory_context(self, memory) -> str:
+        """Build memory context block for system prompt."""
+        parts = ["# Conversation Memory (distilled from previous conversations)"]
+
+        if memory.parent_style:
+            parts.append(f"**Parent's communication style**: {memory.parent_style}")
+
+        if memory.emotional_patterns:
+            parts.append(f"**Emotional patterns**: {memory.emotional_patterns}")
+
+        if memory.vocabulary_preferences:
+            parts.append(f"**Words they use**: {', '.join(memory.vocabulary_preferences[:10])}")
+
+        if memory.context_assets:
+            parts.append(f"**People/places mentioned**: {', '.join(memory.context_assets[:10])}")
+
+        if memory.topics_discussed:
+            deep_topics = [
+                t.topic for t in memory.topics_discussed
+                if t.depth in ["explored", "deep_dive"]
+            ]
+            if deep_topics:
+                parts.append(f"**Topics we've covered deeply**: {', '.join(deep_topics[:5])}")
+
+        if memory.rapport_notes:
+            parts.append(f"**Relationship notes**: {memory.rapport_notes}")
+
+        return "\n".join(parts)
 
     def _build_extraction_context(
         self,

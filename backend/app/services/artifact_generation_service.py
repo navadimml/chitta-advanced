@@ -107,41 +107,80 @@ class ArtifactGenerationService:
             # Build transcript from conversation history
             transcript = self._build_transcript(conversation_history)
 
-            # Build extraction prompt with holistic parent persona layer
-            stage1_prompt_text = f"""# Stage 1: Extract Clinical Data & Parent Persona
+            # Build extraction prompt aligned with Living Gestalt model
+            stage1_prompt_text = f"""# Stage 1: Extract Living Gestalt from Interview
 
 ## Role
-You are a clinical psychologist specializing in child development interviews. You listen not just for symptoms, but for the "Voice of the Parent."
+You are a clinical psychologist specializing in child development interviews.
+You extract a "Living Gestalt" - seeing the WHOLE child, not just problems.
+
+**Living Gestalt Philosophy:**
+1. IDENTITY first (name, age)
+2. ESSENCE - who is this child as a person?
+3. STRENGTHS before concerns (what they do well)
+4. CONCERNS in context of everything above
+5. HISTORY and FAMILY context
+6. PATTERNS and emerging HYPOTHESES
 
 ## Task
-Extract and structure all information from the transcript. **Preserve parent quotes in Hebrew exactly as spoken.**
+Extract and structure all information from the transcript following the Living Gestalt structure.
+**Preserve parent quotes in Hebrew exactly as spoken.**
 
-This has THREE layers:
-1. **Clinical Data:** Specific difficulties, strengths, development (standard extraction)
-2. **Parent Persona:** Emotional state, vocabulary, communication style
-3. **Contextual Assets:** Specific names, toys, places mentioned
+## Extraction Layers
 
-## Critical Instructions
+### 1. Identity (Essentials)
+- Name, age, gender
+- Must have these before anything else can be interpreted
 
-### Clinical Data (Standard Extraction)
-✅ Copy exact parent quotes in Hebrew
-✅ Include at least 2-3 specific examples per difficulty
-✅ Extract strengths, development history, school info
-✅ Preserve Hebrew text exactly - spelling, grammar, colloquialisms
+### 2. Essence (Who They Are)
+Extract observations about:
+- **Temperament:** How do they approach the world? (cautious, eager, intense, easy-going)
+- **Energy Pattern:** What's their typical energy like?
+- **Core Qualities:** What adjectives describe them at their core?
 
-### Parent Persona (Holistic Layer)
-✅ **Emotional Vibe:** Diagnose parent's state (e.g., "חרדה ומחפשת אישור", "מתוסכלת אך מעשית", "בהכחשה")
-✅ **Vocabulary Mirroring:** Identify specific HEBREW words parent uses for behaviors
-   - If they say "הוא מתפוצץ" (He explodes), map "Tantrum" -> "מתפוצץ"
-   - If they say "הוא מרחף" (He hovers/zones out), map "Inattention" -> "מרחף"
-   - This map will be used to personalize guidelines
-✅ **Contextual Assets:** List specific items/people mentioned (e.g., "סבתא רחל", "לגו נינג'ה גו", "השטיח האדום בסלון")
+### 3. Strengths (First Class - NOT Afterthoughts!)
+**This comes BEFORE concerns.** Extract:
+- **Abilities:** What is this child good at?
+- **Interests:** What captivates them? What do they love?
+- **What Lights Them Up:** Those moments when they truly shine
+- **What Surprises People:** Hidden capabilities others don't expect
+
+### 4. Concerns (In Context)
+Now the concerns, but in context of the child we've described:
+- **Primary Areas:** The main concerns
+- **Details:** Specific examples with context (when, where, triggers)
+- **Impact:** How it affects child and family
+
+### 5. History & Family Context
+- Birth history (complications, prematurity)
+- Milestone notes
+- Previous evaluations/diagnoses
+- Family structure, siblings, languages
+- Family developmental history ("dad was a late talker")
+
+### 6. Patterns & Emerging Hypotheses
+Based on the conversation, identify:
+- **Patterns:** Themes appearing across multiple observations
+  Example: "mornings are hard" + "car seat battles" + "bedtime struggles" = "transitions are difficult"
+- **Contradictions:** Things that don't fit
+  Example: "usually withdrawn but spontaneous with grandma"
+- **Potential Hypotheses:** Working theories that could explain what you're seeing
+  These come from THREE sources:
+  1. Domain Knowledge - clinical patterns (e.g., speech delay often co-occurs with motor planning issues)
+  2. Pattern Detection - themes across observations
+  3. Contradictions - exceptions that might reveal capacity
+
+### 7. Parent Persona (Holistic Layer)
+✅ **Emotional Vibe:** Parent's state (e.g., "חרדה ומחפשת אישור", "מתוסכלת אך מעשית")
+✅ **Vocabulary Map:** Specific Hebrew words parent uses for behaviors
+   - Map clinical terms to parent's words: "Tantrum" -> "מתפוצץ"
+✅ **Context Assets:** Specific items/people mentioned ("סבתא רחל", "לגו נינג'ה גו")
 
 ### Rules
 ❌ Don't invent information not in transcript
-❌ Don't interpret or analyze - just summarize
+❌ Don't diagnose - observe patterns, hold hypotheses lightly
 ❌ Don't translate Hebrew to English
-❌ Don't modify parent's words
+❌ Don't skip strengths - they're as important as concerns
 
 ## Interview Transcript
 
@@ -504,12 +543,26 @@ This has THREE layers:
         context_assets = interview_summary.get('family_context_assets', [])
         child_name = interview_summary.get('child', {}).get('name', 'הילד/ה')
 
+        # Extract hypotheses and patterns from interview summary (new Gestalt structure)
+        emerging_hypotheses = interview_summary.get('emerging_hypotheses', [])
+        patterns = interview_summary.get('patterns', [])
+        contradictions = interview_summary.get('contradictions', [])
+        strengths = interview_summary.get('strengths', {})
+        concerns = interview_summary.get('concerns', {})
+
         json_input = json.dumps(interview_summary, ensure_ascii=False, indent=2)
-        stage2_prompt_text = f"""# Stage 2: Generate Empathetic Video Guidelines (Hebrew)
+        stage2_prompt_text = f"""# Stage 2: Generate Hypothesis-Driven Video Guidelines (Hebrew)
 
 ## Role
 You are "Chitta," a supportive child development expert writing directly to the Israeli parent in Hebrew.
-**Your Goal:** Lower their anxiety while getting high-quality video data for analysis.
+**Your Goal:** Create video scenarios that TEST SPECIFIC HYPOTHESES while lowering parent anxiety.
+
+## The Exploration Cycle Philosophy
+
+Video is ONE METHOD of exploration (conversation is another). Each video scenario should:
+1. **Test a specific hypothesis** - What are we trying to understand?
+2. **Reveal capacity** - Show what the child CAN do, not just problems
+3. **Provide evidence** - Help us confirm or refute our working theories
 
 ## Parent Context (Use This!)
 **Parent Vibe:** {parent_vibe}
@@ -517,127 +570,167 @@ You are "Chitta," a supportive child development expert writing directly to the 
 **Parent's Vocabulary:** {json.dumps(vocab_map, ensure_ascii=False)}
 **Context Assets:** {json.dumps(context_assets, ensure_ascii=False)}
 
+## Current Hypotheses & Patterns from Interview
+
+**Emerging Hypotheses to Test:**
+{json.dumps(emerging_hypotheses, ensure_ascii=False, indent=2) if emerging_hypotheses else "None identified yet"}
+
+**Patterns Detected:**
+{json.dumps(patterns, ensure_ascii=False, indent=2) if patterns else "None identified yet"}
+
+**Contradictions to Explore:**
+{json.dumps(contradictions, ensure_ascii=False, indent=2) if contradictions else "None identified yet"}
+
+**Child's Strengths:**
+{json.dumps(strengths, ensure_ascii=False, indent=2) if strengths else "Not yet identified"}
+
+## Hypothesis-Driven Scenario Design
+
+Each video scenario should be designed to:
+1. **Test a hypothesis** - Which theory are we testing?
+2. **Provide differential evidence** - What would we see if hypothesis is TRUE vs FALSE?
+3. **Capture natural behavior** - Not artificial test conditions
+
+### Scenario Categories:
+
+**1. hypothesis_test** - Directly tests an emerging hypothesis
+   - Links to a specific hypothesis from the interview
+   - What would confirm it? What would disconfirm it?
+
+**2. pattern_exploration** - Investigates a detected pattern
+   - Will we see the pattern in this context too?
+   - Does the pattern hold or break here?
+
+**3. contradiction_probe** - Explores a contradiction
+   - What's different about when the child succeeds vs struggles?
+   - Can we see the capacity in the right conditions?
+
+**4. strength_baseline** - Documents optimal functioning
+   - When is this child at their best?
+   - What conditions enable thriving?
+
 ## Critical Instructions for Writing Guidelines
 
 ### 1. CONCRETE & SIMPLE (Lower Cognitive Load)
 ❌ BAD: "שחקו משחק עם חוקים ותורות"
 ✅ GOOD: "שבו ליד השולחן במטבח, בחרו משחק סולמות וחבלים או זיכרון (קלפים). שחקו יחד 5 דקות."
 
-❌ BAD: "צלמו פעילות יצירתית"
-✅ GOOD: "הניחו דף A4 ועפרונות צבעוניים על השולחן. בקשו ממנה לצייר משפחה או בית. צלמו אותה בזמן הציור."
-
 ### 2. The "Sandwich" Rationale (Emotional Regulation for Parents)
 The `rationale_for_parent` must follow this structure in Hebrew:
-1. **Validate:** "שמעתי כמה הבקרים שלכם עמוסים..." (I heard how exhausting mornings are...)
-2. **Explain:** "צילום של רגע כזה יעזור לנו להבין בדיוק מה הטריגר..." (Filming this helps us see the trigger...)
-3. **Reassure:** "אל תדאגו מ'לסדר' את המצב למצלמה. אנחנו רוצים לראות את החיים האמיתיים." (Don't worry about fixing it...)
-
-For strength_baseline scenarios, emphasize validation and completeness:
-- "ראיתי שהוא מצטיין ב... (I saw he excels at...)
-- "סרטון של הרגעים הטובים יעזור לנו לראות מה עובד ולבנות על זה..."
-- "זה חלק חשוב מהתמונה השלמה"
+1. **Validate:** "שמעתי כמה הבקרים שלכם עמוסים..."
+2. **Explain:** "צילום של רגע כזה יעזור לנו להבין בדיוק..."
+3. **Reassure:** "אל תדאגו מ'לסדר' את המצב למצלמה..."
 
 ### 3. Vocabulary Mirroring (CRITICAL)
-Use the **Vocabulary Map** above.
-- If parent uses "התקף" (Attack), YOU use "התקף" in instructions
-- If parent uses "מרחף" (Zones out), YOU use "מרחף"
-- Don't use clinical jargon unless parent used it
+Use the **Vocabulary Map** - parent's words, not clinical jargon.
 
 ### 4. Use Contextual Assets
-- Do NOT say: "שחקו עם צעצוע" (Play with a toy)
-- DO say: "שבו על {context_assets[0] if context_assets else 'השטיח'} עם ה{context_assets[1] if len(context_assets) > 1 else 'צעצוע האהוב'}..."
-- Make `example_situations` specific to their mentioned environment
+Make `example_situations` specific to their mentioned environment.
 
 ### 5. Focus Points (focus_points) are INTERNAL ONLY
-These are for YOU to analyze the video later. NOT for parents to worry about while filming.
-Write them as clinical observation notes: "האם נראית תנועת יתר?", "כמה זמן מחזיקה קשב?"
-
-### 6. Example Situations Must Be Concrete
-❌ "זמן משחק חופשי"
-✅ "בסלון אחרי הצהריים, עם הצעצועים שיש לה בארון"
+These are for analysis. NOT for parents.
+Write them as clinical observation notes linked to hypotheses:
+- "האם ההיפותזה שהקושי הוא בויסות מאוששת או לא?"
+- "האם נראה את היכולת שמופיעה עם סבתא?"
 
 ## Task
-1. Identify 1-2 main reported difficulties from the parent's descriptions
-2. Infer 1-2 additional areas to check (comorbidities) based on clinical framework below
-3. **INCLUDE 1 strength/baseline scenario** - Show the child when regulated and thriving
-4. Create **EXACTLY 3-4 video filming guidelines** in Hebrew (minimum 3, maximum 5)
+Based on the hypotheses, patterns, and contradictions from the interview:
 
-**CRITICAL REQUIREMENT:** You MUST generate at least 3 complete video_guidelines entries:
-- At least 1 must be category: "reported_difficulty"
-- At least 1 must be category: "strength_baseline" (REQUIRED - strengths-based approach)
-- Optionally 1-2 can be category: "comorbidity_check"
+1. **Create 3-4 video scenarios** that test specific hypotheses
+2. **At least 1 must be strength_baseline** - showing the child thriving
+3. **Each must link to a hypothesis, pattern, or contradiction**
 
-## Field Usage by Category
+**Required fields for each scenario:**
+- id: Unique number
+- category: "hypothesis_test" | "pattern_exploration" | "contradiction_probe" | "strength_baseline"
+- target_hypothesis: What theory this tests (or "baseline" for strength scenarios)
+- what_we_hope_to_learn: The question this video answers
+- difficulty_area: Domain being explored
+- title: Short Hebrew title
+- instruction: CONCRETE filming instruction
+- example_situations: 2-3 concrete situations
+- duration_suggestion: Time estimate
+- focus_points: Internal analysis points (linked to hypothesis)
+- rationale_for_parent: Sandwich structure in Hebrew
 
-### For "reported_difficulty" and "comorbidity_check":
-- difficulty_area: Problem area in Hebrew (e.g., "קשב במשחקים", "ויסות רגשי")
-
-### For "strength_baseline":
-- difficulty_area: Strength domain in Hebrew (e.g., "משחק עצמאי", "יצירתיות", "אינטראקציה חברתית")
-
-Each guideline must have:
-- Unique id (1, 2, 3, etc.)
-- Category (reported_difficulty, comorbidity_check, or strength_baseline)
-- difficulty_area: Context-sensitive (problem area OR strength domain)
-- title: Short title in Hebrew (3-5 words)
-- instruction: CONCRETE, SIMPLE filming instruction using parent's vocabulary
-- example_situations: 2-3 CONCRETE situations using their mentioned context
-- duration_suggestion: Clear time estimate ("5-7 דקות", "עד שהיא מאבדת עניין")
-- focus_points: 2-4 INTERNAL analysis points (clinical observation notes)
-- rationale_for_parent: "Sandwich" structure (Validate-Explain-Reassure) in Hebrew
-
-## Clinical Comorbidity Framework
+## Clinical Comorbidity Framework (for domain_knowledge hypotheses)
 
 **ADHD/Attention** → Check: Sensory regulation, fine motor, emotional regulation
-**Learning difficulties** → Check: Visual perception, auditory processing, working memory
 **Social/communication** → Check: Symbolic play, restricted interests, repetitive behaviors
-**Emotional outbursts** → Check: Sensory triggers, language comprehension, frustration tolerance
 **Language delays** → Check: Social interactions, imaginative play, non-verbal communication
+**Emotional outbursts** → Check: Sensory triggers, language comprehension
 
 ## Structured Data from Interview
 
 {json_input}
 
-## Example of GOOD Difficulty Guideline
+## Example of Hypothesis-Test Scenario
 
 {{
   "id": 1,
-  "category": "reported_difficulty",
-  "difficulty_area": "קשב במשחקים",
+  "category": "hypothesis_test",
+  "target_hypothesis": "הקושי בקשב קשור לויסות רגשי ולא לבעיית קשב ראשונית",
+  "what_we_hope_to_learn": "האם היא יכולה להחזיק קשב כשהמצב רגוע ומבוקר? אם כן - ההיפותזה מתחזקת",
+  "difficulty_area": "קשב וויסות",
   "title": "משחק קופסה במטבח",
-  "instruction": "שבו יחד ליד שולחן המטבח. בחרו משחק קופסה פשוט שהילדה מכירה - סולמות וחבלים, דמקה, או זיכרון. שחקו יחד 5-7 דקות, או עד שהיא מאבדת עניין. אם היא קמה או מפסיקה - זה בסדר, המשיכו לצלם עוד דקה כדי לראות לאן היא הולכת.",
+  "instruction": "שבו יחד ליד שולחן המטבח. בחרו משחק קופסה פשוט שהילדה מכירה - סולמות וחבלים או זיכרון. שחקו יחד 5-7 דקות. אם היא קמה או מפסיקה - זה בסדר, המשיכו לצלם.",
   "example_situations": [
     "אחרי ארוחת צהריים, ליד שולחן המטבח",
     "בערב לפני האמבטיה, בסלון על השטיח"
   ],
   "duration_suggestion": "5-7 דקות",
   "focus_points": [
-    "כמה זמן היא מחזיקה קשב לפני התנועה הראשונה מהכיסא?",
-    "מה היא עושה בזמן ההמתנה לתור - מסתכלת, זזה, מדברת?",
-    "איך היא מגיבה כשמזכירים לה לחזור למשחק?"
+    "האם יש הבדל בקשב בין רגעים רגועים לרגעים עמוסים?",
+    "כמה זמן היא מחזיקה לפני התנועה הראשונה?",
+    "מה קורה כשמזכירים לה - האם זה עוזר או מגביר?"
   ],
-  "rationale_for_parent": "שמעתי שהיא מתקשה לחכות לתורה במשחקים וש'המחשבות שלה בורחות' - זה בטח מאתגר בשבילכם. סרטון זה יעזור לנו לראות בדיוק איך זה נראה - האם זה קושי בבלימה, קושי בהמתנה, או משהו אחר. אל תדאגו לגרום למשחק להיראות 'מושלם' - אנחנו רוצים לראות את המציאות. זה יכוון אותנו איך לעזור לה בכיתה א'."
+  "rationale_for_parent": "שמעתי שהיא מתקשה לחכות לתורה וש'המחשבות שלה בורחות'. סרטון של משחק רגוע יעזור לנו לראות את היכולת שלה כשאין עומס - זה מידע חשוב מאוד. אל תדאגו מ'לסדר' את המצב - אנחנו רוצים לראות את המציאות."
 }}
 
-## Example of GOOD Strength Guideline
+## Example of Contradiction-Probe Scenario
+
+{{
+  "id": 2,
+  "category": "contradiction_probe",
+  "target_hypothesis": "היכולת לתקשר קיימת - מתגלה בתנאים מסוימים",
+  "what_we_hope_to_learn": "מה שונה כשהוא עם סבתא? האם נוכל לראות את היכולת גם בבית?",
+  "difficulty_area": "תקשורת חברתית",
+  "title": "משחק עם דמות מוכרת",
+  "instruction": "אם סבתא או דוד אוהב מגיעים - צלמו כמה דקות של אינטראקציה. אם לא, נסו משחק שבו אתם מחקים משהו שהוא אוהב.",
+  "example_situations": [
+    "כשסבתא מגיעה לביקור",
+    "משחק עם הצעצוע האהוב עם אח גדול"
+  ],
+  "duration_suggestion": "5 דקות",
+  "focus_points": [
+    "מה שונה באינטראקציה עם דמות 'בטוחה'?",
+    "האם יש יותר יוזמה? יותר מילים? יותר מגע עין?",
+    "מה בתנאים האלה מאפשר את ההתנהגות?"
+  ],
+  "rationale_for_parent": "שמעתי שעם סבתא הוא 'אחר לגמרי' - וזה מאוד משמעותי! לראות מה קורה ברגעים האלה יעזור לנו להבין איפה היכולת קיימת ואיך לבנות עליה."
+}}
+
+## Example of Strength-Baseline Scenario
 
 {{
   "id": 3,
   "category": "strength_baseline",
+  "target_hypothesis": "baseline",
+  "what_we_hope_to_learn": "איך נראית הילדה כשהיא בזרימה ומרוכזת - הבסיס ליכולותיה",
   "difficulty_area": "משחק יצירתי",
   "title": "זמן יצירה חופשית",
-  "instruction": "תנו לה דף ריק וצבעים, ותנו לה לצייר או ליצור מה שהיא רוצה. צלמו 5 דקות של יצירה חופשית.",
+  "instruction": "תנו לה דף ריק וצבעים, ותנו לה לצייר מה שהיא רוצה. צלמו 5 דקות של יצירה חופשית.",
   "example_situations": [
     "אחר הצהריים בפינת היצירה",
     "בשולחן המטבח עם עפרונות צבעוניים"
   ],
   "duration_suggestion": "5 דקות",
   "focus_points": [
-    "כמה זמן היא נשארת ממוקדת בפעילות?",
-    "איך היא מתמודדת עם החומרים?",
-    "האם יש יצירתיות ודמיון?"
+    "כמה זמן היא נשארת ממוקדת כשהיא עושה מה שהיא אוהבת?",
+    "איך נראה הגוף שלה - רגוע? מותח?",
+    "מה התנאים שמאפשרים את ההתמקדות הזו?"
   ],
-  "rationale_for_parent": "שמעתי שהיא אוהבת לצייר וליצור - זה חוזקה אמיתית! סרטון של הרגעים שבהם היא שקועה ביצירה יעזור לנו להבין מה עובד טוב ולבנות על זה. התמונה השלמה כוללת גם את מה שהיא עושה נהדר."
+  "rationale_for_parent": "שמעתי שהיא אוהבת לצייר - זה חוזקה אמיתית! לראות אותה ברגעים שבהם היא שקועה יעזור לנו להבין מה עובד ולבנות על זה. התמונה השלמה כוללת גם את מה שהיא עושה נהדר."
 }}
 """
 
@@ -676,20 +769,38 @@ Each guideline must have:
         component_format = self._transform_to_component_format(guidelines_data)
 
         # Enrich with analyst context for video analysis (Bridge to Observation Agent)
+        # This context is passed to video_analysis_prompt to guide hypothesis testing
         guidelines_list = guidelines_data.get("video_guidelines", [])
+        exploration_summary = guidelines_data.get("exploration_summary", {})
+
         for idx, scenario in enumerate(component_format.get("scenarios", [])):
             if idx < len(guidelines_list):
                 guideline = guidelines_list[idx]
                 scenario["analyst_context"] = {
+                    # What parent was asked to film
                     "instruction_given_to_parent": scenario.get("what_to_film", ""),
+                    # Clinical focus points (internal use)
                     "internal_focus_points": guideline.get("focus_points", []),
+                    # Parent persona for vocabulary mirroring
                     "parent_persona_data": {
-                        "emotional_vibe": extracted_data.get("parent_emotional_vibe", ""),
-                        "vocabulary_map": extracted_data.get("specific_vocabulary_map", []),  # Array format
-                        "context_assets": extracted_data.get("family_context_assets", [])
+                        "emotional_vibe": interview_summary.get("parent_emotional_vibe", ""),
+                        "vocabulary_map": interview_summary.get("specific_vocabulary_map", []),
+                        "context_assets": interview_summary.get("family_context_assets", [])
                     },
-                    "clinical_goal": guideline.get("category", "")
+                    # Hypothesis-driven context (NEW)
+                    "clinical_goal": guideline.get("category", ""),
+                    "target_hypothesis": guideline.get("target_hypothesis", ""),
+                    "what_we_hope_to_learn": guideline.get("what_we_hope_to_learn", ""),
                 }
+
+        # Add exploration summary to component format for downstream use
+        component_format["exploration_context"] = {
+            "hypotheses_being_tested": exploration_summary.get("hypotheses_being_tested", []),
+            "patterns_being_explored": exploration_summary.get("patterns_being_explored", []),
+            "emerging_hypotheses": emerging_hypotheses,
+            "patterns": patterns,
+            "contradictions": contradictions,
+        }
 
         logger.info(f"✅ Holistic generation complete: {len(markdown_content)} chars markdown")
         logger.info(f"📊 Component format: {len(component_format.get('scenarios', []))} scenarios generated")
@@ -1260,12 +1371,21 @@ The extracted JSON will appear here:
 
     def _get_stage1_extraction_schema(self) -> dict:
         """
-        Get JSON schema for Stage 1 extraction.
-        Defines the structure for extracting interview data + parent persona (holistic diagnosis).
+        Get JSON schema for Stage 1 extraction - Living Gestalt structure.
+
+        Aligned with the new Child model and Living Gestalt philosophy:
+        1. Identity first
+        2. Essence (who they are)
+        3. Strengths before concerns
+        4. Concerns in context
+        5. History and family
+        6. Patterns and hypotheses
+        7. Parent persona
         """
         return {
             "type": "object",
             "properties": {
+                # === 1. IDENTITY (Essentials) ===
                 "child": {
                     "type": "object",
                     "properties": {
@@ -1275,75 +1395,196 @@ The extracted JSON will appear here:
                         "gender": {"type": "string"}
                     }
                 },
-                "main_concern": {"type": "string"},
-                "difficulties": {
+
+                # === 2. ESSENCE (Who They Are) ===
+                "essence": {
+                    "type": "object",
+                    "properties": {
+                        "temperament_observations": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "How they approach the world: cautious, eager, intense, easy-going, etc."
+                        },
+                        "energy_pattern": {
+                            "type": "string",
+                            "description": "Their typical energy pattern (e.g., 'high energy but can focus deeply on interests')"
+                        },
+                        "core_qualities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Adjectives describing their core: curious, loving, determined, sensitive"
+                        }
+                    }
+                },
+
+                # === 3. STRENGTHS (First Class!) ===
+                "strengths": {
+                    "type": "object",
+                    "properties": {
+                        "abilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "What is this child good at?"
+                        },
+                        "interests": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "What captivates them? What do they love?"
+                        },
+                        "what_lights_them_up": {
+                            "type": "string",
+                            "description": "Those moments when they truly shine - narrative"
+                        },
+                        "surprises_people": {
+                            "type": "string",
+                            "description": "Hidden capabilities others don't expect"
+                        }
+                    }
+                },
+
+                # === 4. CONCERNS (In Context) ===
+                "concerns": {
+                    "type": "object",
+                    "properties": {
+                        "primary_areas": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Main concern areas: attention, communication, motor, etc."
+                        },
+                        "main_concern_narrative": {
+                            "type": "string",
+                            "description": "Parent's main concern in their own words"
+                        },
+                        "details": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "area": {"type": "string"},
+                                    "description": {"type": "string"},
+                                    "when_where": {"type": "string"},
+                                    "triggers": {"type": "string"},
+                                    "specific_example": {"type": "string"}
+                                }
+                            }
+                        },
+                        "impact_on_child": {"type": "string"},
+                        "impact_on_family": {"type": "string"}
+                    }
+                },
+
+                # === 5. HISTORY ===
+                "history": {
+                    "type": "object",
+                    "properties": {
+                        "birth": {
+                            "type": "object",
+                            "properties": {
+                                "complications": {"type": "string"},
+                                "premature": {"type": "boolean"},
+                                "weeks_gestation": {"type": "number"}
+                            }
+                        },
+                        "milestone_notes": {"type": "string"},
+                        "early_development": {"type": "string"},
+                        "medical_history": {"type": "string"},
+                        "previous_evaluations": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "evaluator_type": {"type": "string"},
+                                    "findings": {"type": "string"},
+                                    "diagnosis_given": {"type": "string"}
+                                }
+                            }
+                        },
+                        "previous_diagnoses": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "interventions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {"type": "string"},
+                                    "status": {"type": "string"},
+                                    "outcome": {"type": "string"}
+                                }
+                            }
+                        }
+                    }
+                },
+
+                # === 6. FAMILY CONTEXT ===
+                "family": {
+                    "type": "object",
+                    "properties": {
+                        "structure": {"type": "string", "description": "e.g., 'two parents, older sister'"},
+                        "siblings": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "position": {"type": "string"},
+                                    "notes": {"type": "string", "description": "Relevant dynamics: 'speaks for him', 'very close'"}
+                                }
+                            }
+                        },
+                        "languages_at_home": {"type": "array", "items": {"type": "string"}},
+                        "family_developmental_history": {
+                            "type": "string",
+                            "description": "Similar difficulties in family: 'dad was a late talker'"
+                        },
+                        "support_system": {"type": "string"}
+                    }
+                },
+
+                # === 7. PATTERNS & EMERGING HYPOTHESES ===
+                "patterns": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "area": {"type": "string"},
-                            "description": {"type": "string"},
-                            "specific_examples": {
+                            "theme": {"type": "string", "description": "The pattern: 'transitions are difficult'"},
+                            "observations": {
                                 "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "when_where": {"type": "string"},
-                                        "behavior": {"type": "string"},
-                                        "trigger": {"type": "string"},
-                                        "frequency": {"type": "string"},
-                                        "duration": {"type": "string"}
-                                    }
-                                }
+                                "items": {"type": "string"},
+                                "description": "Evidence for this pattern"
                             },
-                            "duration_since_onset": {"type": "string"},
-                            "impact_child": {"type": "string"},
-                            "impact_family": {"type": "string"}
+                            "domains_involved": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Which developmental domains"
+                            }
                         }
                     }
                 },
-                "strengths": {
-                    "type": "object",
-                    "properties": {
-                        "likes": {"type": "array", "items": {"type": "string"}},
-                        "good_at": {"type": "array", "items": {"type": "string"}},
-                        "positives": {"type": "string"}
-                    }
+                "contradictions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Things that don't fit: 'usually withdrawn but spontaneous with grandma'"
                 },
-                "development": {
-                    "type": "object",
-                    "properties": {
-                        "pregnancy_birth": {"type": "string"},
-                        "milestones": {"type": "string"},
-                        "medical": {"type": "string"}
-                    }
-                },
-                "school": {
-                    "type": "object",
-                    "properties": {
-                        "type": {"type": "string"},
-                        "adjustment": {"type": "string"},
-                        "support": {"type": "string"}
-                    }
-                },
-                "history": {
-                    "type": "object",
-                    "properties": {
-                        "previous_diagnosis": {"type": "string"},
-                        "previous_treatment": {"type": "string"},
-                        "family_history": {"type": "string"}
-                    }
-                },
-                "parent_perspective": {
-                    "type": "object",
-                    "properties": {
-                        "childs_experience": {"type": "string"},
-                        "what_tried": {"type": "string"},
-                        "hopes": {"type": "string"}
+                "emerging_hypotheses": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "theory": {"type": "string", "description": "Working theory to explore"},
+                            "source": {
+                                "type": "string",
+                                "enum": ["pattern", "domain_knowledge", "contradiction"],
+                                "description": "Where this hypothesis came from"
+                            },
+                            "source_details": {"type": "string", "description": "Specific trigger"},
+                            "related_domains": {"type": "array", "items": {"type": "string"}},
+                            "questions_to_explore": {"type": "array", "items": {"type": "string"}}
+                        }
                     }
                 },
 
-                # Holistic Diagnosis Fields (Parent Persona)
+                # === PARENT PERSONA (for personalization) ===
                 "parent_emotional_vibe": {
                     "type": "string",
                     "description": "Parent's emotional state in Hebrew (e.g., 'חרדה ומחפשת אישור', 'מתוסכלת אך מעשית')"
@@ -1364,14 +1605,37 @@ The extracted JSON will appear here:
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Specific toys, people, places mentioned in transcript (e.g., 'סבתא רחל', 'לגו נינג'ה גו', 'השטיח האדום בסלון')"
+                },
+
+                # === PARENT PERSPECTIVE ===
+                "parent_perspective": {
+                    "type": "object",
+                    "properties": {
+                        "what_tried": {"type": "string"},
+                        "hopes": {"type": "string"},
+                        "childs_experience": {"type": "string", "description": "What parent thinks child is experiencing"}
+                    }
+                },
+
+                # === SCHOOL CONTEXT ===
+                "school": {
+                    "type": "object",
+                    "properties": {
+                        "type": {"type": "string"},
+                        "adjustment": {"type": "string"},
+                        "support": {"type": "string"}
+                    }
                 }
             }
         }
 
     def _get_stage2_guidelines_schema(self) -> dict:
         """
-        Get JSON schema for Stage 2 guidelines generation.
-        Defines the structure for video filming guidelines.
+        Get JSON schema for Stage 2 guidelines generation - Hypothesis-Driven.
+
+        Each video scenario is designed to test specific hypotheses from the interview.
+        This aligns with the unified ExplorationCycle model where video is one method
+        of exploration among others (conversation, etc.).
         """
         return {
             "type": "object",
@@ -1400,8 +1664,23 @@ The extracted JSON will appear here:
                         "required": ["id", "category", "title", "instruction", "example_situations", "focus_points", "rationale_for_parent"],
                         "properties": {
                             "id": {"type": "integer"},
-                            "category": {"type": "string", "enum": ["reported_difficulty", "comorbidity_check", "strength_baseline"]},
-                            "difficulty_area": {"type": "string", "description": "For difficulties: problem area. For strength_baseline: strength domain (e.g., 'יצירתיות', 'משחק חברתי')"},
+                            "category": {
+                                "type": "string",
+                                "enum": ["hypothesis_test", "pattern_exploration", "contradiction_probe", "strength_baseline"],
+                                "description": "What kind of exploration this scenario supports"
+                            },
+                            "target_hypothesis": {
+                                "type": "string",
+                                "description": "The hypothesis/pattern/contradiction this scenario tests (or 'baseline' for strength scenarios)"
+                            },
+                            "what_we_hope_to_learn": {
+                                "type": "string",
+                                "description": "The specific question this video will answer"
+                            },
+                            "difficulty_area": {
+                                "type": "string",
+                                "description": "Domain being explored (e.g., 'קשב', 'ויסות רגשי', 'משחק חברתי')"
+                            },
                             "title": {"type": "string"},
                             "instruction": {"type": "string"},
                             "example_situations": {
@@ -1413,9 +1692,30 @@ The extracted JSON will appear here:
                             "focus_points": {
                                 "type": "array",
                                 "minItems": 2,
-                                "items": {"type": "string"}
+                                "items": {"type": "string"},
+                                "description": "Internal analysis points - what to look for that would confirm/refute hypothesis"
                             },
                             "rationale_for_parent": {"type": "string"}
+                        }
+                    }
+                },
+                # Summary of what hypotheses these guidelines are designed to test
+                "exploration_summary": {
+                    "type": "object",
+                    "properties": {
+                        "hypotheses_being_tested": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of hypotheses these videos will help test"
+                        },
+                        "patterns_being_explored": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Patterns we're investigating"
+                        },
+                        "what_videos_cant_answer": {
+                            "type": "string",
+                            "description": "Limitations - what questions still need conversation"
                         }
                     }
                 }

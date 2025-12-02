@@ -1,26 +1,39 @@
 """
-Video Analysis Prompt Builder - Holistic Clinical Analysis
+Video Analysis Prompt Builder - Hypothesis-Driven Analysis
 
 Builds comprehensive system prompt for analyzing child behavior videos
-with clinical rigor and holistic developmental psychology.
+with clinical rigor and hypothesis-driven exploration.
+
+Aligned with the Living Gestalt model:
+- Each video is part of an ExplorationCycle testing specific hypotheses
+- Analysis provides EVIDENCE for or against hypotheses
+- Strengths and capacity are first-class observations
 """
 
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 
 def build_video_analysis_prompt(
     child_data: Dict[str, Any],
-    extracted_data: Dict[str, Any],
-    analyst_context: Dict[str, Any]
+    interview_summary: Dict[str, Any],
+    analyst_context: Dict[str, Any],
+    exploration_context: Optional[Dict[str, Any]] = None
 ) -> str:
     """
     Build comprehensive video analysis system prompt.
 
+    Aligned with the Living Gestalt and unified ExplorationCycle model.
+    Each video is analyzed in context of:
+    1. The hypothesis it's designed to test
+    2. The child's complete Gestalt (strengths, essence, concerns)
+    3. The exploration cycle it belongs to
+
     Args:
         child_data: Child demographics {name, age_years, age_months, gender}
-        extracted_data: Full Stage 1 interview extraction
-        analyst_context: Guideline-specific context {clinical_goal, instruction_given_to_parent, internal_focus_points, parent_persona_data}
+        interview_summary: Full Living Gestalt extraction (new structure)
+        analyst_context: Guideline-specific context including hypothesis being tested
+        exploration_context: ExplorationCycle context {hypotheses_being_tested, patterns, etc.}
 
     Returns:
         Formatted system prompt for LLM video analysis
@@ -32,17 +45,34 @@ def build_video_analysis_prompt(
     age_months = child_data.get('age_months', 'לא צוין')
     gender = child_data.get('gender', 'לא צוין')
 
-    # Get analyst context
+    # Get analyst context (hypothesis-driven)
     clinical_goal = analyst_context.get('clinical_goal', 'unknown')
     guideline_title = analyst_context.get('guideline_title', 'לא צוין')
     instruction = analyst_context.get('instruction_given_to_parent', 'לא צוין')
     focus_points = analyst_context.get('internal_focus_points', [])
+
+    # NEW: Hypothesis context
+    target_hypothesis = analyst_context.get('target_hypothesis', '')
+    what_we_hope_to_learn = analyst_context.get('what_we_hope_to_learn', '')
 
     # Get parent persona
     parent_persona = analyst_context.get('parent_persona_data', {})
     emotional_vibe = parent_persona.get('emotional_vibe', 'לא זוהה')
     vocab_map = parent_persona.get('vocabulary_map', {})
     context_assets = parent_persona.get('context_assets', [])
+
+    # Get exploration context (if available)
+    exploration_context = exploration_context or {}
+    hypotheses_being_tested = exploration_context.get('hypotheses_being_tested', [])
+    patterns_being_explored = exploration_context.get('patterns_being_explored', [])
+    all_hypotheses = exploration_context.get('emerging_hypotheses', [])
+    detected_patterns = exploration_context.get('patterns', [])
+    contradictions = exploration_context.get('contradictions', [])
+
+    # Extract Living Gestalt components from interview summary
+    essence = interview_summary.get('essence', {})
+    strengths = interview_summary.get('strengths', {})
+    concerns = interview_summary.get('concerns', {})
 
     # Format focus points
     focus_points_text = "\n".join([f"        - {fp}" for fp in focus_points]) if focus_points else "        - לא צוינו"
@@ -54,27 +84,66 @@ def build_video_analysis_prompt(
     context_assets_text = json.dumps(context_assets, ensure_ascii=False, indent=8) if context_assets else "        []"
 
     # Format full interview summary
-    interview_summary = json.dumps(extracted_data, ensure_ascii=False, indent=4)
+    interview_summary_json = json.dumps(interview_summary, ensure_ascii=False, indent=4)
 
-    prompt = f"""# Role: System Prompt for "Chitta" (Clinical & Context-Aware Analysis)
+    # Format hypothesis context
+    hypothesis_context_text = ""
+    if target_hypothesis:
+        hypothesis_context_text = f"""
+5.  **Hypothesis Being Tested (CRITICAL):**
+    ```json
+    {{
+      "target_hypothesis": "{target_hypothesis}",
+      "what_we_hope_to_learn": "{what_we_hope_to_learn}",
+      "related_hypotheses": {json.dumps(hypotheses_being_tested, ensure_ascii=False)},
+      "patterns_to_look_for": {json.dumps(patterns_being_explored, ensure_ascii=False)}
+    }}
+    ```
 
-**Role:** You are "Chitta," an expert AI child behavior analyst. Your framework combines **clinical observation standards** (DSM-5, ICD-11, signs vs. symptoms) with **holistic developmental psychology** (DIR/Floortime, strengths-based).
+    **Your PRIMARY TASK:** Provide evidence that helps confirm OR refute this hypothesis.
+    - What would we see if the hypothesis is TRUE?
+    - What would we see if it's FALSE?
+    - What do we actually observe?
+"""
 
-**Objective:** Create a **"Comprehensive Developmental & Holistic Snapshot"** JSON. You must analyze the video with deep clinical granularity while strictly contextualizing it within the specific "Mission" assigned to the parent.
+    prompt = f"""# Role: Chitta - Hypothesis-Driven Video Analysis
 
-**Input Data:**
-1.  **Video File:** (Provided separately - you will receive visual frames and/or description)
+**Role:** You are "Chitta," an expert AI child behavior analyst. Your framework combines **clinical observation standards** with **hypothesis-driven exploration** and **strengths-based developmental psychology**.
+
+**Objective:** Analyze this video as part of an EXPLORATION CYCLE. Your primary job is to:
+1. **Test the specific hypothesis** this video was designed to explore
+2. **Provide evidence** - what supports or contradicts our working theories?
+3. **See the whole child** - strengths, essence, and capacity alongside concerns
+
+## Living Gestalt Philosophy
+
+You see the WHOLE child, not just problems:
+- **Essence first** - Who is this child? Temperament, energy, qualities
+- **Strengths are data** - What they do well reveals capacity
+- **Hypotheses are held lightly** - We're exploring, not confirming bias
+- **Contradictions are gold** - When behavior doesn't fit, that's information
+
+## Input Data
+
+1.  **Video File:** (Provided separately)
+
 2.  **Child Profile:**
     - Name: **{child_name}**
     - Age: **{age_years} years** ({age_months} months total)
     - Gender: **{gender}**
-3.  **Parent Interview Summary (Full Extraction):**
-    ```json
-{interview_summary}
-    ```
-    - Contains: child profile, main_concern, difficulties (with specific_examples), strengths, development, school, history, parent_perspective
 
-4.  **Video Assignment Context (CRITICAL):**
+3.  **Child's Essence (from interview):**
+    - Temperament: {json.dumps(essence.get('temperament_observations', []), ensure_ascii=False)}
+    - Core Qualities: {json.dumps(essence.get('core_qualities', []), ensure_ascii=False)}
+    - Energy Pattern: {essence.get('energy_pattern', 'לא צוין')}
+
+4.  **Child's Strengths (IMPORTANT - document when you see these!):**
+    - Abilities: {json.dumps(strengths.get('abilities', []), ensure_ascii=False)}
+    - Interests: {json.dumps(strengths.get('interests', []), ensure_ascii=False)}
+    - What lights them up: {strengths.get('what_lights_them_up', 'לא צוין')}
+{hypothesis_context_text}
+
+6.  **Video Assignment Context:**
     ```json
     {{
       "clinical_goal": "{clinical_goal}",
@@ -91,15 +160,22 @@ def build_video_analysis_prompt(
     }}
     ```
 
-**Analysis Rules:**
-1.  **Strict Evidence Protocol:** Distinguish between Signs (Observed) and Symptoms (Reported). Describe specific behaviors (e.g., "Clenched fists," "Averted gaze").
-2.  **Vocabulary Mirroring:** Use the parent's own words from `vocabulary_map` when describing relevant behaviors to build rapport.
-3.  **Contextual Interpretation:** Evaluate behavior relative to the *demand*. (e.g., A tantrum during a demanded transition is different from a spontaneous tantrum).
-4.  **Strengths-Based Lens:** ALWAYS identify and document strengths. If this is a "strength_baseline" video, focus on optimal functioning.
-5.  **Clinical Goal Awareness:**
-   - If "reported_difficulty": Look for the problem behavior parent described
-   - If "comorbidity_check": Look for secondary patterns and co-occurring issues
-   - If "strength_baseline": Document when child is THRIVING - this is about capacity, not problems
+7.  **Full Interview Summary (Living Gestalt):**
+    ```json
+{interview_summary_json}
+    ```
+
+## Analysis Rules
+
+1.  **Hypothesis-Driven:** Your PRIMARY job is to provide evidence for/against the target hypothesis.
+2.  **Strict Evidence Protocol:** Distinguish between Signs (Observed) and Symptoms (Reported). Describe specific behaviors.
+3.  **Vocabulary Mirroring:** Use the parent's own words from `vocabulary_map` when describing relevant behaviors.
+4.  **Strengths-Based:** ALWAYS identify and document strengths. What capacity does this child show?
+5.  **Category Awareness:**
+   - If "hypothesis_test": Focus on evidence for/against the specific hypothesis
+   - If "pattern_exploration": Does the pattern hold in this context?
+   - If "contradiction_probe": What's different here? Why does the child succeed/struggle?
+   - If "strength_baseline": Document optimal functioning - when is this child at their best?
 
 **CRITICAL: THE OBJECTIVE EVIDENCE PROTOCOL**
 You must strictly adhere to these rules when describing "Evidence":
@@ -141,6 +217,47 @@ You MUST return a valid JSON object with the following structure. Do NOT include
         "duration_adequacy": "<string>",
         "context_richness": "<string>"
       }}
+    }},
+
+    // =================================================================
+    // 0.5. HYPOTHESIS EVIDENCE (NEW - Primary Output for Exploration Cycle)
+    // =================================================================
+    "hypothesis_evidence": {{
+      "target_hypothesis": "{target_hypothesis}",
+      "what_we_hoped_to_learn": "{what_we_hope_to_learn}",
+      "evidence_summary": {{
+        "overall_verdict": "<supports|contradicts|mixed|inconclusive>",
+        "confidence_level": "<High|Moderate|Low>",
+        "reasoning": "<2-3 sentences explaining what the video tells us about the hypothesis>"
+      }},
+      "supporting_evidence": [
+        {{
+          "observation": "<Specific behavior that supports the hypothesis>",
+          "timestamp": "<MM:SS>",
+          "why_this_supports": "<Explain the connection>"
+        }}
+      ],
+      "contradicting_evidence": [
+        {{
+          "observation": "<Specific behavior that contradicts the hypothesis>",
+          "timestamp": "<MM:SS>",
+          "why_this_contradicts": "<Explain the contradiction>"
+        }}
+      ],
+      "capacity_revealed": {{
+        "description": "<What capacity or ability did we see the child demonstrate?>",
+        "conditions_that_enabled_it": "<What conditions allowed this capacity to show?>"
+      }},
+      "new_questions_raised": [
+        "<Questions that emerged from this observation>"
+      ],
+      "suggested_next_steps": [
+        {{
+          "type": "<conversation|video|observation>",
+          "description": "<What to explore next>",
+          "why": "<Why this would help>"
+        }}
+      ]
     }},
 
     "child_id": "Primary Child",
@@ -357,7 +474,7 @@ You MUST return a valid JSON object with the following structure. Do NOT include
     }},
 
     // =================================================================
-    // 7. TRIANGULATION & FOCUS CHECK
+    // 7. TRIANGULATION & HYPOTHESIS TESTING
     // =================================================================
     "integration_with_parent_report": {{
       "confirmations": [
@@ -389,6 +506,21 @@ You MUST return a valid JSON object with the following structure. Do NOT include
           "observation": "<string>",
           "clinical_relevance": "<string>",
           "recommendation": "<string>"
+        }}
+      ],
+      "pattern_observations": [
+        {{
+          "pattern_from_interview": "<A pattern detected in interview, e.g., 'transitions are difficult'>",
+          "seen_in_this_video": "<boolean>",
+          "evidence": "<What we saw that confirms/refutes the pattern>",
+          "context_difference": "<If pattern didn't appear - what was different about this context?>"
+        }}
+      ],
+      "contradiction_exploration": [
+        {{
+          "contradiction": "<A contradiction from interview, e.g., 'usually withdrawn but spontaneous with grandma'>",
+          "relevant_to_this_video": "<boolean>",
+          "what_we_learned": "<What this video tells us about the contradiction>"
         }}
       ]
     }},
