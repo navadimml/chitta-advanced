@@ -710,6 +710,52 @@ prompts:
       - "מספיק"
 
 # ============================================
+# BLOCKED ACTIONS
+# ============================================
+# LLM guidance when actions are blocked (English - for LLM understanding)
+
+blocked_actions:
+
+  parent_report:
+    insufficient_understanding: |
+      - **Parent Report**: Cannot generate yet (completeness: {completeness}, need {required})
+        - **Your response should**:
+          - Acknowledge their request positively - you'd be happy to create a report
+          - Explain naturally that a meaningful report needs a fuller picture
+          - Continue the conversation from where you are - look at "What We Still Need" in the Gestalt
+          - Don't list what's missing mechanically - weave it into natural conversation
+        - **Tone**: Warm, collaborative. "Let's make sure the report really captures [child]" not "I can't do that yet"
+        - **Flow**: Stay in the conversation's natural rhythm. If you were discussing concerns, go deeper. If you just met, get to know the child.
+
+  video_guidelines:
+    insufficient_understanding: |
+      - **Video Guidelines**: Cannot generate yet (completeness: {completeness}, need {required})
+        - **Your response should**:
+          - Briefly acknowledge - personalized guidelines need to be based on understanding this specific child
+          - Continue naturally with the conversation flow
+          - Don't pivot awkwardly - if discussing something, finish that thread
+        - **Tone**: Natural, not apologetic. Guidelines will come when the picture is clearer.
+    parent_chose_report_only: |
+      - **Video Guidelines**: Parent chose report-only path.
+        - **Your response should**: Respect their choice completely. Focus on rich conversation. Don't mention videos again unless they bring it up.
+
+  video_analysis:
+    no_pending_videos: |
+      - **Video Analysis**: No videos uploaded yet.
+        - **Your response should**:
+          - If guidelines exist: gently remind them the guidelines are ready when they want to film
+          - If no guidelines: continue building understanding first
+        - **Tone**: No pressure. Videos are helpful but not mandatory.
+    no_guidelines: |
+      - **Video Analysis**: Need guidelines first.
+        - **Your response should**: Offer to create personalized filming guidelines based on what you've learned about the child. These will help them know exactly what to capture.
+
+  section_labels:
+    blocked_actions: "## Blocked Actions\nThe following actions were requested but could not be completed:\n"
+    completed_actions: "## Completed Actions\n"
+    action_results: "# Action Results from This Turn\n"
+
+# ============================================
 # ERRORS
 # ============================================
 

@@ -9,6 +9,12 @@ Design principles:
 - Conversation history is personal (each user has their own)
 - UI state (cards, dismissed items) is personal
 - Child data is shared (referenced, not duplicated)
+
+Sliding Window Architecture:
+- Keep last WINDOW_SIZE messages in active history
+- Older messages are archived (for reflection access)
+- ConversationMemory stores distilled relationship knowledge
+- Reflection updates memory periodically
 """
 
 from pydantic import BaseModel, Field
@@ -16,6 +22,11 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 
 from .active_card import ActiveCard
+from .memory import ConversationMemory
+
+# Configuration
+SLIDING_WINDOW_SIZE = 25  # Messages to keep in active context
+REFLECTION_TRIGGER_TURNS = 5  # Trigger reflection every N turns
 
 
 class ConversationMessage(BaseModel):
@@ -23,6 +34,7 @@ class ConversationMessage(BaseModel):
     role: str  # "user" | "assistant"
     content: str
     timestamp: datetime = Field(default_factory=datetime.now)
+    archived: bool = False  # True when moved out of active window
 
 
 class UserSession(BaseModel):
@@ -30,9 +42,10 @@ class UserSession(BaseModel):
     A user's interaction session with a specific child.
 
     Stores:
-    - Conversation history (this user's chat with Chitta about this child)
+    - Conversation history (sliding window + archived)
+    - Conversation memory (distilled relationship knowledge)
     - UI state (active cards, dismissed items, view preferences)
-    - Moment tracking (for preventing duplicate triggers)
+    - Reflection tracking (when to trigger background processing)
 
     Does NOT store:
     - Child data (that's in the Child model)
@@ -42,10 +55,26 @@ class UserSession(BaseModel):
     user_id: str = Field(description="User identifier (device ID for now)")
     child_id: str = Field(description="Child this session is about")
 
-    # === Conversation ===
+    # === Conversation (Sliding Window) ===
     messages: List[ConversationMessage] = Field(
         default_factory=list,
-        description="This user's conversation history about this child"
+        description="All messages (active window + archived)"
+    )
+
+    # === Conversation Memory (Distilled Knowledge) ===
+    memory: ConversationMemory = Field(
+        default_factory=ConversationMemory,
+        description="Distilled relationship memory from reflection"
+    )
+
+    # === Reflection Tracking ===
+    last_reflection_turn: int = Field(
+        default=0,
+        description="Turn count at last reflection"
+    )
+    pending_reflection: bool = Field(
+        default=False,
+        description="Whether reflection is queued/in-progress"
     )
 
     # === UI State (per-user, per-child) ===
@@ -89,7 +118,7 @@ class UserSession(BaseModel):
     # === Conversation Management ===
 
     def add_message(self, role: str, content: str) -> ConversationMessage:
-        """Add a message to the conversation"""
+        """Add a message to the conversation and manage window."""
         message = ConversationMessage(
             role=role,
             content=content,
@@ -98,14 +127,46 @@ class UserSession(BaseModel):
         self.messages.append(message)
         self.last_message_at = message.timestamp
         self.updated_at = datetime.now()
+
+        # Manage sliding window - archive old messages
+        self._apply_sliding_window()
+
         return message
+
+    def _apply_sliding_window(self):
+        """Archive messages outside the active window."""
+        active_messages = [m for m in self.messages if not m.archived]
+        if len(active_messages) > SLIDING_WINDOW_SIZE:
+            # Mark oldest messages as archived
+            to_archive = len(active_messages) - SLIDING_WINDOW_SIZE
+            archived_count = 0
+            for msg in self.messages:
+                if not msg.archived and archived_count < to_archive:
+                    msg.archived = True
+                    archived_count += 1
+
+    def active_messages(self) -> List[ConversationMessage]:
+        """Get messages in active window (not archived)."""
+        return [m for m in self.messages if not m.archived]
+
+    def archived_messages(self) -> List[ConversationMessage]:
+        """Get archived messages (for reflection access)."""
+        return [m for m in self.messages if m.archived]
 
     def get_conversation_history(
         self,
-        last_n: Optional[int] = None
+        last_n: Optional[int] = None,
+        include_archived: bool = False
     ) -> List[Dict[str, str]]:
-        """Get conversation history as list of dicts"""
-        messages = self.messages[-last_n:] if last_n else self.messages
+        """Get conversation history as list of dicts."""
+        if include_archived:
+            messages = self.messages
+        else:
+            messages = self.active_messages()
+
+        if last_n:
+            messages = messages[-last_n:]
+
         return [
             {
                 "role": m.role,
@@ -115,15 +176,52 @@ class UserSession(BaseModel):
             for m in messages
         ]
 
+    def get_context_for_llm(self) -> List[Dict[str, str]]:
+        """
+        Get conversation context optimized for LLM.
+
+        Returns active window messages formatted for LLM context.
+        Memory summary is handled separately in prompt building.
+        """
+        return [
+            {"role": m.role, "content": m.content}
+            for m in self.active_messages()
+        ]
+
     @property
     def message_count(self) -> int:
-        """Total number of messages"""
+        """Total number of messages (including archived)."""
         return len(self.messages)
 
     @property
+    def active_message_count(self) -> int:
+        """Number of messages in active window."""
+        return len(self.active_messages())
+
+    @property
     def turn_count(self) -> int:
-        """Number of conversation turns (user messages)"""
+        """Number of conversation turns (user messages)."""
         return len([m for m in self.messages if m.role == "user"])
+
+    # === Reflection Management ===
+
+    def needs_reflection(self) -> bool:
+        """Check if reflection should be triggered."""
+        if self.pending_reflection:
+            return False  # Already queued
+        turns_since_reflection = self.turn_count - self.last_reflection_turn
+        return turns_since_reflection >= REFLECTION_TRIGGER_TURNS
+
+    def mark_reflection_queued(self):
+        """Mark that reflection has been queued."""
+        self.pending_reflection = True
+        self.updated_at = datetime.now()
+
+    def mark_reflection_complete(self):
+        """Mark that reflection has completed."""
+        self.pending_reflection = False
+        self.last_reflection_turn = self.turn_count
+        self.updated_at = datetime.now()
 
     # === Card Management ===
 
