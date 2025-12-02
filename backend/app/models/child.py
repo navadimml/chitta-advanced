@@ -217,7 +217,9 @@ class Child(BaseModel):
     - Artifacts (generated reports, guidelines)
     - Videos & Journal (observations)
     """
-    id: str = Field(description="Unique identifier")
+    model_config = {"populate_by_name": True}
+
+    id: str = Field(description="Unique identifier", alias="child_id")
 
     # === IDENTITY ===
     identity: ChildIdentity = Field(default_factory=ChildIdentity)
@@ -274,6 +276,48 @@ class Child(BaseModel):
         if self.age:
             parts.append(f"גיל {self.age}")
         return " ".join(parts) if parts else "ילד/ה"
+
+    # === Backward Compatibility Properties ===
+
+    @property
+    def developmental_data(self) -> "DevelopmentalData":
+        """
+        DEPRECATED: Backward compatibility property.
+
+        Maps new structured data to old flat DevelopmentalData format.
+        Used by old services until they're migrated.
+        """
+        return DevelopmentalData(
+            child_name=self.identity.name,
+            age=self.identity.age_years,
+            gender=self.identity.gender,
+            primary_concerns=self.concerns.primary_areas,
+            concern_details=self.concerns.parent_narrative,
+            strengths=self.strengths.abilities + self.strengths.interests,
+            family_context=self.family.structure,
+            developmental_history=self.history.early_development,
+        )
+
+    @property
+    def data_completeness(self) -> float:
+        """DEPRECATED: Backward compatibility for completeness score."""
+        # Simple heuristic based on filled fields
+        score = 0.0
+        if self.identity.name:
+            score += 0.15
+        if self.identity.age_years:
+            score += 0.15
+        if self.concerns.primary_areas:
+            score += 0.2
+        if self.strengths.abilities or self.strengths.interests:
+            score += 0.15
+        if self.history.early_development or self.history.milestone_notes:
+            score += 0.15
+        if self.family.structure or self.family.siblings:
+            score += 0.1
+        if self.understanding.hypotheses:
+            score += 0.1
+        return min(score, 1.0)
 
     # === Exploration Cycle Management ===
 
