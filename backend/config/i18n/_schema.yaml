@@ -752,6 +752,53 @@ prompts:
       description: "Keywords indicating trying to end"
 
 # ============================================
+# BLOCKED ACTIONS
+# ============================================
+# Guidance for LLM when actions are blocked (injected into system prompt)
+# These are in English because they're LLM instructions, not user-facing text
+
+blocked_actions:
+
+  parent_report:
+    insufficient_understanding:
+      description: "When parent report blocked due to low completeness"
+      placeholders:
+        - completeness  # Current completeness percentage (e.g., "15%")
+        - required  # Required completeness (e.g., "60%")
+      context: "LLM guidance on how to respond when report requested too early"
+
+  video_guidelines:
+    insufficient_understanding:
+      description: "When video guidelines blocked due to low completeness"
+      placeholders:
+        - completeness
+        - required
+      context: "LLM guidance on responding to early guideline request"
+    parent_chose_report_only:
+      description: "When video guidelines blocked because parent chose report-only"
+      placeholders: []
+      context: "LLM guidance when parent explicitly declined video observation"
+
+  video_analysis:
+    no_pending_videos:
+      description: "When video analysis blocked because no videos uploaded"
+      placeholders: []
+      context: "LLM guidance when trying to analyze without videos"
+    no_guidelines:
+      description: "When video analysis blocked because guidelines don't exist"
+      placeholders: []
+      context: "LLM guidance when analysis requested before guidelines"
+
+  # Labels for action results section
+  section_labels:
+    blocked_actions:
+      description: "Header for blocked actions section"
+    completed_actions:
+      description: "Header for completed actions section"
+    action_results:
+      description: "Header for action results section"
+
+# ============================================
 # ERRORS
 # ============================================
 # Error messages shown to users

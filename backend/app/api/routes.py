@@ -30,6 +30,9 @@ from app.services.state_derivation import (
     derive_contextual_greeting,
     derive_suggestions
 )
+# Living Gestalt: New card derivation from exploration cycles
+from app.chitta.cards import derive_cards_from_child, handle_card_action
+from app.services.unified_state_service import get_unified_state_service
 # Parent Simulator (Test Mode)
 from app.services.parent_simulator import get_parent_simulator
 # SSE for real-time updates
@@ -2320,3 +2323,144 @@ async def export_artifacts(family_id: str):
         "export_directory": str(export_dir.absolute()),
         "files": exported_files
     }
+
+
+# === Living Gestalt: Cycle-based cards ===
+
+class GestaltCardsResponse(BaseModel):
+    """Response model for gestalt-derived cards"""
+    family_id: str
+    cards: List[dict]
+    has_active_cycles: bool
+    pending_insights_count: int
+
+
+@router.get("/gestalt/{family_id}/cards", response_model=GestaltCardsResponse)
+async def get_gestalt_cards(family_id: str, language: str = "he"):
+    """
+    Get cards derived from exploration cycles and understanding.
+
+    These cards show:
+    - Video guidelines status
+    - Pending videos
+    - Reports ready
+    - Insights from reflection
+
+    Cards are portals to deep views, not hypothesis details.
+    """
+    try:
+        unified = get_unified_state_service()
+        child = unified.get_child(family_id)
+        session = await unified.get_or_create_session_async(family_id)
+
+        cards = derive_cards_from_child(child, session, language)
+
+        return GestaltCardsResponse(
+            family_id=family_id,
+            cards=[c.model_dump() for c in cards],
+            has_active_cycles=len(child.active_exploration_cycles()) > 0,
+            pending_insights_count=len(child.understanding.unshared_insights()),
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting gestalt cards: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CardActionRequest(BaseModel):
+    """Request model for card action"""
+    family_id: str
+    action: str
+    params: dict = {}
+
+
+class CardActionResponse(BaseModel):
+    """Response model for card action"""
+    success: bool
+    result: dict
+
+
+@router.post("/gestalt/card-action", response_model=CardActionResponse)
+async def execute_card_action(request: CardActionRequest):
+    """
+    Execute an action from a card.
+
+    Actions include:
+    - view_artifact: Navigate to artifact view
+    - upload_video: Navigate to video upload
+    - show_insight: Display insight message
+    - dismiss: Dismiss a card
+    """
+    try:
+        unified = get_unified_state_service()
+        child = unified.get_child(request.family_id)
+        session = await unified.get_or_create_session_async(request.family_id)
+
+        result = handle_card_action(
+            action=request.action,
+            params=request.params,
+            child=child,
+            session=session,
+        )
+
+        # Persist any changes
+        from app.services.child_service import get_child_service
+        get_child_service().save_child(child)
+        await unified._persist_session(session)
+
+        return CardActionResponse(
+            success="error" not in result,
+            result=result,
+        )
+
+    except Exception as e:
+        logger.error(f"Error executing card action: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class GestaltSummaryResponse(BaseModel):
+    """Response model for gestalt summary (API transformation)"""
+    family_id: str
+    child_name: Optional[str]
+    child_age: Optional[float]
+    completeness: float
+    active_cycles_count: int
+    videos_total: int
+    videos_analyzed: int
+    artifacts_count: int
+    # Note: No internal hypothesis details exposed
+
+
+@router.get("/gestalt/{family_id}/summary", response_model=GestaltSummaryResponse)
+async def get_gestalt_summary(family_id: str):
+    """
+    Get high-level summary of understanding.
+
+    Returns only parent-appropriate information:
+    - Progress indicators
+    - Counts (videos, artifacts)
+    - Completeness score
+
+    Does NOT expose:
+    - Hypothesis details (would bias parents)
+    - Internal evidence
+    - Pattern detection results
+    """
+    try:
+        unified = get_unified_state_service()
+        child = unified.get_child(family_id)
+
+        return GestaltSummaryResponse(
+            family_id=family_id,
+            child_name=child.name,
+            child_age=child.age,
+            completeness=len(child.understanding.active_hypotheses()) * 0.1,  # Proxy
+            active_cycles_count=len(child.active_exploration_cycles()),
+            videos_total=child.video_count,
+            videos_analyzed=len(child.analyzed_videos()),
+            artifacts_count=len(child.artifacts),
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting gestalt summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
