@@ -80,12 +80,80 @@ TEST_SCENARIOS = {
         "uploaded_videos": 3,
         "seed_artifacts": True,  # Special flag to seed mock artifacts
     },
+    "video_with_hypothesis": {
+        "description": "📹 Video observation test - parent struggling to describe, ACTIVE hypothesis exists",
+        "data": {
+            "child_name": "נועם",
+            "age": 3.5,
+            "gender": "male",
+            "primary_concerns": ["speech", "sensory"],
+            "concern_details": "נועם מתקשה עם מעברים ושינויים בשגרה. קשה לתאר מה בדיוק קורה, אבל משהו לא מסתדר.",
+            "strengths": "נועם אוהב מאוד מוזיקה ויכול לשיר שירים שלמים. הוא גם מאוד יצירתי בציור.",
+            "developmental_history": "התפתחות תקינה עד גיל שנתיים, אז התחיל להיות מאוד רגיש לרעשים.",
+            "family_context": "משפחה דוברת עברית, יש אחות גדולה בת 6.",
+            "daily_routines": "גן בבוקר עד 14:00, אחר כצהריים בבית.",
+        },
+        "completeness": 0.75,
+        "message_count": 10,
+        "seed_hypotheses": True,  # Special flag to seed hypotheses
+        "hypotheses": [
+            {
+                "id": "hyp_sensory_transitions",
+                "theory": "נועם רגיש במיוחד לשינויים סנסוריים, ולכן מעברים קשים לו",
+                "domain": "sensory",
+                "confidence": 0.7,
+                "status": "active",  # CRITICAL - must be active for video tool
+                "questions_to_explore": [
+                    "האם הרגישות מופיעה גם במעברים שקטים?",
+                    "האם הכנה מראש עוזרת?",
+                    "אילו מעברים קשים יותר?"
+                ],
+                "evidence": [
+                    {
+                        "source": "conversation",
+                        "content": "ההורה ציין שהילד מאוד רגיש לרעשים",
+                        "domain": "sensory"
+                    },
+                    {
+                        "source": "conversation",
+                        "content": "מעברים בין פעילויות מאוד קשים",
+                        "domain": "regulation"
+                    }
+                ]
+            },
+            {
+                "id": "hyp_verbal_expression",
+                "theory": "לנועם יש מה לומר אבל הוא מתקשה להוציא את המילים",
+                "domain": "communication",
+                "confidence": 0.5,
+                "status": "forming",
+                "questions_to_explore": [
+                    "האם הוא מתקשר טוב יותר בשירה?",
+                    "האם יש פער בין הבנה לביטוי?"
+                ],
+                "evidence": [
+                    {
+                        "source": "conversation",
+                        "content": "יכול לשיר שירים שלמים אבל מתקשה בדיבור רגיל",
+                        "domain": "communication"
+                    }
+                ]
+            }
+        ],
+        "conversation_context": [
+            ("user", "שלום, אני דואג לנועם בן 3.5"),
+            ("assistant", "שלום, ספר/י לי על נועם"),
+            ("user", "הוא מאוד רגיש לרעשים וקשה לו עם שינויים"),
+            ("assistant", "מה קורה כשיש מעברים?"),
+            ("user", "קשה לי להסביר... זה משהו שצריך לראות"),
+        ]
+    },
 }
 
 
 @router.post("/seed/{scenario}")
 async def seed_test_scenario(
-    scenario: Literal["early_conversation", "guidelines_ready", "videos_uploaded", "living_dashboard"],
+    scenario: Literal["early_conversation", "guidelines_ready", "videos_uploaded", "living_dashboard", "video_with_hypothesis"],
     family_id: str = "dev_test_family",
     generate_artifacts: bool = False
 ):
@@ -176,6 +244,56 @@ async def seed_test_scenario(
             state.videos_uploaded.append(video)
 
         logger.info(f"📹 Simulated {len(state.videos_uploaded)} videos uploaded")
+
+    # 📹 Video with Hypothesis: Seed hypotheses into Child.understanding
+    if scenario_config.get("seed_hypotheses"):
+        from app.models.understanding import Hypothesis, Evidence, DevelopmentalUnderstanding
+        from app.services.unified_state_service import get_unified_state_service
+
+        logger.info("📹 Seeding hypotheses for video observation test...")
+
+        unified = get_unified_state_service()
+        child = unified.get_child(family_id)
+
+        # Seed hypotheses from scenario config
+        for hyp_data in scenario_config.get("hypotheses", []):
+            # Create evidence objects
+            evidence_list = []
+            for ev_data in hyp_data.get("evidence", []):
+                evidence = Evidence(
+                    source=ev_data.get("source", "conversation"),
+                    content=ev_data.get("content", ""),
+                    domain=ev_data.get("domain"),
+                    observed_at=datetime.now()
+                )
+                evidence_list.append(evidence)
+
+            # Create hypothesis with ACTIVE status
+            hypothesis = Hypothesis(
+                id=hyp_data.get("id", f"hyp_{len(child.understanding.hypotheses)}"),
+                theory=hyp_data.get("theory", ""),
+                domain=hyp_data.get("domain", "general"),
+                confidence=hyp_data.get("confidence", 0.5),
+                status=hyp_data.get("status", "active"),  # CRITICAL for video tool
+                evidence=evidence_list,
+                questions_to_explore=hyp_data.get("questions_to_explore", []),
+                formed_at=datetime.now(),
+                last_evidence_at=datetime.now()
+            )
+            child.understanding.add_hypothesis(hypothesis)
+            logger.info(f"  ✅ Added hypothesis: {hypothesis.id} ({hypothesis.status})")
+
+        # Use custom conversation context if provided
+        if scenario_config.get("conversation_context"):
+            for role, content in scenario_config["conversation_context"]:
+                session.conversation_history.append({
+                    "role": role,
+                    "content": content,
+                    "timestamp": datetime.now().isoformat()
+                })
+            logger.info(f"  ✅ Added {len(scenario_config['conversation_context'])} conversation turns")
+
+        logger.info(f"✅ Seeded {len(child.understanding.hypotheses)} hypotheses for video observation test")
 
     # 🌟 Living Dashboard: Seed mock artifacts for demo
     if scenario_config.get("seed_artifacts"):

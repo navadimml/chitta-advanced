@@ -139,13 +139,19 @@ class ChildService:
         """
         Update child's developmental data from conversation extraction.
 
+        IMPORTANT: This method writes to the Living Gestalt fields on the Child model:
+        - child.identity (name, gender, age via birth_date)
+        - child.concerns (primary_areas, parent_narrative)
+        - child.strengths (abilities, interests)
+        - child.history (early_development)
+        - child.family (structure)
+
         Rules:
         - Scalars: new value overrides if not empty
         - Arrays: merge and deduplicate
         - Strings: append if significantly different
         """
         child = self.get_or_create_child(child_id)
-        current = child.developmental_data
 
         # Normalize field names (LITE vs FULL schema)
         if 'concerns' in new_data and 'primary_concerns' not in new_data:
@@ -157,69 +163,139 @@ class ChildService:
         # Discard other_info (redundant demographic data)
         new_data.pop('other_info', None)
 
-        # Update scalar fields
+        # Invalid values to skip
         invalid_values = ['None', 'null', 'NULL', 'unknown', '(not mentioned yet)']
-        for field in ['child_name', 'age', 'gender', 'filming_preference']:
-            if field not in new_data:
-                continue
 
-            value = new_data[field]
+        def is_valid(value):
             if value is None:
-                continue
+                return False
             if isinstance(value, str) and value in invalid_values:
-                continue
+                return False
+            return True
 
-            setattr(current, field, value)
+        # === Update Living Gestalt: IDENTITY ===
+        if 'child_name' in new_data and is_valid(new_data['child_name']):
+            child.identity.name = new_data['child_name']
+            logger.debug(f"Set identity.name = {new_data['child_name']}")
 
-        # Merge arrays
+        if 'gender' in new_data and is_valid(new_data['gender']):
+            child.identity.gender = new_data['gender']
+            logger.debug(f"Set identity.gender = {new_data['gender']}")
+
+        # Age: Store in identity (we don't have birth_date, so store calculated age)
+        # Note: birth_date would be better, but extraction gives us age directly
+        if 'age' in new_data and is_valid(new_data['age']):
+            # Store age as approximate birth_date (for age_years property to work)
+            # Or we could add an _extracted_age field - for now, log it
+            extracted_age = new_data['age']
+            # Calculate approximate birth_date from age
+            from datetime import date
+            if isinstance(extracted_age, (int, float)):
+                approx_year = date.today().year - int(extracted_age)
+                child.identity.birth_date = date(approx_year, 1, 1)
+                logger.debug(f"Set identity.birth_date (approx from age {extracted_age})")
+
+        # === Update Living Gestalt: CONCERNS ===
         if 'primary_concerns' in new_data and new_data['primary_concerns']:
             new_concerns = new_data['primary_concerns']
             if isinstance(new_concerns, str):
                 new_concerns = [new_concerns]
-            concerns = set(current.primary_concerns + new_concerns)
-            current.primary_concerns = list(concerns)
+            # Merge and deduplicate
+            current_concerns = set(child.concerns.primary_areas)
+            current_concerns.update(new_concerns)
+            child.concerns.primary_areas = list(current_concerns)
+            logger.debug(f"Updated concerns.primary_areas = {child.concerns.primary_areas}")
+
+        if 'concern_details' in new_data and is_valid(new_data['concern_details']):
+            new_text = new_data['concern_details']
+            current_text = child.concerns.parent_narrative or ""
+            if new_text.lower() not in current_text.lower():
+                child.concerns.parent_narrative = f"{current_text}. {new_text}".strip(". ")
+            logger.debug(f"Updated concerns.parent_narrative")
+
+        # === Update Living Gestalt: STRENGTHS ===
+        if 'strengths' in new_data and is_valid(new_data['strengths']):
+            new_strengths = new_data['strengths']
+            if isinstance(new_strengths, str):
+                new_strengths = [new_strengths]
+            # Merge into abilities
+            current_abilities = set(child.strengths.abilities)
+            current_abilities.update(new_strengths)
+            child.strengths.abilities = list(current_abilities)
+            logger.debug(f"Updated strengths.abilities = {child.strengths.abilities}")
+
+        # === Update Living Gestalt: HISTORY ===
+        if 'developmental_history' in new_data and is_valid(new_data['developmental_history']):
+            new_text = new_data['developmental_history']
+            current_text = child.history.early_development or ""
+            if new_text.lower() not in current_text.lower():
+                child.history.early_development = f"{current_text}. {new_text}".strip(". ")
+            logger.debug(f"Updated history.early_development")
+
+        # === Update Living Gestalt: FAMILY ===
+        if 'family_context' in new_data and is_valid(new_data['family_context']):
+            new_text = new_data['family_context']
+            current_text = child.family.structure or ""
+            if new_text.lower() not in current_text.lower():
+                child.family.structure = f"{current_text}. {new_text}".strip(". ")
+            logger.debug(f"Updated family.structure")
+
+        # === Additional fields (stored in essence or other places) ===
+        if 'daily_routines' in new_data and is_valid(new_data['daily_routines']):
+            # Store in essence.temperament_observations for now
+            new_text = new_data['daily_routines']
+            if new_text not in child.essence.temperament_observations:
+                child.essence.temperament_observations.append(f"Daily routines: {new_text}")
+            logger.debug(f"Added daily_routines to essence.temperament_observations")
+
+        if 'parent_goals' in new_data and is_valid(new_data['parent_goals']):
+            # Store as a pending insight for understanding
+            new_text = new_data['parent_goals']
+            # Check if not already recorded
+            existing_goals = [p.content for p in child.understanding.pending_insights]
+            if new_text not in existing_goals:
+                from app.models.understanding import PendingInsight
+                insight = PendingInsight(
+                    source="parent_goal",
+                    content=new_text
+                )
+                child.understanding.pending_insights.append(insight)
+            logger.debug(f"Added parent_goals to understanding.pending_insights")
 
         if 'urgent_flags' in new_data and new_data['urgent_flags']:
+            # Store urgent flags in understanding.pending_insights with urgency
             new_flags = new_data['urgent_flags']
             if isinstance(new_flags, str):
                 new_flags = [new_flags]
-            flags = set(current.urgent_flags + new_flags)
-            current.urgent_flags = list(flags)
+            for flag in new_flags:
+                existing = [p.content for p in child.understanding.pending_insights]
+                if flag not in existing:
+                    from app.models.understanding import PendingInsight
+                    insight = PendingInsight(
+                        source="urgent_flag",
+                        content=flag
+                    )
+                    child.understanding.pending_insights.append(insight)
+            logger.debug(f"Added urgent_flags to understanding.pending_insights")
 
-        # Append text fields
-        text_fields = [
-            'concern_details', 'strengths', 'developmental_history',
-            'family_context', 'daily_routines', 'parent_goals'
-        ]
-
-        for field in text_fields:
-            if field not in new_data or not new_data[field]:
-                continue
-
-            new_text = new_data[field]
-            current_text = getattr(current, field) or ""
-
-            if new_text.lower() not in current_text.lower():
-                combined = f"{current_text}. {new_text}".strip(". ")
-                setattr(current, field, combined)
-
-        # Update metadata
-        current.last_updated = datetime.now()
-        current.extraction_count += 1
-
-        # Recalculate completeness
-        child.data_completeness = self.calculate_completeness(child_id)
+        # Update child timestamp
         child.updated_at = datetime.now()
+
+        # Calculate completeness (now based on Living Gestalt via property)
+        completeness = child.data_completeness
 
         # Persist asynchronously
         asyncio.create_task(self.save_child(child_id))
 
         logger.info(
-            f"Updated developmental data for {child_id}: "
-            f"completeness={child.data_completeness:.1%}"
+            f"Updated Living Gestalt for {child_id}: "
+            f"name={child.identity.name}, "
+            f"concerns={child.concerns.primary_areas}, "
+            f"completeness={completeness:.1%}"
         )
 
-        return current
+        # Return backward-compatible DevelopmentalData view
+        return child.developmental_data
 
     def calculate_completeness(self, child_id: str) -> float:
         """Calculate how complete our understanding of this child is"""
@@ -345,7 +421,7 @@ class ChildService:
             "completeness": child.data_completeness,
             "video_count": child.video_count,
             "analyzed_video_count": child.analyzed_video_count,
-            "artifact_ids": list(child.artifacts.keys()),
+            "artifact_ids": [a.id for c in child.exploration_cycles for a in c.artifacts],
             "journal_entry_count": len(child.journal_entries),
         }
 
@@ -450,46 +526,19 @@ class ChildService:
 
     def _child_to_dict(self, child: Child) -> Dict[str, Any]:
         """Convert Child to dict for persistence"""
-        return {
-            "child_id": child.child_id,
-            "developmental_data": child.developmental_data.dict(),
-            "artifacts": {k: v.dict() for k, v in child.artifacts.items()},
-            "videos": [v.dict() for v in child.videos],
-            "journal_entries": [e.dict() for e in child.journal_entries],
-            "data_completeness": child.data_completeness,
-            "semantic_verification": child.semantic_verification,
-            "created_at": child.created_at.isoformat(),
-            "updated_at": child.updated_at.isoformat(),
-        }
+        # Use Pydantic's model_dump for proper serialization
+        # by_alias=True will use "child_id" instead of "id"
+        return child.model_dump(
+            by_alias=True,
+            mode="json",  # JSON-serializable format (datetimes as ISO strings)
+            exclude_none=False,
+        )
 
     def _dict_to_child(self, data: Dict[str, Any]) -> Child:
         """Convert dict to Child"""
-        child = Child(
-            child_id=data["child_id"],
-            developmental_data=DevelopmentalData(**data.get("developmental_data", {})),
-            data_completeness=data.get("data_completeness", 0.0),
-            semantic_verification=data.get("semantic_verification"),
-        )
-
-        # Restore timestamps
-        if data.get("created_at"):
-            child.created_at = datetime.fromisoformat(data["created_at"])
-        if data.get("updated_at"):
-            child.updated_at = datetime.fromisoformat(data["updated_at"])
-
-        # Restore artifacts
-        for artifact_id, artifact_data in data.get("artifacts", {}).items():
-            child.artifacts[artifact_id] = Artifact(**artifact_data)
-
-        # Restore videos
-        for video_data in data.get("videos", []):
-            child.videos.append(Video(**video_data))
-
-        # Restore journal entries
-        for entry_data in data.get("journal_entries", []):
-            child.journal_entries.append(JournalEntry(**entry_data))
-
-        return child
+        # Use Pydantic's model_validate for proper deserialization
+        # This handles aliases (child_id -> id), nested models, datetime parsing
+        return Child.model_validate(data)
 
     def _make_serializable(self, obj: Any) -> Any:
         """Convert object to JSON-serializable format"""

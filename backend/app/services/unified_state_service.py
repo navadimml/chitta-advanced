@@ -452,8 +452,12 @@ class UnifiedStateService:
             },
             # Completeness
             "completeness": child.data_completeness,
-            # Artifacts
-            "artifacts": {k: v.dict() for k, v in child.artifacts.items()},
+            # Artifacts - built from exploration cycles
+            "artifacts": {
+                artifact.id: artifact.model_dump()
+                for cycle in child.exploration_cycles
+                for artifact in cycle.artifacts
+            },
             "has_video_guidelines": child.has_artifact("baseline_video_guidelines"),
             # Videos
             "videos": [v.dict() for v in child.videos],
