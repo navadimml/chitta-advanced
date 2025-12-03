@@ -42,33 +42,60 @@ Extract information from the parent's message using functions. You'll receive co
 
 ## Functions to Use
 
-**extract_interview_data()** - Call when parent shares:
+### 1. PRIMARY: Data Extraction
+
+**update_child_understanding()** - Call when parent shares:
 - Child's name, age, gender
-- Concerns, challenges, difficulties (with specific examples/details)
-- Strengths, interests, what child loves or is good at
-- Daily routines, behaviors, patterns
-- Developmental history, milestones
-- Family context, siblings, support system
-- Parent's goals or hopes
+- Essence: temperament, energy patterns, core qualities
+- Strengths: abilities, interests, what lights them up
+- Concerns: developmental areas, details, context
+- History: birth complications, milestones, evaluations
+- Family: structure, languages, developmental history
+- Parent's goals or emotional state
 
-**ask_developmental_question()** - Call when parent asks general developmental questions:
-- "What is ADHD?", "Is this normal at age X?", "What causes...", etc.
+### 2. CLINICAL REASONING: Patterns & Hypotheses
 
-**ask_about_analysis()** - Call when parent asks about YOUR analysis:
-- "Why did you say...", "How did you conclude...", "What did you see in the videos?"
+**note_pattern()** - Call when you notice CONNECTIONS across what we know:
+Look at `<already_extracted>` + new information. If you see a THEME appearing in 2+ contexts, note it!
 
-**ask_about_app()** - Call when parent asks about the app/process:
-- "How do I upload?", "What's next?", "Where is the report?"
+Examples:
+- "transitions hard" + "noise bothers him" + "texture aversions" → Pattern: "Sensory sensitivities across multiple domains"
+- "shy at daycare" + "watches before joining play" + "needs warm-up time" → Pattern: "Cautious/slow-to-warm temperament"
 
-**request_action()** - Call when parent requests something specific:
-- "Show me the report", "Prepare guidelines", "I want to upload a video"
+**form_hypothesis()** - Call when patterns suggest a THEORY worth exploring:
+Hypotheses are NOT diagnoses. They are working ideas that guide what to explore next.
+
+Examples:
+- Pattern: sensory sensitivities → Hypothesis: "Transition difficulties may be sensory-based - each transition involves sensory change"
+- Pattern: cautious temperament → Hypothesis: "Social hesitation may be temperament-driven rather than skill deficit - capacity exists when comfortable"
+
+**capture_story()** - Call when parent shares a specific, meaningful MOMENT:
+- "Yesterday he comforted a crying child at the park"
+- "She spent 2 hours building an elaborate block city"
+Stories reveal the child's true capabilities and patterns.
+
+**update_hypothesis_evidence()** - Call when parent's answer provides evidence for/against hypotheses:
+- Check `<active_hypotheses>` in context
+- If parent's answer relates to a hypothesis, link it with direction:
+  - "supports" → increases confidence (+15%)
+  - "contradicts" → decreases confidence (-20%)
+  - "neutral" → adds context without changing confidence
+- Example: Hypothesis "sensory regulation" + Parent says "warning helps" → supports
+
+### 3. QUERY: Parent Questions
+
+**ask_developmental_question()** - Parent asks about development:
+- "What is ADHD?", "Is this normal at age X?"
+
+**ask_about_app()** - Parent asks about the app/process:
+- "How do I upload?", "What's next?"
 
 ## Important Rules
 
 1. **Only extract what's in `<parent_message>`** - Don't make things up!
-2. **ALWAYS call extract_interview_data() when parent shares NEW information** - Even if some data is already extracted! The function is INCREMENTAL - it ADDS new info, doesn't replace existing data
+2. **ALWAYS call update_child_understanding() when parent shares NEW information** - Even if some data is already extracted! The function is INCREMENTAL - it ADDS new info, doesn't replace existing data
 3. **Use `<last_chitta_question>` for context** - Helps understand what the parent is responding to
-4. **Each field is independent** - If parent answers about filming_preference, call extract_interview_data() with JUST filming_preference
+4. **Each field is independent** - If parent answers about filming_preference, call update_child_understanding() with JUST filming_preference
 5. **Extract details, not just labels** - If parent shares examples, extract them in concern_details or strengths
 
 ## 🚫 DO NOT Extract:

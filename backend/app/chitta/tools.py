@@ -68,6 +68,37 @@ def get_chitta_tools(gestalt: Gestalt = None) -> List[Dict[str, Any]]:
     return tools
 
 
+def get_core_extraction_tools(gestalt: Gestalt = None) -> List[Dict[str, Any]]:
+    """
+    Get only the core extraction tools for Phase 1.
+
+    This is a reduced set to avoid Gemini's schema complexity limits.
+    The full toolset causes "too much branching" errors.
+
+    Core tools:
+    1. update_child_understanding - Primary extraction tool
+    2. capture_story - Story capture
+    3. note_pattern - Pattern detection
+    4. form_hypothesis - Hypothesis formation
+    5. update_hypothesis_evidence - Link evidence to hypotheses with direction
+
+    Args:
+        gestalt: Optional Gestalt to customize tool availability/descriptions
+
+    Returns:
+        List of essential function definitions for extraction phase
+    """
+    return [
+        _tool_update_understanding(),
+        _tool_capture_story(),
+        _tool_note_pattern(),
+        _tool_form_hypothesis(),
+        _tool_update_hypothesis_evidence(),
+        _tool_request_video_observation(),
+        _tool_complete_exploration(),
+    ]
+
+
 # === Understanding Tools ===
 
 def _tool_update_understanding() -> Dict[str, Any]:
@@ -482,6 +513,207 @@ Always indicate:
                 }
             },
             "required": ["theory", "source"]
+        }
+    }
+
+
+def _tool_update_hypothesis_evidence() -> Dict[str, Any]:
+    """
+    Update hypotheses with evidence from conversation.
+
+    This is the KEY tool for hypothesis evolution - it explicitly links
+    parent responses to hypotheses with direction (supports/contradicts).
+    """
+    return {
+        "name": "update_hypothesis_evidence",
+        "description": """Link evidence from the parent's response to active hypotheses.
+
+## WHEN TO USE
+
+Call this when a parent's answer provides evidence relevant to one or more hypotheses.
+This is HOW hypotheses evolve - through explicit evidence linking.
+
+## EVIDENCE DIRECTION
+
+- **supports**: Answer strengthens the hypothesis (+15% confidence)
+  - "He covers ears at loud sounds" → supports sensory hypothesis
+  - "Warning helps with transitions" → supports sensory-regulation hypothesis
+
+- **contradicts**: Answer weakens the hypothesis (-20% confidence)
+  - "Transitions to fun activities are easy" → contradicts pure sensory hypothesis
+  - "No issues at grandma's house" → contradicts generalized anxiety hypothesis
+
+- **neutral**: Evidence is related but doesn't change confidence
+  - "He also doesn't like bright lights" → adds context, not direction
+
+- **transforms**: Evidence suggests the hypothesis should evolve
+  - Reveals the hypothesis is partially right but needs refinement
+  - Consider calling form_hypothesis with evolved_from
+
+## MULTIPLE HYPOTHESES
+
+When parent's response affects multiple hypotheses, include all in hypothesis_effects.
+One piece of evidence can support one hypothesis while contradicting another:
+- "He's fine with loud sounds when it's something he chose"
+  - supports: motivation/control hypothesis
+  - contradicts: pure sensory hypothesis
+
+## AUTO-RESOLUTION
+
+Hypotheses automatically resolve when:
+- confidence >= 0.85 → resolved as "confirmed"
+- confidence <= 0.25 → resolved as "rejected"
+- Status changes to "evolving" → consider creating new hypothesis
+
+## EXAMPLE
+
+Parent was asked: "How does he react when there's advance warning?"
+Parent answered: "If I warn him a minute before, transitions are much easier"
+
+→ Call update_hypothesis_evidence with:
+  - evidence_summary: "Advance warning significantly helps with transitions"
+  - hypothesis_effects: [{
+      hypothesis_id: "e326821d",
+      direction: "supports",
+      reasoning: "Predictability helping suggests sensory-regulation, not defiance"
+    }]
+""",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "evidence_summary": {
+                    "type": "string",
+                    "description": "Summary of the evidence from parent's response"
+                },
+                "hypothesis_effects": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "hypothesis_id": {
+                                "type": "string",
+                                "description": "ID of the hypothesis this evidence relates to"
+                            },
+                            "direction": {
+                                "type": "string",
+                                "enum": ["supports", "contradicts", "neutral", "transforms"],
+                                "description": "How this evidence affects the hypothesis"
+                            },
+                            "reasoning": {
+                                "type": "string",
+                                "description": "Brief explanation of why this evidence has this effect"
+                            }
+                        },
+                        "required": ["hypothesis_id", "direction"]
+                    },
+                    "description": "How this evidence affects each hypothesis"
+                },
+                "source_question": {
+                    "type": "string",
+                    "description": "The question that elicited this response (for context)"
+                }
+            },
+            "required": ["evidence_summary", "hypothesis_effects"]
+        }
+    }
+
+
+# === Video Observation Tool ===
+
+def _tool_request_video_observation() -> Dict[str, Any]:
+    """
+    Request video observation from parent to test hypotheses.
+
+    This triggers generation of personalized filming guidelines based on
+    the Living Gestalt - using the child's actual context (vocabulary,
+    family members, specific situations mentioned in conversation).
+    """
+    return {
+        "name": "request_video_observation",
+        "description": """Generate personalized video filming guidelines AFTER parent agrees.
+
+⚠️ GET PARENT CONSENT FIRST - DON'T CALL UNTIL PARENT AGREES!
+
+STEP 1 - ASK PARENT (in chat, BEFORE calling this tool):
+
+Tell the parent WHAT MOMENT you'd like to see (not WHY/hypothesis):
+- Use simple everyday language, NO clinical terms
+- Describe the specific situation using THEIR words from conversation
+- Mention that detailed instructions will be prepared for them
+
+GOOD examples (focus on WHAT to observe):
+- "הייתי שמחה לראות איך נראה הרגע של היציאה לגן בבוקר"
+- "אם תוכלי לצלם את ההתלבשות, זה יעזור לי להבין יותר"
+- "הייתי רוצה לראות מה קורה כשיש רעש חזק פתאומי"
+
+BAD examples (sharing hypothesis/clinical reasoning):
+- ❌ "אני רוצה לבדוק אם יש לו קושי בויסות חושי"
+- ❌ "אני תוהה אם זה קשור לרגישות יתר למגע"
+- ❌ "זה יעזור לי להבין אם יש דפוס של..."
+
+Ask if they can do this:
+- "האם זה משהו שתוכלי לצלם כשזה קורה?"
+- "מה את אומרת?"
+
+STEP 2 - CALL THIS TOOL ONLY AFTER PARENT SAYS YES
+
+STEP 3 - AFTER CALLING, SAY:
+"מעולה! אני מכינה עבורך הנחיות צילום מפורטות. עוד רגע הן יופיעו במרחב שלך."
+
+WHY NO HYPOTHESES TO PARENT:
+- Clinical terms confuse/scare parents
+- Hypotheses might bias what parent notices
+- Hypotheses might frighten unnecessarily
+- Keep reasoning internal, share only what to OBSERVE
+
+WHEN TO USE:
+1. Hypothesis is ACTIVE and needs visual evidence
+2. Parent struggles to describe the moment in words
+3. Parent hasn't indicated filming is burdensome
+
+SCENARIOS_NEEDED: 1 (single), 2-3 (complex patterns, rare)
+INCLUDE_STRENGTH_BASELINE: Default FALSE
+
+EXAMPLE FLOW:
+---
+You: "סיפרת שהיציאה לגן בבוקר קשה. הייתי שמחה לראות איך זה נראה -
+     הרגע שאתם יוצאים מהדלת. אם תוכלי לצלם, אכין לך הנחיות מפורטות
+     בדיוק מה לצלם. מה את אומרת?"
+
+Parent: "כן, אנסה"
+
+You: [Call tool] "מעולה! אני מכינה הנחיות מותאמות. עוד רגע תמצאי אותן במרחב."
+---
+""",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "Why video observation would help - what can't conversation reveal?"
+                },
+                "scenarios_needed": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3,
+                    "description": "How many scenarios (1-3). Use 1 for single hypothesis, 2-3 for complex patterns. Default 1."
+                },
+                "hypothesis_ids_to_test": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "IDs of ACTIVE hypotheses this video should test"
+                },
+                "patterns_to_explore": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Pattern themes to explore visually"
+                },
+                "include_strength_baseline": {
+                    "type": "boolean",
+                    "description": "Add scenario showing child at their best? Only when contrast is essential. Default false."
+                }
+            },
+            "required": ["reason", "scenarios_needed"]
         }
     }
 

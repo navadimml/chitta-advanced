@@ -312,8 +312,23 @@ def _build_gestalt_section(gestalt: Gestalt) -> str:
     # === PATTERNS ===
     patterns_text = ", ".join(known.get("patterns", [])) if known.get("patterns") else "None detected yet"
 
-    # === HYPOTHESES ===
-    hypotheses_text = "\n".join([f"- {h}" for h in known.get("hypotheses", [])]) if known.get("hypotheses") else "None formed yet"
+    # === HYPOTHESES (with status for LLM to know what needs testing) ===
+    hypotheses_list = known.get("hypotheses", [])
+    if hypotheses_list:
+        hyp_lines = []
+        for h in hypotheses_list:
+            if isinstance(h, dict):
+                status = h.get("status", "active").upper()
+                theory = h.get("theory", "")
+                confidence = h.get("confidence", 0.5)
+                hyp_id = h.get("id", "")[:8]  # Short ID for reference
+                hyp_lines.append(f"- [{status}] (id:{hyp_id}, conf:{confidence:.0%}) {theory}")
+            else:
+                # Fallback for old string format
+                hyp_lines.append(f"- {h}")
+        hypotheses_text = "\n".join(hyp_lines)
+    else:
+        hypotheses_text = "None formed yet"
 
     # === OBSERVATIONS (activity-based) ===
     obs_lines = []

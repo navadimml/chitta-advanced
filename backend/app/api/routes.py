@@ -2458,9 +2458,231 @@ async def get_gestalt_summary(family_id: str):
             active_cycles_count=len(child.active_exploration_cycles()),
             videos_total=child.video_count,
             videos_analyzed=len(child.analyzed_videos()),
-            artifacts_count=len(child.artifacts),
+            artifacts_count=sum(len(c.artifacts) for c in child.exploration_cycles),
         )
 
     except Exception as e:
         logger.error(f"Error getting gestalt summary: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# === V2 Chat API: Using ChittaService with Living Gestalt ===
+
+class ChatV2InitResponse(BaseModel):
+    """Response model for v2 chat init - Chitta's first message"""
+    greeting: str
+    ui_data: dict
+
+
+@router.get("/chat/v2/init/{family_id}", response_model=ChatV2InitResponse)
+async def chat_v2_init(family_id: str, language: str = "he"):
+    """
+    V2 Chat Init - Get Chitta's opening message
+
+    Chitta leads the conversation. This endpoint returns:
+    - Chitta's personalized greeting (from i18n, based on returning user status)
+    - Initial UI state (cards, progress)
+
+    Call this when starting a conversation, before any user messages.
+    """
+    from app.services.i18n_service import t, get_i18n
+    from app.services.state_derivation import calculate_time_gap
+
+    try:
+        from app.chitta import get_chitta_service, derive_cards_from_child
+
+        # Initialize i18n for requested language
+        get_i18n(language)
+
+        # Get or create state
+        unified = get_unified_state_service()
+        child = unified.get_child(family_id)
+        session = await unified.get_or_create_session_async(family_id)
+
+        # Check if returning user
+        chitta = get_chitta_service()
+        returning_context = chitta._check_returning_user(session, child)
+
+        # Get child name for personalization
+        child_name = child.name or t("common.child_default_name") if hasattr(child, 'name') else None
+
+        # Generate appropriate greeting from i18n
+        if returning_context:
+            category = returning_context.get("category", "returning")
+            days = returning_context.get("days_since", 0)
+
+            # Build time_ago string
+            if days == 1:
+                time_ago = t("time.yesterday")
+            elif days < 7:
+                time_ago = t("time.days_ago", days=int(days))
+            elif days < 14:
+                time_ago = t("time.week_ago")
+            else:
+                time_ago = t("time.weeks_ago", weeks=int(days // 7))
+
+            # Get greeting based on category
+            if category == "long_absence":
+                greeting = t("greetings.returning.long_absence", child_name=child_name or "")
+            elif category == "returning":
+                greeting = t("greetings.returning.after_days", child_name=child_name or "", time_ago=time_ago)
+            else:
+                greeting = t("greetings.returning.short_break", child_name=child_name or "")
+
+        elif session.turn_count > 0:
+            # Continuing session
+            greeting = t("greetings.returning.same_session")
+        else:
+            # New user - first contact
+            greeting = t("greetings.first_visit")
+
+        # Derive cards
+        cards = derive_cards_from_child(child, session, language)
+
+        ui_data = {
+            "cards": [c.model_dump() for c in cards],
+            "progress": child.data_completeness,
+            "stats": {
+                "family_id": family_id,
+                "is_new": session.turn_count == 0,
+                "is_returning": returning_context is not None,
+                "conversation_turns": session.turn_count,
+            },
+            "architecture": "chitta_v2",
+        }
+
+        # Add greeting as assistant message to session if first contact
+        if session.turn_count == 0:
+            session.add_message("assistant", greeting)
+            await unified._persist_session(session)
+
+        return ChatV2InitResponse(
+            greeting=greeting,
+            ui_data=ui_data,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in chat_v2_init: {e}", exc_info=True)
+        return ChatV2InitResponse(
+            greeting=t("greetings.first_visit"),
+            ui_data={"cards": [], "progress": 0, "error": str(e)},
+        )
+
+
+class SendMessageV2Request(BaseModel):
+    """Request model for v2 chat endpoint"""
+    family_id: str
+    message: str
+    language: str = "he"
+    ui_state: Optional[UIStateUpdate] = None
+
+
+class SendMessageV2Response(BaseModel):
+    """Response model for v2 chat endpoint"""
+    response: str
+    ui_data: dict
+
+
+@router.post("/chat/v2/send", response_model=SendMessageV2Response)
+async def send_message_v2(request: SendMessageV2Request):
+    """
+    V2 Chat Endpoint - Uses ChittaService with Living Gestalt
+
+    This endpoint:
+    - Uses the new ChittaService (two-phase extraction + response)
+    - Derives cards from exploration cycles
+    - Triggers background reflection
+    - Returns hypothesis-aware responses (without exposing internals)
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        # Get ChittaService
+        from app.chitta import (
+            get_chitta_service,
+            derive_cards_from_child,
+            transform_child_for_api,
+        )
+
+        chitta = get_chitta_service()
+
+        # Process message with ChittaService
+        result = await chitta.process_message(
+            family_id=request.family_id,
+            user_message=request.message,
+        )
+
+        # Get updated state for card derivation
+        unified = get_unified_state_service()
+        child = unified.get_child(request.family_id)
+        session = await unified.get_or_create_session_async(request.family_id)
+
+        # Derive cards from exploration cycles
+        gestalt_cards = derive_cards_from_child(child, session, request.language)
+
+        # Build ui_data matching frontend expectations
+        ui_data = {
+            # Cards from exploration cycles (new system)
+            "cards": [c.model_dump() for c in gestalt_cards],
+
+            # Progress from gestalt
+            "progress": result.get("completeness", 0) / 100,
+
+            # Stats
+            "stats": {
+                "family_id": request.family_id,
+                "completeness": result.get("completeness", 0),
+                "completeness_pct": f"{result.get('completeness', 0):.1f}%",
+                "conversation_turns": session.turn_count,
+                "active_cycles": len(child.active_exploration_cycles()),
+                "hypotheses_count": len(child.understanding.hypotheses),
+                "videos_total": child.video_count,
+                "videos_analyzed": len(child.analyzed_videos()),
+            },
+
+            # Artifacts (simplified for frontend) - built from exploration cycles
+            "artifacts": {
+                artifact.id: {
+                    "exists": True,
+                    "status": artifact.status,
+                }
+                for cycle in child.exploration_cycles
+                for artifact in cycle.artifacts
+            },
+
+            # Tool calls made during this turn
+            "tool_calls": result.get("tool_calls", []),
+
+            # Returning user info
+            "returning_user": result.get("returning_user"),
+
+            # Architecture indicator
+            "architecture": "chitta_v2",
+        }
+
+        # Handle errors gracefully
+        if result.get("error"):
+            ui_data["error"] = result["error"]
+
+        return SendMessageV2Response(
+            response=result["response"],
+            ui_data=ui_data,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in send_message_v2: {e}", exc_info=True)
+
+        # Load error message from config
+        messages_config = load_app_messages()
+        error_config = messages_config.get("errors", {}).get("technical_error", {})
+
+        return SendMessageV2Response(
+            response=error_config.get("response", "מצטערת, נתקלתי בבעיה טכנית. בואי ננסה שוב."),
+            ui_data={
+                "cards": [],
+                "progress": 0,
+                "error": str(e),
+                "architecture": "chitta_v2",
+            },
+        )

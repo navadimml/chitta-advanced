@@ -1,18 +1,23 @@
 """
 Developmental Understanding Models
 
-The hypothesis-driven model for tracking a child's developmental journey.
-Everything is a hypothesis - held lightly, updated with evidence.
+TEMPORAL DESIGN (see docs/TEMPORAL_DESIGN.md):
+- Hypotheses are now OWNED BY ExplorationCycles (not here)
+- Patterns remain here as cross-cycle observations
+- PendingInsights for sharing discoveries naturally
 
-Core philosophy:
-- Evidence is immutable, timestamped
-- Hypotheses evolve with evidence
-- Patterns emerge across hypotheses
-- Insights come from reflection
+What lives here:
+- Pattern: Cross-cycle observations ("motor concerns appear during transitions")
+- PendingInsight: Queued insights to share with parent
+- DevelopmentalUnderstanding: Container for patterns and insights
+
+What moved to exploration.py:
+- Evidence: Now in exploration.py, owned by cycles
+- Hypothesis: Now in exploration.py, owned by cycles
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import uuid
 
@@ -21,12 +26,14 @@ def generate_id() -> str:
     return str(uuid.uuid4())[:8]
 
 
+# === DEPRECATED: Evidence and Hypothesis moved to exploration.py ===
+# These are kept here for backward compatibility during migration.
+# New code should use the versions from exploration.py
+
 class Evidence(BaseModel):
     """
-    A single piece of evidence - immutable, timestamped.
-
-    Evidence is a moment in time. It doesn't change.
-    "In November, parent said transitions were hard" is always true.
+    DEPRECATED: Use Evidence from exploration.py instead.
+    Kept for backward compatibility.
     """
     id: str = Field(default_factory=generate_id)
     observed_at: datetime = Field(default_factory=datetime.now)
@@ -37,14 +44,10 @@ class Evidence(BaseModel):
 
 class Hypothesis(BaseModel):
     """
-    An evolving understanding about the child.
+    DEPRECATED: Use Hypothesis from exploration.py instead.
 
-    A hypothesis is not a diagnosis - it's a working theory.
-    It strengthens or weakens with evidence.
-    It can be resolved: confirmed, refuted, evolved, or outgrown.
-
-    The evidence list IS the journey - chronological story of how
-    our understanding developed.
+    Hypotheses should now be owned by ExplorationCycles.
+    This class is kept for backward compatibility.
     """
     id: str = Field(default_factory=generate_id)
     theory: str  # "Maya struggles with transitions"
@@ -53,6 +56,9 @@ class Hypothesis(BaseModel):
     # Where this hypothesis came from
     source: str = "observation"  # "observation", "pattern", "domain_knowledge", "contradiction"
     source_details: Optional[str] = None  # "Parent mentioned noise AND textures AND transitions"
+
+    # Questions that would test this hypothesis
+    questions_to_explore: List[str] = Field(default_factory=list)
 
     # Evidence chain - the journey
     evidence: List[Evidence] = Field(default_factory=list)
@@ -107,18 +113,74 @@ class Hypothesis(BaseModel):
 
 class Pattern(BaseModel):
     """
-    Emergent theme across multiple hypotheses.
+    Emergent theme across multiple cycles - a CROSS-CYCLE observation.
 
-    Patterns are detected by reflection - connecting dots across hypotheses.
-    "Sensory processing seems involved" links motor + transitions + food textures.
+    Patterns connect dots ACROSS cycles over time.
+    "Motor concerns appear during life transitions" links cycles 1, 5, 8.
+
+    Unlike hypotheses (which are cycle-owned), patterns are observations
+    ABOUT the journey across cycles.
     """
     id: str = Field(default_factory=generate_id)
     theme: str  # "sensory processing involvement"
     description: str  # Longer explanation
-    related_hypotheses: List[str] = Field(default_factory=list)  # hypothesis IDs
+
+    # Cross-cycle references (the primary model now)
+    supporting_cycle_ids: List[str] = Field(default_factory=list)
+
+    # DEPRECATED: Use supporting_cycle_ids instead
+    related_hypotheses: List[str] = Field(default_factory=list)
+
     confidence: float = 0.5
     detected_at: datetime = Field(default_factory=datetime.now)
     source: str = "reflection"  # "domain_knowledge", "reflection", "explicit"
+
+
+# === Synthesis Report (Cross-Cycle) ===
+
+class CycleSnapshot(BaseModel):
+    """Snapshot of a cycle's state at the time of synthesis."""
+    cycle_id: str
+    focus: Optional[str] = None
+    domain: Optional[str] = None
+    status: str  # "complete", "active", "evidence_gathering"
+    key_findings: List[str] = Field(default_factory=list)
+    hypothesis_count: int = 0
+
+
+class SynthesisReport(BaseModel):
+    """
+    Cross-cycle synthesis - the longitudinal story.
+
+    Unlike cycle artifacts (owned by one cycle), synthesis reports
+    are owned by the Child and span multiple cycles.
+
+    A synthesis tells the narrative of development over time,
+    not just what's happening now.
+    """
+    id: str = Field(default_factory=generate_id)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    # What this report covers
+    cycle_ids: List[str] = Field(default_factory=list)
+    time_span_start: Optional[datetime] = None
+    time_span_end: Optional[datetime] = None
+
+    # Snapshots of each cycle's state at report time
+    cycle_snapshots: List[CycleSnapshot] = Field(default_factory=list)
+
+    # The actual content
+    narrative: Optional[str] = None  # The story
+    key_developments: List[str] = Field(default_factory=list)
+    current_focus: Optional[str] = None
+    recommendations: List[str] = Field(default_factory=list)
+
+    # Metadata
+    audience: str = "parent"  # "parent", "clinician"
+    triggered_by: str = "user_request"  # "scheduled", "milestone", "user_request"
+
+    # Report format/content
+    content: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PendingInsight(BaseModel):
@@ -129,6 +191,7 @@ class PendingInsight(BaseModel):
     when contextually appropriate.
     """
     id: str = Field(default_factory=generate_id)
+    source: str = "reflection"  # "reflection", "parent_goal", "urgent_flag", "observation"
     content: str  # "I noticed noise and transitions might be connected"
     importance: str = "medium"  # "low", "medium", "high"
     share_when: str = "when_relevant"  # "next_turn", "when_relevant", "when_asked"

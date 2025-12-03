@@ -21,7 +21,7 @@ Two Cognitive Modes:
 
 from .service import ChittaService, get_chitta_service
 from .gestalt import build_gestalt, Gestalt, get_what_we_know, get_what_we_need
-from .tools import CHITTA_TOOLS, get_chitta_tools
+from .tools import CHITTA_TOOLS, get_chitta_tools, get_core_extraction_tools
 from .prompt import build_system_prompt
 from .reflection import ReflectionService, get_reflection_service
 from .cards import derive_cards_from_child, handle_card_action
@@ -48,6 +48,7 @@ __all__ = [
     # Tools
     "CHITTA_TOOLS",
     "get_chitta_tools",
+    "get_core_extraction_tools",
     # Prompt
     "build_system_prompt",
     # Cards

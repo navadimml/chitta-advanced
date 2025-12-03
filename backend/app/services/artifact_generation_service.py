@@ -12,11 +12,20 @@ Key artifacts:
 
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 import time
+import json
 
 from app.models.artifact import Artifact
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 from app.config.artifact_manager import get_artifact_manager
 from app.services.llm.factory import create_llm_provider
 
@@ -320,6 +329,200 @@ Based on the conversation, identify:
             artifact.mark_error(str(e))
 
         return artifact
+
+    async def generate_video_guidelines_from_gestalt(
+        self,
+        child: 'Child',
+        scenarios_needed: int = 1,
+        hypotheses_to_test: List[str] = None,
+        patterns_to_explore: List[str] = None,
+        include_strength_baseline: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Generate personalized video guidelines from Living Gestalt.
+
+        This method is called when the LLM invokes request_video_observation.
+        It uses the child's Gestalt data (hypotheses, patterns, concerns,
+        parent's own words) to create personalized filming scenarios.
+
+        Args:
+            child: Child model with understanding (hypotheses, patterns, etc.)
+            scenarios_needed: Number of scenarios to generate (1-3)
+            hypotheses_to_test: Optional list of hypothesis IDs to focus on
+            patterns_to_explore: Optional list of pattern themes to explore
+            include_strength_baseline: Whether to include a strength scenario (default False)
+
+        Returns:
+            Component-ready format for VideoGuidelinesView
+        """
+        from app.services.llm.base import Message
+        import json
+
+        logger.info(f"🎬 Generating video guidelines from Gestalt for: {child.identity.name}")
+
+        # Extract data from child model
+        child_name = child.identity.name or "הילד/ה"
+        child_age = child.identity.age_years
+
+        # Get hypotheses and patterns from understanding
+        understanding = child.understanding
+        all_hypotheses = understanding.hypotheses
+        all_patterns = understanding.patterns
+
+        # Filter to requested hypotheses if specified
+        if hypotheses_to_test:
+            hypotheses = [h for h in all_hypotheses if h.id in hypotheses_to_test]
+        else:
+            # Default: use active hypotheses (forming or active)
+            hypotheses = [h for h in all_hypotheses if h.status in ["forming", "active"]]
+
+        # Get patterns
+        if patterns_to_explore:
+            patterns = [p for p in all_patterns if p.theme in patterns_to_explore]
+        else:
+            patterns = all_patterns
+
+        # Get parent's narrative (their own words)
+        parent_narrative = child.concerns.parent_narrative or ""
+
+        # Get strengths
+        strengths = {
+            "abilities": child.strengths.abilities,
+            "interests": child.strengths.interests,
+            "what_lights_them_up": child.strengths.what_lights_them_up,
+        }
+
+        # Get concerns
+        concerns = {
+            "primary_areas": child.concerns.primary_areas,
+            "details": [d.dict() for d in child.concerns.details] if child.concerns.details else [],
+        }
+
+        # Build prompt for LLM
+        prompt = self._build_gestalt_guidelines_prompt(
+            child_name=child_name,
+            child_age=child_age,
+            hypotheses=[h.dict() for h in hypotheses],
+            patterns=[p.dict() for p in patterns],
+            concerns=concerns,
+            strengths=strengths,
+            parent_narrative=parent_narrative,
+            scenarios_needed=scenarios_needed,
+            include_strength_baseline=include_strength_baseline,
+        )
+
+        try:
+            # Generate using LLM
+            guidelines_data = await self.llm_provider.chat_with_structured_output(
+                messages=[Message(role="user", content=prompt)],
+                response_schema=self._get_stage2_guidelines_schema(),
+                temperature=0.7
+            )
+
+            logger.info(f"✅ Generated {len(guidelines_data.get('video_guidelines', []))} scenarios")
+
+            # Transform to component format
+            component_format = self._transform_to_component_format(guidelines_data)
+
+            # Add exploration context
+            component_format["exploration_context"] = {
+                "hypotheses_being_tested": [h.theory for h in hypotheses],
+                "patterns_being_explored": [p.theme for p in patterns],
+            }
+
+            # Add child name
+            component_format["child_name"] = child_name
+
+            return component_format
+
+        except Exception as e:
+            logger.error(f"❌ Failed to generate guidelines from Gestalt: {e}")
+            raise
+
+    def _build_gestalt_guidelines_prompt(
+        self,
+        child_name: str,
+        child_age: float,
+        hypotheses: List[Dict],
+        patterns: List[Dict],
+        concerns: Dict,
+        strengths: Dict,
+        parent_narrative: str,
+        scenarios_needed: int,
+        include_strength_baseline: bool,
+    ) -> str:
+        """Build LLM prompt for hypothesis-driven video guidelines."""
+        import json
+
+        # Calculate total scenarios
+        total_scenarios = scenarios_needed
+        if include_strength_baseline:
+            total_scenarios += 1
+
+        return f"""# Generate Hypothesis-Driven Video Guidelines (Hebrew)
+
+## Role
+You are "Chitta," a supportive child development expert writing directly to the Israeli parent in Hebrew.
+**Your Goal:** Create video scenarios that TEST SPECIFIC HYPOTHESES while lowering parent anxiety.
+
+## Child Context
+**Name:** {child_name}
+**Age:** {child_age} years
+
+## Parent's Own Words (CRITICAL - Use Their Vocabulary!)
+{parent_narrative}
+
+## Current Hypotheses to Test
+{json.dumps(hypotheses, ensure_ascii=False, indent=2, cls=DateTimeEncoder) if hypotheses else "No specific hypotheses yet - create exploratory scenarios"}
+
+## Patterns Detected
+{json.dumps(patterns, ensure_ascii=False, indent=2, cls=DateTimeEncoder) if patterns else "No patterns yet"}
+
+## Concerns
+{json.dumps(concerns, ensure_ascii=False, indent=2)}
+
+## Strengths
+{json.dumps(strengths, ensure_ascii=False, indent=2)}
+
+## Video Scenario Requirements
+
+**IMPORTANT: Create EXACTLY {total_scenarios} video scenario(s).**
+
+{"This includes 1 strength_baseline scenario showing the child at their best." if include_strength_baseline else "Focus only on hypothesis testing - no strength baseline needed."}
+
+Each scenario must:
+1. **Test a specific hypothesis** - Help confirm or refute a working theory
+2. **Use parent's vocabulary** - Mirror exact words from parent_narrative, not clinical terms
+3. **Be CONCRETE** - Specific situations, not abstract instructions
+4. **Include rationale** - The "sandwich" structure: validate → explain → reassure
+
+## Scenario Categories
+- **hypothesis_test**: Directly tests an emerging hypothesis
+- **pattern_exploration**: Investigates a detected pattern
+{"- **strength_baseline**: Documents optimal functioning (when child thrives)" if include_strength_baseline else ""}
+
+## Output Format
+
+Return JSON with:
+- parent_greeting: {{opening_message, child_name}}
+- video_guidelines: array of EXACTLY {total_scenarios} scenarios, each with:
+  - id, category, target_hypothesis, what_we_hope_to_learn
+  - difficulty_area, title, instruction (CONCRETE!)
+  - example_situations (2-3 specific examples)
+  - duration_suggestion
+  - focus_points (internal analysis - NOT for parents)
+  - rationale_for_parent (sandwich: validate, explain, reassure)
+- general_filming_tips: array of tips
+- exploration_summary: {{hypotheses_being_tested, patterns_being_explored}}
+
+## Critical: CONCRETE Instructions
+
+❌ BAD: "צלמו משחק"
+✅ GOOD: "שבו ליד השולחן במטבח, בחרו משחק סולמות וחבלים. שחקו יחד 5 דקות."
+
+❌ BAD: "צלמו רגע של מעבר"
+✅ GOOD: "צלמו את הרגע שאתם אומרים 'בוא נתלבש לגן' - מהרגע שאמרתם עד שהוא לבוש."
+"""
 
     def _build_guidelines_prompt(
         self,

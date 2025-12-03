@@ -16,7 +16,7 @@ The Living Gestalt:
 - Understanding evolves through evidence
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, computed_field, model_serializer
 from typing import List, Dict, Optional, Any
 from datetime import datetime, date
 
@@ -27,6 +27,8 @@ from .understanding import (
     Evidence,
     Pattern,
     PendingInsight,
+    SynthesisReport,
+    CycleSnapshot,
 )
 from .exploration import (
     ExplorationCycle,
@@ -245,8 +247,13 @@ class Child(BaseModel):
     # === EXPLORATION CYCLES ===
     exploration_cycles: List[ExplorationCycle] = Field(default_factory=list)
 
-    # === ARTIFACTS ===
-    artifacts: Dict[str, Artifact] = Field(default_factory=dict)
+    # === SYNTHESIS REPORTS (Cross-Cycle) ===
+    # Unlike cycle artifacts, synthesis reports span multiple cycles
+    # and tell the longitudinal story of development
+    synthesis_reports: List[SynthesisReport] = Field(default_factory=list)
+
+    # Artifacts are now stored ONLY in exploration cycles.
+    # Access them via the `artifacts` computed property below.
 
     # === VIDEOS ===
     videos: List[Video] = Field(default_factory=list)
@@ -287,6 +294,27 @@ class Child(BaseModel):
         Maps new structured data to old flat DevelopmentalData format.
         Used by old services until they're migrated.
         """
+        # Extract daily_routines from essence.temperament_observations
+        daily_routines = None
+        for obs in self.essence.temperament_observations:
+            if obs.startswith("Daily routines: "):
+                daily_routines = obs.replace("Daily routines: ", "")
+                break
+
+        # Extract parent_goals from understanding.pending_insights
+        parent_goals = None
+        for insight in self.understanding.pending_insights:
+            if insight.source == "parent_goal":
+                parent_goals = insight.content
+                break
+
+        # Extract urgent_flags from understanding.pending_insights
+        urgent_flags = [
+            insight.content
+            for insight in self.understanding.pending_insights
+            if insight.source == "urgent_flag"
+        ]
+
         return DevelopmentalData(
             child_name=self.identity.name,
             age=self.identity.age_years,
@@ -296,6 +324,9 @@ class Child(BaseModel):
             strengths=self.strengths.abilities + self.strengths.interests,
             family_context=self.family.structure,
             developmental_history=self.history.early_development,
+            daily_routines=daily_routines,
+            parent_goals=parent_goals,
+            urgent_flags=urgent_flags,
         )
 
     @property
@@ -338,16 +369,83 @@ class Child(BaseModel):
         self.updated_at = datetime.now()
 
     # === Artifact Management ===
+    # Artifacts now live in exploration cycles. These methods provide
+    # backwards-compatible access by aggregating from all cycles.
+
+    @computed_field
+    @property
+    def artifacts(self) -> Dict[str, Artifact]:
+        """
+        Aggregate all artifacts from exploration cycles.
+        Returns a dict for backwards compatibility with existing code.
+        This is a computed field so it gets serialized with the model.
+        """
+        import json
+        result = {}
+        for cycle in self.exploration_cycles:
+            for cycle_artifact in cycle.artifacts:
+                # Convert content dict to JSON string for Artifact compatibility
+                content_str = json.dumps(cycle_artifact.content, ensure_ascii=False) if isinstance(cycle_artifact.content, dict) else str(cycle_artifact.content)
+                # Convert CycleArtifact to Artifact for backwards compatibility
+                artifact = Artifact(
+                    artifact_id=cycle_artifact.id,
+                    artifact_type=cycle_artifact.type,
+                    status=cycle_artifact.status,
+                    content=content_str,
+                    content_format=cycle_artifact.content_format,
+                    metadata={"cycle_id": cycle.id},
+                    created_at=cycle_artifact.created_at,
+                    updated_at=cycle_artifact.updated_at,
+                    ready_at=cycle_artifact.ready_at,
+                )
+                result[cycle_artifact.id] = artifact
+        return result
 
     def get_artifact(self, artifact_id: str) -> Optional[Artifact]:
+        """Get artifact by ID, searching across all cycles."""
         return self.artifacts.get(artifact_id)
 
     def has_artifact(self, artifact_id: str) -> bool:
-        artifact = self.get_artifact(artifact_id)
-        return artifact is not None
+        """Check if artifact exists in any cycle."""
+        return self.get_artifact(artifact_id) is not None
 
     def add_artifact(self, artifact: Artifact):
-        self.artifacts[artifact.artifact_id] = artifact
+        """
+        Add artifact to current exploration cycle.
+        Creates a new cycle if none exists.
+        """
+        import json
+        current_cycle = self.current_cycle()
+        if not current_cycle:
+            # Create a general-purpose cycle
+            current_cycle = ExplorationCycle(
+                focus_description="General exploration",
+                status="active",
+            )
+            self.add_cycle(current_cycle)
+
+        # Convert content from string to dict for CycleArtifact
+        content_dict = {}
+        if artifact.content:
+            if isinstance(artifact.content, dict):
+                content_dict = artifact.content
+            elif isinstance(artifact.content, str):
+                try:
+                    content_dict = json.loads(artifact.content)
+                except json.JSONDecodeError:
+                    content_dict = {"text": artifact.content}
+
+        # Convert Artifact to CycleArtifact
+        cycle_artifact = CycleArtifact(
+            id=artifact.artifact_id,
+            type=artifact.artifact_type,
+            content=content_dict,
+            content_format=artifact.content_format,
+            status=artifact.status,
+        )
+        if artifact.ready_at:
+            cycle_artifact.ready_at = artifact.ready_at
+        current_cycle.add_artifact(cycle_artifact)
         self.updated_at = datetime.now()
 
     # === Video Management ===
@@ -383,28 +481,128 @@ class Child(BaseModel):
         )
         return sorted_entries[:limit]
 
-    # === Understanding Convenience Methods ===
+    # === Hypothesis Management (Cycle-Owned) ===
+    # With the temporal design, hypotheses are OWNED by exploration cycles.
+    # These methods aggregate from cycles for convenience, with backward
+    # compatibility for legacy understanding.hypotheses.
 
     def active_hypotheses(self) -> List[Hypothesis]:
-        return self.understanding.active_hypotheses()
+        """
+        Get all active hypotheses across all active cycles.
+
+        TEMPORAL DESIGN: Hypotheses are owned by cycles. This aggregates
+        from all active exploration cycles. Also checks legacy
+        understanding.hypotheses for backward compatibility.
+        """
+        result = []
+        # Primary: get from active exploration cycles
+        for cycle in self.active_exploration_cycles():
+            result.extend(cycle.active_hypotheses())
+        # Backward compat: also check legacy understanding.hypotheses
+        result.extend(self.understanding.active_hypotheses())
+        return result
 
     def get_hypothesis(self, hypothesis_id: str) -> Optional[Hypothesis]:
+        """
+        Find a hypothesis by ID across all cycles.
+
+        Searches exploration cycles first (new model), then falls back
+        to understanding.hypotheses (legacy).
+        """
+        # Search in exploration cycles first
+        for cycle in self.exploration_cycles:
+            hypothesis = cycle.get_hypothesis(hypothesis_id)
+            if hypothesis:
+                return hypothesis
+        # Fall back to legacy understanding
         return self.understanding.get_hypothesis(hypothesis_id)
 
-    def add_hypothesis(self, hypothesis: Hypothesis):
+    def add_hypothesis(self, hypothesis: Hypothesis, cycle: Optional[ExplorationCycle] = None):
+        """
+        Add a hypothesis to a cycle.
+
+        TEMPORAL DESIGN: Hypotheses should be owned by cycles. If no cycle
+        is specified, adds to the current active cycle (creates one if needed).
+
+        For backward compatibility, also adds to understanding.hypotheses.
+        """
+        if cycle is None:
+            cycle = self.current_cycle()
+            if not cycle:
+                # Create a general-purpose cycle
+                cycle = ExplorationCycle(
+                    focus_description="General exploration",
+                    focus_domain=hypothesis.domain,
+                    status="active",
+                )
+                self.add_cycle(cycle)
+
+        # Add to cycle (primary ownership)
+        cycle.add_hypothesis(hypothesis)
+        # Also add to understanding for backward compatibility
         self.understanding.add_hypothesis(hypothesis)
         self.updated_at = datetime.now()
 
     def add_pattern(self, pattern: Pattern):
+        """
+        Add a cross-cycle pattern.
+
+        TEMPORAL DESIGN: Patterns are observations ACROSS cycles, so they
+        live in understanding (not owned by a single cycle).
+        """
         self.understanding.add_pattern(pattern)
         self.updated_at = datetime.now()
 
-    def add_evidence_to_hypothesis(self, hypothesis_id: str, evidence: Evidence, effect: str = "neutral"):
-        """Add evidence to a hypothesis."""
-        hypothesis = self.get_hypothesis(hypothesis_id)
+    def add_evidence_to_hypothesis(
+        self,
+        hypothesis_id: str,
+        evidence: Evidence,
+        effect: str = "neutral"
+    ):
+        """
+        Add evidence to a hypothesis.
+
+        Searches for the hypothesis across all cycles and legacy understanding.
+        """
+        # First try to find in cycles
+        for cycle in self.exploration_cycles:
+            hypothesis = cycle.get_hypothesis(hypothesis_id)
+            if hypothesis:
+                hypothesis.add_evidence(evidence, effect)
+                cycle.updated_at = datetime.now()
+                self.updated_at = datetime.now()
+                return
+
+        # Fall back to legacy understanding
+        hypothesis = self.understanding.get_hypothesis(hypothesis_id)
         if hypothesis:
             hypothesis.add_evidence(evidence, effect)
             self.updated_at = datetime.now()
+
+    def hypotheses_for_domain(self, domain: str) -> List[Hypothesis]:
+        """
+        Get all hypotheses for a domain across all cycles.
+
+        Useful for cross-cycle analysis of a specific developmental area.
+        """
+        result = []
+        for cycle in self.exploration_cycles:
+            result.extend(cycle.hypotheses_for_domain(domain))
+        # Also check legacy
+        result.extend(self.understanding.hypotheses_for_domain(domain))
+        return result
+
+    def all_hypotheses(self) -> List[Hypothesis]:
+        """
+        Get ALL hypotheses across all cycles and statuses.
+
+        Includes completed cycles (historical record) and legacy hypotheses.
+        """
+        result = []
+        for cycle in self.exploration_cycles:
+            result.extend(cycle.hypotheses)
+        result.extend(self.understanding.hypotheses)
+        return result
 
 
 # === Backward Compatibility Layer ===
@@ -437,6 +635,11 @@ class DevelopmentalData(BaseModel):
     interaction_style: Optional[str] = None
     parent_emotional_state: Optional[str] = None
     specific_examples: List[str] = Field(default_factory=list)
+    urgent_flags: List[str] = Field(default_factory=list)
+
+    # Metadata (for backward compat with child_service)
+    last_updated: datetime = Field(default_factory=datetime.now)
+    extraction_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""

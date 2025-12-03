@@ -131,19 +131,33 @@ class GeminiProvider(BaseLLMProvider):
         # ALWAYS disable AFC to prevent short responses in Phase 2
         # CRITICAL: Must set maximum_remote_calls=0 to fully disable AFC!
         # Setting only disable=True isn't enough - the default maximum_remote_calls=10 re-enables it!
-        config_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(
-            disable=True,
-            maximum_remote_calls=0  # CRITICAL: Must be 0 to fully disable AFC
-        )
+        # NOTE: AFC config may not work with some models (gemini-3-pro), skip if tools not provided
+        if tools:
+            config_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(
+                disable=True,
+                maximum_remote_calls=0  # CRITICAL: Must be 0 to fully disable AFC
+            )
 
         # Only configure function calling behavior if tools are provided
         if tools:
-            # Force function calling mode (model-level behavior)
+            # CRITICAL: gemini-3-pro models REQUIRE AUTO mode - ANY mode silently fails
+            # Other models work better with ANY to force function calling
+            models_requiring_auto = ["gemini-3-pro", "gemini-3-pro-preview"]
+            use_auto_mode = any(m in self.model_name for m in models_requiring_auto)
+
+            function_calling_mode = (
+                types.FunctionCallingConfigMode.AUTO if use_auto_mode
+                else types.FunctionCallingConfigMode.ANY  # Model MUST call a function
+            )
+
             config_params["tool_config"] = types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(
-                    mode=types.FunctionCallingConfigMode.ANY  # Model MUST call a function
+                    mode=function_calling_mode
                 )
             )
+
+            if use_auto_mode:
+                logger.debug(f"🔧 Using AUTO mode for {self.model_name} (required for gemini-3-pro)")
 
         # Add JSON mode if requested
         if response_format == "json":
@@ -153,7 +167,11 @@ class GeminiProvider(BaseLLMProvider):
         # When disabled (enable_thinking=False), sets thinking_budget=0 to prevent
         # chain-of-thought reasoning from leaking into user-facing responses.
         # When enabled (default), allows the model to use its thinking capabilities.
-        if not enable_thinking:
+        # NOTE: Some models like gemini-3-pro REQUIRE thinking mode and cannot have budget=0
+        thinking_required_models = ["gemini-3-pro", "gemini-3-pro-preview"]
+        model_requires_thinking = any(m in self.model_name for m in thinking_required_models)
+
+        if not enable_thinking and not model_requires_thinking:
             try:
                 config_params["thinking_config"] = types.ThinkingConfig(
                     thinking_budget=0  # Disable thinking to prevent leaks
@@ -162,6 +180,8 @@ class GeminiProvider(BaseLLMProvider):
             except (AttributeError, TypeError) as e:
                 # ThinkingConfig may not exist in older SDK versions
                 logger.debug(f"ThinkingConfig not available (older SDK): {e}")
+        elif not enable_thinking and model_requires_thinking:
+            logger.debug(f"🧠 Model {self.model_name} requires thinking mode - cannot disable")
 
         config = types.GenerateContentConfig(**config_params)
 
