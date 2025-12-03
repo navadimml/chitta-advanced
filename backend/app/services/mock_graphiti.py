@@ -94,14 +94,15 @@ class MockGraphiti:
                 timestamp=msg.timestamp
             ))
 
-        # Convert artifacts
+        # Convert artifacts from exploration cycles
         artifacts = {}
-        for artifact_id, artifact in child.artifacts.items():
-            artifacts[artifact_id] = Artifact(
-                type=artifact.artifact_type,
-                content=artifact.content if isinstance(artifact.content, dict) else {"data": artifact.content},
-                created_at=artifact.created_at
-            )
+        for cycle in child.exploration_cycles:
+            for artifact in cycle.artifacts:
+                artifacts[artifact.id] = Artifact(
+                    type=artifact.type,
+                    content=artifact.content,  # CycleArtifact.content is already a dict
+                    created_at=artifact.created_at
+                )
 
         # Convert videos
         from ..models.family_state import Video as FamilyVideo
@@ -229,8 +230,13 @@ class MockGraphiti:
             }
 
         if "artifact" in query_lower or "report" in query_lower:
+            # Build artifacts dict from exploration cycles
+            artifacts_dict = {}
+            for cycle in child.exploration_cycles:
+                for artifact in cycle.artifacts:
+                    artifacts_dict[artifact.id] = artifact.model_dump()
             return {
-                "artifacts": {k: v.dict() for k, v in child.artifacts.items()}
+                "artifacts": artifacts_dict
             }
 
         # Return full context for complex queries

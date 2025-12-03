@@ -31,12 +31,12 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from app.models.child import (
-    Child, DevelopmentalData, Essence, Strengths as StrengthsModel,
-    DevelopmentalDomains, ChildHistory, Family, LivingEdge,
-    Pattern, Hypothesis, OpenQuestion, EvidenceItem,
-    ExplorationActivity, ExplorationCycle, SynthesisSnapshot,
-    CurrentFocus, VideoScenario, ConversationQuestion,
+from app.models.child import Child
+from app.models.understanding import (
+    DevelopmentalUnderstanding, Hypothesis, Pattern, Evidence, PendingInsight
+)
+from app.models.exploration import (
+    ExplorationCycle, CycleArtifact, VideoScenario,
     ConversationMethod, VideoMethod
 )
 from app.models.user_session import UserSession
@@ -217,9 +217,18 @@ class GestaltHypotheses:
 
     Not "Daniel has autism" but "Daniel's speech delay might be
     primarily temperament-related - capacity is there, safety is the key."
+
+    Each hypothesis includes:
+    - id: Unique identifier for linking evidence
+    - theory: The working hypothesis
+    - domain: Developmental domain (sensory, motor, social, etc.)
+    - confidence: 0-1, changes with evidence
+    - status: forming, active, weakening, resolved
+    - evidence_count: How many pieces of evidence
+    - questions_to_explore: Questions that would test this hypothesis
     """
     hypotheses: List[Dict[str, Any]] = field(default_factory=list)
-    # Each: {theory, supporting, contradicting, status}
+    # Each: {id, theory, domain, confidence, status, evidence_count, questions_to_explore}
 
     @property
     def has_hypotheses(self) -> bool:
@@ -227,7 +236,13 @@ class GestaltHypotheses:
 
     @property
     def active_hypotheses(self) -> List[Dict[str, Any]]:
-        return [h for h in self.hypotheses if h.get("status") == "exploring"]
+        """Get hypotheses that are still being explored (forming or active)."""
+        return [h for h in self.hypotheses if h.get("status") in ["forming", "active"]]
+
+    @property
+    def resolved_hypotheses(self) -> List[Dict[str, Any]]:
+        """Get hypotheses that have been resolved."""
+        return [h for h in self.hypotheses if h.get("status") == "resolved"]
 
 
 @dataclass
@@ -254,6 +269,31 @@ class GestaltStories:
     story_count: int = 0
     recent_stories: List[Dict[str, Any]] = field(default_factory=list)
     # Each: {content, themes, sentiment, what_it_reveals}
+
+
+@dataclass
+class GestaltObservations:
+    """
+    Video and story observations state.
+
+    Tracks what has been observed through videos and how much has been analyzed.
+    """
+    # === Video Counts ===
+    video_count: int = 0  # Total videos uploaded
+    pending_video_count: int = 0  # Videos awaiting analysis
+    analyzed_video_count: int = 0  # Videos that have been analyzed
+
+    # === Recent Content ===
+    recent_stories: List[Dict[str, Any]] = field(default_factory=list)
+    # Each: {content, themes, sentiment, what_it_reveals}
+
+    @property
+    def has_pending_videos(self) -> bool:
+        return self.pending_video_count > 0
+
+    @property
+    def has_videos(self) -> bool:
+        return self.video_count > 0
 
 
 @dataclass
@@ -410,6 +450,37 @@ class GestaltCompleteness:
 
 
 @dataclass
+class GestaltArtifacts:
+    """
+    Artifacts state - derived from exploration cycles.
+
+    In the new model, artifacts belong to exploration cycles.
+    This class provides a convenience view for checking artifact availability.
+    """
+    # Video guidelines (from any cycle)
+    has_video_guidelines: bool = False
+    guidelines_artifact_id: Optional[str] = None
+    guidelines_cycle_id: Optional[str] = None
+
+    # Parent report / synthesis (from any cycle)
+    has_parent_report: bool = False
+    report_artifact_id: Optional[str] = None
+    report_cycle_id: Optional[str] = None
+
+    # All artifact IDs for quick lookup
+    all_artifact_ids: List[str] = field(default_factory=list)
+
+    def available_artifacts(self) -> List[str]:
+        """Return list of available artifact types."""
+        available = []
+        if self.has_video_guidelines:
+            available.append("video_guidelines")
+        if self.has_parent_report:
+            available.append("parent_report")
+        return available
+
+
+@dataclass
 class Gestalt:
     """
     The Living Gestalt - everything we know AND are wondering about a child.
@@ -452,9 +523,15 @@ class Gestalt:
     # === Stories (gold) ===
     stories: GestaltStories = field(default_factory=GestaltStories)
 
+    # === Observations (videos and stories) ===
+    observations: GestaltObservations = field(default_factory=GestaltObservations)
+
     # === Activity-Based Tracking (unified exploration) ===
     exploration: GestaltExploration = field(default_factory=GestaltExploration)
     syntheses: GestaltSyntheses = field(default_factory=GestaltSyntheses)
+
+    # === Artifacts (derived from exploration cycles) ===
+    artifacts: GestaltArtifacts = field(default_factory=GestaltArtifacts)
 
     # === Session and Completeness ===
     session: GestaltSession = field(default_factory=GestaltSession)
@@ -571,65 +648,58 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
     5. Concerns (in context of everything above)
     6. Patterns, Hypotheses, Questions (the living edge)
     """
-    data = child.developmental_data
+    # Use new Child model attributes directly (not backward-compat developmental_data)
 
     # === 1. IDENTITY ===
     identity = GestaltIdentity(
-        name=data.child_name,
-        age=data.age,
-        gender=data.gender,
+        name=child.identity.name,
+        age=child.identity.age_years,
+        gender=child.identity.gender,
     )
 
     # === 2. ESSENCE ===
     essence = GestaltEssence(
-        temperament_observations=data.essence.temperament_observations,
-        energy_pattern=data.essence.energy_pattern,
-        core_qualities=data.essence.core_qualities,
+        temperament_observations=child.essence.temperament_observations,
+        energy_pattern=child.essence.energy_pattern,
+        core_qualities=child.essence.core_qualities,
     )
 
     # === 3. STRENGTHS ===
     strengths = GestaltStrengths(
-        abilities=data.strengths.abilities,
-        interests=data.strengths.interests,
-        what_lights_them_up=data.strengths.what_lights_them_up,
-        surprises_people=data.strengths.surprises_people,
+        abilities=child.strengths.abilities,
+        interests=child.strengths.interests,
+        what_lights_them_up=child.strengths.what_lights_them_up,
+        surprises_people=child.strengths.surprises_people,
     )
 
     # === 4. DEVELOPMENTAL PICTURE ===
-    domains = data.developmental_domains
+    # Count observations from understanding patterns
+    understanding = child.understanding
     developmental_picture = GestaltDevelopmentalPicture(
-        language_observations=(
-            len(domains.language_receptive) +
-            len(domains.language_expressive) +
-            len(domains.language_pragmatic)
-        ),
-        social_emotional_observations=(
-            len(domains.social_relationships) +
-            len(domains.emotional_regulation) +
-            len(domains.social_awareness)
-        ),
-        cognitive_observations=len(domains.cognitive),
-        motor_observations=len(domains.motor_gross) + len(domains.motor_fine),
-        sensory_observations=len(domains.sensory_processing),
-        play_observations=len(domains.play_and_imagination),
-        adaptive_observations=len(domains.adaptive_skills),
+        language_observations=_count_domain_observations(understanding, "language"),
+        social_emotional_observations=_count_domain_observations(understanding, "social"),
+        cognitive_observations=_count_domain_observations(understanding, "cognitive"),
+        motor_observations=_count_domain_observations(understanding, "motor"),
+        sensory_observations=_count_domain_observations(understanding, "sensory"),
+        play_observations=_count_domain_observations(understanding, "play"),
+        adaptive_observations=_count_domain_observations(understanding, "adaptive"),
     )
 
     # === 5. HISTORY ===
-    hist = data.history
+    hist = child.history
     history = GestaltHistory(
         has_birth_info=bool(hist.birth.complications or hist.birth.premature is not None),
         was_premature=hist.birth.premature,
         birth_complications=hist.birth.complications,
-        has_milestone_info=bool(hist.milestone_notes),
-        milestone_summary=hist.milestone_notes,
+        has_milestone_info=bool(hist.milestone_notes or hist.early_development),
+        milestone_summary=hist.milestone_notes or hist.early_development,
         has_previous_evaluations=len(hist.previous_evaluations) > 0,
         previous_diagnoses=hist.previous_diagnoses,
-        has_interventions=len(hist.interventions) > 0,
+        has_interventions=False,  # DevelopmentalHistory doesn't have interventions field
     )
 
     # === 6. FAMILY ===
-    fam = data.family
+    fam = child.family
     family = GestaltFamily(
         structure=fam.structure,
         has_siblings=len(fam.siblings) > 0,
@@ -640,128 +710,164 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
     )
 
     # === 7. CONCERNS ===
+    # Get context from concern details if available
+    concern_context = None
+    if child.concerns.details:
+        examples = child.concerns.details[0].examples if child.concerns.details[0].examples else []
+        concern_context = examples[0] if examples else None
+
     concerns = GestaltConcerns(
-        primary_areas=data.primary_concerns or [],
-        details=data.concern_details,
-        context=data.concern_context,
-        urgent_flags=data.urgent_flags or [],
+        primary_areas=child.concerns.primary_areas or [],
+        details=child.concerns.parent_narrative,
+        context=concern_context,
+        urgent_flags=[],  # Concerns model doesn't have urgent_flags
     )
 
     # === 8. PATTERNS ===
+    # Use understanding.patterns from the new model
     patterns = GestaltPatterns(
         patterns=[
             {
                 "theme": p.theme,
-                "observations": p.observations,
+                "observations": [],  # Pattern doesn't have direct observations
                 "confidence": p.confidence,
             }
-            for p in data.living_edge.patterns
+            for p in understanding.patterns
         ]
     )
 
     # === 9. HYPOTHESES ===
+    # Build rich hypothesis data for LLM context
     hypotheses = GestaltHypotheses(
         hypotheses=[
             {
+                "id": h.id,
                 "theory": h.theory,
-                "supporting": h.supporting_evidence,
-                "contradicting": h.contradicting_evidence,
+                "domain": h.domain,
+                "confidence": h.confidence,
                 "status": h.status,
+                "evidence_count": len(h.evidence),
+                "supporting_count": sum(1 for e in h.evidence if "supports" in str(getattr(e, 'effect', ''))),
+                "contradicting_count": sum(1 for e in h.evidence if "contradicts" in str(getattr(e, 'effect', ''))),
+                "last_evidence_at": h.last_evidence_at.isoformat() if h.last_evidence_at else None,
+                "resolution": h.resolution,
+                "resolution_note": h.resolution_note,
+                "evolved_into": h.evolved_into,
+                # Questions that would test this hypothesis (from form_hypothesis)
+                "questions_to_explore": getattr(h, 'questions_to_explore', []),
             }
-            for h in data.living_edge.hypotheses
+            for h in understanding.hypotheses
         ]
     )
 
     # === 10. OPEN QUESTIONS ===
+    # DevelopmentalUnderstanding doesn't have open_questions directly
+    # They would need to be tracked separately or derived from hypotheses
     open_questions = GestaltOpenQuestions(
-        questions=[
-            {
-                "question": q.question,
-                "arose_from": q.arose_from,
-                "priority": q.priority,
-            }
-            for q in data.living_edge.open_questions
-        ],
-        contradictions=data.living_edge.contradictions,
+        questions=[],
+        contradictions=[],
     )
 
     # === STORIES ===
-    recent_journal = child.get_recent_journal_entries(5)
-    recent_stories = [
-        {
+    recent_stories = []
+    for entry in child.recent_journal_entries(5):
+        recent_stories.append({
             "content": entry.content,
             "themes": entry.themes,
-            "sentiment": entry.sentiment,
-        }
-        for entry in recent_journal
-    ]
+            "sentiment": None,  # JournalEntry doesn't have sentiment
+        })
     stories = GestaltStories(
         story_count=len(child.journal_entries),
         recent_stories=recent_stories,
     )
 
-    # === EXPLORATION (unified - conversation/video/mixed) ===
-    exploration_activity = data.exploration
-    current_cycle = exploration_activity.current_cycle
-    current_focus = data.current_focus
+    # === OBSERVATIONS (videos and stories) ===
+    total_videos = len(child.videos)
+    analyzed_videos = len(child.analyzed_videos())
+    pending_videos = total_videos - analyzed_videos
+
+    observations = GestaltObservations(
+        video_count=total_videos,
+        pending_video_count=pending_videos,
+        analyzed_video_count=analyzed_videos,
+        recent_stories=recent_stories,  # Share with stories for consistency
+    )
+
+    # === EXPLORATION (from exploration_cycles list) ===
+    active_cycles = child.active_exploration_cycles()
+    current_cycle = active_cycles[0] if active_cycles else None
 
     # Build pending questions from conversation method
     pending_questions = []
-    if current_cycle and current_cycle.conversation:
-        pending_questions = [
-            {
-                "question": q.question,
-                "what_we_hoped_to_learn": q.what_we_hoped_to_learn,
-                "target_hypothesis": q.target_hypothesis_id,
-            }
-            for q in current_cycle.conversation.pending_questions
-        ]
+    if current_cycle and current_cycle.conversation_method:
+        for q in current_cycle.conversation_method.questions:
+            if not q.answered:
+                pending_questions.append({
+                    "question": q.question,
+                    "what_we_hoped_to_learn": None,
+                    "target_hypothesis": None,
+                })
 
     # Build pending video scenarios from video method
     pending_video_scenarios = []
-    if current_cycle and current_cycle.video:
-        pending_video_scenarios = [
-            {
-                "scenario": s.scenario,
-                "why_we_want_to_see": s.why_we_want_to_see,
-                "requested_at": s.requested_at.isoformat() if s.requested_at else None,
-            }
-            for s in current_cycle.video.pending_scenarios
-        ]
+    if current_cycle and current_cycle.video_method:
+        for s in current_cycle.video_method.scenarios:
+            if not s.uploaded:
+                pending_video_scenarios.append({
+                    "scenario": s.title,
+                    "why_we_want_to_see": s.what_we_hope_to_learn,
+                    "requested_at": None,
+                })
+
+    # Count completed cycles and determine methods used
+    completed_count = len([c for c in child.exploration_cycles if c.status == "complete"])
+    methods_used = []
+    questions_being_explored = []
+    if current_cycle:
+        if current_cycle.conversation_method:
+            methods_used.append("conversation")
+            # Extract question strings from conversation method
+            questions_being_explored = [
+                q.question for q in current_cycle.conversation_method.questions
+            ]
+        if current_cycle.video_method:
+            methods_used.append("video")
 
     exploration = GestaltExploration(
-        has_active_cycle=exploration_activity.has_active_exploration,
+        has_active_cycle=len(active_cycles) > 0,
         current_cycle_id=current_cycle.id if current_cycle else None,
-        current_cycle_started=current_cycle.started_at if current_cycle else None,
-        exploration_goal=current_cycle.exploration_goal if current_cycle else None,
-        methods_used=current_cycle.methods_used if current_cycle else [],
+        current_cycle_started=current_cycle.created_at if current_cycle else None,
+        exploration_goal=current_cycle.focus_description if current_cycle else None,
+        methods_used=methods_used,
         hypotheses_being_tested=current_cycle.hypothesis_ids if current_cycle else [],
-        questions_being_explored=current_cycle.open_question_ids if current_cycle else [],
+        questions_being_explored=questions_being_explored,
         pending_questions=pending_questions,
         pending_video_scenarios=pending_video_scenarios,
         pending_video_analyses=[v.id for v in child.videos if v.analysis_status == "analyzing"],
-        new_videos_not_discussed=current_focus.new_videos_not_discussed,
-        new_analyses_not_discussed=current_focus.new_analyses_not_discussed,
-        completed_cycles_count=len(exploration_activity.get_completed_cycles(100)),
-        total_videos_analyzed=child.analyzed_video_count,
+        new_videos_not_discussed=[],
+        new_analyses_not_discussed=[],
+        completed_cycles_count=completed_count,
+        total_videos_analyzed=len(child.analyzed_videos()),
     )
 
-    # === SYNTHESES (activity-based) ===
-    current_synthesis = exploration_activity.current_synthesis
-    days_since = exploration_activity.days_since_last_synthesis()
+    # === SYNTHESES ===
+    # Look for synthesis reports in exploration cycles
+    synthesis_artifacts = []
+    for cycle in child.exploration_cycles:
+        for artifact in cycle.artifacts:
+            if artifact.type == "synthesis_report":
+                synthesis_artifacts.append(artifact)
+    current_synthesis = synthesis_artifacts[-1] if synthesis_artifacts else None
 
     syntheses = GestaltSyntheses(
         has_current_synthesis=current_synthesis is not None,
         current_synthesis_id=current_synthesis.id if current_synthesis else None,
         current_synthesis_date=current_synthesis.created_at if current_synthesis else None,
-        days_since_last_synthesis=days_since,
-        significant_changes_since=current_synthesis.significant_changes_since if current_synthesis else [],
-        synthesis_might_be_outdated=(
-            current_synthesis is not None and
-            (not current_synthesis.is_current or (days_since and days_since > 30))
-        ),
-        total_syntheses_count=len(exploration_activity.syntheses),
-        new_syntheses_not_discussed=current_focus.new_syntheses_not_discussed,
+        days_since_last_synthesis=None,
+        significant_changes_since=[],
+        synthesis_might_be_outdated=False,
+        total_syntheses_count=len(synthesis_artifacts),
+        new_syntheses_not_discussed=[],
     )
 
     # === SESSION ===
@@ -769,17 +875,20 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
         turn_count=session.turn_count,
         message_count=session.message_count,
         is_returning=session.message_count > 0,
-        time_since_last=_calculate_time_since_last(current_focus),
-        last_session_emotional_state=current_focus.last_session_emotional_tone,
-        open_threads=current_focus.open_threads,
+        time_since_last=None,
+        last_session_emotional_state=None,
+        open_threads=[],
         active_card_ids=[card.card_id for card in session.active_cards],
     )
 
     # === COMPLETENESS ===
-    completeness = _calculate_completeness(data, child)
+    completeness = _calculate_completeness_from_child(child)
+
+    # === ARTIFACTS (derived from exploration cycles) ===
+    artifacts = _build_artifacts_from_cycles(child)
 
     return Gestalt(
-        child_id=child.child_id,
+        child_id=child.id,
         identity=identity,
         essence=essence,
         strengths=strengths,
@@ -791,21 +900,16 @@ def build_gestalt(child: Child, session: UserSession) -> Gestalt:
         hypotheses=hypotheses,
         open_questions=open_questions,
         stories=stories,
+        observations=observations,
         exploration=exploration,
         syntheses=syntheses,
+        artifacts=artifacts,
         session=session_info,
         completeness=completeness,
-        filming_preference=data.filming_preference,
-        parent_goals=data.parent_goals,
-        parent_emotional_state=data.parent_emotional_state,
+        filming_preference=None,
+        parent_goals=None,
+        parent_emotional_state=None,
     )
-
-
-def _calculate_time_since_last(focus: CurrentFocus) -> Optional[timedelta]:
-    """Calculate time since last interaction."""
-    if focus.last_interaction_at:
-        return datetime.now() - focus.last_interaction_at
-    return None
 
 
 def _get_sibling_dynamics(siblings: List) -> Optional[str]:
@@ -817,9 +921,67 @@ def _get_sibling_dynamics(siblings: List) -> Optional[str]:
     return "; ".join(dynamics) if dynamics else None
 
 
-def _calculate_completeness(data: DevelopmentalData, child: Child) -> GestaltCompleteness:
+def _build_artifacts_from_cycles(child: Child) -> GestaltArtifacts:
     """
-    Calculate completeness with expanded tracking.
+    Build artifacts state by scanning all exploration cycles.
+
+    Artifacts now live inside cycles, so we need to scan all cycles
+    to determine what artifacts are available.
+    """
+    has_video_guidelines = False
+    guidelines_artifact_id = None
+    guidelines_cycle_id = None
+
+    has_parent_report = False
+    report_artifact_id = None
+    report_cycle_id = None
+
+    all_artifact_ids = []
+
+    # Scan all cycles for artifacts
+    for cycle in child.exploration_cycles:
+        for artifact in cycle.artifacts:
+            all_artifact_ids.append(artifact.id)
+
+            # Check for video guidelines (any status except superseded)
+            if artifact.type == "video_guidelines" and artifact.status != "superseded":
+                has_video_guidelines = True
+                guidelines_artifact_id = artifact.id
+                guidelines_cycle_id = cycle.id
+
+            # Check for synthesis report / parent report
+            if artifact.type in ["synthesis_report", "parent_report"] and artifact.status == "ready":
+                has_parent_report = True
+                report_artifact_id = artifact.id
+                report_cycle_id = cycle.id
+
+    return GestaltArtifacts(
+        has_video_guidelines=has_video_guidelines,
+        guidelines_artifact_id=guidelines_artifact_id,
+        guidelines_cycle_id=guidelines_cycle_id,
+        has_parent_report=has_parent_report,
+        report_artifact_id=report_artifact_id,
+        report_cycle_id=report_cycle_id,
+        all_artifact_ids=all_artifact_ids,
+    )
+
+
+def _count_domain_observations(understanding: DevelopmentalUnderstanding, domain: str) -> int:
+    """
+    Count observations for a specific developmental domain.
+
+    Counts evidence across all hypotheses in that domain.
+    """
+    count = 0
+    for hypothesis in understanding.hypotheses:
+        if hypothesis.domain == domain or domain in hypothesis.domain:
+            count += len(hypothesis.evidence)
+    return count
+
+
+def _calculate_completeness_from_child(child: Child) -> GestaltCompleteness:
+    """
+    Calculate completeness using the new Child model directly.
 
     Weights (approximate):
     - Essentials (name, age): 15%
@@ -835,66 +997,66 @@ def _calculate_completeness(data: DevelopmentalData, child: Child) -> GestaltCom
 
     # Essentials (15%)
     missing_essentials = []
-    if not data.child_name:
+    if not child.identity.name:
         missing_essentials.append("name")
     else:
         score += 0.075
-    if not data.age:
+    if not child.identity.age_years:
         missing_essentials.append("age")
     else:
         score += 0.075
 
     # Strengths (15%)
     missing_strengths = not (
-        data.strengths.abilities or
-        data.strengths.interests or
-        data.strengths.what_lights_them_up
+        child.strengths.abilities or
+        child.strengths.interests or
+        child.strengths.what_lights_them_up
     )
     if not missing_strengths:
         score += 0.15
 
     # Essence (10%)
     missing_essence = not (
-        data.essence.temperament_observations or
-        data.essence.core_qualities
+        child.essence.temperament_observations or
+        child.essence.core_qualities
     )
     if not missing_essence:
         score += 0.10
 
     # History (15%)
     missing_history = []
-    if not (data.history.birth.complications or data.history.birth.premature is not None):
+    if not (child.history.birth.complications or child.history.birth.premature is not None):
         missing_history.append("birth")
     else:
         score += 0.05
-    if not data.history.milestone_notes:
+    if not child.history.milestone_notes:
         missing_history.append("milestones")
     else:
         score += 0.05
-    if not data.history.previous_evaluations and not data.history.previous_diagnoses:
+    if not child.history.previous_evaluations and not child.history.previous_diagnoses:
         missing_history.append("previous_evaluations")
     else:
         score += 0.05
 
     # Family (10%)
     missing_family = []
-    if not data.family.structure:
+    if not child.family.structure:
         missing_family.append("structure")
     else:
         score += 0.05
-    if not data.family.languages_at_home:
+    if not child.family.languages_at_home:
         missing_family.append("languages")
     else:
         score += 0.025
-    if not data.family.family_developmental_history:
+    if not child.family.family_developmental_history:
         missing_family.append("family_history")
     else:
         score += 0.025
 
     # Concerns (15%)
-    if data.primary_concerns:
+    if child.concerns.primary_areas:
         score += 0.075
-    if data.concern_details:
+    if child.concerns.parent_narrative:
         score += 0.075
 
     # Observations (10%)
@@ -904,9 +1066,9 @@ def _calculate_completeness(data: DevelopmentalData, child: Child) -> GestaltCom
         score += 0.05
 
     # Living edge (10%)
-    if data.living_edge.patterns:
+    if child.understanding.patterns:
         score += 0.05
-    if data.living_edge.hypotheses or data.living_edge.open_questions:
+    if child.understanding.hypotheses:
         score += 0.05
 
     return GestaltCompleteness(
@@ -978,9 +1140,17 @@ def get_what_we_know(gestalt: Gestalt) -> Dict[str, Any]:
     if gestalt.patterns.has_patterns:
         known["patterns"] = [p["theme"] for p in gestalt.patterns.patterns]
 
-    # Hypotheses
+    # Hypotheses - include status so LLM knows which are active
     if gestalt.hypotheses.has_hypotheses:
-        known["hypotheses"] = [h["theory"] for h in gestalt.hypotheses.hypotheses]
+        known["hypotheses"] = [
+            {
+                "id": h.get("id", ""),
+                "theory": h["theory"],
+                "status": h.get("status", "active"),
+                "confidence": h.get("confidence", 0.5),
+            }
+            for h in gestalt.hypotheses.hypotheses
+        ]
 
     # Stories
     if gestalt.stories.story_count > 0:

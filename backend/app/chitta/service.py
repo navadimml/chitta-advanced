@@ -31,7 +31,8 @@ from app.services.unified_state_service import get_unified_state_service
 
 from .gestalt import build_gestalt, Gestalt, get_what_we_know
 from .prompt import build_system_prompt
-from .tools import get_chitta_tools
+from .tools import get_chitta_tools, get_core_extraction_tools
+from .cards import derive_cards_from_child
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,9 @@ class ChittaService:
             # =====================================================
             logger.info("🔧 Phase 1: Extraction (calling functions)")
 
-            tools = get_chitta_tools(gestalt)
+            # Use reduced tool set to avoid Gemini schema complexity errors
+            # Full toolset causes "too much branching" - core tools only for extraction
+            tools = get_core_extraction_tools(gestalt)
             extraction_result = await self._extraction_phase(
                 extraction_context=extraction_context,
                 tools=tools,
@@ -162,7 +165,13 @@ class ChittaService:
             updated_gestalt = build_gestalt(child, session)
 
             # Build full system prompt for Phase 2
-            system_prompt = build_system_prompt(updated_gestalt, self.language)
+            # CRITICAL: Don't include tool descriptions since we're calling WITHOUT functions
+            # Including tools in prompt but not in API causes MALFORMED_FUNCTION_CALL errors
+            system_prompt = build_system_prompt(
+                updated_gestalt,
+                self.language,
+                include_tools_description=False
+            )
 
             # Inject returning user context if applicable
             if returning_user_context:
@@ -353,6 +362,29 @@ class ChittaService:
 {known_text}
 </already_extracted>"""
 
+        # Add active hypotheses for hypothesis evolution
+        active_hypotheses = gestalt.hypotheses.active_hypotheses
+        if active_hypotheses:
+            hypo_lines = []
+            for h in active_hypotheses:
+                hypo_id = h.get("id", "unknown")
+                theory = h.get("theory", "")
+                confidence = h.get("confidence", 0.5)
+                evidence_count = h.get("evidence_count", 0)
+                questions = h.get("questions_to_explore", [])
+
+                hypo_text = f"- ID: {hypo_id} | Confidence: {confidence:.0%} | Evidence: {evidence_count}"
+                hypo_text += f"\n  Theory: {theory[:100]}"
+                if questions:
+                    hypo_text += f"\n  Questions to explore: {'; '.join(questions[:3])}"
+                hypo_lines.append(hypo_text)
+
+            context += f"""
+
+<active_hypotheses>
+{chr(10).join(hypo_lines)}
+</active_hypotheses>"""
+
         if last_chitta_message:
             context += f"""
 
@@ -523,7 +555,7 @@ class ChittaService:
         """
         logger.info(f"Processing tool: {tool_name} with args: {tool_args}")
 
-        if tool_name == "update_child_understanding":
+        if tool_name in ("update_child_understanding", "extract_interview_data"):
             return await self._handle_update_understanding(family_id, tool_args)
 
         elif tool_name == "capture_story":
@@ -533,9 +565,13 @@ class ChittaService:
             return await self._handle_detect_milestone(family_id, tool_args, gestalt)
 
         elif tool_name == "generate_video_guidelines":
+            # DEPRECATED: No tool exposes this name. Use request_video_observation instead.
+            logger.warning("DEPRECATED: generate_video_guidelines called - use request_video_observation instead")
             return await self._handle_generate_guidelines(family_id, tool_args, gestalt)
 
         elif tool_name == "generate_parent_report":
+            # DEPRECATED: No tool exposes this name. Handler uses old baseline_interview_summary flow.
+            logger.warning("DEPRECATED: generate_parent_report called - this uses the old artifact flow")
             return await self._handle_generate_report(family_id, tool_args, gestalt)
 
         elif tool_name == "request_video_observation":
@@ -550,6 +586,37 @@ class ChittaService:
         elif tool_name == "ask_about_app":
             return self._handle_app_question(tool_args, gestalt)
 
+        elif tool_name == "form_hypothesis":
+            return await self._handle_form_hypothesis(family_id, tool_args, child)
+
+        elif tool_name == "note_pattern":
+            return await self._handle_note_pattern(family_id, tool_args, child)
+
+        elif tool_name == "update_hypothesis_evidence":
+            return await self._handle_update_hypothesis_evidence(family_id, tool_args, child)
+
+        # === Exploration Cycle Tools ===
+        elif tool_name == "start_exploration":
+            return await self._handle_start_exploration(family_id, tool_args, child)
+
+        elif tool_name == "escalate_to_video":
+            return await self._handle_escalate_to_video(family_id, tool_args, child)
+
+        elif tool_name == "complete_exploration_cycle":
+            return await self._handle_complete_exploration(family_id, tool_args, child)
+
+        elif tool_name == "add_exploration_question":
+            return await self._handle_add_exploration_question(family_id, tool_args, child)
+
+        elif tool_name == "record_question_response":
+            return await self._handle_record_question_response(family_id, tool_args, child)
+
+        elif tool_name == "add_video_scenario":
+            return await self._handle_add_video_scenario(family_id, tool_args, child)
+
+        elif tool_name == "generate_synthesis":
+            return await self._handle_generate_synthesis(family_id, tool_args, gestalt)
+
         else:
             logger.warning(f"Unknown tool: {tool_name}")
             return {"status": "unknown_tool", "tool": tool_name}
@@ -559,7 +626,7 @@ class ChittaService:
         family_id: str,
         args: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Update child's developmental data"""
+        """Update child's developmental data and create evidence for hypotheses"""
         # Filter out empty values
         update_data = {k: v for k, v in args.items() if v is not None and v != ""}
 
@@ -568,6 +635,10 @@ class ChittaService:
 
         # Update via unified service
         self._unified.update_extracted_data(family_id, update_data)
+
+        # Create evidence from significant extracted data
+        # Evidence feeds into hypotheses during reflection
+        evidence_created = await self._create_evidence_from_extraction(family_id, update_data)
 
         # Recalculate completeness
         new_completeness = self._unified.calculate_completeness(family_id)
@@ -578,7 +649,76 @@ class ChittaService:
             "status": "updated",
             "fields_updated": list(update_data.keys()),
             "new_completeness": new_completeness,
+            "evidence_created": evidence_created,
         }
+
+    async def _create_evidence_from_extraction(
+        self,
+        family_id: str,
+        update_data: Dict[str, Any]
+    ) -> int:
+        """
+        Create Evidence objects from extracted conversation data.
+
+        Evidence is created for significant observations that can feed
+        into hypothesis testing during reflection.
+        """
+        from app.models.understanding import Evidence
+
+        child = self._unified.get_child(family_id)
+        evidence_count = 0
+
+        # Map extraction fields to evidence domains
+        domain_mapping = {
+            "concerns": "concerns",
+            "primary_concerns": "concerns",
+            "concern_details": "concerns",
+            "strengths": "strengths",
+            "developmental_history": "history",
+            "family_context": "family",
+            "daily_routines": "daily_life",
+        }
+
+        for field, domain in domain_mapping.items():
+            if field not in update_data:
+                continue
+
+            value = update_data[field]
+            if not value:
+                continue
+
+            # Create evidence from this field
+            if isinstance(value, list):
+                for item in value:
+                    evidence = Evidence(
+                        source="conversation",
+                        content=f"[{field}] {item}",
+                        domain=domain,
+                    )
+                    # Add evidence to any matching active hypotheses
+                    for hypothesis in child.active_hypotheses():
+                        if hypothesis.domain == domain or domain in hypothesis.theory.lower():
+                            hypothesis.add_evidence(evidence, "neutral")
+                            evidence_count += 1
+            else:
+                evidence = Evidence(
+                    source="conversation",
+                    content=f"[{field}] {value}",
+                    domain=domain,
+                )
+                # Add evidence to any matching active hypotheses
+                for hypothesis in child.active_hypotheses():
+                    if hypothesis.domain == domain or domain in hypothesis.theory.lower():
+                        hypothesis.add_evidence(evidence, "neutral")
+                        evidence_count += 1
+
+        if evidence_count > 0:
+            # Persist child with updated hypotheses
+            from app.services.child_service import get_child_service
+            await get_child_service().save_child(family_id)
+            logger.debug(f"Created {evidence_count} evidence items from extraction")
+
+        return evidence_count
 
     async def _handle_capture_story(
         self,
@@ -638,6 +778,269 @@ class ChittaService:
             "notes": notes,
         }
 
+    async def _handle_form_hypothesis(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Form a working hypothesis about the child.
+
+        Hypotheses are theories held lightly that guide exploration.
+        Auto-creates or links to an exploration cycle for hypothesis testing.
+        """
+        from app.models.understanding import Hypothesis, Evidence
+        from app.models.exploration import ExplorationCycle, ConversationMethod
+
+        theory = args.get("theory")
+        if not theory:
+            return {"status": "no_theory"}
+
+        source = args.get("source", "observation")
+        source_details = args.get("source_details")
+
+        # Determine domain from related_domains if provided
+        related_domains = args.get("related_domains", [])
+        domain = related_domains[0] if related_domains else "general"
+
+        # Get questions to explore
+        questions_to_explore = args.get("questions_to_explore", [])
+
+        # Create hypothesis
+        hypothesis = Hypothesis(
+            theory=theory,
+            domain=domain,
+            source=source,
+            source_details=source_details,
+            questions_to_explore=questions_to_explore,
+            status="forming",
+            confidence=0.5,
+        )
+
+        # Add supporting evidence as initial evidence
+        supporting = args.get("supporting_evidence", [])
+        for evidence_text in supporting:
+            evidence = Evidence(
+                source="conversation",
+                content=evidence_text,
+                domain=domain,
+            )
+            hypothesis.add_evidence(evidence, "supports")
+
+        # Note contradicting evidence (doesn't add as evidence yet, just lowers confidence)
+        contradicting = args.get("contradicting_evidence", [])
+        if contradicting:
+            # Lower initial confidence if there's contradicting evidence
+            hypothesis.confidence = max(0.3, hypothesis.confidence - 0.1 * len(contradicting))
+
+        # Add to child's understanding
+        child.add_hypothesis(hypothesis)
+
+        # Auto-create or link to exploration cycle
+        cycle_id = None
+        current_cycle = child.current_cycle()
+
+        if current_cycle and current_cycle.status == "active":
+            # Add this hypothesis to the current active cycle
+            if hypothesis.id not in current_cycle.hypothesis_ids:
+                current_cycle.hypothesis_ids.append(hypothesis.id)
+            cycle_id = current_cycle.id
+            logger.debug(f"Added hypothesis {hypothesis.id} to existing cycle {cycle_id}")
+        else:
+            # Create a new exploration cycle for this hypothesis
+            cycle = ExplorationCycle(
+                hypothesis_ids=[hypothesis.id],
+                focus_description=f"Exploring: {theory[:100]}",
+                status="active",
+            )
+            # Initialize conversation method with questions if provided
+            if questions_to_explore:
+                cycle.conversation_method = ConversationMethod()
+                for q in questions_to_explore:
+                    cycle.conversation_method.add_question(q)
+            child.add_cycle(cycle)
+            cycle_id = cycle.id
+            logger.debug(f"Created new exploration cycle {cycle_id} for hypothesis {hypothesis.id}")
+
+        # Persist child
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(
+            f"💡 Hypothesis formed: {theory[:50]}... "
+            f"(source={source}, domain={domain}, confidence={hypothesis.confidence:.0%}, cycle={cycle_id})"
+        )
+
+        return {
+            "status": "formed",
+            "hypothesis_id": hypothesis.id,
+            "theory": theory,
+            "domain": domain,
+            "source": source,
+            "confidence": hypothesis.confidence,
+            "evidence_count": len(hypothesis.evidence),
+            "questions_to_explore": args.get("questions_to_explore", []),
+            "exploration_cycle_id": cycle_id,
+        }
+
+    async def _handle_note_pattern(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Note a pattern emerging across observations.
+
+        Patterns connect scattered observations into themes.
+        """
+        from app.models.understanding import Pattern
+
+        theme = args.get("theme")
+        if not theme:
+            return {"status": "no_theme"}
+
+        observations = args.get("observations", [])
+        domains_involved = args.get("domains_involved", [])
+        confidence = args.get("confidence", 0.5)
+
+        # Create pattern
+        pattern = Pattern(
+            theme=theme,
+            description=f"Observations: {'; '.join(observations)}",
+            related_hypotheses=[],  # Can be linked to hypotheses later
+            confidence=confidence,
+            source="conversation",
+        )
+
+        # Add to child's understanding
+        child.add_pattern(pattern)
+
+        # Persist child
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(
+            f"🔗 Pattern noted: {theme} "
+            f"(observations={len(observations)}, domains={domains_involved})"
+        )
+
+        return {
+            "status": "noted",
+            "pattern_id": pattern.id,
+            "theme": theme,
+            "observations_count": len(observations),
+            "domains": domains_involved,
+            "confidence": confidence,
+        }
+
+    async def _handle_update_hypothesis_evidence(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Update hypotheses with evidence from conversation.
+
+        This is the KEY mechanism for hypothesis evolution:
+        1. LLM explicitly links parent's response to hypotheses
+        2. Direction (supports/contradicts) determines confidence change
+        3. Auto-resolution when thresholds are crossed
+        """
+        from app.models.understanding import Evidence
+
+        evidence_summary = args.get("evidence_summary")
+        hypothesis_effects = args.get("hypothesis_effects", [])
+        source_question = args.get("source_question")
+
+        if not evidence_summary or not hypothesis_effects:
+            return {"status": "no_evidence"}
+
+        results = []
+        resolved_hypotheses = []
+
+        for effect in hypothesis_effects:
+            hypothesis_id = effect.get("hypothesis_id")
+            direction = effect.get("direction", "neutral")
+            reasoning = effect.get("reasoning", "")
+
+            if not hypothesis_id:
+                continue
+
+            # Find the hypothesis
+            hypothesis = child.understanding.get_hypothesis(hypothesis_id)
+            if not hypothesis:
+                logger.warning(f"Hypothesis not found: {hypothesis_id}")
+                results.append({
+                    "hypothesis_id": hypothesis_id,
+                    "status": "not_found"
+                })
+                continue
+
+            # Create evidence
+            evidence = Evidence(
+                source="conversation",
+                content=f"{evidence_summary}" + (f" ({reasoning})" if reasoning else ""),
+                domain=hypothesis.domain,
+            )
+
+            # Add to hypothesis with direction
+            old_confidence = hypothesis.confidence
+            old_status = hypothesis.status
+            hypothesis.add_evidence(evidence, direction)
+
+            # Auto-resolution based on confidence thresholds
+            resolution_result = None
+            if hypothesis.confidence >= 0.85 and hypothesis.status != "resolved":
+                hypothesis.resolve("confirmed", f"High confidence ({hypothesis.confidence:.0%}) based on evidence")
+                resolution_result = "confirmed"
+                resolved_hypotheses.append({
+                    "id": hypothesis_id,
+                    "theory": hypothesis.theory,
+                    "resolution": "confirmed",
+                    "final_confidence": hypothesis.confidence
+                })
+            elif hypothesis.confidence <= 0.25 and hypothesis.status != "resolved":
+                hypothesis.resolve("rejected", f"Low confidence ({hypothesis.confidence:.0%}) based on contradicting evidence")
+                resolution_result = "rejected"
+                resolved_hypotheses.append({
+                    "id": hypothesis_id,
+                    "theory": hypothesis.theory,
+                    "resolution": "rejected",
+                    "final_confidence": hypothesis.confidence
+                })
+
+            results.append({
+                "hypothesis_id": hypothesis_id,
+                "direction": direction,
+                "old_confidence": old_confidence,
+                "new_confidence": hypothesis.confidence,
+                "old_status": old_status,
+                "new_status": hypothesis.status,
+                "resolution": resolution_result,
+            })
+
+            logger.info(
+                f"📊 Hypothesis {hypothesis_id[:8]}: {direction} → "
+                f"{old_confidence:.0%} → {hypothesis.confidence:.0%} "
+                f"(status: {old_status} → {hypothesis.status})"
+            )
+
+        # Persist child with updated hypotheses
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        return {
+            "status": "updated",
+            "evidence_summary": evidence_summary,
+            "source_question": source_question,
+            "hypotheses_updated": len(results),
+            "results": results,
+            "resolved_hypotheses": resolved_hypotheses,
+        }
+
     async def _handle_generate_guidelines(
         self,
         family_id: str,
@@ -645,8 +1048,16 @@ class ChittaService:
         gestalt: Gestalt
     ) -> Dict[str, Any]:
         """
-        Trigger video guidelines generation.
+        DEPRECATED: This handler is dead code - no tool exposes 'generate_video_guidelines'.
 
+        The active flow uses `request_video_observation` tool which calls `_handle_request_video`
+        and uses `generate_video_guidelines_from_gestalt` (hypotheses-based approach).
+
+        This old handler uses the baseline_interview_summary → baseline_video_guidelines chain
+        which is no longer the active flow.
+
+        Original docstring:
+        Trigger video guidelines generation.
         Wu Wei: Guidelines require interview_summary artifact first.
         The artifact chain is:
         1. interview_summary (extracted from conversation)
@@ -695,7 +1106,7 @@ class ChittaService:
                     session_data=session_data,
                 )
                 if interview_artifact.status == "ready":
-                    child.add_artifact(interview_summary_id, interview_artifact.to_dict())
+                    child.add_artifact(interview_artifact)
                     child_service.save_child(child)
                     # Update session_data with new artifact
                     session_data = self._build_session_data_for_artifacts(child, session, gestalt)
@@ -715,7 +1126,7 @@ class ChittaService:
 
             if artifact.status == "ready":
                 # Save artifact to child
-                child.add_artifact("baseline_video_guidelines", artifact.to_dict())
+                child.add_artifact(artifact)
                 child_service.save_child(child)
 
             return {
@@ -739,8 +1150,13 @@ class ChittaService:
         gestalt: Gestalt
     ) -> Dict[str, Any]:
         """
-        Trigger parent report generation.
+        DEPRECATED: This handler is dead code - no tool exposes 'generate_parent_report'.
 
+        This uses the old baseline_interview_summary artifact chain which is
+        no longer the active approach.
+
+        Original docstring:
+        Trigger parent report generation.
         Wu Wei: Parent report requires professional_report artifact first.
         The full artifact chain is:
         1. interview_summary
@@ -791,7 +1207,7 @@ class ChittaService:
 
             if artifact.status == "ready":
                 # Save artifact to child
-                child.add_artifact("baseline_parent_report", artifact.to_dict())
+                child.add_artifact(artifact)
                 child_service.save_child(child)
 
             return {
@@ -814,30 +1230,134 @@ class ChittaService:
         args: Dict[str, Any],
         gestalt: Gestalt
     ) -> Dict[str, Any]:
-        """Handle video observation request"""
+        """
+        Handle video observation request - generates personalized guidelines from Gestalt.
 
-        # Check prerequisites
-        if not gestalt.artifacts.has_video_guidelines:
-            return {
-                "status": "blocked",
-                "reason": "no_guidelines",
-            }
+        This is called when the LLM determines video observation would help test hypotheses.
+        It generates personalized filming guidelines and creates an artifact that appears
+        in the child's Space. A context card guides the parent to view instructions.
 
+        Args:
+            family_id: Family identifier
+            args: Tool arguments (hypothesis_ids_to_test, patterns_to_explore, include_strength_baseline)
+            gestalt: Current Gestalt state
+
+        Returns:
+            Dict with status, artifact info, and action for UI
+        """
+        import json
+
+        # Check if parent chose report-only path
         if gestalt.filming_preference == "report_only":
             return {
                 "status": "blocked",
                 "reason": "parent_chose_report_only",
             }
 
-        # This triggers UI to show video upload
-        # The actual video handling is done by frontend + upload endpoints
+        # Get child data for guideline generation
+        from app.services.child_service import get_child_service
+        child_service = get_child_service()
+        child = child_service.get_or_create_child(family_id)
 
-        return {
-            "status": "requested",
-            "scenario": args.get("scenario"),
-            "observation_goal": args.get("observation_goal"),
-            "focus_points": args.get("focus_points", []),
-        }
+        # Get artifact generation service
+        from app.services.artifact_generation_service import ArtifactGenerationService
+        artifact_service = ArtifactGenerationService()
+
+        try:
+            # Generate guidelines from Gestalt
+            scenarios_needed = args.get("scenarios_needed", 1)
+            include_baseline = args.get("include_strength_baseline", False)
+            hypothesis_ids = args.get("hypothesis_ids_to_test", [])
+            logger.info(f"🎬 Generating video guidelines from Gestalt for {family_id} (scenarios={scenarios_needed}, baseline={include_baseline})")
+            guidelines = await artifact_service.generate_video_guidelines_from_gestalt(
+                child=child,
+                scenarios_needed=scenarios_needed,
+                hypotheses_to_test=hypothesis_ids,
+                patterns_to_explore=args.get("patterns_to_explore"),
+                include_strength_baseline=include_baseline,
+            )
+
+            # Store as artifact using proper Artifact model
+            from app.models.artifact import Artifact
+            from app.models.exploration import CycleArtifact
+            artifact_id = "video_guidelines_from_gestalt"
+            artifact = Artifact(
+                artifact_id=artifact_id,
+                artifact_type="filming_guidelines",
+                status="ready",
+                content=json.dumps(guidelines, ensure_ascii=False),
+                content_format="json",
+            )
+            artifact.ready_at = datetime.now()
+
+            # Store in the current exploration cycle (creates one if needed)
+            cycle_id = None
+            current_cycle = child.current_cycle()
+            if not current_cycle:
+                # Create a cycle for video exploration
+                from app.models.exploration import ExplorationCycle
+                current_cycle = ExplorationCycle(
+                    hypothesis_ids=hypothesis_ids,
+                    focus_description="Video observation exploration",
+                    status="evidence_gathering",
+                )
+                child.add_cycle(current_cycle)
+
+            # Create a CycleArtifact for the cycle
+            cycle_artifact = CycleArtifact(
+                id=artifact_id,
+                type="video_guidelines",
+                content=guidelines,
+                status="ready",
+                related_hypothesis_ids=hypothesis_ids,
+                expected_videos=len(guidelines.get("scenarios", [])),
+            )
+            cycle_artifact.mark_ready()
+            current_cycle.add_artifact(cycle_artifact)
+            # Transition cycle to evidence_gathering
+            if current_cycle.status != "evidence_gathering":
+                current_cycle.transition_to("evidence_gathering")
+            cycle_id = current_cycle.id
+            logger.debug(f"Added guidelines artifact to cycle {cycle_id}")
+
+            # Save child
+            await child_service.save_child(family_id)
+
+            logger.info(f"✅ Video guidelines generated: {len(guidelines.get('scenarios', []))} scenarios (cycle={cycle_id})")
+
+            # Return success with action to show context card
+            return {
+                "status": "generated",
+                "artifact_id": artifact_id,
+                "scenarios_count": len(guidelines.get("scenarios", [])),
+                "child_name": guidelines.get("child_name"),
+                # This triggers the frontend to show a context card
+                "action": {
+                    "type": "show_context_card",
+                    "card": {
+                        "id": "video_guidelines_ready",
+                        "type": "artifact_ready",
+                        "title": "הנחיות צילום מוכנות",
+                        "message": "הכנתי הנחיות צילום מותאמות אישית. תוכלו לצפות בהן במרחב.",
+                        "primary_action": {
+                            "label": "צפייה בהנחיות",
+                            "target": "filming_guidelines",
+                            "artifact_id": artifact_id,
+                        },
+                        "secondary_action": {
+                            "label": "העלאת סרטון",
+                            "target": "video_upload",
+                        },
+                    },
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Failed to generate video guidelines: {e}", exc_info=True)
+            return {
+                "status": "error",
+                "reason": str(e),
+            }
 
     async def _handle_analyze_video(
         self,
@@ -935,7 +1455,7 @@ class ChittaService:
             if artifact.status == "ready":
                 # Mark video as analyzed and save artifact
                 video.mark_analyzed(artifact.artifact_id)
-                child.add_artifact(artifact.artifact_id, artifact.to_dict())
+                child.add_artifact(artifact)
                 child_service.save_child(child)
 
                 return {
@@ -1008,6 +1528,431 @@ class ChittaService:
             "context": context,
         }
 
+    # === Exploration Cycle Handlers ===
+
+    async def _handle_start_exploration(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Start an exploration cycle to test hypotheses.
+
+        An exploration cycle organizes hypothesis testing through
+        conversation and/or video methods.
+        """
+        from app.models.exploration import (
+            ExplorationCycle, ConversationMethod, VideoMethod,
+            ConversationQuestion, VideoScenario
+        )
+
+        goal = args.get("exploration_goal")
+        if not goal:
+            return {"status": "error", "error": "No exploration goal provided"}
+
+        hypothesis_ids = args.get("hypothesis_ids", [])
+        initial_method = args.get("initial_method", "conversation")
+
+        # Create the exploration cycle
+        cycle = ExplorationCycle(
+            hypothesis_ids=hypothesis_ids,
+            focus_description=goal,
+            status="active",
+        )
+
+        # Initialize methods based on initial_method
+        if initial_method in ("conversation", "both"):
+            questions = args.get("conversation_questions", [])
+            cycle.conversation_method = ConversationMethod()
+            for q in questions:
+                cycle.conversation_method.add_question(q.get("question", ""))
+
+        if initial_method in ("video", "both"):
+            scenarios = args.get("video_scenarios", [])
+            cycle.video_method = VideoMethod()
+            for s in scenarios:
+                scenario = VideoScenario(
+                    title=s.get("scenario", ""),
+                    what_to_film=s.get("scenario", ""),
+                    target_hypothesis=s.get("target_hypothesis_id", ""),
+                    what_we_hope_to_learn=s.get("why_we_want_to_see", ""),
+                    focus_points=s.get("focus_points", []),
+                )
+                cycle.video_method.add_scenario(scenario)
+            # If video method is active, transition to evidence_gathering
+            if scenarios:
+                cycle.transition_to("evidence_gathering")
+
+        # Add cycle to child
+        child.add_cycle(cycle)
+
+        # Persist child
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(
+            f"🔬 Exploration cycle started: {goal[:50]}... "
+            f"(method={initial_method}, hypotheses={len(hypothesis_ids)})"
+        )
+
+        return {
+            "status": "started",
+            "cycle_id": cycle.id,
+            "goal": goal,
+            "method": initial_method,
+            "hypothesis_count": len(hypothesis_ids),
+            "questions_count": len(args.get("conversation_questions", [])),
+            "scenarios_count": len(args.get("video_scenarios", [])),
+        }
+
+    async def _handle_escalate_to_video(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Add video method to the current exploration cycle.
+
+        Called when conversation alone can't answer what we're wondering.
+        """
+        from app.models.exploration import VideoMethod, VideoScenario
+
+        # Get current active cycle
+        cycle = child.current_cycle()
+        if not cycle:
+            return {
+                "status": "error",
+                "error": "No active exploration cycle to escalate",
+            }
+
+        why_needed = args.get("why_video_needed", "")
+        scenarios_data = args.get("scenarios", [])
+
+        if not scenarios_data:
+            return {
+                "status": "error",
+                "error": "No scenarios provided for video escalation",
+            }
+
+        # Create or update video method
+        if not cycle.video_method:
+            cycle.video_method = VideoMethod()
+
+        for s in scenarios_data:
+            scenario = VideoScenario(
+                title=s.get("scenario", "")[:50],
+                what_to_film=s.get("scenario", ""),
+                target_hypothesis=s.get("target_hypothesis_id", ""),
+                what_we_hope_to_learn=s.get("why_we_want_to_see", ""),
+                focus_points=s.get("focus_points", []),
+            )
+            cycle.video_method.add_scenario(scenario)
+
+        # Transition to evidence_gathering
+        cycle.transition_to("evidence_gathering")
+
+        # Persist child
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(
+            f"📹 Exploration escalated to video: {why_needed[:50]}... "
+            f"(cycle={cycle.id}, scenarios={len(scenarios_data)})"
+        )
+
+        return {
+            "status": "escalated",
+            "cycle_id": cycle.id,
+            "why_needed": why_needed,
+            "scenarios_count": len(scenarios_data),
+            "cycle_status": cycle.status,
+        }
+
+    async def _handle_complete_exploration(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Complete the current exploration cycle with learnings.
+
+        Captures what we learned and updates hypotheses accordingly.
+        """
+        from app.models.understanding import PendingInsight
+
+        # Get current active cycle
+        cycle = child.current_cycle()
+        if not cycle:
+            return {
+                "status": "error",
+                "error": "No active exploration cycle to complete",
+            }
+
+        what_we_learned = args.get("what_we_learned", "")
+        hypotheses_supported = args.get("hypotheses_supported", [])
+        hypotheses_contradicted = args.get("hypotheses_contradicted", [])
+        new_hypotheses = args.get("new_hypotheses", [])
+        remaining_questions = args.get("remaining_questions", [])
+
+        # Update hypotheses based on results
+        for hyp_id in hypotheses_supported:
+            hypothesis = child.understanding.get_hypothesis(hyp_id)
+            if hypothesis:
+                hypothesis.confidence = min(1.0, hypothesis.confidence + 0.15)
+                if hypothesis.confidence >= 0.85:
+                    hypothesis.resolve("confirmed", f"Supported by exploration cycle {cycle.id}")
+
+        for hyp_id in hypotheses_contradicted:
+            hypothesis = child.understanding.get_hypothesis(hyp_id)
+            if hypothesis:
+                hypothesis.confidence = max(0.0, hypothesis.confidence - 0.2)
+                if hypothesis.confidence <= 0.25:
+                    hypothesis.resolve("rejected", f"Contradicted by exploration cycle {cycle.id}")
+
+        # Create pending insight from learnings
+        if what_we_learned:
+            insight = PendingInsight(
+                content=what_we_learned,
+                source="exploration_cycle",
+                related_hypotheses=cycle.hypothesis_ids,
+                importance="high" if hypotheses_supported or hypotheses_contradicted else "medium",
+            )
+            child.understanding.add_insight(insight)
+
+        # Mark cycle as complete
+        cycle.transition_to("complete")
+
+        # Persist child
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(
+            f"✅ Exploration cycle completed: {cycle.id} "
+            f"(supported={len(hypotheses_supported)}, contradicted={len(hypotheses_contradicted)})"
+        )
+
+        return {
+            "status": "completed",
+            "cycle_id": cycle.id,
+            "what_we_learned": what_we_learned,
+            "hypotheses_supported": hypotheses_supported,
+            "hypotheses_contradicted": hypotheses_contradicted,
+            "new_hypotheses_suggested": new_hypotheses,
+            "remaining_questions": remaining_questions,
+        }
+
+    async def _handle_add_exploration_question(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Add a question to the active exploration cycle.
+        """
+        from app.models.exploration import ConversationQuestion
+
+        cycle = child.current_cycle()
+        if not cycle:
+            return {
+                "status": "error",
+                "error": "No active exploration cycle",
+            }
+
+        question_text = args.get("question", "")
+        what_we_hope_to_learn = args.get("what_we_hope_to_learn", "")
+        target_hypothesis_id = args.get("target_hypothesis_id")
+
+        if not question_text:
+            return {"status": "error", "error": "Question text is required"}
+
+        # Ensure conversation method is initialized
+        if not cycle.conversation_method:
+            cycle.start_conversation_exploration([question_text])
+        else:
+            cycle.conversation_method.add_question(question_text)
+
+        # Save
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(f"Added exploration question: {question_text[:50]}...")
+
+        return {
+            "status": "added",
+            "question": question_text,
+            "what_we_hope_to_learn": what_we_hope_to_learn,
+            "target_hypothesis_id": target_hypothesis_id,
+            "total_questions": len(cycle.conversation_method.questions),
+        }
+
+    async def _handle_record_question_response(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Record the response to an exploration question.
+        """
+        from app.models.understanding import Evidence
+        from datetime import datetime
+
+        cycle = child.current_cycle()
+        if not cycle or not cycle.conversation_method:
+            return {
+                "status": "error",
+                "error": "No active exploration with conversation method",
+            }
+
+        question_text = args.get("question", "")
+        response_summary = args.get("response_summary", "")
+        evidence_produced = args.get("evidence_produced", "")
+        evidence_direction = args.get("evidence_direction", "neutral")
+        target_hypothesis_id = args.get("target_hypothesis_id")
+
+        # Find and mark the question as answered
+        question_found = False
+        for q in cycle.conversation_method.questions:
+            if q.question == question_text or question_text in q.question:
+                q.answered = True
+                q.asked_at = datetime.now()
+                q.response_summary = response_summary
+                question_found = True
+                break
+
+        # Create evidence if we have a target hypothesis
+        if target_hypothesis_id and evidence_produced:
+            hypothesis = child.understanding.get_hypothesis(target_hypothesis_id)
+            if hypothesis:
+                evidence = Evidence(
+                    source="conversation",
+                    content=evidence_produced,
+                    domain=hypothesis.domain,
+                )
+                hypothesis.add_evidence(evidence)
+
+                # Adjust confidence based on direction
+                if evidence_direction == "supports":
+                    hypothesis.confidence = min(1.0, hypothesis.confidence + 0.1)
+                elif evidence_direction == "contradicts":
+                    hypothesis.confidence = max(0.0, hypothesis.confidence - 0.1)
+
+        # Save
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(f"Recorded question response: {question_text[:30]}... -> {evidence_direction}")
+
+        return {
+            "status": "recorded",
+            "question_found": question_found,
+            "response_summary": response_summary,
+            "evidence_direction": evidence_direction,
+            "target_hypothesis_id": target_hypothesis_id,
+        }
+
+    async def _handle_add_video_scenario(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        child: Child
+    ) -> Dict[str, Any]:
+        """
+        Add a video scenario to the active exploration cycle.
+        """
+        from app.models.exploration import VideoScenario
+
+        cycle = child.current_cycle()
+        if not cycle:
+            return {
+                "status": "error",
+                "error": "No active exploration cycle",
+            }
+
+        if not cycle.video_method:
+            return {
+                "status": "error",
+                "error": "Video method not active in this cycle. Use escalate_to_video first.",
+            }
+
+        scenario_text = args.get("scenario", "")
+        why_we_want_to_see = args.get("why_we_want_to_see", "")
+        target_hypothesis_id = args.get("target_hypothesis_id", "")
+        focus_points = args.get("focus_points", [])
+
+        if not scenario_text:
+            return {"status": "error", "error": "Scenario description is required"}
+
+        scenario = VideoScenario(
+            title=scenario_text,
+            what_to_film=scenario_text,
+            target_hypothesis=target_hypothesis_id,
+            what_we_hope_to_learn=why_we_want_to_see,
+            focus_points=focus_points,
+        )
+        cycle.video_method.add_scenario(scenario)
+
+        # Save
+        from app.services.child_service import get_child_service
+        await get_child_service().save_child(family_id)
+
+        logger.info(f"Added video scenario: {scenario_text[:50]}...")
+
+        return {
+            "status": "added",
+            "scenario_id": scenario.id,
+            "scenario": scenario_text,
+            "why_we_want_to_see": why_we_want_to_see,
+            "total_scenarios": len(cycle.video_method.scenarios),
+        }
+
+    async def _handle_generate_synthesis(
+        self,
+        family_id: str,
+        args: Dict[str, Any],
+        gestalt: Gestalt
+    ) -> Dict[str, Any]:
+        """
+        Generate a synthesis (parent report) of current understanding.
+        """
+        purpose = args.get("purpose", "share_with_professional")
+        focus_areas = args.get("focus_areas", [])
+
+        # Check if we have enough information
+        if not gestalt.identity.name:
+            return {
+                "status": "error",
+                "error": "Cannot generate synthesis - child's name not known yet",
+            }
+
+        if not gestalt.strengths.has_strengths:
+            return {
+                "status": "error",
+                "error": "Cannot generate synthesis - strengths not yet captured (strengths come first)",
+            }
+
+        # TODO: Generate actual synthesis using LLM
+        # For now, return a stub indicating what would be generated
+        logger.info(f"Synthesis requested for purpose: {purpose}")
+
+        return {
+            "status": "pending",
+            "message": "Synthesis generation will be implemented in the next phase",
+            "purpose": purpose,
+            "focus_areas": focus_areas,
+            "gestalt_summary": {
+                "child_name": gestalt.identity.name,
+                "age": gestalt.identity.age,
+                "has_strengths": gestalt.strengths.has_strengths,
+                "hypothesis_count": len(gestalt.hypotheses.hypotheses),
+                "pattern_count": len(gestalt.patterns.patterns),
+            }
+        }
+
     def _get_error_response(self) -> str:
         """Get error response in appropriate language"""
         if self.language == "he":
@@ -1029,14 +1974,15 @@ class ChittaService:
         - extracted_data
         - artifacts (dict of existing artifacts)
         """
-        # Build artifacts dict from child
+        # Build artifacts dict from exploration cycles
         artifacts_dict = {}
-        for artifact_id, artifact_data in child.artifacts.items():
-            artifacts_dict[artifact_id] = {
-                "exists": True,
-                "content": artifact_data.get("content"),
-                "status": artifact_data.get("status", "ready"),
-            }
+        for cycle in child.exploration_cycles:
+            for artifact in cycle.artifacts:
+                artifacts_dict[artifact.id] = {
+                    "exists": True,
+                    "content": artifact.content,  # Already a dict in CycleArtifact
+                    "status": artifact.status,
+                }
 
         # Build conversation history
         conversation_history = session.get_conversation_history(last_n=50)

@@ -79,17 +79,21 @@ def transform_child_for_api(
         ]
 
     if include_artifacts:
+        # Build artifacts dict directly from exploration cycles
         result["artifacts"] = {
-            artifact_id: transform_artifact_for_api(artifact)
-            for artifact_id, artifact in child.artifacts.items()
+            artifact.id: transform_artifact_for_api(artifact)
+            for cycle in child.exploration_cycles
+            for artifact in cycle.artifacts
         }
 
     # Add high-level progress indicators (no internal details)
+    # Count artifacts across all cycles
+    total_artifacts = sum(len(cycle.artifacts) for cycle in child.exploration_cycles)
     result["progress"] = {
         "videos_total": child.video_count,
         "videos_analyzed": len(child.analyzed_videos()),
         "active_cycles": len(child.active_exploration_cycles()),
-        "artifacts_count": len(child.artifacts),
+        "artifacts_count": total_artifacts,
     }
 
     return result
