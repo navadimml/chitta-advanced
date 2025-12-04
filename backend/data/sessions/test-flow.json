@@ -1,0 +1,59 @@
+{
+  "family_id": "test-flow",
+  "extracted_data": {
+    "child_name": null,
+    "age": null,
+    "gender": null,
+    "primary_concerns": [
+      "speech"
+    ],
+    "concern_details": "מודאגת מהדיבור של הילד שלי",
+    "strengths": null,
+    "developmental_history": null,
+    "family_context": null,
+    "daily_routines": null,
+    "parent_goals": null,
+    "urgent_flags": [],
+    "filming_preference": null,
+    "last_updated": {
+      "_type": "datetime",
+      "_value": "2025-12-02T14:05:31.311009"
+    },
+    "extraction_count": 3
+  },
+  "completeness": 0.03,
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "שלום, אני מודאגת מהדיבור של הילד שלי",
+      "timestamp": "2025-12-02T14:03:31.868409"
+    },
+    {
+      "role": "user",
+      "content": "שלום, אני מודאגת מהדיבור של הילד שלי",
+      "timestamp": "2025-12-02T14:05:03.683726"
+    },
+    {
+      "role": "assistant",
+      "content": "שלום לך. אני כאן כדי לעזור לך להבין אותו טוב יותר.\n\nכדי שנוכל להתחיל, איך קוראים לילד שלך ובן כמה הוא?",
+      "timestamp": "2025-12-02T14:05:04.556661"
+    },
+    {
+      "role": "user",
+      "content": "שלום, אני מודאגת מהדיבור של הילד שלי",
+      "timestamp": "2025-12-02T14:05:31.316964"
+    },
+    {
+      "role": "assistant",
+      "content": "שלום לך. אני כאן כדי לעזור לך להבין אותו טוב יותר.\n\nכדי שנוכל להתחיל, איך קוראים לילד שלך ובן כמה הוא?",
+      "timestamp": "2025-12-02T14:05:32.460088"
+    }
+  ],
+  "artifacts": {},
+  "created_at": "2025-12-02T14:02:02.971111",
+  "updated_at": "2025-12-02T14:05:32.460099",
+  "semantic_verification": null,
+  "semantic_verification_turn": 0,
+  "_persisted_at": "2025-12-02T14:05:32.463329",
+  "_family_id": "test-flow"
+}

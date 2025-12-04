@@ -41,6 +41,115 @@ Cycle = {
 
 3. **Immutable on Completion**: When complete, a cycle becomes a frozen historical record
 
+---
+
+## CRITICAL: One Domain = One Cycle
+
+### The Wrong Model
+
+```python
+# ❌ WRONG: One cycle with hypotheses from multiple domains
+cycle = {
+    id: "c1",
+    focus_domain: "behavioral",  # Misleading - contains multiple domains!
+    hypotheses: [
+        {theory: "difficulty with transitions", domain: "behavioral"},
+        {theory: "struggles with peer interaction", domain: "social"},
+        {theory: "sensitive to noise", domain: "sensory"}
+    ]
+}
+```
+
+**Problem**: This conflates different clinical phenomena. Transitions, social interaction, and sensory processing are DIFFERENT domains requiring DIFFERENT exploration approaches and DIFFERENT evidence.
+
+### The Correct Model
+
+```python
+# ✅ CORRECT: Separate cycle per domain
+cycles = [
+    {
+        id: "c1-transitions",
+        focus_domain: "behavioral",
+        focus_description: "Morning routine transitions",
+        hypotheses: [
+            {theory: "difficulty with transitions", domain: "behavioral"}
+        ]
+    },
+    {
+        id: "c2-social",
+        focus_domain: "social",
+        focus_description: "Peer interaction patterns",
+        hypotheses: [
+            {theory: "struggles with peer interaction", domain: "social"}
+        ]
+    },
+    {
+        id: "c3-sensory",
+        focus_domain: "sensory",
+        focus_description: "Noise sensitivity",
+        hypotheses: [
+            {theory: "sensitive to noise", domain: "sensory"}
+        ]
+    }
+]
+```
+
+### Why Separate Cycles Matter
+
+| Aspect | Multi-Domain Cycle (Wrong) | Domain-Specific Cycles (Correct) |
+|--------|---------------------------|----------------------------------|
+| Evidence targeting | Generic video for "everything" | Video specific to each domain |
+| Closure triggers | When does it close? Confusing | Clear per-domain understanding |
+| Cross-cycle patterns | Can't detect patterns across time | "Sensory appears in multiple contexts" becomes visible |
+| Longitudinal narrative | One blob of "concerns" | Clear evolution per domain |
+
+### Implementation Rule
+
+When creating cycles or adding hypotheses:
+
+```python
+# When parent mentions multiple concerns:
+# "בבוקר זה סיוט להוציא אותו. והוא לא משחק עם ילדים אחרים בכלל"
+
+# ❌ WRONG: Add both to one "general" cycle
+cycle.add_hypothesis({domain: "behavioral", theory: "transition difficulty"})
+cycle.add_hypothesis({domain: "social", theory: "peer interaction"})
+
+# ✅ CORRECT: Create separate cycles
+create_cycle(domain="behavioral", focus="Morning transitions")
+    .add_hypothesis({domain: "behavioral", theory: "transition difficulty"})
+
+create_cycle(domain="social", focus="Peer interaction")
+    .add_hypothesis({domain: "social", theory: "peer interaction"})
+```
+
+### When Domains Overlap
+
+If a single observation relates to multiple domains, the EVIDENCE can be shared, but the HYPOTHESES remain in their respective cycles:
+
+```python
+# Parent says: "בבוקר כשיש רעש הוא לא יכול לעבור לפעילות אחרת"
+# This mentions: sensory (noise) + transitions (activity switch)
+
+# Evidence is shared across cycles:
+evidence = {
+    content: "Parent reports noise impacts transitions",
+    applies_to_cycles: ["c1-transitions", "c3-sensory"]
+}
+
+# But each cycle maintains its own hypothesis:
+# c1-transitions: "Transitions are difficult" (general)
+# c3-sensory: "Sensory triggers affect transitions" (more specific)
+
+# Over time, a PATTERN emerges (at Child level):
+pattern = {
+    theme: "Sensory input impacts self-regulation",
+    supporting_cycles: ["c1-transitions", "c3-sensory"]
+}
+```
+
+---
+
 ### Lifecycle
 
 ```
@@ -373,6 +482,184 @@ Would you like to explore that pattern together?"
 
 ---
 
+## Cycle Closure: Evidence-Driven, Not Parent-Confirmed
+
+### The Authority Bias Problem
+
+Parents tend to agree with AI-based systems due to perceived authority. Asking "Does this match your experience?" creates false confirmation - parents will often agree even if they have reservations.
+
+**Solution**: Parent is INFORMED of conclusions, not asked to CONFIRM them.
+
+### Cycle Closure Triggers
+
+A cycle closes automatically when ANY of these conditions are met:
+
+| Trigger | Condition | Example |
+|---------|-----------|---------|
+| **Confidence Threshold** | Any hypothesis reaches >90% or <10% | H2 "control issues" hits 92% after 3 supporting evidence pieces |
+| **Convergence** | 2+ hypotheses point same direction | Both "transitions" and "control" hypotheses indicate regulation challenges |
+| **Staleness** | No new evidence for 30+ days | Cycle on "speech" hasn't had new info in 6 weeks |
+| **LLM Soft Trigger** | "Sufficient understanding" reached | ≥70% confidence on lead hypothesis + ≥3 evidence pieces |
+
+### What Happens at Closure
+
+```
+When cycle closes:
+├── All hypotheses FROZEN at current state
+│   ├── Resolved hypotheses: marked with resolution ("confirmed", "refuted", "inconclusive")
+│   └── Active hypotheses: frozen as "inconclusive at cycle end"
+├── Cycle status → "complete"
+├── Completed_at timestamp set
+└── Cycle becomes immutable historical record
+```
+
+### Parent Communication at Closure
+
+The parent is INFORMED, not asked to confirm:
+
+```
+❌ WRONG (asks for confirmation):
+   "נראה שהבנתי שהקושי של יואב קשור לתחושת שליטה. האם זה נכון?"
+
+✅ CORRECT (informs):
+   "למדתי הרבה על שגרת הבוקר של יואב.
+    נראה שהאתגר קשור יותר לתחושת שליטה מאשר למעברים עצמם.
+    אם בעתיד תרצי לחזור לנושא הזה - אני כאן."
+```
+
+### Parent Reopen Mechanism
+
+If the parent disagrees with a conclusion or wants to revisit:
+
+1. Parent can express renewed concern at any time
+2. System creates a NEW cycle (old one stays frozen)
+3. New cycle may reference patterns from previous cycles
+4. This preserves the temporal narrative - what we understood THEN vs NOW
+
+```
+Turn 15: Parent says "אני עדיין מודאגת מהמעברים, משהו השתנה"
+
+System:
+├── Cycle 1 (transitions): stays COMPLETE (frozen at month 2)
+├── NEW Cycle 4 (transitions-revisited): ACTIVE
+│   └── May reference: "Parent expressed renewed concern after 12 months"
+└── Conversation continues in new context
+```
+
+### Video as Evidence, Not Cycle Driver
+
+**Key principle**: Video analysis is an evidence SOURCE, not a cycle completion trigger.
+
+#### The Wrong Model (Current Implementation)
+
+```python
+# ❌ WRONG: Video as state machine driver
+# This is the current LINEAR flow:
+
+cycle.status = "active"
+    ↓ parent_agrees_to_video()
+cycle.status = "evidence_gathering"
+    ↓ video_uploaded()
+cycle.status = "synthesizing"
+    ↓ analysis_complete()
+cycle.status = "complete"
+
+# Problem: Video upload FORCES cycle completion
+# What if we need more exploration? Too late!
+```
+
+#### The Correct Model
+
+```python
+# ✅ CORRECT: Video as just another evidence source
+
+# Cycle remains ACTIVE while exploring
+cycle.status = "active"
+
+# Parent films video → video analysis produces EVIDENCE
+video_analysis = analyze_video(video)
+for observation in video_analysis.observations:
+    evidence = Evidence(
+        content=observation,
+        source="video",
+        applies_to_cycles=["c1", "c3"]  # Can inform multiple cycles!
+    )
+
+    # Evidence feeds into hypothesis confidence
+    for cycle_id in evidence.applies_to_cycles:
+        cycle = get_cycle(cycle_id)
+        for hypothesis in cycle.hypotheses:
+            if relevant(evidence, hypothesis):
+                hypothesis.add_evidence(evidence, effect="supports")
+                # This might push confidence high enough to trigger closure
+
+# Cycle closure is driven by EVIDENCE THRESHOLDS, not video upload
+if cycle.check_closure_triggers():  # confidence > 90%?
+    cycle.close()
+```
+
+#### Evidence Flow Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                      EVIDENCE SOURCES                            │
+└──────────────────────────────────────────────────────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+  │ Conversation │      │    Video    │      │ Parent      │
+  │ Observations │      │  Analysis   │      │ Updates     │
+  └─────────────┘      └─────────────┘      └─────────────┘
+         │                    │                    │
+         └────────────────────┼────────────────────┘
+                              ▼
+                    ┌──────────────────┐
+                    │  EVIDENCE ITEMS  │
+                    │  (timestamped)   │
+                    └──────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+        ┌─────────┐     ┌─────────┐     ┌─────────┐
+        │ Cycle 1 │     │ Cycle 2 │     │ Cycle 3 │
+        │ social  │     │ sensory │     │ motor   │
+        └─────────┘     └─────────┘     └─────────┘
+              │               │               │
+              ▼               ▼               ▼
+        ┌─────────┐     ┌─────────┐     ┌─────────┐
+        │Hypothesis│    │Hypothesis│    │Hypothesis│
+        │confidence│    │confidence│    │confidence│
+        └─────────┘     └─────────┘     └─────────┘
+              │               │               │
+              └───────────────┼───────────────┘
+                              ▼
+                    ┌──────────────────┐
+                    │ CLOSURE TRIGGERS │
+                    │ • confidence>90% │
+                    │ • convergence    │
+                    │ • staleness      │
+                    └──────────────────┘
+```
+
+#### What This Enables
+
+| Scenario | Old (Linear) Model | New (Evidence) Model |
+|----------|-------------------|---------------------|
+| Need more exploration after video | ❌ Cycle already closed | ✅ Cycle stays active, more evidence gathered |
+| Cycle can close without video | ❌ Must wait for video | ✅ Conversation evidence can trigger closure |
+| One video informs multiple domains | ❌ Video belongs to one cycle | ✅ Evidence items distributed to relevant cycles |
+| Parent provides update without video | ❌ No effect on cycle | ✅ Update becomes evidence, affects confidence |
+
+#### Implementation Implications
+
+1. **Remove linear state machine**: Cycle status should NOT automatically advance on video upload
+2. **Video analysis produces evidence items**: Each observation becomes an `Evidence` object
+3. **Evidence updates hypothesis confidence**: Same as conversation-based evidence
+4. **Closure triggers check all evidence**: Not just "video complete"
+5. **Status "evidence_gathering" is OPTIONAL**: Cycle can stay "active" throughout
+
+---
+
 ## Summary Table
 
 | Concept | Definition | Ownership | Mutability |
@@ -383,6 +670,7 @@ Would you like to explore that pattern together?"
 | Cycle Artifact | Output of one cycle (guidelines, analysis) | Cycle | Frozen with cycle |
 | Synthesis Report | Cross-cycle longitudinal view | Child | Immutable once created |
 | Pattern | Cross-cycle observation | Child.understanding | Mutable (grows over time) |
+| Cycle Closure | Evidence-driven automatic completion | System | Triggered by thresholds, not parent confirmation |
 
 ---
 
@@ -395,8 +683,15 @@ Would you like to explore that pattern together?"
 5. **Evidence is sacred**: Never modify what was observed
 6. **Synthesis is cross-cycle**: Reports tell the longitudinal story
 7. **Narrative over snapshot**: The journey matters as much as current state
+8. **Inform, don't confirm**: Parent is informed of conclusions, not asked to approve them (avoids authority bias)
+9. **Evidence-driven closure**: Cycles close based on confidence thresholds, not parent confirmation
+10. **One domain = one cycle**: Each domain (social, sensory, motor, etc.) requires its own exploration cycle
+11. **Video is evidence, not workflow**: Video analysis produces evidence items that feed into hypothesis confidence, not a state machine trigger
 
 ---
 
-*Document Version: 1.0*
+*Document Version: 1.2*
 *Last Updated: December 2024*
+*Changes:*
+- *v1.2: Added "One Domain = One Cycle" section, expanded "Video as Evidence" with implementation details*
+- *v1.1: Added cycle closure model (evidence-driven, no parent confirmation)*

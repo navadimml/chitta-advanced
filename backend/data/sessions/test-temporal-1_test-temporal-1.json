@@ -1,0 +1,54 @@
+{
+  "session_id": "test-temporal-1:test-temporal-1",
+  "user_id": "test-temporal-1",
+  "child_id": "test-temporal-1",
+  "messages": [
+    {
+      "role": "user",
+      "content": "שלום, הילד שלי דניאל בן 4. יש לו קושי עם מעברים.",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-04T07:54:51.105002"
+      },
+      "archived": false
+    },
+    {
+      "role": "assistant",
+      "content": "נעים מאוד להכיר, ושלום לדניאל :)\n\nאני שומעת שמעברים הם נושא מאתגר כרגע, ואנחנו בהחלט נתעמק בזה כדי להבין ממה זה נובע ואיך אפשר לעזור.\n\nאבל לפני שנצלול לקשיים, חשוב לי מאוד להכיר את דניאל הילד, מעבר לאתגר הספציפי הזה. ספרי לי עליו קצת – מה הוא הכי אוהב לעשות? מה הם הדברים שמאירים לו את העיניים?",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-04T07:55:01.819596"
+      },
+      "archived": false
+    },
+    {
+      "role": "user",
+      "content": "בעיקר בבוקר כשצריך לצאת לגן. הוא מתקשה לעזוב את המשחק ועושה סצנות.",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-04T07:56:51.553893"
+      },
+      "archived": false
+    },
+    {
+      "role": "assistant",
+      "content": "וואו, זה נשמע מתיש להתחיל ככה את הבוקר. אני שומעת כמה זה מתסכל ומלחיץ.\n\nמעניין שהוא כל כך שקוע במשחק שקשה לו להתנתק – זה מרמז שיש לו יכולת להיכנס לעומק לדברים שמעניינים אותו.\n\nכדי שאוכל להבין את התמונה המלאה (ואולי גם למה כל כך קשה לו להפסיק), ספרי לי קצת על המשחקים האלה – במה הוא אוהב לשחק? מה הם הדברים שכל כך תופסים את תשומת הלב שלו?",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-04T07:57:03.240877"
+      },
+      "archived": false
+    }
+  ],
+  "active_cards": [],
+  "dismissed_card_moments": {},
+  "previous_context_snapshot": null,
+  "last_triggered_moment": null,
+  "semantic_verification": null,
+  "semantic_verification_turn": 0,
+  "created_at": "2025-12-04T07:54:43.138469",
+  "updated_at": "2025-12-04T07:57:03.240905",
+  "last_message_at": "2025-12-04T07:57:03.240877",
+  "_persisted_at": "2025-12-04T07:57:03.241057",
+  "_family_id": "test-temporal-1:test-temporal-1"
+}

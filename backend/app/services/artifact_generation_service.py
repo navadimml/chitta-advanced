@@ -373,8 +373,13 @@ Based on the conversation, identify:
         if hypotheses_to_test:
             hypotheses = [h for h in all_hypotheses if h.id in hypotheses_to_test]
         else:
-            # Default: use active hypotheses (forming or active)
-            hypotheses = [h for h in all_hypotheses if h.status in ["forming", "active"]]
+            # Default: use active hypotheses (forming or active) that are video-appropriate
+            # Some hypotheses are better explored via conversation (history, learning context, etc.)
+            hypotheses = [
+                h for h in all_hypotheses
+                if h.status in ["forming", "active"]
+                and getattr(h, 'video_appropriate', True)  # Default True for backwards compatibility
+            ]
 
         # Get patterns
         if patterns_to_explore:

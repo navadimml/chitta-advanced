@@ -1,0 +1,125 @@
+{
+  "child_id": "test-hyp-video2",
+  "identity": {
+    "name": null,
+    "birth_date": null,
+    "gender": null
+  },
+  "essence": {
+    "temperament_observations": [],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [],
+    "details": [],
+    "parent_narrative": null
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [
+      {
+        "id": "hyp_sensory_transitions",
+        "theory": "נועם רגיש במיוחד לשינויים סנסוריים, ולכן מעברים קשים לו",
+        "domain": "sensory",
+        "source": "observation",
+        "source_details": null,
+        "questions_to_explore": [
+          "האם הרגישות מופיעה גם במעברים שקטים?",
+          "האם הכנה מראש עוזרת?",
+          "אילו מעברים קשים יותר?"
+        ],
+        "evidence": [
+          {
+            "id": "f4d91e59",
+            "observed_at": "2025-12-03T14:22:07.205909",
+            "source": "conversation",
+            "content": "ההורה ציין שהילד מאוד רגיש לרעשים",
+            "domain": "sensory"
+          },
+          {
+            "id": "3cb3c37e",
+            "observed_at": "2025-12-03T14:22:07.205941",
+            "source": "conversation",
+            "content": "מעברים בין פעילויות מאוד קשים",
+            "domain": "regulation"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.7,
+        "formed_at": "2025-12-03T14:22:07.205956",
+        "last_evidence_at": "2025-12-03T14:22:07.205957",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      },
+      {
+        "id": "hyp_verbal_expression",
+        "theory": "לנועם יש מה לומר אבל הוא מתקשה להוציא את המילים",
+        "domain": "communication",
+        "source": "observation",
+        "source_details": null,
+        "questions_to_explore": [
+          "האם הוא מתקשר טוב יותר בשירה?",
+          "האם יש פער בין הבנה לביטוי?"
+        ],
+        "evidence": [
+          {
+            "id": "70226806",
+            "observed_at": "2025-12-03T14:22:07.206021",
+            "source": "conversation",
+            "content": "יכול לשיר שירים שלמים אבל מתקשה בדיבור רגיל",
+            "domain": "communication"
+          }
+        ],
+        "status": "forming",
+        "confidence": 0.5,
+        "formed_at": "2025-12-03T14:22:07.206037",
+        "last_evidence_at": "2025-12-03T14:22:07.206037",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      }
+    ],
+    "patterns": [],
+    "pending_insights": []
+  },
+  "exploration_cycles": [],
+  "artifacts": {
+    "video_guidelines_from_gestalt": {
+      "exists": true,
+      "content": "{\"introduction\": \"שלום לכם. קראתי בעיון את הדברים שכתבתם על נועם, במיוחד לגבי הרגישות שלו לרעשים והקושי במעברים בין פעילויות. כדי שנוכל להבין לעומק מה בדיוק מפעיל את הקושי ואיך אפשר להקל עליו (ועליכם), בניתי עבורכם משימת צילום קצרה וממוקדת.\", \"scenarios\": [{\"title\": \"רגע המעבר: ממשחק לשגרה\", \"context\": \"ויסות רגשי ומעברים\", \"what_to_film\": \"בחרו רגע ביום שבו נועם שקוע בפעילות שהוא אוהב ורגוע בה. גשו אליו ובקשו ממנו לסיים את הפעילות כדי לעבור למטלה שגרתית (כמו מקלחת, ארוחה או התארגנות ליציאה). צלמו את הרגע שבו אתם פונים אליו, את הבקשה שלכם, ואת התגובה שלו בדקות שאחרי.\", \"what_to_look_for\": [\"Immediate reaction: Does he ignore, freeze, cover ears, or protest verbally?\", \"Transition time: How long from request to action?\", \"Sensory signs: Any self-soothing or sensory-seeking behaviors during stress?\"], \"duration\": \"2-4 דקות (מהפנייה הראשונית ועד תחילת המעבר או התגובה)\", \"why_matters\": \"ציינתם שמעברים הם נקודה רגישה אצל נועם. הסרטון הזה יעזור לנו לראות האם הקושי נובע מהפסקת הפעילות המהנה עצמה, או אולי מהחשש מהפעילות הבאה או מהשינוי באווירה. ככל שנבין את הטריגר המדויק (למשל, האם הקול שלכם מפתיע אותו כשהוא מרוכז), נוכל למצוא דרכים מדויקות יותר להכין אותו לשינויים.\", \"examples\": [\"נועם משחק בלגו על השטיח, ואתם ניגשים להגיד לו: 'נועם, צריך לאסוף, הולכים למקלחת'.\", \"נועם צופה בטלוויזיה, ואתם מודיעים לו שהגיע הזמן לכבות ולבוא לאכול ארוחת ערב.\"]}, {\"title\": \"הפער בין דיבור לשירה\", \"context\": \"תקשורת ושפה\", \"what_to_film\": \"צלמו סיטואציה שבה אתם מנסים לנהל איתו שיח רגיל ולאחר מכן שרים יחד שיר שהוא מכיר ואוהב. המטרה היא לראות את ההבדל בשטף הדיבור ובביטחון שלו.\", \"what_to_look_for\": [\"Fluency comparison: Spoken struggle vs. singing fluency\", \"Engagement: Eye contact and body language during speech vs. song\", \"Vocabulary usage: Complexity of words used in song vs. speech\"], \"duration\": \"2-3 דקות\", \"why_matters\": \"סיפרתם שנועם מצליח לשיר שירים שלמים אבל מתקשה בדיבור יומיומי. תיעוד ההבדל הזה יעזור לנו להבין אם הקושי הוא מוטורי (הפקת הדיבור) או שפתי-תקשורתי, ולהשתמש במוזיקה כגשר לתקשורת.\", \"examples\": [\"שאלו אותו 'מה עשית בגן היום?' ולאחר מכן התחילו לשיר שיר אהוב מהגן.\", \"נסו לבקש ממנו לתאר חפץ בחדר, ואז שירו יחד שיר שקשור לאותו חפץ (למשל שיר על חיות).\"]}, {\"title\": \"הכנה למעבר\", \"context\": \"ויסות רגשי\", \"what_to_film\": \"בניגוד לסרטון הראשון, הפעם בצעו הכנה מדורגת לקראת מעבר. תנו התראה של 5 דקות, ואז דקה, ורק אז בקשו לעבור. צלמו את תהליך ההכנה והמעבר עצמו.\", \"what_to_look_for\": [\"Response to warnings: Does anxiety increase with warnings or does it help?\", \"Cooperation level: Compare to the abrupt transition scenario\", \"Understanding: Does he grasp the concept of 'time remaining'?\"], \"duration\": \"3-5 דקות (כולל שלבי ההתראה)\", \"why_matters\": \"אנחנו רוצים לבדוק האם 'הפתעה' היא חלק מהקושי של נועם. על ידי השוואה בין מעבר פתאומי למעבר עם הכנה, נדע האם תיווך והכנה מוקדמת הם כלים יעילים עבורו להפחתת הלחץ.\", \"examples\": [\"אמרו לו 'עוד 5 דקות מכבים טלוויזיה', חזרו אחרי 4 דקות עם תזכורת, ואז בצעו את הכיבוי.\", \"השתמשו בטיימר ויזואלי או בשעון חול כדי להמחיש את הזמן שנותר למשחק לפני השינה.\"]}], \"general_tips\": [\"נסו למקם את הטלפון בצד או להעמיד אותו יציב, כדי שתוכלו להיות פנויים לאינטראקציה עם נועם ולא להחזיק את המכשיר.\", \"חשוב לנו לראות את התגובה האותנטית של נועם, גם אם יש בכי, כעס או התעלמות - אל תעצרו את הצילום, זה בדיוק מה שעוזר לנו להבין.\", \"צלמו מגובה העיניים של הילד במידת האפשר, כדי שנראה את הבעות הפנים שלו.\"], \"estimated_duration\": \"1-2 דקות לסרטון\", \"child_name\": \"הילד/ה\", \"exploration_context\": {\"hypotheses_being_tested\": [\"נועם רגיש במיוחד לשינויים סנסוריים, ולכן מעברים קשים לו\", \"לנועם יש מה לומר אבל הוא מתקשה להוציא את המילים\"], \"patterns_being_explored\": []}}",
+      "generated_at": "2025-12-03T14:24:28.700400",
+      "type": "filming_guidelines"
+    }
+  },
+  "videos": [],
+  "journal_entries": [],
+  "created_at": "2025-12-03T14:22:07.205829",
+  "updated_at": "2025-12-03T14:24:28.700417"
+}

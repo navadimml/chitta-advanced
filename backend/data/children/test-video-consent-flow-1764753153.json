@@ -1,0 +1,135 @@
+{
+  "child_id": "test-video-consent-flow-1764753153",
+  "identity": {
+    "name": "נועם",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [
+      "Daily routines: Morning dressing is a daily struggle involving tantrums"
+    ],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "behavioral"
+    ],
+    "details": [],
+    "parent_narrative": "קושי עצום עם מעברים, כל יום זה מאבק ענק. Specific difficulty with getting dressed in the morning. He refuses to stop playing and goes into a tantrum when the parent tries to dress him. This happens every day. Reiterates that every morning is the same struggle"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [
+      {
+        "id": "5b2fafb3",
+        "theory": "Transition struggles might be related to difficulty shifting attention (cognitive flexibility) rather than the destination task itself",
+        "domain": "attention",
+        "source": "pattern",
+        "source_details": "Pattern of tantrums specifically when asked to stop playing",
+        "questions_to_explore": [
+          "Does he have trouble stopping play for other things (eating, bath)?",
+          "Is the issue stopping the play, or the dressing itself (sensory)?"
+        ],
+        "evidence": [
+          {
+            "id": "82960226",
+            "observed_at": "2025-12-03T11:13:48.049914",
+            "source": "conversation",
+            "content": "He isn't willing to stop playing",
+            "domain": "attention"
+          },
+          {
+            "id": "57c2f77e",
+            "observed_at": "2025-12-03T11:13:48.049939",
+            "source": "conversation",
+            "content": "Tantrums occur when interrupted",
+            "domain": "attention"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.8,
+        "formed_at": "2025-12-03T11:13:48.049890",
+        "last_evidence_at": "2025-12-03T11:13:48.049939",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      }
+    ],
+    "patterns": [
+      {
+        "id": "0ec13018",
+        "theme": "Difficulty with transitions",
+        "description": "Observations: קושי עצום עם מעברים; מאבק ענק בבוקר",
+        "related_hypotheses": [],
+        "confidence": 0.8,
+        "detected_at": "2025-12-03T11:12:51.919881",
+        "source": "conversation"
+      },
+      {
+        "id": "9b4441ed",
+        "theme": "Transitions from preferred activities trigger dysregulation",
+        "description": "Observations: Previous: difficulty with transitions; Current: refuses to stop playing for dressing; Current: tantrums when interrupted",
+        "related_hypotheses": [],
+        "confidence": 0.8,
+        "detected_at": "2025-12-03T11:13:48.049024",
+        "source": "conversation"
+      }
+    ],
+    "pending_insights": [
+      {
+        "id": "a83ea45e",
+        "source": "parent_goal",
+        "content": "Wants help understanding the situation better; looking for a way to overcome difficulty remembering details",
+        "importance": "medium",
+        "share_when": "when_relevant",
+        "related_hypotheses": [],
+        "created_at": "2025-12-03T11:14:35.064865",
+        "shared": false
+      }
+    ]
+  },
+  "exploration_cycles": [],
+  "artifacts": {},
+  "videos": [],
+  "journal_entries": [
+    {
+      "id": "85c3a864-bd46-4968-8a5c-26204261742a",
+      "content": "בעיקר ההתלבשות בבוקר. הוא לא מוכן להפסיק לשחק, ואז כשאני צריכה להלביש אותו הוא נכנס להתקף זעם. זה קורה כל יום",
+      "context": "Parent describing the specific morning difficulty",
+      "timestamp": "2025-12-03T11:13:48.044607",
+      "themes": [
+        "behavioral",
+        "emotional"
+      ]
+    }
+  ],
+  "created_at": "2025-12-03T11:12:33.300380",
+  "updated_at": "2025-12-03T11:15:15.282058"
+}

@@ -1,0 +1,426 @@
+{
+  "child_id": "fullxray-1764830125",
+  "identity": {
+    "name": "יואב",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [
+      "Daily routines: בבוקר זה סיוט להוציא אותו מהבית"
+    ],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "sensory",
+      "social",
+      "emotional",
+      "behavioral"
+    ],
+    "details": [],
+    "parent_narrative": "הוא פשוט לא כמו הילדים האחרים בגן. משהו שונה אצלו. בבוקר זה סיוט להוציא אותו, והוא לא משחק עם ילדים אחרים בכלל. לא רוצה להפסיק עם הטלוויזיה. עושה סצנות נוראיות. Transitions are inconsistent: he transitions without problems when he wants the outcome/object. מדאיג שהוא לא מתעניין בחברים, יושב לבד. רעשים חזקים מאוד מפריעים לו"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [
+      {
+        "id": "69b940e8",
+        "theory": "Behavioral outbursts may be triggered specifically by transitions or shifting attention away from interests",
+        "domain": "general",
+        "source": "pattern",
+        "source_details": "Struggles with morning departure and stopping TV suggest a pattern of transition difficulty",
+        "questions_to_explore": [
+          "How does he react to other transitions?",
+          "Does warning help?",
+          "Is it harder when he is hyper-focused?"
+        ],
+        "evidence": [
+          {
+            "id": "9ba715f7",
+            "observed_at": "2025-12-04T08:38:54.319655",
+            "source": "conversation",
+            "content": "Morning departure is a nightmare",
+            "domain": "general"
+          },
+          {
+            "id": "6fdc2100",
+            "observed_at": "2025-12-04T08:38:54.319685",
+            "source": "conversation",
+            "content": "Makes terrible scenes when stopping TV",
+            "domain": "general"
+          },
+          {
+            "id": "18db3454",
+            "observed_at": "2025-12-04T08:39:28.151332",
+            "source": "conversation",
+            "content": "Transitions are easy when the child wants the outcome/object. (Confirms difficulty is contextual (likely stopping preferred tasks) rather than a global inability to transition.)",
+            "domain": "general"
+          }
+        ],
+        "status": "resolved",
+        "confidence": 0.9500000000000001,
+        "formed_at": "2025-12-04T08:38:54.319622",
+        "last_evidence_at": "2025-12-04T08:39:28.151332",
+        "resolution": "confirmed",
+        "resolution_note": "High confidence (95%) based on evidence",
+        "evolved_into": null
+      },
+      {
+        "id": "1d62854d",
+        "theory": "Inconsistency in transitions suggests challenges are motivation-dependent, possibly pointing to executive function patterns rather than rigid inflexibility.",
+        "domain": "behavioral",
+        "source": "contradiction",
+        "source_details": "Transitions are a 'nightmare' in mornings but 'no problem' when he wants something.",
+        "questions_to_explore": [
+          "Is the difficulty specifically about STOPPING something he likes?",
+          "Does he struggle with transitions that are imposed on him vs ones he chooses?"
+        ],
+        "evidence": [
+          {
+            "id": "f047c4c9",
+            "observed_at": "2025-12-04T08:39:28.154465",
+            "source": "conversation",
+            "content": "Transitions are easy when he wants the outcome",
+            "domain": "behavioral"
+          },
+          {
+            "id": "c5922f2f",
+            "observed_at": "2025-12-04T08:41:12.679432",
+            "source": "conversation",
+            "content": "Parent reports loud noises really bother him, suggesting a sensory component to his behavior. (Transition difficulties might be triggered by sensory factors (noise/chaos) rather than just motivation/executive function.)",
+            "domain": "behavioral"
+          }
+        ],
+        "status": "evolving",
+        "confidence": 0.55,
+        "formed_at": "2025-12-04T08:39:28.154411",
+        "last_evidence_at": "2025-12-04T08:41:12.679432",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      },
+      {
+        "id": "a4baadf8",
+        "theory": "Social isolation appears driven by a lack of social motivation/interest rather than anxiety or lack of skill",
+        "domain": "social",
+        "source": "pattern",
+        "source_details": "Parent explicitly states 'lack of interest' and 'sits alone', suggesting reduced social motivation rather than anxiety or rejection",
+        "questions_to_explore": [
+          "Does he watch other children from a distance?",
+          "Is he content being alone or does he seem lonely?",
+          "Does he interact with adults better than children?"
+        ],
+        "evidence": [
+          {
+            "id": "f03acfcc",
+            "observed_at": "2025-12-04T08:41:12.679079",
+            "source": "conversation",
+            "content": "Parent reports loud noises really bother him, suggesting a sensory component to his behavior. (If he is sensitive to noise, social isolation might be due to sensory overwhelm (avoiding loud kids) rather than a lack of social interest.)",
+            "domain": "social"
+          }
+        ],
+        "status": "forming",
+        "confidence": 0.3,
+        "formed_at": "2025-12-04T08:40:10.935486",
+        "last_evidence_at": "2025-12-04T08:41:12.679079",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      },
+      {
+        "id": "198bb9f1",
+        "theory": "Social withdrawal and behavioral outbursts are protective responses to auditory sensory overwhelm",
+        "domain": "sensory",
+        "source": "pattern",
+        "source_details": "Connection between new noise sensitivity and existing social withdrawal/transition issues",
+        "questions_to_explore": [
+          "Does he cover his ears in noisy places?",
+          "Is he more social in quiet environments?",
+          "Are the morning struggles related to specific sensory inputs (clothes, sounds)?"
+        ],
+        "evidence": [
+          {
+            "id": "f9ecbd03",
+            "observed_at": "2025-12-04T08:41:12.675819",
+            "source": "conversation",
+            "content": "Parent explicitly stated loud noises bother him",
+            "domain": "sensory"
+          },
+          {
+            "id": "c8d775f1",
+            "observed_at": "2025-12-04T08:41:12.675843",
+            "source": "conversation",
+            "content": "Child avoids other children (who are often loud)",
+            "domain": "sensory"
+          },
+          {
+            "id": "5b3deba4",
+            "observed_at": "2025-12-04T08:41:12.675858",
+            "source": "conversation",
+            "content": "Morning transitions are difficult (often chaotic/sensory rich)",
+            "domain": "sensory"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.9500000000000001,
+        "formed_at": "2025-12-04T08:41:12.675795",
+        "last_evidence_at": "2025-12-04T08:41:12.675858",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      }
+    ],
+    "patterns": [
+      {
+        "id": "0b25e6bb",
+        "theme": "Difficulty with transitions and stopping preferred activities",
+        "description": "Observations: Morning departure is a nightmare; Refuses to stop TV, makes terrible scenes",
+        "supporting_cycle_ids": [],
+        "related_hypotheses": [],
+        "confidence": 0.8,
+        "detected_at": "2025-12-04T08:38:54.315707",
+        "source": "conversation"
+      },
+      {
+        "id": "cefecd46",
+        "theme": "Consistent social disengagement/isolation",
+        "description": "Observations: לא משחק עם ילדים (previous); לא מתעניין בחברים; יושב לבד",
+        "supporting_cycle_ids": [],
+        "related_hypotheses": [],
+        "confidence": 0.8,
+        "detected_at": "2025-12-04T08:40:10.933591",
+        "source": "conversation"
+      },
+      {
+        "id": "2c59c5c7",
+        "theme": "Sensory sensitivity may underlie social and behavioral challenges",
+        "description": "Observations: Loud noises bother him; Doesn't play with other kids; Morning transitions are a nightmare",
+        "supporting_cycle_ids": [],
+        "related_hypotheses": [],
+        "confidence": 0.75,
+        "detected_at": "2025-12-04T08:41:12.673612",
+        "source": "conversation"
+      }
+    ],
+    "pending_insights": [
+      {
+        "id": "12c824a5",
+        "source": "parent_goal",
+        "content": "Parent is contacting Chitta following a recommendation.",
+        "importance": "medium",
+        "share_when": "when_relevant",
+        "related_hypotheses": [],
+        "created_at": "2025-12-04T08:35:57.712118",
+        "shared": false
+      }
+    ]
+  },
+  "exploration_cycles": [
+    {
+      "id": "0b5a84e7",
+      "hypotheses": [
+        {
+          "id": "69b940e8",
+          "theory": "Behavioral outbursts may be triggered specifically by transitions or shifting attention away from interests",
+          "domain": "general",
+          "source": "pattern",
+          "source_details": "Struggles with morning departure and stopping TV suggest a pattern of transition difficulty",
+          "questions_to_explore": [
+            "How does he react to other transitions?",
+            "Does warning help?",
+            "Is it harder when he is hyper-focused?"
+          ],
+          "evidence": [
+            {
+              "id": "9ba715f7",
+              "observed_at": "2025-12-04T08:38:54.319655",
+              "source": "conversation",
+              "content": "Morning departure is a nightmare",
+              "domain": "general"
+            },
+            {
+              "id": "6fdc2100",
+              "observed_at": "2025-12-04T08:38:54.319685",
+              "source": "conversation",
+              "content": "Makes terrible scenes when stopping TV",
+              "domain": "general"
+            },
+            {
+              "id": "18db3454",
+              "observed_at": "2025-12-04T08:39:28.151332",
+              "source": "conversation",
+              "content": "Transitions are easy when the child wants the outcome/object. (Confirms difficulty is contextual (likely stopping preferred tasks) rather than a global inability to transition.)",
+              "domain": "general"
+            }
+          ],
+          "status": "resolved",
+          "confidence": 0.9500000000000001,
+          "formed_at": "2025-12-04T08:38:54.319622",
+          "last_evidence_at": "2025-12-04T08:39:28.151332",
+          "resolution": "confirmed",
+          "resolution_note": "High confidence (95%) based on evidence"
+        },
+        {
+          "id": "1d62854d",
+          "theory": "Inconsistency in transitions suggests challenges are motivation-dependent, possibly pointing to executive function patterns rather than rigid inflexibility.",
+          "domain": "behavioral",
+          "source": "contradiction",
+          "source_details": "Transitions are a 'nightmare' in mornings but 'no problem' when he wants something.",
+          "questions_to_explore": [
+            "Is the difficulty specifically about STOPPING something he likes?",
+            "Does he struggle with transitions that are imposed on him vs ones he chooses?"
+          ],
+          "evidence": [
+            {
+              "id": "f047c4c9",
+              "observed_at": "2025-12-04T08:39:28.154465",
+              "source": "conversation",
+              "content": "Transitions are easy when he wants the outcome",
+              "domain": "behavioral"
+            },
+            {
+              "id": "c5922f2f",
+              "observed_at": "2025-12-04T08:41:12.679432",
+              "source": "conversation",
+              "content": "Parent reports loud noises really bother him, suggesting a sensory component to his behavior. (Transition difficulties might be triggered by sensory factors (noise/chaos) rather than just motivation/executive function.)",
+              "domain": "behavioral"
+            }
+          ],
+          "status": "evolving",
+          "confidence": 0.55,
+          "formed_at": "2025-12-04T08:39:28.154411",
+          "last_evidence_at": "2025-12-04T08:41:12.679432",
+          "resolution": null,
+          "resolution_note": null
+        },
+        {
+          "id": "a4baadf8",
+          "theory": "Social isolation appears driven by a lack of social motivation/interest rather than anxiety or lack of skill",
+          "domain": "social",
+          "source": "pattern",
+          "source_details": "Parent explicitly states 'lack of interest' and 'sits alone', suggesting reduced social motivation rather than anxiety or rejection",
+          "questions_to_explore": [
+            "Does he watch other children from a distance?",
+            "Is he content being alone or does he seem lonely?",
+            "Does he interact with adults better than children?"
+          ],
+          "evidence": [
+            {
+              "id": "f03acfcc",
+              "observed_at": "2025-12-04T08:41:12.679079",
+              "source": "conversation",
+              "content": "Parent reports loud noises really bother him, suggesting a sensory component to his behavior. (If he is sensitive to noise, social isolation might be due to sensory overwhelm (avoiding loud kids) rather than a lack of social interest.)",
+              "domain": "social"
+            }
+          ],
+          "status": "forming",
+          "confidence": 0.3,
+          "formed_at": "2025-12-04T08:40:10.935486",
+          "last_evidence_at": "2025-12-04T08:41:12.679079",
+          "resolution": null,
+          "resolution_note": null
+        },
+        {
+          "id": "198bb9f1",
+          "theory": "Social withdrawal and behavioral outbursts are protective responses to auditory sensory overwhelm",
+          "domain": "sensory",
+          "source": "pattern",
+          "source_details": "Connection between new noise sensitivity and existing social withdrawal/transition issues",
+          "questions_to_explore": [
+            "Does he cover his ears in noisy places?",
+            "Is he more social in quiet environments?",
+            "Are the morning struggles related to specific sensory inputs (clothes, sounds)?"
+          ],
+          "evidence": [
+            {
+              "id": "f9ecbd03",
+              "observed_at": "2025-12-04T08:41:12.675819",
+              "source": "conversation",
+              "content": "Parent explicitly stated loud noises bother him",
+              "domain": "sensory"
+            },
+            {
+              "id": "c8d775f1",
+              "observed_at": "2025-12-04T08:41:12.675843",
+              "source": "conversation",
+              "content": "Child avoids other children (who are often loud)",
+              "domain": "sensory"
+            },
+            {
+              "id": "5b3deba4",
+              "observed_at": "2025-12-04T08:41:12.675858",
+              "source": "conversation",
+              "content": "Morning transitions are difficult (often chaotic/sensory rich)",
+              "domain": "sensory"
+            }
+          ],
+          "status": "active",
+          "confidence": 0.9500000000000001,
+          "formed_at": "2025-12-04T08:41:12.675795",
+          "last_evidence_at": "2025-12-04T08:41:12.675858",
+          "resolution": null,
+          "resolution_note": null
+        }
+      ],
+      "focus_description": "General exploration",
+      "focus_domain": "general",
+      "hypothesis_ids": [
+        "69b940e8",
+        "1d62854d",
+        "a4baadf8",
+        "198bb9f1"
+      ],
+      "status": "active",
+      "conversation_method": null,
+      "video_method": null,
+      "artifacts": [],
+      "created_at": "2025-12-04T08:38:54.319721",
+      "updated_at": "2025-12-04T08:41:12.675876",
+      "completed_at": null
+    }
+  ],
+  "synthesis_reports": [],
+  "videos": [],
+  "journal_entries": [
+    {
+      "id": "39a9bb8b-5879-4819-af6a-1b268aeeec0d",
+      "content": "כשהוא רוצה משהו הוא עובר מעברים בלי בעיה. אולי אני מגזימה?",
+      "context": "Discussing transition difficulties and TV",
+      "timestamp": "2025-12-04T08:39:28.149544",
+      "themes": [
+        "behavioral",
+        "emotional"
+      ]
+    }
+  ],
+  "created_at": "2025-12-04T08:35:25.522532",
+  "updated_at": "2025-12-04T08:41:41.225592",
+  "artifacts": {}
+}

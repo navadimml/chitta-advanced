@@ -1,0 +1,59 @@
+{
+  "child_id": "test-error-check",
+  "identity": {
+    "name": "דניאל",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "food texture aversion",
+      "difficulty with transitions",
+      "sensitivity to loud noises"
+    ],
+    "details": [],
+    "parent_narrative": "Struggles with transitions (e.g., leaving for kindergarten in the morning, getting into the bath in the evening). Loud noises bother him greatly, and he refuses foods with certain textures"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [],
+    "patterns": [],
+    "pending_insights": []
+  },
+  "exploration_cycles": [],
+  "artifacts": {},
+  "videos": [],
+  "journal_entries": [],
+  "created_at": "2025-12-02T19:36:27.281020",
+  "updated_at": "2025-12-02T19:36:49.526230"
+}
