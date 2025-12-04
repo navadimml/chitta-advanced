@@ -1,0 +1,36 @@
+{
+  "session_id": "test-error-check:test-error-check",
+  "user_id": "test-error-check",
+  "child_id": "test-error-check",
+  "messages": [
+    {
+      "role": "user",
+      "content": "שלום, הילד שלי דניאל בן 4, יש לו קושי עם מעברים - בבוקר קשה לצאת לגן, בערב קשה להכנס לאמבטיה. גם רעשים חזקים מפריעים לו מאוד, והוא מסרב לאכול אוכל עם מרקמים מסוימים",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-02T19:36:49.524055"
+      },
+      "archived": false
+    },
+    {
+      "role": "assistant",
+      "content": "שלום! אני שומעת שהיומיום מאתגר כרגע, במיוחד סביב המעברים והרגישויות לרעש ולאוכל. אנחנו נצלול לעומק לכל הדברים האלו כדי להבין מה עומד מאחוריהם.\n\nאבל לפני כן, כדי שאוכל באמת לעזור, חשוב לי להכיר את דניאל השלם ולא רק את הקשיים. ספרי לי עליו קצת – מה הוא אוהב לעשות? מה גורם לו לחייך או \"מאיר\" לו את העיניים?",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-02T19:37:04.114102"
+      },
+      "archived": false
+    }
+  ],
+  "active_cards": [],
+  "dismissed_card_moments": {},
+  "previous_context_snapshot": null,
+  "last_triggered_moment": null,
+  "semantic_verification": null,
+  "semantic_verification_turn": 0,
+  "created_at": "2025-12-02T19:36:27.281233",
+  "updated_at": "2025-12-02T19:37:04.114128",
+  "last_message_at": "2025-12-02T19:37:04.114102",
+  "_persisted_at": "2025-12-02T19:37:04.114233",
+  "_family_id": "test-error-check:test-error-check"
+}

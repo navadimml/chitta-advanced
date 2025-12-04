@@ -1,0 +1,437 @@
+{
+  "child_id": "transcript-1764832823",
+  "identity": {
+    "name": "יואב",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [
+      "Daily routines: בבוקר זה סיוט להוציא אותו (Morning departure is a nightmare)"
+    ],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "sensory",
+      "social",
+      "behavioral"
+    ],
+    "details": [],
+    "parent_narrative": "הוא פשוט לא כמו הילדים האחרים בגן. משהו שונה אצלו. בבוקר זה סיוט להוציא אותו. והוא לא משחק עם ילדים אחרים בכלל. הוא לא רוצה להפסיק עם הטלוויזיה. עושה סצנות נוראיות. Transitions are not globally difficult - he transitions easily when he wants the outcome. מה שבאמת מדאיג אותי זה שהוא לא מתעניין בחברים. יושב לבד. רעשים חזקים מאוד מפריעים לו (Loud noises bother him very much)"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [
+      {
+        "id": "12a43dcd",
+        "theory": "Behavioral outbursts are triggered by transitions and stopping preferred activities",
+        "domain": "behavioral",
+        "source": "pattern",
+        "source_details": "Connection between morning struggles and TV struggles",
+        "questions_to_explore": [
+          "Are there other transitions that are difficult?",
+          "Does warning help before stopping TV?"
+        ],
+        "evidence": [
+          {
+            "id": "2f22a2ca",
+            "observed_at": "2025-12-04T09:22:58.738681",
+            "source": "conversation",
+            "content": "Morning departure is a nightmare",
+            "domain": "behavioral"
+          },
+          {
+            "id": "1d1bc66b",
+            "observed_at": "2025-12-04T09:22:58.738714",
+            "source": "conversation",
+            "content": "Terrible scenes when stopping TV",
+            "domain": "behavioral"
+          },
+          {
+            "id": "00b130f0",
+            "observed_at": "2025-12-04T09:23:36.509098",
+            "source": "conversation",
+            "content": "Child transitions easily when he is motivated or wants the outcome. (Suggests difficulty isn't with the cognitive skill of transitioning, but related to motivation, control, or stopping preferred activities specifically.)",
+            "domain": "behavioral"
+          }
+        ],
+        "status": "evolving",
+        "confidence": 0.8,
+        "formed_at": "2025-12-04T09:22:58.738495",
+        "last_evidence_at": "2025-12-04T09:23:36.509098",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      },
+      {
+        "id": "46a5b9a4",
+        "theory": "Behavioral challenges may be driven by a strong need for autonomy or control - he resists when he feels forced but cooperates when motivated.",
+        "domain": "emotional",
+        "source": "contradiction",
+        "source_details": "Parent notes transitions are hard (morning/TV) BUT easy when he wants the outcome.",
+        "questions_to_explore": [
+          "Does giving him a choice help?",
+          "How does he react to 'have to' vs 'want to'?"
+        ],
+        "evidence": [
+          {
+            "id": "68aeeed4",
+            "observed_at": "2025-12-04T09:23:36.510439",
+            "source": "conversation",
+            "content": "Transitions easily when he wants something",
+            "domain": "emotional"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.45,
+        "formed_at": "2025-12-04T09:23:36.510414",
+        "last_evidence_at": "2025-12-04T09:23:36.510439",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      },
+      {
+        "id": "5b7aa60e",
+        "theory": "Social isolation may stem from reduced social motivation or internal focus rather than social anxiety",
+        "domain": "social",
+        "source": "pattern",
+        "source_details": "Parent explicitly describes 'lack of interest' rather than fear or rejection",
+        "questions_to_explore": [
+          "Does he watch other children play?",
+          "How does he interact with adults/family?",
+          "Does he seem content being alone?"
+        ],
+        "evidence": [
+          {
+            "id": "06e3ca23",
+            "observed_at": "2025-12-04T09:24:22.007062",
+            "source": "conversation",
+            "content": "Parent says he is 'not interested' in friends",
+            "domain": "social"
+          },
+          {
+            "id": "b90370e9",
+            "observed_at": "2025-12-04T09:24:22.007093",
+            "source": "conversation",
+            "content": "Parent notes he 'sits alone'",
+            "domain": "social"
+          },
+          {
+            "id": "8279e975",
+            "observed_at": "2025-12-04T09:25:19.370765",
+            "source": "conversation",
+            "content": "Parent noted that loud noises bother him very much (in context of social withdrawal discussion) (Suggests withdrawal is active avoidance due to sensory pain/overwhelm, not passive lack of interest)",
+            "domain": "social"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.6000000000000001,
+        "formed_at": "2025-12-04T09:24:22.007032",
+        "last_evidence_at": "2025-12-04T09:25:19.370765",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      },
+      {
+        "id": "cb59409f",
+        "theory": "Social withdrawal and behavioral resistance may be protective reactions to sensory overwhelm (specifically auditory)",
+        "domain": "sensory",
+        "source": "domain_knowledge",
+        "source_details": "Parent linked noise sensitivity to the context of social withdrawal",
+        "questions_to_explore": [
+          "Does he cover his ears?",
+          "Is he bothered by other sensory inputs (clothing, food)?",
+          "Is the kindergarten particularly noisy when he withdraws?"
+        ],
+        "evidence": [
+          {
+            "id": "d85ba801",
+            "observed_at": "2025-12-04T09:25:19.368351",
+            "source": "conversation",
+            "content": "Loud noises bother him very much",
+            "domain": "sensory"
+          },
+          {
+            "id": "f9e67c42",
+            "observed_at": "2025-12-04T09:25:19.368379",
+            "source": "conversation",
+            "content": "Sits aside in kindergarten (likely noisy environment)",
+            "domain": "sensory"
+          },
+          {
+            "id": "d8e9f2a6",
+            "observed_at": "2025-12-04T09:25:19.368393",
+            "source": "conversation",
+            "content": "Morning resistance (avoiding the environment)",
+            "domain": "sensory"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.9500000000000001,
+        "formed_at": "2025-12-04T09:25:19.368321",
+        "last_evidence_at": "2025-12-04T09:25:19.368393",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      }
+    ],
+    "patterns": [
+      {
+        "id": "66ac0632",
+        "theme": "Difficulty with transitions/stopping activities",
+        "description": "Observations: Morning departure is a nightmare; Terrible scenes when stopping TV",
+        "supporting_cycle_ids": [],
+        "related_hypotheses": [],
+        "confidence": 0.8,
+        "detected_at": "2025-12-04T09:22:58.737150",
+        "source": "conversation"
+      },
+      {
+        "id": "4743b1d7",
+        "theme": "Social Disengagement/Isolation",
+        "description": "Observations: לא משחק עם ילדים (previous); לא מתעניין בחברים; יושב לבד",
+        "supporting_cycle_ids": [],
+        "related_hypotheses": [],
+        "confidence": 0.9,
+        "detected_at": "2025-12-04T09:24:22.002737",
+        "source": "conversation"
+      },
+      {
+        "id": "56bda859",
+        "theme": "Sensory-based avoidance of high-stimulation environments",
+        "description": "Observations: Loud noises bother him; Sits aside in kindergarten; Morning departure is a nightmare",
+        "supporting_cycle_ids": [],
+        "related_hypotheses": [],
+        "confidence": 0.75,
+        "detected_at": "2025-12-04T09:25:19.373740",
+        "source": "conversation"
+      }
+    ],
+    "pending_insights": [
+      {
+        "id": "df32bd5b",
+        "source": "parent_goal",
+        "content": "Parent is contacting Chitta following a recommendation.",
+        "importance": "medium",
+        "share_when": "when_relevant",
+        "related_hypotheses": [],
+        "created_at": "2025-12-04T09:20:41.332869",
+        "shared": false
+      }
+    ]
+  },
+  "exploration_cycles": [
+    {
+      "id": "c24b6adf",
+      "hypotheses": [
+        {
+          "id": "12a43dcd",
+          "theory": "Behavioral outbursts are triggered by transitions and stopping preferred activities",
+          "domain": "behavioral",
+          "source": "pattern",
+          "source_details": "Connection between morning struggles and TV struggles",
+          "questions_to_explore": [
+            "Are there other transitions that are difficult?",
+            "Does warning help before stopping TV?"
+          ],
+          "evidence": [
+            {
+              "id": "2f22a2ca",
+              "observed_at": "2025-12-04T09:22:58.738681",
+              "source": "conversation",
+              "content": "Morning departure is a nightmare",
+              "domain": "behavioral"
+            },
+            {
+              "id": "1d1bc66b",
+              "observed_at": "2025-12-04T09:22:58.738714",
+              "source": "conversation",
+              "content": "Terrible scenes when stopping TV",
+              "domain": "behavioral"
+            },
+            {
+              "id": "00b130f0",
+              "observed_at": "2025-12-04T09:23:36.509098",
+              "source": "conversation",
+              "content": "Child transitions easily when he is motivated or wants the outcome. (Suggests difficulty isn't with the cognitive skill of transitioning, but related to motivation, control, or stopping preferred activities specifically.)",
+              "domain": "behavioral"
+            }
+          ],
+          "status": "evolving",
+          "confidence": 0.8,
+          "formed_at": "2025-12-04T09:22:58.738495",
+          "last_evidence_at": "2025-12-04T09:23:36.509098",
+          "resolution": null,
+          "resolution_note": null
+        },
+        {
+          "id": "46a5b9a4",
+          "theory": "Behavioral challenges may be driven by a strong need for autonomy or control - he resists when he feels forced but cooperates when motivated.",
+          "domain": "emotional",
+          "source": "contradiction",
+          "source_details": "Parent notes transitions are hard (morning/TV) BUT easy when he wants the outcome.",
+          "questions_to_explore": [
+            "Does giving him a choice help?",
+            "How does he react to 'have to' vs 'want to'?"
+          ],
+          "evidence": [
+            {
+              "id": "68aeeed4",
+              "observed_at": "2025-12-04T09:23:36.510439",
+              "source": "conversation",
+              "content": "Transitions easily when he wants something",
+              "domain": "emotional"
+            }
+          ],
+          "status": "active",
+          "confidence": 0.45,
+          "formed_at": "2025-12-04T09:23:36.510414",
+          "last_evidence_at": "2025-12-04T09:23:36.510439",
+          "resolution": null,
+          "resolution_note": null
+        },
+        {
+          "id": "5b7aa60e",
+          "theory": "Social isolation may stem from reduced social motivation or internal focus rather than social anxiety",
+          "domain": "social",
+          "source": "pattern",
+          "source_details": "Parent explicitly describes 'lack of interest' rather than fear or rejection",
+          "questions_to_explore": [
+            "Does he watch other children play?",
+            "How does he interact with adults/family?",
+            "Does he seem content being alone?"
+          ],
+          "evidence": [
+            {
+              "id": "06e3ca23",
+              "observed_at": "2025-12-04T09:24:22.007062",
+              "source": "conversation",
+              "content": "Parent says he is 'not interested' in friends",
+              "domain": "social"
+            },
+            {
+              "id": "b90370e9",
+              "observed_at": "2025-12-04T09:24:22.007093",
+              "source": "conversation",
+              "content": "Parent notes he 'sits alone'",
+              "domain": "social"
+            },
+            {
+              "id": "8279e975",
+              "observed_at": "2025-12-04T09:25:19.370765",
+              "source": "conversation",
+              "content": "Parent noted that loud noises bother him very much (in context of social withdrawal discussion) (Suggests withdrawal is active avoidance due to sensory pain/overwhelm, not passive lack of interest)",
+              "domain": "social"
+            }
+          ],
+          "status": "active",
+          "confidence": 0.6000000000000001,
+          "formed_at": "2025-12-04T09:24:22.007032",
+          "last_evidence_at": "2025-12-04T09:25:19.370765",
+          "resolution": null,
+          "resolution_note": null
+        },
+        {
+          "id": "cb59409f",
+          "theory": "Social withdrawal and behavioral resistance may be protective reactions to sensory overwhelm (specifically auditory)",
+          "domain": "sensory",
+          "source": "domain_knowledge",
+          "source_details": "Parent linked noise sensitivity to the context of social withdrawal",
+          "questions_to_explore": [
+            "Does he cover his ears?",
+            "Is he bothered by other sensory inputs (clothing, food)?",
+            "Is the kindergarten particularly noisy when he withdraws?"
+          ],
+          "evidence": [
+            {
+              "id": "d85ba801",
+              "observed_at": "2025-12-04T09:25:19.368351",
+              "source": "conversation",
+              "content": "Loud noises bother him very much",
+              "domain": "sensory"
+            },
+            {
+              "id": "f9e67c42",
+              "observed_at": "2025-12-04T09:25:19.368379",
+              "source": "conversation",
+              "content": "Sits aside in kindergarten (likely noisy environment)",
+              "domain": "sensory"
+            },
+            {
+              "id": "d8e9f2a6",
+              "observed_at": "2025-12-04T09:25:19.368393",
+              "source": "conversation",
+              "content": "Morning resistance (avoiding the environment)",
+              "domain": "sensory"
+            }
+          ],
+          "status": "active",
+          "confidence": 0.9500000000000001,
+          "formed_at": "2025-12-04T09:25:19.368321",
+          "last_evidence_at": "2025-12-04T09:25:19.368393",
+          "resolution": null,
+          "resolution_note": null
+        }
+      ],
+      "focus_description": "General exploration",
+      "focus_domain": "behavioral",
+      "hypothesis_ids": [
+        "12a43dcd",
+        "46a5b9a4",
+        "5b7aa60e",
+        "cb59409f"
+      ],
+      "status": "active",
+      "conversation_method": null,
+      "video_method": null,
+      "artifacts": [],
+      "created_at": "2025-12-04T09:22:58.738751",
+      "updated_at": "2025-12-04T09:25:19.368413",
+      "completed_at": null
+    }
+  ],
+  "synthesis_reports": [],
+  "videos": [],
+  "journal_entries": [
+    {
+      "id": "c428bff5-8d1c-4c39-99b0-899c0501b54a",
+      "content": "הוא לא רוצה להפסיק עם הטלוויזיה. עושה סצנות נוראיות",
+      "context": "Response to question about what he loves to do/strengths",
+      "timestamp": "2025-12-04T09:22:58.736956",
+      "themes": [
+        "behavioral",
+        "emotional"
+      ]
+    }
+  ],
+  "created_at": "2025-12-04T09:20:23.907979",
+  "updated_at": "2025-12-04T09:25:55.427462",
+  "artifacts": {}
+}

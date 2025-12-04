@@ -1,0 +1,155 @@
+{
+  "child_id": "test-hypothesis-lifecycle",
+  "identity": {
+    "name": "דניאל",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "sensory",
+      "eating",
+      "behavioral"
+    ],
+    "details": [],
+    "parent_narrative": "קושי עם מעברים (יציאה לגן, כניסה לאמבטיה). רעשים חזקים מפריעים לו מאוד. מסרב לאכול מאכלים עם טקסטורות מסוימות. Difficulty with changing clothes, especially shirts that feel uncomfortable. Calms down faster with strong hugs or a heavy blanket"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [
+      {
+        "id": "e0b58663",
+        "theory": "Transition difficulties may be driven by sensory regulation challenges rather than behavioral defiance",
+        "domain": "sensory",
+        "source": "pattern",
+        "source_details": "Combination of noise sensitivity, texture aversion, and transition struggles",
+        "questions_to_explore": [
+          "Does he have trouble with other sensory-rich transitions (e.g., leaving the house, changing clothes)?",
+          "Does deep pressure or heavy work help him regulate?"
+        ],
+        "evidence": [
+          {
+            "id": "84432ea2",
+            "observed_at": "2025-12-02T21:13:18.127911",
+            "source": "conversation",
+            "content": "Loud noises bother him",
+            "domain": "sensory"
+          },
+          {
+            "id": "8f6e5bef",
+            "observed_at": "2025-12-02T21:13:18.127974",
+            "source": "conversation",
+            "content": "Texture aversions",
+            "domain": "sensory"
+          },
+          {
+            "id": "fe44af69",
+            "observed_at": "2025-12-02T21:13:18.127992",
+            "source": "conversation",
+            "content": "Difficulty entering bath (sensory change)",
+            "domain": "sensory"
+          },
+          {
+            "id": "a4d1c34e",
+            "observed_at": "2025-12-02T21:14:09.320549",
+            "source": "conversation",
+            "content": "Parent confirms difficulty with changing clothes (tactile/transition) and that deep pressure (strong hugs, heavy blanket) helps him regulate. (Directly answers the exploration questions: confirms another sensory-based transition struggle (clothes) and confirms that proprioceptive input (deep pressure) aids regulation, strongly validating the sensory-regulation theory.)",
+            "domain": "sensory"
+          }
+        ],
+        "status": "resolved",
+        "confidence": 1.0,
+        "formed_at": "2025-12-02T21:13:18.127883",
+        "last_evidence_at": "2025-12-02T21:14:09.320549",
+        "resolution": "confirmed",
+        "resolution_note": "High confidence (100%) based on evidence",
+        "evolved_into": null
+      }
+    ],
+    "patterns": [
+      {
+        "id": "a5d7d7ad",
+        "theme": "Sensory sensitivities across auditory and tactile domains",
+        "description": "Observations: Loud noises bother him; Refuses food textures; Struggles with bath time (sensory environment)",
+        "related_hypotheses": [],
+        "confidence": 0.9,
+        "detected_at": "2025-12-02T21:13:18.125578",
+        "source": "conversation"
+      },
+      {
+        "id": "abf1eac7",
+        "theme": "Responsive to proprioceptive input (deep pressure) for regulation",
+        "description": "Observations: calms with strong hugs; calms with heavy blanket; struggles with uncomfortable clothing textures",
+        "related_hypotheses": [],
+        "confidence": 0.95,
+        "detected_at": "2025-12-02T21:14:09.323031",
+        "source": "conversation"
+      }
+    ],
+    "pending_insights": [
+      {
+        "id": "932c7a3f",
+        "source": "parent_goal",
+        "content": "להבין ולראות איך הוא מתמודד עם רעשים",
+        "importance": "medium",
+        "share_when": "when_relevant",
+        "related_hypotheses": [],
+        "created_at": "2025-12-03T08:35:33.417782",
+        "shared": false
+      },
+      {
+        "id": "8c2a3283",
+        "source": "parent_goal",
+        "content": "לצפות בדניאל כשיש רעש ולהבין מה לצלם",
+        "importance": "medium",
+        "share_when": "when_relevant",
+        "related_hypotheses": [],
+        "created_at": "2025-12-03T08:40:43.381503",
+        "shared": false
+      }
+    ]
+  },
+  "exploration_cycles": [],
+  "artifacts": {
+    "video_guidelines_from_gestalt": {
+      "exists": true,
+      "content": "{\"introduction\": \"שלום, כאן צ'יטה. קראתי בעיון את התיאור שלכם. אני שומעת כמה המעברים היומיומיים יכולים להיות מתישים, במיוחד סביב היציאה לגן והמקלחת, וכמה אתם קשובים לרגישות שלו לרעשים ולבגדים. העובדה ששמתם לב שחיבוק חזק מרגיע אותו היא משמעותית מאוד. כדי שאוכל להבין האם הקושי הוא בעיקר תחושתי (רגישות יתר למגע ולרעש) או קשור לקושי במעבר עצמו, אשמח שתצלמו עבורי מספר רגעים ספציפיים מהיום-יום שלכם.\", \"scenarios\": [{\"title\": \"אתגר החולצה וההתלבשות\", \"context\": \"ויסות חושי (מגע)\", \"what_to_film\": \"צלמו את הרגע בבוקר שבו צריך להחליף בגדים או ללבוש חולצה. נסו לצלם מהרגע שאתם מגישים לו את הבגד ועד שהוא לבוש (או מסרב).\", \"what_to_look_for\": [\"Immediate recoil from fabric touch\", \"Attempts to adjust clothing constantly\", \"Verbal complaints specifically about tags/seams vs. general refusal\"], \"duration\": \"2-4 דקות\", \"why_matters\": \"ציינתם שיש קושי עם חולצות שמרגישות לא נוח. צפייה ברגע הזה תעזור לי להבדיל בין 'לא בא לי ללכת לגן' לבין 'הבד הזה מכאיב לי/מציק לי בגוף', וזה מפתח לפתרון.\", \"examples\": [\"הרגע שבו מורידים פיג'מה ומנסים לשים חולצת גן.\", \"ניסיון ללבוש בגד שהוא בדרך כלל מתלונן עליו שהוא 'לא נוח'.\"]}, {\"title\": \"רגע של הירגעות (חיבוק חזק)\", \"context\": \"ויסות רגשי וחושי\", \"what_to_film\": \"בזמן שדניאל נמצא בסערת רגשות, אי שקט, או מוצף (אולי אחרי רעש חזק), צלמו את הפעולה שתיארתם שעוזרת לו - החיבוק החזק או השימוש בשמיכה הכבדה.\", \"what_to_look_for\": [\"Latency to calm (how many seconds until muscles relax)\", \"Active seeking of the pressure vs. passive acceptance\", \"Post-regulation state\"], \"duration\": \"2-3 דקות (כולל הלפני והאחרי)\", \"why_matters\": \"סיפרתם שחיבוקים חזקים או שמיכה כבדה עוזרים לו להירגע. לראות את המעבר מסערה לרוגע בעזרת המגע הזה יעזור לי להבין איזה סוג של עזרה הגוף שלו דורש.\", \"examples\": [\"כשהוא נסער בגלל רעש חזק ואתם מחבקים אותו חזק להרגעה.\", \"רגע של בכי שבו אתם עוטפים אותו בשמיכה הכבדה עד שנרגע.\"]}, {\"title\": \"דניאל במיטבו\", \"context\": \"תפקוד מיטבי\", \"what_to_film\": \"צלמו את דניאל משחק במשחק אהוב עליו בבית, בזמן שקט, ללא רעשים וללא לחץ של זמן.\", \"what_to_look_for\": [\"Attention span when regulated\", \"Fine motor skills\", \"Self-talk or communication style when calm\"], \"duration\": \"3-5 דקות\", \"why_matters\": \"חשוב לי מאוד לא לראות רק את הקשיים. כדי לבנות תוכנית טובה, אני צריכה לראות את דניאל כשהוא רגוע, משחק ונהנה, כדי להבין את הכוחות והיכולות שלו.\", \"examples\": [\"משחק הרכבה (לגו/מגנטים) על השטיח.\", \"ציור או יצירה ליד השולחן כשהוא רגוע.\", \"דפדוף בספר או משחק דמיון שקט.\"]}], \"general_tips\": [\"נסו להניח את הטלפון בצד ולצלם כך שרואים את כל הגוף של דניאל וגם אתכם, אם אפשר.\", \"אין צורך 'לביים' או לתקן אותו למצלמה - התגובה הטבעית שלו היא בדיוק מה שאני צריכה לראות.\", \"אם הסיטואציה מסלימה לבכי חזק או מצוקה, עצרו את הצילום מיד וגשו להרגיע אותו. הביטחון שלו קודם לכל.\"], \"estimated_duration\": \"1-2 דקות לסרטון\", \"child_name\": \"דניאל\", \"exploration_context\": {\"hypotheses_being_tested\": [], \"patterns_being_explored\": []}}",
+      "generated_at": "2025-12-03T08:41:28.533779",
+      "type": "filming_guidelines"
+    }
+  },
+  "videos": [],
+  "journal_entries": [],
+  "created_at": "2025-12-02T21:13:06.110925",
+  "updated_at": "2025-12-03T08:41:28.533797"
+}

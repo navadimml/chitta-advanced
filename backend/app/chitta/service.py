@@ -807,6 +807,9 @@ class ChittaService:
         # Get questions to explore
         questions_to_explore = args.get("questions_to_explore", [])
 
+        # Get video appropriateness (default True - most hypotheses can be tested via video)
+        video_appropriate = args.get("video_appropriate", True)
+
         # Create hypothesis
         hypothesis = Hypothesis(
             theory=theory,
@@ -816,6 +819,7 @@ class ChittaService:
             questions_to_explore=questions_to_explore,
             status="forming",
             confidence=0.5,
+            video_appropriate=video_appropriate,
         )
 
         # Add supporting evidence as initial evidence
@@ -834,26 +838,32 @@ class ChittaService:
             # Lower initial confidence if there's contradicting evidence
             hypothesis.confidence = max(0.3, hypothesis.confidence - 0.1 * len(contradicting))
 
-        # Add to child's understanding
-        child.add_hypothesis(hypothesis)
+        # === TEMPORAL DESIGN: One Domain = One Cycle ===
+        # Find or create a cycle for this hypothesis's domain.
+        # Each domain gets its own cycle - never mix domains in one cycle.
 
-        # Auto-create or link to exploration cycle
+        # Find an active cycle for THIS domain
+        matching_cycle = None
+        for cycle in child.active_exploration_cycles():
+            if cycle.focus_domain == domain:
+                matching_cycle = cycle
+                break
+
         cycle_id = None
-        current_cycle = child.current_cycle()
-
-        if current_cycle and current_cycle.status == "active":
-            # Add this hypothesis to the current active cycle
-            if hypothesis.id not in current_cycle.hypothesis_ids:
-                current_cycle.hypothesis_ids.append(hypothesis.id)
-            cycle_id = current_cycle.id
-            logger.debug(f"Added hypothesis {hypothesis.id} to existing cycle {cycle_id}")
+        if matching_cycle:
+            # Add hypothesis to existing domain-specific cycle
+            matching_cycle.add_hypothesis(hypothesis)
+            cycle_id = matching_cycle.id
+            logger.debug(f"Added hypothesis {hypothesis.id} to existing {domain} cycle {cycle_id}")
         else:
-            # Create a new exploration cycle for this hypothesis
+            # Create a NEW cycle for this domain
             cycle = ExplorationCycle(
-                hypothesis_ids=[hypothesis.id],
                 focus_description=f"Exploring: {theory[:100]}",
+                focus_domain=domain,  # CRITICAL: Set domain for enforcement
                 status="active",
             )
+            # Add hypothesis to cycle (using proper method that maintains both lists)
+            cycle.add_hypothesis(hypothesis)
             # Initialize conversation method with questions if provided
             if questions_to_explore:
                 cycle.conversation_method = ConversationMethod()
@@ -861,7 +871,10 @@ class ChittaService:
                     cycle.conversation_method.add_question(q)
             child.add_cycle(cycle)
             cycle_id = cycle.id
-            logger.debug(f"Created new exploration cycle {cycle_id} for hypothesis {hypothesis.id}")
+            logger.debug(f"Created new {domain} exploration cycle {cycle_id} for hypothesis {hypothesis.id}")
+
+        # Also add to understanding for backward compatibility
+        child.understanding.add_hypothesis(hypothesis)
 
         # Persist child
         from app.services.child_service import get_child_service
@@ -1291,15 +1304,18 @@ class ChittaService:
             artifact.ready_at = datetime.now()
 
             # Store in the current exploration cycle (creates one if needed)
+            # === TEMPORAL DESIGN: Video is Evidence Source, Not State Driver ===
+            # Video guidelines are just a tool - they do NOT change cycle state.
+            # Cycle stays active; closure happens via confidence triggers, not video upload.
             cycle_id = None
             current_cycle = child.current_cycle()
             if not current_cycle:
-                # Create a cycle for video exploration
+                # Create a cycle for video exploration - stays ACTIVE
                 from app.models.exploration import ExplorationCycle
                 current_cycle = ExplorationCycle(
                     hypothesis_ids=hypothesis_ids,
                     focus_description="Video observation exploration",
-                    status="evidence_gathering",
+                    status="active",  # NOT evidence_gathering - video doesn't drive state
                 )
                 child.add_cycle(current_cycle)
 
@@ -1314,9 +1330,9 @@ class ChittaService:
             )
             cycle_artifact.mark_ready()
             current_cycle.add_artifact(cycle_artifact)
-            # Transition cycle to evidence_gathering
-            if current_cycle.status != "evidence_gathering":
-                current_cycle.transition_to("evidence_gathering")
+            # NOTE: We intentionally do NOT transition to evidence_gathering here.
+            # Per TEMPORAL_DESIGN.md: "Video is evidence, not workflow"
+            # Cycles stay active and close via confidence triggers.
             cycle_id = current_cycle.id
             logger.debug(f"Added guidelines artifact to cycle {cycle_id}")
 
@@ -1456,13 +1472,61 @@ class ChittaService:
                 # Mark video as analyzed and save artifact
                 video.mark_analyzed(artifact.artifact_id)
                 child.add_artifact(artifact)
+
+                # === TEMPORAL DESIGN: Video Analysis Produces Evidence ===
+                # Video analysis is an evidence source, not a workflow driver.
+                # Create Evidence from analysis and add to active hypotheses.
+                from app.models.exploration import Evidence
+
+                current_cycle = child.current_cycle()
+                closure_triggered = False
+
+                if current_cycle and current_cycle.hypotheses:
+                    # Extract key observations from video analysis
+                    analysis_content = artifact.content if hasattr(artifact, 'content') else {}
+                    observations = analysis_content.get("key_observations", [])
+                    domains_observed = analysis_content.get("domains_observed", [])
+
+                    # Create evidence from video analysis
+                    evidence_content = f"Video analysis: {video.scenario or 'observation'}"
+                    if observations:
+                        evidence_content += f" - {'; '.join(observations[:3])}"
+
+                    video_evidence = Evidence(
+                        source="video",
+                        content=evidence_content,
+                        domain=current_cycle.focus_domain,
+                    )
+
+                    # Add evidence to relevant hypotheses
+                    for hypothesis in current_cycle.active_hypotheses():
+                        # Check if this hypothesis's domain was observed in video
+                        if hypothesis.domain in domains_observed or not domains_observed:
+                            # Determine effect based on analysis findings
+                            # Default to "supports" since parent filmed what we asked
+                            effect = "supports"
+                            hypothesis.add_evidence(video_evidence, effect)
+
+                    # Check closure triggers after adding evidence
+                    trigger = current_cycle.check_closure_triggers()
+                    if trigger:
+                        current_cycle.close_cycle(trigger)
+                        closure_triggered = True
+                        logger.info(f"🔒 Cycle {current_cycle.id} closed by trigger: {trigger}")
+
                 child_service.save_child(child)
 
-                return {
+                result = {
                     "status": "analyzed",
                     "artifact_created": artifact.artifact_id,
                     "video_id": video.video_id,
                 }
+
+                if closure_triggered:
+                    result["cycle_closed"] = True
+                    result["closure_trigger"] = trigger
+
+                return result
             else:
                 return {
                     "status": "error",
@@ -1580,9 +1644,11 @@ class ChittaService:
                     focus_points=s.get("focus_points", []),
                 )
                 cycle.video_method.add_scenario(scenario)
-            # If video method is active, transition to evidence_gathering
-            if scenarios:
-                cycle.transition_to("evidence_gathering")
+            # === TEMPORAL DESIGN: Video is Evidence Source, Not State Driver ===
+            # Do NOT transition to evidence_gathering just because we have video scenarios.
+            # Cycle stays active; video analysis will produce Evidence items that
+            # update hypothesis confidence, potentially triggering closure.
+            # REMOVED: if scenarios: cycle.transition_to("evidence_gathering")
 
         # Add cycle to child
         child.add_cycle(cycle)
@@ -1650,8 +1716,11 @@ class ChittaService:
             )
             cycle.video_method.add_scenario(scenario)
 
-        # Transition to evidence_gathering
-        cycle.transition_to("evidence_gathering")
+        # === TEMPORAL DESIGN: Video is Evidence Source, Not State Driver ===
+        # Do NOT transition to evidence_gathering. Video scenarios are just tools
+        # for gathering evidence. Cycle stays active; closure happens via
+        # confidence triggers when video analysis produces evidence.
+        # REMOVED: cycle.transition_to("evidence_gathering")
 
         # Persist child
         from app.services.child_service import get_child_service

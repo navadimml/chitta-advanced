@@ -1,0 +1,106 @@
+{
+  "child_id": "test-established-1764760620",
+  "identity": {
+    "name": "Yuval",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [
+      "Plays calmly before transitions"
+    ],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "behavioral",
+      "morning routine",
+      "transitions"
+    ],
+    "details": [],
+    "parent_narrative": "Difficulty with transitions. Struggles to adapt when something changes suddenly. Mornings are the hardest, specifically transitioning from playing to dressing. Reacts with tantrums, crying, and clinging to the game (refusing to leave)"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [
+      {
+        "id": "aae270e5",
+        "theory": "Transition difficulties may be driven by a need for cognitive predictability and structure (rigidity) rather than general emotional dysregulation",
+        "domain": "behavioral",
+        "source": "pattern",
+        "source_details": "Combination of loving clear rules and struggling with sudden changes suggests rigidity/need for control",
+        "questions_to_explore": [
+          "Does advance warning help with the changes?",
+          "How does he react if rules are broken or changed?"
+        ],
+        "evidence": [
+          {
+            "id": "3c0a254d",
+            "observed_at": "2025-12-03T13:17:53.186420",
+            "source": "conversation",
+            "content": "Loves games with clear rules",
+            "domain": "behavioral"
+          },
+          {
+            "id": "71dbe859",
+            "observed_at": "2025-12-03T13:17:53.186441",
+            "source": "conversation",
+            "content": "Struggles specifically with sudden changes",
+            "domain": "behavioral"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.8,
+        "formed_at": "2025-12-03T13:17:53.186395",
+        "last_evidence_at": "2025-12-03T13:17:53.186441",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      }
+    ],
+    "patterns": [
+      {
+        "id": "041dd33e",
+        "theme": "Need for predictability and structure",
+        "description": "Observations: loves games with clear rules; struggles with sudden changes; difficulty with transitions",
+        "related_hypotheses": [],
+        "confidence": 0.85,
+        "detected_at": "2025-12-03T13:17:53.185346",
+        "source": "conversation"
+      }
+    ],
+    "pending_insights": []
+  },
+  "exploration_cycles": [],
+  "artifacts": {},
+  "videos": [],
+  "journal_entries": [],
+  "created_at": "2025-12-03T13:17:00.113617",
+  "updated_at": "2025-12-03T13:20:13.777088"
+}

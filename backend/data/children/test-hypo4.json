@@ -1,0 +1,63 @@
+{
+  "child_id": "test-hypo4",
+  "identity": {
+    "name": "דניאל",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [
+      "בדרך כלל רגוע מאוד",
+      "מאוד חכם ויודע את כל הדינוזאורים"
+    ],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "feeding/textures",
+      "emotional regulation",
+      "difficulty with transitions",
+      "sensory sensitivity"
+    ],
+    "details": [],
+    "parent_narrative": "קשיים עם מעברים - בבוקר קשה לו לצאת לגן, בערב קשה להכניס לאמבטיה. גם באמצע משחק קשה לו לעבור לפעילות אחרת. הילד בדרך כלל רגוע, אך מגיב בתסכול ובכי כשצריך להפסיק פעילות. רעשים חזקים מציקים לו מאוד, והוא מסרב לגעת באוכל עם מרקמים מסוימים"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [],
+    "patterns": [],
+    "pending_insights": []
+  },
+  "exploration_cycles": [],
+  "artifacts": {},
+  "videos": [],
+  "journal_entries": [],
+  "created_at": "2025-12-02T18:48:21.764208",
+  "updated_at": "2025-12-02T18:50:57.918762"
+}
