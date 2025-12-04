@@ -82,6 +82,11 @@ class Hypothesis(BaseModel):
     resolution: Optional[str] = None  # "confirmed", "refuted", "evolved", "outgrown"
     resolution_note: Optional[str] = None
 
+    # Video exploration appropriateness
+    # Some hypotheses can be tested via video observation (motor, social, sensory behaviors)
+    # Others are better explored through conversation (history, learning context)
+    video_appropriate: bool = True  # Default True; LLM sets to False for non-observable hypotheses
+
     def add_evidence(self, evidence: Evidence, effect: str = "neutral"):
         """
         Add evidence and update state.
@@ -133,6 +138,10 @@ class CycleArtifact(BaseModel):
 
     # What hypotheses this artifact explores
     related_hypothesis_ids: List[str] = Field(default_factory=list)
+
+    # Which hypothesis triggered video observation request (for guidelines)
+    # This helps track WHY video was requested, guiding more focused analysis
+    video_trigger_hypothesis_id: Optional[str] = None
 
     # Fulfillment tracking (for guidelines)
     expected_videos: int = 0
@@ -355,6 +364,117 @@ class ExplorationCycle(BaseModel):
     def domains(self) -> List[str]:
         """All domains covered by this cycle's hypotheses."""
         return list(set(h.domain for h in self.hypotheses))
+
+    # === Cycle Closure Logic (Evidence-Driven) ===
+
+    def check_closure_triggers(
+        self,
+        confidence_high_threshold: float = 0.9,
+        confidence_low_threshold: float = 0.1,
+        staleness_days: int = 30,
+        soft_trigger_confidence: float = 0.7,
+        soft_trigger_min_evidence: int = 3
+    ) -> Optional[str]:
+        """
+        Check if cycle should close based on evidence-driven triggers.
+
+        Returns the trigger type if cycle should close, None otherwise.
+
+        Triggers (see TEMPORAL_DESIGN.md):
+        - confidence_threshold: Any hypothesis >90% or <10%
+        - convergence: 2+ hypotheses point same direction
+        - staleness: No new evidence for 30+ days
+        - soft_trigger: Sufficient understanding reached
+
+        Note: No parent confirmation needed (avoids authority bias).
+        """
+        if self.status == "complete":
+            return None  # Already closed
+
+        # 1. Confidence Threshold Trigger
+        for h in self.hypotheses:
+            if h.confidence >= confidence_high_threshold:
+                return "confidence_high"
+            if h.confidence <= confidence_low_threshold:
+                return "confidence_low"
+
+        # 2. Convergence Trigger: 2+ hypotheses pointing same direction
+        active = self.active_hypotheses()
+        if len(active) >= 2:
+            # Check if multiple hypotheses converge (all above 60% or all below 40%)
+            high_confidence = [h for h in active if h.confidence >= 0.6]
+            low_confidence = [h for h in active if h.confidence <= 0.4]
+            if len(high_confidence) >= 2 or len(low_confidence) >= 2:
+                return "convergence"
+
+        # 3. Staleness Trigger
+        if self._is_stale(days=staleness_days):
+            return "staleness"
+
+        # 4. Soft Trigger (LLM can suggest closure)
+        if self._has_sufficient_understanding(
+            min_confidence=soft_trigger_confidence,
+            min_evidence=soft_trigger_min_evidence
+        ):
+            return "soft_trigger"
+
+        return None
+
+    def _is_stale(self, days: int = 30) -> bool:
+        """Check if cycle has had no evidence in specified days."""
+        if not self.hypotheses:
+            return False
+
+        cutoff = datetime.now() - timedelta(days=days)
+        for h in self.hypotheses:
+            if h.last_evidence_at > cutoff:
+                return False
+        return True
+
+    def _has_sufficient_understanding(
+        self,
+        min_confidence: float = 0.7,
+        min_evidence: int = 3
+    ) -> bool:
+        """
+        Check if we have sufficient understanding to close.
+
+        Requires at least one hypothesis with:
+        - Confidence >= min_confidence
+        - At least min_evidence pieces of evidence
+        """
+        for h in self.hypotheses:
+            if h.confidence >= min_confidence and len(h.evidence) >= min_evidence:
+                return True
+        return False
+
+    def close_cycle(self, trigger: str) -> None:
+        """
+        Close the cycle with the given trigger reason.
+
+        All hypotheses are frozen at their current state.
+        Active hypotheses are marked as "inconclusive" if not resolved.
+        """
+        # Freeze all hypotheses
+        for h in self.hypotheses:
+            if h.status in ["forming", "active"]:
+                # Mark active hypotheses as frozen/inconclusive
+                if h.confidence >= 0.7:
+                    h.resolve("confirmed", f"Cycle closed: {trigger}")
+                elif h.confidence <= 0.3:
+                    h.resolve("refuted", f"Cycle closed: {trigger}")
+                else:
+                    h.resolve("inconclusive", f"Cycle closed: {trigger}")
+
+        self.transition_to("complete")
+
+
+class CycleClosureTrigger(BaseModel):
+    """Result of checking cycle closure triggers."""
+    should_close: bool = False
+    trigger_type: Optional[str] = None  # "confidence_high", "confidence_low", "convergence", "staleness", "soft_trigger"
+    triggered_hypothesis_id: Optional[str] = None
+    message_for_parent: Optional[str] = None  # Inform parent (don't ask for confirmation)
 
 
 def check_artifact_staleness(

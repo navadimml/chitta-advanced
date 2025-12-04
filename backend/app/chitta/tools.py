@@ -510,6 +510,10 @@ Always indicate:
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Developmental domains this hypothesis touches"
+                },
+                "video_appropriate": {
+                    "type": "boolean",
+                    "description": "Whether this hypothesis can be tested via video observation. Set to true (default) for hypotheses about observable behaviors: motor skills, social interaction, sensory responses, transitions, play patterns. Set to false for hypotheses about history, learning context, internal states, or other non-observable aspects that are better explored through conversation."
                 }
             },
             "required": ["theory", "source"]
@@ -701,7 +705,7 @@ You: [Call tool] "מעולה! אני מכינה הנחיות מותאמות. ע�
                 "hypothesis_ids_to_test": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "IDs of ACTIVE hypotheses this video should test"
+                    "description": "IDs of ACTIVE hypotheses this video should test. First ID is considered the primary trigger."
                 },
                 "patterns_to_explore": {
                     "type": "array",

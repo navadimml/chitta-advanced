@@ -1,0 +1,54 @@
+{
+  "session_id": "test-v5:test-v5",
+  "user_id": "test-v5",
+  "child_id": "test-v5",
+  "messages": [
+    {
+      "role": "user",
+      "content": "שלום, הילד שלי נועם בן 3",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-02T14:56:44.920043"
+      },
+      "archived": false
+    },
+    {
+      "role": "assistant",
+      "content": "סליחה, משהו השתבש. אפשר לנסות שוב?",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-02T14:57:02.162037"
+      },
+      "archived": false
+    },
+    {
+      "role": "user",
+      "content": "שלום, הילד שלי נועם בן 3",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-02T15:10:27.805775"
+      },
+      "archived": false
+    },
+    {
+      "role": "assistant",
+      "content": "סליחה, משהו השתבש. אפשר לנסות שוב?",
+      "timestamp": {
+        "_type": "datetime",
+        "_value": "2025-12-02T15:10:44.732716"
+      },
+      "archived": false
+    }
+  ],
+  "active_cards": [],
+  "dismissed_card_moments": {},
+  "previous_context_snapshot": null,
+  "last_triggered_moment": null,
+  "semantic_verification": null,
+  "semantic_verification_turn": 0,
+  "created_at": "2025-12-02T14:56:34.176642",
+  "updated_at": "2025-12-02T15:10:44.732737",
+  "last_message_at": "2025-12-02T15:10:44.732716",
+  "_persisted_at": "2025-12-02T15:10:44.732874",
+  "_family_id": "test-v5:test-v5"
+}

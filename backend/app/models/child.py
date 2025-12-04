@@ -521,17 +521,27 @@ class Child(BaseModel):
         """
         Add a hypothesis to a cycle.
 
-        TEMPORAL DESIGN: Hypotheses should be owned by cycles. If no cycle
-        is specified, adds to the current active cycle (creates one if needed).
-
-        For backward compatibility, also adds to understanding.hypotheses.
+        TEMPORAL DESIGN (One Domain = One Cycle):
+        - Each domain gets its own cycle
+        - Never mix domains in one cycle
+        - If cycle is specified, use it (caller is responsible for domain)
+        - If no cycle specified, find/create cycle for this hypothesis's domain
         """
         if cycle is None:
-            cycle = self.current_cycle()
-            if not cycle:
-                # Create a general-purpose cycle
+            # === TEMPORAL DESIGN: One Domain = One Cycle ===
+            # Find an active cycle for THIS domain
+            matching_cycle = None
+            for c in self.active_exploration_cycles():
+                if c.focus_domain == hypothesis.domain:
+                    matching_cycle = c
+                    break
+
+            if matching_cycle:
+                cycle = matching_cycle
+            else:
+                # Create a NEW cycle for this domain
                 cycle = ExplorationCycle(
-                    focus_description="General exploration",
+                    focus_description=f"Exploring: {hypothesis.theory[:80]}",
                     focus_domain=hypothesis.domain,
                     status="active",
                 )
