@@ -8,14 +8,16 @@
 
 1. [The Heart of Chitta](#1-the-heart-of-chitta)
 2. [The Living Gestalt](#2-the-living-gestalt)
-3. [Hypothesis-Driven Architecture](#3-hypothesis-driven-architecture)
-4. [The Tool Philosophy](#4-the-tool-philosophy)
-5. [Data Architecture](#5-data-architecture)
-6. [Temporal Memory with Graphiti](#6-temporal-memory-with-graphiti)
-7. [Context Cards & The Space](#7-context-cards--the-space)
-8. [Multilanguage & i18n](#8-multilanguage--i18n)
-9. [Domain Separation (Wu Wei)](#9-domain-separation-wu-wei)
-10. [Practical Development Guide](#10-practical-development-guide)
+3. [Curiosity-Driven Architecture](#3-curiosity-driven-architecture)
+4. [Understanding: Essence, Facts & Patterns](#4-understanding-essence-facts--patterns)
+5. [The Journal: Temporal Backbone](#5-the-journal-temporal-backbone)
+6. [Exploration Cycles](#6-exploration-cycles)
+7. [Conversation Dynamics](#7-conversation-dynamics)
+8. [Tools & Dynamic Context](#8-tools--dynamic-context)
+9. [Context Cards & The Space](#9-context-cards--the-space)
+10. [Multilanguage & i18n](#10-multilanguage--i18n)
+11. [Domain Separation (Wu Wei)](#11-domain-separation-wu-wei)
+12. [Practical Development Guide](#12-practical-development-guide)
 
 ---
 
@@ -70,45 +72,63 @@ A skilled observer (Chitta) sees all of this in one story. No form can capture i
 
 ## 2. The Living Gestalt
 
-### What Is a Gestalt?
+### The Core Insight
 
-The Gestalt is a **synthesized, whole understanding** of a child that is greater than the sum of its parts. It's not a report or a database—it's a living picture.
+The Gestalt is not a data structure. **The Gestalt is the observing intelligence.**
 
-### The Six Components of Understanding
+It's the layer that:
+- Watches the conversation unfold
+- Notices when something needs exploration
+- Sees patterns emerging across observations
+- Knows what's missing and is curious about it
+- Decides when understanding has crystallized
+
+This is the "seeing the whole child" layer. Everything else—cycles, facts, artifacts—are its **tools for building understanding**.
+
+### The Gestalt as Active Intelligence
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    THE LIVING GESTALT                           │
+│                  (The Observing Intelligence)                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. OBSERVATIONS                                                │
-│     Raw data: stories, videos, facts shared by parents          │
-│     "Daniel looked at his mom when she called his name"         │
+│  "I am building understanding of this child."                   │
 │                                                                 │
-│  2. PATTERNS                                                    │
-│     Recurring themes across observations                        │
-│     "Daniel consistently responds to voices but not to         │
-│      environmental sounds"                                      │
+│  I HOLD:                                                        │
+│  ├── Understanding    - What I know (essence, facts, patterns) │
+│  ├── Curiosities      - What I'm curious about (always present)│
+│  ├── Cycles           - Focused investigations I've spawned    │
+│  ├── Journal          - The story of how I came to understand  │
+│  └── Artifacts        - What I've created for the parent       │
 │                                                                 │
-│  3. HYPOTHESES                                                  │
-│     Working theories to explore                                 │
-│     "Could Daniel be filtering sounds by social relevance?"     │
-│                                                                 │
-│  4. EXPLORATIONS                                                │
-│     Active investigations of hypotheses                         │
-│     "Asked about response to music → loves it, dances"          │
-│     "Requested video of response to doorbell → no response"     │
-│                                                                 │
-│  5. INSIGHTS                                                    │
-│     Validated understanding                                     │
-│     "Daniel's auditory processing is selective—strong for       │
-│      social sounds, weaker for environmental"                   │
-│                                                                 │
-│  6. OPEN QUESTIONS                                              │
-│     What we're still wondering                                  │
-│     "How does this affect him in group settings?"               │
+│  I DO:                                                          │
+│  ├── Notice gaps      → spawn exploration                       │
+│  ├── Notice patterns  → form cross-cutting insights            │
+│  ├── Notice readiness → suggest artifacts                       │
+│  └── Notice change    → update understanding                    │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+### Child-First, Not Problem-First
+
+Traditional apps ask: "What's wrong? What are you worried about?"
+This frames the child through their difficulty.
+
+**Chitta asks differently:** "Tell me about your child. What are they like?"
+
+The concern still comes. But it lands in context—one aspect of a whole person, not the defining frame.
+
+```
+Daniel is not "speech delay." Daniel is:
+├── A careful observer who processes internally
+├── Loves dinosaurs and creates elaborate scenarios
+├── Connects deeply with few people
+├── Laughs at physical comedy
+└── Happens to also have speech emerging slowly
+
+The difficulty is real. But it's not the whole child.
 ```
 
 ### The Gestalt vs. The Data Container
@@ -122,326 +142,981 @@ class Gestalt:
     completeness: float  # "40% done"
 ```
 
-**New approach (living understanding):**
+**New approach (observing intelligence):**
 ```python
 class LivingGestalt:
-    observations: List[Observation]
-    patterns: List[Pattern]
-    hypotheses: List[Hypothesis]  # Active theories
-    explorations: List[Exploration]  # How we're testing them
-    insights: List[Insight]  # What we've learned
-    open_questions: List[Question]  # What we're still wondering
+    # What I know about this child
+    understanding: Understanding      # Essence + Facts + Patterns
+
+    # What I'm curious about (always present, varying activation)
+    curiosities: List[Curiosity]
+
+    # Focused investigations I've spawned
+    exploration_cycles: List[ExplorationCycle]
+
+    # The story of how I came to understand
+    journal: Journal
+
+    # What I've created
+    artifacts: List[Artifact]
+
+    # Methods - the Gestalt DOES things
+    def notice(self, observation) -> None: ...
+    def spawn_exploration(self, curiosity) -> Cycle: ...
+    def synthesize(self) -> Understanding: ...
+    def suggest_artifact(self) -> Optional[Artifact]: ...
 ```
 
 ### Completeness Is Misleading
 
 We don't measure "completeness" (as if understanding has an end). Instead, we track:
 
-- **Confidence areas**: Where we have solid understanding
-- **Uncertainty areas**: Where we need more observation
-- **Emerging patterns**: What's starting to take shape
-- **Active hypotheses**: What we're currently exploring
+- **Curiosity activation**: What are we most curious about right now?
+- **Understanding confidence**: How well do we know this child's essence?
+- **Gaps**: What do we know we don't know?
+- **Open questions**: What are we still wondering about?
 
 ---
 
-## 3. Hypothesis-Driven Architecture
+## 3. Curiosity-Driven Architecture
 
 ### The Core Insight
 
-**Tools don't exist to fill checkboxes. They exist to explore hypotheses.**
+**Curiosity is the primitive, not hypothesis.**
 
-When a pattern emerges from conversation, Chitta forms a hypothesis. This hypothesis creates *curiosity*—a desire to explore. Tools are the means of exploration.
+The Gestalt is curious about this child. It explores its curiosities through cycles. Understanding emerges.
 
-### How Hypotheses Drive Everything
+A hypothesis is one *type* of curiosity. But not all exploration is hypothesis-testing. Sometimes we're just wondering. Sometimes we're following a thread. Sometimes we're discovering who this child is.
+
+### Four Types of Curiosity
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    HYPOTHESIS LIFECYCLE                         │
+│                    TYPES OF CURIOSITY                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. EMERGENCE                                                   │
-│     Pattern detected in conversation or videos                  │
-│     "Parent mentioned frustration with blocks three times"      │
+│  1. DISCOVERY                                                   │
+│     "Who is this child?"                                        │
+│     "What does Daniel love?"                                    │
+│     "What's the family context?"                                │
 │                                                                 │
-│  2. FORMATION                                                   │
-│     Hypothesis crystalizes                                      │
-│     "Daniel may be experiencing fine motor challenges that      │
-│      lead to frustration when tasks require precision"          │
+│     → No theory to test. Open receiving. Building foundation.   │
 │                                                                 │
-│  3. EXPLORATION OPTIONS                                         │
-│     What tools could help investigate?                          │
-│     - Conversation: "How does Daniel handle crayons/puzzles?"   │
-│     - Video: "Could you film him during a drawing activity?"    │
-│     - Observation: Watch for motor patterns in existing videos  │
+│  2. QUESTION                                                    │
+│     "What makes grandmother different?"                         │
+│     "Why does he respond to music but not speech?"              │
 │                                                                 │
-│  4. ACTIVE EXPLORATION                                          │
-│     Tools used, data gathered                                   │
-│     - Parent confirms: "Yes, he avoids scissors completely"     │
-│     - Video shows: Avoidance of small-piece toys                │
+│     → Something specific to understand. Following a thread.     │
 │                                                                 │
-│  5. RESOLUTION                                                  │
-│     Hypothesis becomes insight OR generates new hypotheses      │
-│     Insight: "Fine motor challenges → frustration cycle"        │
-│     New hypothesis: "Is this affecting his drawing interest?"   │
+│  3. HYPOTHESIS                                                  │
+│     "Motor challenges may cause the frustration"                │
+│     "Speech is context-dependent, not delayed"                  │
+│                                                                 │
+│     → Theory to test. Gathering confirming/refuting evidence.   │
+│                                                                 │
+│  4. PATTERN                                                     │
+│     "Caution appears across multiple contexts"                  │
+│     "Safety seems to unlock expression"                         │
+│                                                                 │
+│     → Cross-cutting theme to investigate. Connecting dots.      │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Tool Readiness via Hypotheses
+### Curiosity Activation (The Flow Model)
 
-**Old approach (threshold-based):**
-```python
-if completeness >= 0.4:
-    enable_video_guidelines()  # Magic number!
+Instead of rigid phases, the Gestalt maintains **perpetual curiosities** with varying activation:
+
+```
+THE GESTALT'S CURIOSITIES (always present, varying activation)
+
+┌────────────────────────────────────────────────────────────────┐
+│                                                                │
+│  WHO IS THIS CHILD?                          [████████░░] 80%  │
+│  (essence, personality, what makes them them)                  │
+│  → Currently exploring: Daniel's careful observation style     │
+│                                                                │
+│  WHAT DO THEY LOVE?                          [██████░░░░] 60%  │
+│  (strengths, interests, what lights them up)                   │
+│  → Discovered: dinosaurs, lining up cars                       │
+│  → Still curious: music? physical play?                        │
+│                                                                │
+│  WHAT'S THE CONTEXT?                         [████░░░░░░] 40%  │
+│  (family, history, environment)                                │
+│  → Know: grandmother exists, seems important                   │
+│  → Missing: birth history, siblings, previous evaluations      │
+│                                                                │
+│  WHAT BROUGHT THEM HERE?                     [██████████] 100% │
+│  (the concern that initiated contact)                          │
+│  → Speech delay (captured)                                     │
+│                                                                │
+│  WHAT'S REALLY GOING ON?                     [████░░░░░░] 40%  │
+│  (deeper understanding, patterns, meaning)                     │
+│  → Emerging: slow-to-warm temperament                          │
+│  → Active hypothesis: speech is context-dependent              │
+│  → Thread following: grandmother relationship                  │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-**New approach (hypothesis-based):**
+**No rigid phases. Natural flow guided by active curiosity.**
+
+The Gestalt flows toward whatever curiosity is most relevant in the moment:
+- Early conversation: "Who is this child?" is highly activated
+- Parent mentions concern: Captured, but we bridge back to foundation
+- Pattern emerges: "What's really going on?" activates, spawns cycle
+- Gap noticed: "What's the context?" activates, Chitta asks naturally
+
+### Curiosities Spawn Explorations
+
+When a curiosity becomes focused enough, it spawns an **Exploration Cycle**:
+
 ```python
-if has_active_hypothesis_needing_observation():
-    # We have something specific to explore via video
-    enable_video_guidelines(
-        focus=active_hypothesis.observation_needs,
-        reason=active_hypothesis.why_video_helps
+class Curiosity:
+    """Something the Gestalt wants to understand"""
+
+    type: str                    # "discovery" | "question" | "hypothesis" | "pattern"
+    focus: str                   # What specifically we're curious about
+    activation: float            # 0-1, how active is this curiosity right now
+
+    # For discovery
+    aspect: Optional[str]        # "essence" | "strengths" | "context"
+    gaps: List[str]              # What's missing
+
+    # For question
+    question: Optional[str]      # The specific question
+
+    # For hypothesis
+    theory: Optional[str]        # The theory to test
+    confidence: float            # Current confidence
+
+    # For pattern
+    observation: Optional[str]   # The pattern observed
+    supporting_evidence: List[str]
+
+# When curiosity crystallizes → spawn cycle
+if curiosity.activation > threshold and curiosity.is_specific_enough():
+    cycle = gestalt.spawn_exploration(curiosity)
+```
+
+### Proactive Artifact Suggestions
+
+**Parents don't know what they don't know.** Chitta must proactively suggest artifacts when conditions are ripe:
+
+```python
+# Chitta evaluates readiness continuously
+def check_artifact_readiness(gestalt: LivingGestalt) -> List[Suggestion]:
+    suggestions = []
+
+    # Video guidelines - when hypothesis needs observation
+    for cycle in gestalt.active_cycles:
+        if cycle.curiosity_type == "hypothesis" and cycle.needs_observation():
+            suggestions.append(Suggestion(
+                type="video_guidelines",
+                reason=f"To explore: {cycle.theory}",
+                cycle_id=cycle.id
+            ))
+
+    # Synthesis report - when enough progress
+    if gestalt.has_multiple_completed_cycles() or gestalt.time_since_last_synthesis() > 30:
+        suggestions.append(Suggestion(
+            type="synthesis_report",
+            reason="Enough understanding to synthesize"
+        ))
+
+    # Observation guide - when parent is uncertain
+    if gestalt.parent_expressed_uncertainty():
+        suggestions.append(Suggestion(
+            type="observation_guide",
+            reason="Help parent know what to notice"
+        ))
+
+    return suggestions
+```
+
+### Ephemeral vs. Persistent
+
+The app has intermittent interaction. Parents come and go—days between sessions. This shapes what should be chat vs. artifact:
+
+```
+EPHEMERAL (Chat Messages)              PERSISTENT (Artifacts in The Space)
+"Useful in THIS moment"                "Useful BEYOND this conversation"
+─────────────────────────              ─────────────────────────────────
+• Clarifications                       • Video guidelines
+• Back-and-forth dialogue              • Summaries of understanding
+• Emotional acknowledgments            • Reports for professionals
+• Questions to gather info             • Recommendations
+• Conversational flow                  • Insights to revisit
+
+RULE: If useful beyond this moment → MUST become artifact
+```
+
+---
+
+## 4. Understanding: Essence, Facts & Patterns
+
+### The Two Layers of Understanding
+
+Understanding has two complementary layers:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         ESSENCE                                  │
+│                   (The Whole Child)                              │
+│                                                                 │
+│     "Daniel is a careful observer who takes the world in        │
+│      before he engages. He connects deeply but slowly.          │
+│      Music opens him. Safety unlocks his voice."                │
+│                                                                 │
+│         ▲                    ▲                    ▲              │
+│         │                    │                    │              │
+│    synthesized          synthesized          synthesized        │
+│      from                 from                 from             │
+│         │                    │                    │              │
+├─────────┴────────────────────┴────────────────────┴─────────────┤
+│                         FACTS                                    │
+│               (Temporal Observations)                            │
+│                                                                 │
+│  "speech context-     "music opens      "careful with           │
+│   dependent"           connection"       new people"            │
+│  (Sep 22→)            (Sep 15→)         (Sep 15→)               │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                        PATTERNS                                  │
+│              (Cross-cutting Themes)                              │
+│                                                                 │
+│  "Safety enables expression across domains"                     │
+│  "Sensory pathways are his language of connection"              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Facts** are queryable evidence with temporal validity.
+**Patterns** are connections across facts.
+**Essence** is the synthesis—the *understanding* that emerges from holding all of it.
+
+### Essence: The Whole Child
+
+The Essence cannot be decomposed into temporal facts. It's Chitta's **felt sense** of who this child is.
+
+```python
+class Essence:
+    """The holistic sense of who this child is"""
+
+    # The living narrative - who is this child?
+    narrative: str                   # Free-form, deepens over time
+
+    # Structured aspects
+    core_qualities: List[str]        # "Careful observer", "Deep connector"
+    temperament: str                 # "Slow-to-warm, high sensitivity"
+    strengths: List[str]             # "Focus", "Visual memory", "Music"
+    what_lights_them_up: List[str]   # "Dinosaurs", "Lining things up"
+    sensitivities: List[str]         # "Noise", "Pressure to perform"
+
+    # How they move through the world
+    approach_style: str              # "Observes before engaging"
+    connection_style: str            # "Deep with few, slow with new"
+
+    # Meta
+    confidence: float                # How well do we know this child?
+    updated_at: datetime
+```
+
+**Essence evolves but doesn't have validity periods—it deepens:**
+
+```
+Week 1: "Daniel is a quiet child who seems slow to engage."
+
+Week 3: "Daniel is a careful observer. He watches before he acts.
+         This isn't shyness—it's how he processes."
+
+Week 6: "Daniel is a deeply perceptive child who takes the world
+         in fully before responding. His caution is wisdom—he
+         observes, understands, then engages on his own terms.
+         Music is his gateway. When safe, he's spontaneous."
+```
+
+### Facts: Temporal Observations
+
+Facts are specific observations with **bi-temporal tracking** (inspired by Graphiti):
+
+```python
+class TemporalFact:
+    """A fact about the child with temporal validity"""
+
+    id: str
+
+    # The fact itself
+    subject: str              # "Daniel"
+    predicate: str            # "has_difficulty_with"
+    object: str               # "speech"
+    description: str          # Full natural language
+
+    # Categorization
+    aspect: str               # "speech", "motor", "social", "essence"
+    fact_type: str            # "observation", "pattern", "confirmed_hypothesis"
+
+    # Temporal validity (when was this TRUE in the world?)
+    t_valid: datetime         # When this became true
+    t_invalid: Optional[datetime]  # When this stopped being true
+
+    # System tracking (when did WE know this?)
+    t_created: datetime       # When we recorded this
+    t_expired: Optional[datetime]  # When we updated our knowledge
+
+    # Provenance
+    confidence: float
+    source_type: str          # "parent_report", "video_analysis", "pattern"
+    source_id: str            # Journal entry ID, cycle ID
+
+    # Relationships
+    supersedes: Optional[str]     # ID of fact this replaces
+    superseded_by: Optional[str]  # ID of fact that replaced this
+```
+
+**This enables powerful queries:**
+
+| Question | Query |
+|----------|-------|
+| "How is Daniel's speech now?" | `facts.where(aspect="speech", t_invalid=None)` |
+| "How was it in October?" | `facts.where(aspect="speech", t_valid <= oct, t_invalid > oct)` |
+| "How has speech evolved?" | `facts.where(aspect="speech").order_by(t_valid)` |
+| "What did we believe that was wrong?" | `facts.where(t_invalid IS NOT NULL)` |
+
+### Patterns: Cross-Cutting Themes
+
+Patterns are observations that connect facts across domains:
+
+```python
+class Pattern:
+    """A theme that appears across observations"""
+
+    observation: str              # "Safety enables expression"
+    supporting_facts: List[str]   # Fact IDs that support this
+    domains_touched: List[str]    # ["speech", "social", "play"]
+
+    first_observed_at: datetime
+    last_confirmed_at: datetime
+    confidence: float
+```
+
+### The Complete Understanding Structure
+
+```python
+class Understanding:
+    """Everything we know about this child"""
+
+    # THE WHOLE (holistic, narrative)
+    essence: Essence
+
+    # THE CONTEXT (stable background)
+    context: Context              # Family, history, environment
+
+    # THE EVIDENCE (temporal, queryable)
+    facts: List[TemporalFact]
+
+    # THE CONNECTIONS (emerging themes)
+    patterns: List[Pattern]
+
+    # THE CONCERNS (what brought them here)
+    concerns: List[Concern]
+
+    # THE UNKNOWNS (honest gaps)
+    open_questions: List[str]
+    gaps: List[str]               # What we know we don't know
+```
+
+---
+
+## 5. The Journal: Temporal Backbone
+
+### Understanding vs. Journal
+
+**Understanding** = What I know about this child **right now**. (Current state, mutable)
+
+**Journal** = How I came to understand what I understand. (History, immutable)
+
+```
+UNDERSTANDING (mutable, current)        JOURNAL (immutable, temporal)
+┌────────────────────────────────┐     ┌────────────────────────────────┐
+│                                │     │ Sep 15: First met. Speech      │
+│  Daniel is a careful observer  │     │   concern. But grandmother     │
+│  who needs safety to open up.  │     │   story revealed connection    │
+│  Speech emerges when safe.     │     │   capacity...                  │
+│                                │     │                                │
+│                                │     │ Sep 22: Video showed careful   │
+│                                │     │   watching. Not avoidance—     │
+│                                │     │   observation.                 │
+│                                │     │                                │
+│                                │     │ Oct 3: Gan started. Stress →   │
+│                                │     │   regression. Aha! Context     │
+│                                │     │   matters!                     │
+└────────────────────────────────┘     └────────────────────────────────┘
+         ▲                                         │
+         │         derived from                    │
+         └─────────────────────────────────────────┘
+```
+
+Understanding is the **destination**. Journal is the **journey**.
+
+### Journal Entry Structure
+
+```python
+class JournalEntry:
+    """A single entry in the Gestalt's journal"""
+
+    id: str
+    timestamp: datetime
+    session_id: str
+
+    # What happened
+    summary: str                      # Chitta's synthesis of this session
+
+    # What changed
+    learned: List[str]                # New information acquired
+    updated: Dict[str, str]           # Understanding aspects updated
+    patterns_noted: List[str]         # Patterns observed
+
+    # Exploration activity
+    cycles_spawned: List[str]         # New explorations started
+    cycles_progressed: List[str]      # Evidence added
+    cycles_closed: List[str]          # Explorations completed
+
+    # Artifacts
+    artifacts_created: List[str]
+    artifacts_suggested: List[str]
+
+    # Curiosity state
+    curiosities_activated: List[str]
+    curiosities_satisfied: List[str]
+
+    # Relational
+    parent_state: Optional[str]       # How parent seemed
+```
+
+### What the Journal Enables
+
+| Question | Where to look |
+|----------|---------------|
+| "Who is Daniel?" | Understanding (current) |
+| "How did we learn that?" | Journal |
+| "What should we explore next?" | Curiosities + Understanding gaps |
+| "How has he changed?" | Journal over time + Facts timeline |
+| "What do we tell the doctor?" | Understanding (current) |
+| "What have we discussed?" | Journal (history) |
+
+### The Flow of Time
+
+```
+Session 1 (Sep 15)
+    │
+    ├── Conversation happens
+    ├── Gestalt observes, learns, spawns cycles
+    ├── At end: Journal entry created
+    │           "First meeting. Learned about Daniel..."
+    │
+    ▼
+
+Session 2 (Sep 22)
+    │
+    ├── Chitta opens: References last entry, time gap
+    ├── Conversation happens
+    ├── Video uploaded, analyzed
+    ├── At end: Journal entry created
+    │           "Video revealed careful observation..."
+    │
+    ▼
+
+[2 weeks pass]
+
+    │
+    ▼
+
+Session 3 (Oct 3)
+    │
+    ├── Chitta opens: "It's been two weeks! How are things?"
+    ├── Parent shares: Daniel started gan, regression
+    ├── Gestalt notices: Pattern! Stress → regression
+    ├── At end: Journal entry created
+    │
+    ▼
+
+[Parent asks: "How has Daniel changed since we started?"]
+    │
+    ├── Chitta reads journal Sep 15 → Oct 3
+    ├── Queries facts timeline for "speech"
+    └── Synthesizes the arc naturally
+```
+
+---
+
+## 6. Exploration Cycles
+
+### What Is an Exploration Cycle?
+
+An **Exploration Cycle** is a focused investigation spawned by a curiosity. It's the Gestalt's tool for pursuing a specific line of inquiry.
+
+```python
+class ExplorationCycle:
+    """A focused investigation of a curiosity"""
+
+    id: str
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+    # What spawned this cycle
+    curiosity_type: str          # "discovery" | "question" | "hypothesis" | "pattern"
+    focus: str                   # What we're exploring
+    spawned_from: str            # Curiosity ID that spawned this
+
+    # The content (depends on type)
+    # For hypothesis cycles:
+    theory: Optional[str]
+    confidence: float
+
+    # For question cycles:
+    question: Optional[str]
+
+    # For pattern cycles:
+    pattern: Optional[str]
+
+    # Collected during exploration
+    evidence: List[Evidence]     # Timestamped observations
+    artifacts: List[Artifact]    # Video guidelines, analyses
+
+    # Videos uploaded for this cycle
+    videos: List[Video]
+
+    # Lifecycle
+    status: str                  # "active" | "evidence_gathering" | "complete"
+```
+
+### Cycles Are Asynchronous
+
+**Key Property**: Conversation is NEVER blocked. Cycles run in parallel.
+
+```
+Time ─────────────────────────────────────────────────►
+
+Cycle 1 (discovery: essence)
+    ████████████████████  ← ongoing foundation building
+
+Cycle 2 (hypothesis: speech context-dependent)
+    ░░░░████████░░░░████████  ← active, waiting for video, complete
+
+Cycle 3 (question: grandmother connection)
+    ░░░░░░░░████████████████  ← started later, still exploring
+
+Conversation
+    ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬  ← NEVER blocked
+```
+
+### Evidence-Driven Closure
+
+Cycles close based on evidence, not parent confirmation:
+
+| Trigger | Condition |
+|---------|-----------|
+| Confidence Threshold | Hypothesis reaches >90% or <10% |
+| Question Answered | Sufficient understanding of the question |
+| Pattern Confirmed | Pattern holds across multiple observations |
+| Staleness | No new evidence for 30+ days |
+
+```python
+# Parent is INFORMED, not asked to confirm (avoids authority bias)
+# ❌ WRONG: "נראה שהבנתי... האם זה נכון?"
+# ✅ CORRECT: "למדתי הרבה על... אם תרצי לחזור לנושא - אני כאן."
+```
+
+### When Cycles Close
+
+On completion, cycles become **frozen historical records**:
+
+1. All data becomes immutable
+2. Insights extracted → added to Understanding as Facts
+3. Journal entry created documenting what was learned
+4. If concern resurfaces later → NEW cycle (don't reopen old one)
+
+### Synthesis Reports
+
+When understanding crystallizes across multiple cycles:
+
+```python
+class SynthesisReport:
+    """Cross-cycle longitudinal view"""
+
+    id: str
+    created_at: datetime
+
+    # What this report covers
+    cycle_ids: List[str]
+    time_span: {start: datetime, end: datetime}
+
+    # Snapshot at report time
+    cycle_snapshots: List[CycleSnapshot]
+
+    # The narrative
+    content: {
+        narrative: str,           # The story of this child
+        developments: List[str],  # What changed
+        current_focus: str,       # Where we are now
+        recommendations: List[str]
+    }
+
+    audience: str                 # "parent" | "clinician"
+```
+
+Synthesis reports live at **Child level**—they're cross-cycle artifacts.
+
+---
+
+## 7. Conversation Dynamics
+
+### Chitta Initiates
+
+Chitta is not a passive chatbot waiting for input. **Chitta opens** every session based on context:
+
+```python
+def compute_session_opening(gestalt: LivingGestalt, session: Session) -> Opening:
+    last_entry = gestalt.journal.latest()
+    time_gap = now() - last_entry.timestamp
+
+    # What's pending?
+    pending_artifacts = gestalt.get_pending_artifacts()  # Videos to upload
+    ready_artifacts = gestalt.get_ready_artifacts()      # Analysis complete
+
+    # What's ripe?
+    artifact_suggestions = gestalt.compute_artifact_suggestions()
+
+    return Opening(
+        reconnection=compute_reconnection(time_gap, last_entry),
+        pending_mention=pending_artifacts,
+        ready_mention=ready_artifacts,
+        proactive_suggestion=artifact_suggestions[0] if any else None,
+        continuation=compute_natural_continuation(last_entry)
     )
 ```
 
-### Video Guidelines as Hypothesis Exploration
+### Example Openings
 
-When we generate video guidelines, we're not just "getting more data." We're specifically asking to observe something related to our current hypotheses.
-
-**Old approach:**
+**After 2 days, nothing pending:**
 ```
-Guidelines: "Film Daniel playing alone for 3-5 minutes"
-```
-
-**New approach:**
-```
-Guidelines:
-"We've noticed Daniel gets frustrated with blocks and may
-avoid precise tasks. To understand better:
-
-1. Film him during a drawing or coloring activity (2-3 min)
-   - We're curious about: Does he grip the crayon firmly or
-     loosely? Does he press hard? Does he seem frustrated?
-
-2. Film him playing with Lego or puzzles (2-3 min)
-   - We're curious about: Does he avoid small pieces? Does he
-     ask for help? What happens if a piece doesn't fit?
-
-This will help us understand if there's a pattern around fine
-motor activities that we can help with."
+"היי, מה נשמע? חשבתי על מה שסיפרת על דניאל וסבתא.
+יש משהו מיוחד בחיבור הזה. איך הוא היום?"
 ```
 
-See the difference? The guidelines **explain the hypothesis** and **what we're looking for**. They're exploration tools, not data collection checklists.
-
----
-
-## 4. The Tool Philosophy
-
-### Tools Are Real Actions
-
-Every tool in Chitta triggers actual backend operations. The AI decides *when* to use them based on conversation context and active hypotheses.
-
-### The Tool Categories
-
-```python
-# 1. UNDERSTANDING TOOLS - Build the Gestalt
-update_child_understanding()   # Extract info from conversation
-capture_story()                # Capture meaningful moments
-detect_milestone()             # Mark significant points
-
-# 2. HYPOTHESIS TOOLS - Form and explore theories
-form_hypothesis()              # Crystalize a working theory
-explore_hypothesis()           # Initiate investigation
-
-# 3. OBSERVATION TOOLS - Gather specific data
-request_video_observation()    # Request targeted video
-analyze_video()                # Analyze uploaded video
-
-# 4. GENERATION TOOLS - Create artifacts
-generate_video_guidelines()    # Personalized filming guide
-generate_parent_report()       # Synthesis of understanding
-
-# 5. QUERY TOOLS - Answer questions
-ask_developmental_question()   # Parent asks about development
-ask_about_app()                # Parent asks about process
+**After 1 week, video pending:**
+```
+"היי! עבר קצת זמן. איך דניאל? איך את?
+אגב, הספקת לצלם משהו מהגן? אין לחץ, סתם שואלת."
 ```
 
-### Prerequisites Are Natural Language
-
-We don't use code to block tools. We describe when they're appropriate:
-
-```python
-"generate_video_guidelines": {
-    "description": """Generate personalized video guidelines.
-
-    Use when:
-    - You have active hypotheses that would benefit from observation
-    - Parent has shown interest in video observation
-    - You can articulate WHAT to film and WHY
-
-    Don't use when:
-    - You're just collecting data without specific curiosity
-    - Parent prefers conversation-only
-    - Guidelines already exist for current hypotheses
-    """
-}
+**After 3 days, analysis ready:**
+```
+"היי! יש לי משהו מעניין. צפיתי בסרטון ששלחת
+ויש כמה דברים ששמתי לב אליהם. רוצה לשמוע?"
 ```
 
-The AI reads this and decides. No state machines required.
+**After 2 weeks, synthesis ready:**
+```
+"היי, שמחה לראות אותך! אחרי כל מה שלמדתי על דניאל,
+אני חושבת שיש לי תמונה די ברורה. רוצה שאכין לך
+סיכום? משהו שתוכלי גם לשתף עם הגננת?"
+```
 
----
-
-## 5. Data Architecture
-
-### Child-Centric Model
-
-Everything orbits around the **Child** entity. Understanding accumulates over time, across conversations, across users.
+### The Decision Flow (Each Turn)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                           CHILD                                  │
-│                   (The invariant core)                          │
+│              CHITTA'S DECISION FLOW (Each Turn)                 │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  IDENTITY                                                       │
-│  ├── name, age, gender                                         │
-│  └── birth_date (for age calculation)                          │
+│  1. RECEIVE                                                     │
+│     What did parent say? What's the intent?                     │
+│     (Story? Question? Emotion? Answer? Redirect?)               │
 │                                                                 │
-│  LIVING GESTALT                                                 │
-│  ├── observations[]                                            │
-│  ├── patterns[]                                                │
-│  ├── hypotheses[]                                              │
-│  ├── explorations[]                                            │
-│  ├── insights[]                                                │
-│  └── open_questions[]                                          │
+│  2. RESPOND APPROPRIATELY                                       │
+│     Match their energy. Receive what they brought.              │
+│     - Story → Reflect, honor, extract meaning                   │
+│     - Question → Answer with domain + child-specific knowledge  │
+│     - Emotion → Acknowledge, hold space                         │
+│     - Answer → Receive, integrate, appreciate                   │
 │                                                                 │
-│  DEVELOPMENTAL DATA                                             │
-│  ├── concerns, strengths                                       │
-│  ├── history, family_context                                   │
-│  └── parent_goals                                              │
+│  3. LEARN                                                       │
+│     What did I just learn? Update understanding.                │
+│     - New information about child                               │
+│     - Evidence for active explorations                          │
+│     - Patterns forming                                          │
 │                                                                 │
-│  ARTIFACTS                                                      │
-│  ├── video_guidelines                                          │
-│  ├── parent_report                                             │
-│  └── video_analyses[]                                          │
+│  4. FLOW FORWARD                                                │
+│     What's the natural next step?                               │
+│     - Follow thread they opened                                 │
+│     - Bridge to active curiosity (if natural)                   │
+│     - Ask about gap (if relevant)                               │
+│     - Simply be present (if they need space)                    │
 │                                                                 │
-│  MEDIA                                                          │
-│  ├── videos[]                                                  │
-│  └── journal_entries[] (stories)                               │
+│  DON'T:                                                         │
+│     - Interrogate                                               │
+│     - List questions                                            │
+│     - Force topic changes                                       │
+│     - Ignore what they brought                                  │
+│     - Hallucinate knowledge                                     │
 │                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-           │
-           │ accessed by
-           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       USER SESSION                              │
-│              (Per-user interaction context)                     │
-├─────────────────────────────────────────────────────────────────┤
-│  session_id, user_id, child_id                                 │
-│  messages[] (this user's conversation)                         │
-│  active_cards[] (UI state)                                     │
-│  dismissed_moments{}                                           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Separation Matters
+### The Bridging Skill
 
-**Mom's session:** Her questions, her UI state, her dismissed cards
-**Dad's session:** His questions, his perspective, his UI state
-**Child's data:** Unified, complete, built from both conversations
+When parent pivots to concern before foundation is built:
 
-When Dad mentions something Mom already shared, Chitta knows—it's in the Child's Gestalt.
+```
+Parent: "דניאל, בן 3.5, ואני ממש מודאגת מהדיבור שלו."
+
+Chitta DOESN'T say: "ספרי לי על הדיבור."
+         (Following too quickly, missing foundation)
+
+Chitta DOESN'T say: "נגיע לזה. קודם ספרי לי מה הוא אוהב."
+         (Dismissive, ignores what they brought)
+
+Chitta DOES say: "דניאל, בן 3.5, ואת מודאגת מהדיבור.
+                 אני שומעת. נגיע לזה.
+                 קודם, עזרי לי להכיר אותו - מה הוא כן אוהב?"
+
+→ Acknowledge → Promise to return → Bridge to what's needed
+```
+
+### Stories Are Gold
+
+When parent shares a story, **receive it fully**:
+
+```
+Parent: "אתמול משהו קרה - סבתא באה והוא בדרך כלל מתעלם
+        ממנה שעה. אבל היא התחילה לזמזם והוא הרים את המבט,
+        באמת הסתכל עליה, והביא לה את האוטו האהוב עליו."
+
+Chitta: "וואו. הרגע הזה חשוב.
+
+        הוא שמע את הזמזום, הרים את המבט, באמת הסתכל עליה,
+        ואז יזם - הביא לה את האוטו האהוב עליו.
+        זה חיבור. זו יוזמה. זה שיתוף.
+
+        המוזיקה פתחה משהו.
+
+        זה אומר לי הרבה על מי שדניאל הוא.
+        ספרי לי עוד עליו - מה הוא אוהב מלבד האוטואים?"
+
+→ Receive fully → Reflect meaning → Save it → Bridge forward
+```
 
 ---
 
-## 6. Temporal Memory with Graphiti
+## 8. Tools & Dynamic Context
 
-### Why Temporal Awareness Matters
-
-Child development unfolds over months and years. A snapshot misses the story. Graphiti gives us:
-
-1. **Temporal Memory**: "Daniel's speech improved significantly between sessions"
-2. **Pattern Detection**: "This concern appeared 3 months ago, strengthened over time"
-3. **Context-Aware Retrieval**: "What did we observe about motor skills last month?"
-
-### The Knowledge Graph Structure
+### The Two-Layer Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│                    GRAPHITI KNOWLEDGE GRAPH                        │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  ENTITY TYPES                                                      │
-│  ├── Child (central node)                                         │
-│  ├── DevelopmentalConcern                                         │
-│  ├── Strength                                                     │
-│  ├── Observation (timestamped)                                    │
-│  ├── Hypothesis                                                   │
-│  ├── Insight                                                      │
-│  ├── Artifact                                                     │
-│  └── FamilyMember                                                 │
-│                                                                    │
-│  EDGE TYPES                                                        │
-│  ├── HAS_CONCERN (Child → DevelopmentalConcern)                   │
-│  ├── HAS_STRENGTH (Child → Strength)                              │
-│  ├── OBSERVED_IN (Observation → Child, timestamped)               │
-│  ├── SUPPORTS (Observation → Hypothesis)                          │
-│  ├── CONTRADICTS (Observation → Hypothesis)                       │
-│  ├── LED_TO (Hypothesis → Insight)                                │
-│  ├── GENERATED (Hypothesis → VideoGuidelines)                     │
-│  └── RELATED_TO (any → any)                                       │
-│                                                                    │
-│  TEMPORAL QUERIES                                                  │
-│  ├── "Observations about motor skills from last 3 months"         │
-│  ├── "How has speech concern evolved over time?"                  │
-│  └── "What hypotheses led to current insights?"                   │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                LAYER 1: THE GESTALT ENGINE                      │
+│                    (Backend, Persistent)                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  The "soul" that persists between turns:                        │
+│  ├── Understanding (essence, facts, patterns)                  │
+│  ├── Curiosities (what we're curious about)                    │
+│  ├── Cycles (active explorations)                              │
+│  ├── Journal (the story of learning)                           │
+│  └── Artifacts (what we've created)                            │
+│                                                                 │
+│  Computes:                                                      │
+│  ├── compute_active_curiosities()                              │
+│  ├── compute_turn_guidance(message)                            │
+│  └── observe_turn(turn) → updates                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ constructs
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                LAYER 2: THE CONVERSATION AGENT                  │
+│                    (LLM, Stateless)                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Chitta's "presence" each turn:                                 │
+│  ├── Receives dynamic context from Gestalt                     │
+│  ├── Responds to parent's message                              │
+│  ├── Uses tools to act on understanding                        │
+│  └── Returns response + tool calls                             │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Episode-Based Ingestion
-
-Every conversation turn becomes an "episode" in Graphiti:
+### Dynamic Context (Built Each Turn)
 
 ```python
-episode = {
-    "source": "conversation",
-    "content": "Parent described Daniel responding to music",
-    "timestamp": "2024-11-28T10:30:00Z",
-    "entities": [
-        {"type": "Observation", "content": "responds to music"},
-        {"type": "Strength", "content": "auditory engagement"}
-    ],
-    "edges": [
-        {"from": "Daniel", "to": "responds_to_music", "type": "OBSERVED_IN"}
-    ]
+class Context:
+    """What Chitta knows this turn"""
+
+    # WHO AM I?
+    identity: str                     # System identity, voice, principles
+
+    # WHO IS THIS CHILD?
+    understanding: RenderedUnderstanding  # Essence, facts, patterns
+
+    # WHAT AM I CURIOUS ABOUT?
+    active_curiosities: List[Curiosity]   # Prioritized
+
+    # WHAT AM I EXPLORING?
+    active_cycles: List[CycleSummary]     # Current investigations
+
+    # WHAT JUST HAPPENED?
+    recent_conversation: List[Turn]       # Last N turns
+
+    # WHAT CAN I DO?
+    available_tools: List[Tool]           # Relevant to current state
+
+    # WHAT SHOULD I ATTEND TO?
+    turn_guidance: TurnGuidance           # Dynamic guidance for THIS turn
+```
+
+### Turn Guidance (The Key Innovation)
+
+Each turn, the Gestalt computes **specific guidance** for Chitta:
+
+```python
+class TurnGuidance:
+    """What Chitta should attend to THIS turn"""
+
+    # What the parent seems to be doing
+    parent_intent: str        # "sharing_story", "asking_question", etc.
+
+    # How to receive this
+    reception_guidance: str
+
+    # What I'm curious about that's relevant
+    relevant_curiosities: List[str]
+
+    # What I should try to learn (if natural)
+    learning_opportunities: List[str]
+
+    # What I should NOT do
+    constraints: List[str]
+
+    # Suggested direction (not forced)
+    suggested_direction: Optional[str]
+```
+
+**Example Turn Guidance:**
+
+```yaml
+Turn Guidance (Turn 7):
+
+Parent said: "אתמול משהו קרה - סבתא באה..."
+
+Parent intent: sharing_meaningful_story
+
+Reception guidance: |
+  This is GOLD. Receive it fully. Reflect what it reveals.
+  The grandmother thread is important - note it as a curiosity.
+
+Relevant curiosities:
+  - "Who is Daniel?" → This reveals connection capacity
+  - "What makes grandmother different?" (NEW - spawn thread)
+  - "Does music open something?" (NEW - hypothesis forming)
+
+Learning opportunities:
+  - What was grandmother doing differently?
+  - Is music a pattern?
+
+Constraints:
+  - Don't rush past this moment
+  - Don't immediately ask about other topics
+  - Let the story breathe
+
+Suggested direction: |
+  Reflect the meaning. Note music as possible key.
+  Wonder about grandmother. Then continue naturally.
+```
+
+### Tools for Acting on Curiosity
+
+```python
+TOOLS = {
+    # OBSERVATION - Chitta notices and records
+    "observe": {
+        "description": "Record something noticed in what parent shared",
+        "params": ["observation", "reveals", "curiosities_touched"]
+    },
+
+    # CURIOSITY - Chitta pursues understanding
+    "spawn_exploration": {
+        "description": "Start focused exploration of a curiosity",
+        "params": ["curiosity_type", "focus", "initial_content"]
+    },
+
+    "add_evidence": {
+        "description": "Add evidence to active exploration",
+        "params": ["cycle_id", "evidence", "effect"]
+    },
+
+    # UNDERSTANDING - Chitta updates her model
+    "update_understanding": {
+        "description": "Update accumulated understanding",
+        "params": ["aspect", "content", "confidence"]
+    },
+
+    "add_fact": {
+        "description": "Add a temporal fact",
+        "params": ["subject", "predicate", "object", "aspect"]
+    },
+
+    # ARTIFACTS - Chitta creates persistent outputs
+    "suggest_artifact": {
+        "description": "Suggest creating an artifact",
+        "params": ["type", "reason", "cycle_id"]
+    },
+
+    # INTERNAL - Chitta thinks
+    "note_pattern": {
+        "description": "Note pattern emerging across observations",
+        "params": ["pattern", "supporting_observations"]
+    },
+
+    "adjust_curiosity": {
+        "description": "Adjust curiosity activation",
+        "params": ["curiosity", "direction", "reason"]
+    }
 }
 ```
 
-### Pattern Detection
+### Preventing Hallucination
 
-Graphiti can detect patterns across time:
+The LLM can only know what the Gestalt tells it. The context explicitly states:
 
-```python
-# Query: "What patterns emerged in the last month?"
-patterns = graphiti.detect_patterns(
-    child_id="daniel_123",
-    time_window="30d",
-    min_observations=3
-)
+```yaml
+WHAT I KNOW ABOUT DANIEL:
+  essence: |
+    A careful observer who takes time to warm up.
+    Connects through sensory pathways, especially music.
 
-# Result:
-# Pattern: "Fine motor avoidance"
-#   - Observation 1: "Avoids scissors" (Nov 5)
-#   - Observation 2: "Frustrated with blocks" (Nov 12)
-#   - Observation 3: "Won't do puzzles" (Nov 20)
-#   - Confidence: HIGH
+  facts:
+    - "speech context-dependent" (Sep 22→, confidence: 0.9)
+    - "music opens connection" (Sep 15→, confidence: 0.85)
+
+  patterns:
+    - "Safety → openness across domains"
+
+WHAT I DON'T KNOW (gaps):
+  - Birth history
+  - Siblings
+  - Previous evaluations
+  - What specifically about speech concerns parent
 ```
+
+**Chitta can only speak to what's in "WHAT I KNOW" and must be curious about "WHAT I DON'T KNOW."**
 
 ---
 
-## 7. Context Cards & The Space
+## 9. Context Cards & The Space
 
 ### Context Cards Are Actionable
 
@@ -510,7 +1185,7 @@ THE SPACE
 
 ---
 
-## 8. Multilanguage & i18n
+## 10. Multilanguage & i18n
 
 ### Principle: Language Is Separate from Logic
 
@@ -568,7 +1243,7 @@ blocked_actions:
 
 ---
 
-## 9. Domain Separation (Wu Wei)
+## 11. Domain Separation (Wu Wei)
 
 ### The Two Layers
 
@@ -587,7 +1262,7 @@ blocked_actions:
 │  - Prerequisites engine                                         │
 │  - Lifecycle processor                                          │
 │  - LLM orchestration                                            │
-│  - Graphiti integration                                         │
+│  - Exploration cycle management                                 │
 │  🐍 Python code - KEEP GENERIC                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -645,7 +1320,7 @@ return i18n.get("responses.lets_begin")
 
 ---
 
-## 10. Practical Development Guide
+## 12. Practical Development Guide
 
 ### Adding a New Feature: Checklist
 
@@ -670,21 +1345,27 @@ return i18n.get("responses.lets_begin")
    - [ ] Support all languages from start
 
 6. **Does it relate to hypotheses?**
-   - [ ] Connect it to hypothesis lifecycle
+   - [ ] Connect it to exploration cycle
    - [ ] Explain WHY, not just WHAT
+
+7. **Does it relate to cycles?**
+   - [ ] Determine which cycle it belongs to
+   - [ ] Add timestamps for temporal tracking
+   - [ ] Consider if artifact should persist in The Space
 
 ### Key Files Map
 
 | Category | File | Purpose |
 |----------|------|---------|
 | **Core Service** | `app/chitta/service.py` | Main conversation orchestration |
-| **Gestalt** | `app/chitta/gestalt.py` | Child understanding structure |
+| **Cycles** | `app/chitta/cycles.py` | Exploration cycle management |
 | **Tools** | `app/chitta/tools.py` | Function definitions for AI |
 | **Prompts** | `app/chitta/prompt.py` | System prompt construction |
 | **Domain Config** | `config/workflows/lifecycle_events.yaml` | When things happen |
 | **Domain Config** | `config/workflows/context_cards.yaml` | What user sees |
 | **i18n** | `config/i18n/*.yaml` | All text content |
-| **Data Models** | `app/models/child.py` | Child entity |
+| **Data Models** | `app/models/child.py` | Child entity with cycles |
+| **Data Models** | `app/models/cycle.py` | ExplorationCycle, Hypothesis, Evidence |
 | **Data Models** | `app/models/user_session.py` | Session state |
 
 ### Development Mantras
@@ -703,28 +1384,38 @@ Before I write text, I ask:
   "Is this in i18n?"
 
 Before I check a threshold, I ask:
-  "Should a hypothesis drive this instead?"
+  "Should a cycle's hypothesis drive this instead?"
+
+Before I put info in chat, I ask:
+  "Will this be useful beyond this moment? → Make it an artifact."
+
+Before I create a hypothesis, I ask:
+  "Which cycle does this belong to? One domain = one cycle."
 ```
 
 ### Quality Indicators
 
 **The Gestalt is good when:**
 - Reading it, you feel you "know" this child
-- Specific stories are captured, not just categories
-- Hypotheses explain the "why" of observations
-- Open questions drive next conversations
+- Exploration cycles tell a clear temporal story
+- Each cycle has a focused domain
+- Cross-cycle patterns reveal deeper understanding
+- Timestamps enable developmental timeline views
 
 **The conversation is good when:**
 - It feels like talking to a knowledgeable friend
 - Parents share stories freely
 - Questions emerge from curiosity, not checklists
 - Parents learn something about their child
+- Useful guidance becomes artifacts, not lost in chat
 
 **The code is good when:**
 - Domain logic lives in YAML
 - Framework code is reusable
 - No hardcoded text
-- Hypotheses drive tool usage
+- Cycles own their hypotheses
+- Artifacts persist what matters
+- Every piece of data has timestamps
 - Tests verify behavior, not implementation
 
 ---
@@ -734,24 +1425,35 @@ Before I check a threshold, I ask:
 1. **Build understanding, not checklists**
    - Stories over forms
    - Patterns over data points
-   - Hypotheses over thresholds
+   - Cycles over snapshots
 
 2. **Let curiosity drive**
    - Tools exist to explore, not collect
    - Questions emerge from wonder
    - The conversation never ends
 
-3. **Separate concerns**
+3. **Respect time**
+   - Every observation is timestamped
+   - Cycles freeze moments of understanding
+   - The journey matters as much as current state
+
+4. **Separate concerns**
    - Domain in configuration
    - Framework in code
    - Language in i18n
+   - Ephemeral in chat, persistent in artifacts
 
-4. **Trust emergence**
+5. **Trust emergence**
    - Simple components, smart interactions
-   - Let patterns reveal themselves
+   - Let patterns reveal themselves across cycles
    - Don't force intelligence, allow it
 
-5. **Remember the purpose**
+6. **Be proactively helpful**
+   - Parents don't know what they don't know
+   - Suggest artifacts when conditions are ripe
+   - Persist what matters beyond the conversation
+
+7. **Remember the purpose**
    - Help people see children clearly
    - Support, don't replace professionals
    - Create space for understanding
@@ -762,5 +1464,18 @@ Before I check a threshold, I ask:
 
 ---
 
-*Version: 3.0 - Living Gestalt & Hypothesis-Driven Architecture*
-*Last updated: November 2024*
+*Version: 4.0 - Living Gestalt & Curiosity-Driven Architecture*
+*Last updated: December 2025*
+
+*Changes from v3.0:*
+- *Gestalt reimagined as the "observing intelligence" rather than a data structure*
+- *Replaced hypothesis-driven with curiosity-driven architecture (4 types: Discovery, Question, Hypothesis, Pattern)*
+- *Replaced Graphiti with Exploration Cycles for temporal modeling*
+- *Added Understanding structure: Essence (holistic) + Facts (temporal, bi-temporal) + Patterns (cross-cutting)*
+- *Added Journal as temporal backbone distinct from Understanding*
+- *Added two-layer architecture: Gestalt Engine (persistent) + Conversation Agent (stateless LLM)*
+- *Added Turn Guidance for dynamic per-turn LLM context*
+- *Added Conversation Dynamics: Chitta initiates, bridging skill, stories are gold*
+- *Added proactive artifact suggestions*
+- *Added ephemeral vs. persistent (intermittent interaction model)*
+- *Timestamps everywhere for timeline support*
