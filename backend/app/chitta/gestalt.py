@@ -664,6 +664,41 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         exploration_cycles = []
         if exploration_cycles_data:
             for cycle_data in exploration_cycles_data:
+                # Build video scenarios
+                video_scenarios = []
+                for scenario_data in cycle_data.get("video_scenarios", []):
+                    from .models import VideoScenario
+                    scenario = VideoScenario(
+                        id=scenario_data["id"],
+                        title=scenario_data["title"],
+                        what_to_film=scenario_data["what_to_film"],
+                        rationale_for_parent=scenario_data.get("rationale_for_parent", ""),
+                        duration_suggestion=scenario_data.get("duration_suggestion", "3-5 דקות"),
+                        example_situations=scenario_data.get("example_situations", []),
+                        target_hypothesis_id=scenario_data.get("target_hypothesis_id", ""),
+                        what_we_hope_to_learn=scenario_data.get("what_we_hope_to_learn", ""),
+                        focus_points=scenario_data.get("focus_points", []),
+                        category=scenario_data.get("category", "exploration"),
+                        status=scenario_data.get("status", "pending"),
+                        video_path=scenario_data.get("video_path"),
+                        uploaded_at=datetime.fromisoformat(scenario_data["uploaded_at"]) if scenario_data.get("uploaded_at") else None,
+                        analysis_result=scenario_data.get("analysis_result"),
+                        analyzed_at=datetime.fromisoformat(scenario_data["analyzed_at"]) if scenario_data.get("analyzed_at") else None,
+                    )
+                    video_scenarios.append(scenario)
+
+                # Build evidence
+                evidence_list = []
+                for evidence_data in cycle_data.get("evidence", []):
+                    from .models import Evidence
+                    evidence = Evidence(
+                        content=evidence_data["content"],
+                        effect=evidence_data.get("effect", "supports"),
+                        source=evidence_data.get("source", "conversation"),
+                        timestamp=datetime.fromisoformat(evidence_data["timestamp"]) if evidence_data.get("timestamp") else datetime.now(),
+                    )
+                    evidence_list.append(evidence)
+
                 cycle = ExplorationCycle(
                     id=cycle_data["id"],
                     curiosity_type=cycle_data.get("curiosity_type", "question"),
@@ -674,6 +709,12 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     confidence=cycle_data.get("confidence"),
                     video_appropriate=cycle_data.get("video_appropriate", False),
                     question=cycle_data.get("question"),
+                    # Video consent fields
+                    video_accepted=cycle_data.get("video_accepted", False),
+                    video_declined=cycle_data.get("video_declined", False),
+                    video_suggested_at=datetime.fromisoformat(cycle_data["video_suggested_at"]) if cycle_data.get("video_suggested_at") else None,
+                    video_scenarios=video_scenarios,
+                    evidence=evidence_list,
                 )
                 exploration_cycles.append(cycle)
 
