@@ -119,7 +119,7 @@ class ReflectionService:
             from app.services.llm.factory import create_llm_provider
 
             # Use strong model for reflection (deep reasoning)
-            model = os.getenv("STRONG_LLM_MODEL", "gemini-2.5-pro")
+            model = os.getenv("STRONG_LLM_MODEL", "gemini-3-pro-preview")
             provider = os.getenv("LLM_PROVIDER", "gemini")
 
             self._llm = create_llm_provider(

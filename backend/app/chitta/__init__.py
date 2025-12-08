@@ -1,60 +1,148 @@
 """
-Chitta Core - Simplified, AI-trusting conversation system
+Chitta Core - Living Gestalt Architecture
 
-This package implements the new philosophy:
-- Trust the AI's intelligence to guide conversations
-- Simple tools with natural-language prerequisites
-- Child-centric Gestalt as context
-- No complex state machines or prerequisite code
+The Gestalt is an **observing intelligence** - not a data container.
+Understanding emerges through **curiosity**, not checklists.
 
 Key components:
-- ChittaService: Main orchestration for conversations (fast path)
-- ReflectionService: Background processing for patterns/memory (slow path)
-- Gestalt: Holistic understanding of the child (data only)
-- Tools: Available actions with natural-language prerequisites
-- Prompt: System prompt builder (English, Chitta-leads)
+- LivingGestalt: The observing intelligence with 3 public methods
+- ChittaService: Thin orchestration layer
+- CuriosityEngine: Manages what we're curious about
+- SynthesisService: On-demand deep analysis
 
-Two Cognitive Modes:
-- Fast Path (ChittaService): 1-2 second responses during conversation
-- Slow Path (ReflectionService): Background processing for deep analysis
+Two-Phase LLM Architecture:
+- Phase 1: Extraction with tools (temp=0.0)
+- Phase 2: Response without tools (temp=0.7)
+
+Tool calls and text response CANNOT be reliably combined.
 """
 
+# === New Architecture (Active) ===
+
 from .service import ChittaService, get_chitta_service
-from .gestalt import build_gestalt, Gestalt, get_what_we_know, get_what_we_need
-from .tools import CHITTA_TOOLS, get_chitta_tools, get_core_extraction_tools
-from .prompt import build_system_prompt
-from .reflection import ReflectionService, get_reflection_service
-from .cards import derive_cards_from_child, handle_card_action
-from .api_transform import (
-    transform_child_for_api,
-    transform_session_for_api,
-    transform_card_for_api,
-    build_api_response,
-    strip_internal_fields,
+from .gestalt import LivingGestalt
+from .curiosity import Curiosity, CuriosityEngine, create_hypothesis, create_question, create_pattern, create_discovery
+from .tools import get_extraction_tools, EXTRACTION_TOOLS
+from .synthesis import SynthesisService, get_synthesis_service
+from .models import (
+    Understanding,
+    TemporalFact,
+    Evidence,
+    Story,
+    ExplorationCycle,
+    JournalEntry,
+    Pattern,
+    Response,
+    SynthesisReport,
+    ConversationMemory,
+)
+from .formatting import (
+    format_understanding,
+    format_curiosities,
+    format_cycles,
+    format_extraction_summary,
 )
 
+# === Deprecated (for backward compatibility) ===
+# These imports allow existing code to continue working during transition
+
+try:
+    from .gestalt_deprecated import build_gestalt, Gestalt, get_what_we_know, get_what_we_need
+except ImportError:
+    build_gestalt = None
+    Gestalt = None
+    get_what_we_know = None
+    get_what_we_need = None
+
+try:
+    from .tools_deprecated import CHITTA_TOOLS, get_chitta_tools, get_core_extraction_tools
+except ImportError:
+    CHITTA_TOOLS = None
+    get_chitta_tools = None
+    get_core_extraction_tools = None
+
+try:
+    from .prompt_deprecated import build_system_prompt
+except ImportError:
+    build_system_prompt = None
+
+try:
+    from .reflection_deprecated import ReflectionService as ReflectionServiceDeprecated, get_reflection_service
+except ImportError:
+    ReflectionServiceDeprecated = None
+    get_reflection_service = None
+
+try:
+    from .cards_deprecated import derive_cards_from_child, handle_card_action
+except ImportError:
+    derive_cards_from_child = None
+    handle_card_action = None
+
+try:
+    from .api_transform_deprecated import (
+        transform_child_for_api,
+        transform_session_for_api,
+        transform_card_for_api,
+        build_api_response,
+        strip_internal_fields,
+    )
+except ImportError:
+    transform_child_for_api = None
+    transform_session_for_api = None
+    transform_card_for_api = None
+    build_api_response = None
+    strip_internal_fields = None
+
+
 __all__ = [
-    # Service (fast path)
+    # === New Architecture ===
+    # Service
     "ChittaService",
     "get_chitta_service",
-    # Reflection (slow path)
-    "ReflectionService",
-    "get_reflection_service",
     # Gestalt
+    "LivingGestalt",
+    # Curiosity
+    "Curiosity",
+    "CuriosityEngine",
+    "create_hypothesis",
+    "create_question",
+    "create_pattern",
+    "create_discovery",
+    # Tools
+    "get_extraction_tools",
+    "EXTRACTION_TOOLS",
+    # Synthesis
+    "SynthesisService",
+    "get_synthesis_service",
+    # Models
+    "Understanding",
+    "TemporalFact",
+    "Evidence",
+    "Story",
+    "ExplorationCycle",
+    "JournalEntry",
+    "Pattern",
+    "Response",
+    "SynthesisReport",
+    "ConversationMemory",
+    # Formatting
+    "format_understanding",
+    "format_curiosities",
+    "format_cycles",
+    "format_extraction_summary",
+    # === Deprecated (backward compatibility) ===
     "build_gestalt",
     "Gestalt",
     "get_what_we_know",
     "get_what_we_need",
-    # Tools
     "CHITTA_TOOLS",
     "get_chitta_tools",
     "get_core_extraction_tools",
-    # Prompt
     "build_system_prompt",
-    # Cards
+    "ReflectionServiceDeprecated",
+    "get_reflection_service",
     "derive_cards_from_child",
     "handle_card_action",
-    # API Transformation
     "transform_child_for_api",
     "transform_session_for_api",
     "transform_card_for_api",
