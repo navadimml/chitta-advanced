@@ -30,8 +30,8 @@ from app.services.state_derivation import (
     derive_contextual_greeting,
     derive_suggestions
 )
-# Living Gestalt: New card derivation from exploration cycles
-from app.chitta.cards import derive_cards_from_child, handle_card_action
+# Living Gestalt: Card derivation (deprecated module for backward compat)
+from app.chitta import derive_cards_from_child, handle_card_action
 from app.services.unified_state_service import get_unified_state_service
 # Parent Simulator (Test Mode)
 from app.services.parent_simulator import get_parent_simulator
@@ -2466,6 +2466,122 @@ async def get_gestalt_summary(family_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/child/{family_id}")
+async def get_child_data(family_id: str):
+    """
+    Get complete child data including exploration cycles and hypotheses.
+
+    This endpoint exposes the full Child model data for X-Ray testing
+    and debugging the temporal design system.
+
+    Returns:
+    - exploration_cycles: All cycles with their hypotheses
+    - developmental_data: Backward-compatible child profile
+    - understanding: Patterns and pending insights
+    """
+    try:
+        unified = get_unified_state_service()
+        child = unified.get_child(family_id)
+
+        # Serialize exploration cycles with full hypothesis data
+        cycles_data = []
+        for cycle in child.exploration_cycles:
+            cycle_dict = cycle.model_dump() if hasattr(cycle, 'model_dump') else cycle.dict()
+            cycles_data.append(cycle_dict)
+
+        # Get developmental data (backward compatibility property)
+        dev_data = child.developmental_data
+
+        # Get understanding (patterns, insights)
+        understanding_dict = child.understanding.model_dump() if hasattr(child.understanding, 'model_dump') else child.understanding.dict()
+
+        return {
+            "family_id": family_id,
+            "name": child.name,
+            "age": child.age,
+            "gender": child.identity.gender,
+            "exploration_cycles": cycles_data,
+            "developmental_data": dev_data,
+            "understanding": understanding_dict,
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting child data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/child/{family_id}/gestalt")
+async def get_child_gestalt(family_id: str):
+    """
+    Get complete child gestalt data for X-Ray testing.
+
+    Returns the full Living Gestalt structure including:
+    - identity: name, birth_date, gender
+    - essence: temperament, energy, core qualities
+    - strengths: abilities, interests, what lights them up
+    - concerns: primary areas, details, parent narrative
+    - history: birth, early development, milestones
+    - family: structure, siblings, languages
+    - understanding: hypotheses, patterns, insights
+    - exploration_cycles: full cycle data with hypotheses and artifacts
+
+    This is the comprehensive endpoint for debugging and visualizing
+    the complete child understanding.
+    """
+    try:
+        unified = get_unified_state_service()
+        child = unified.get_child(family_id)
+
+        # Serialize all gestalt fields
+        def safe_dump(obj):
+            if hasattr(obj, 'model_dump'):
+                return obj.model_dump()
+            elif hasattr(obj, 'dict'):
+                return obj.dict()
+            return obj
+
+        return {
+            "family_id": family_id,
+            "child_id": child.id,
+
+            # Core identity
+            "identity": safe_dump(child.identity),
+
+            # The Living Gestalt
+            "essence": safe_dump(child.essence),
+            "strengths": safe_dump(child.strengths),
+            "concerns": safe_dump(child.concerns),
+            "history": safe_dump(child.history),
+            "family": safe_dump(child.family),
+
+            # Understanding (hypotheses, patterns)
+            "understanding": safe_dump(child.understanding),
+
+            # Exploration cycles with full data
+            "exploration_cycles": [safe_dump(c) for c in child.exploration_cycles],
+
+            # Synthesis reports
+            "synthesis_reports": [safe_dump(r) for r in child.synthesis_reports],
+
+            # Videos and journal
+            "videos": [safe_dump(v) for v in child.videos],
+            "journal_entries": [safe_dump(j) for j in child.journal_entries],
+
+            # Metadata
+            "created_at": child.created_at.isoformat() if child.created_at else None,
+            "updated_at": child.updated_at.isoformat() if child.updated_at else None,
+
+            # Convenience properties
+            "name": child.name,
+            "age": child.age,
+            "profile_summary": child.profile_summary,
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting child gestalt: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # === V2 Chat API: Using ChittaService with Living Gestalt ===
 
 class ChatV2InitResponse(BaseModel):
@@ -2583,87 +2699,132 @@ class SendMessageV2Response(BaseModel):
     ui_data: dict
 
 
-@router.post("/chat/v2/send", response_model=SendMessageV2Response)
-async def send_message_v2(request: SendMessageV2Request):
+@router.get("/chat/v2/curiosity/{family_id}")
+async def get_curiosity_state_v2(family_id: str):
     """
-    V2 Chat Endpoint - Uses ChittaService with Living Gestalt
+    Get current curiosity state for a family.
 
-    This endpoint:
-    - Uses the new ChittaService (two-phase extraction + response)
-    - Derives cards from exploration cycles
-    - Triggers background reflection
-    - Returns hypothesis-aware responses (without exposing internals)
+    Returns the active curiosities and open questions that drive exploration.
+    This is what the Gestalt is currently "curious about" regarding this child.
+
+    Response:
+    - active_curiosities: List of top 5 curiosities with type, focus, activation
+    - open_questions: List of unanswered questions
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
     try:
-        # Get ChittaService
-        from app.chitta import (
-            get_chitta_service,
-            derive_cards_from_child,
-            transform_child_for_api,
-        )
+        from app.chitta import get_chitta_service
+
+        chitta = get_chitta_service()
+        result = await chitta.get_curiosity_state(family_id)
+
+        return {
+            "family_id": family_id,
+            "curiosity_state": result,
+            "architecture": "living_gestalt",
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting curiosity state: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/v2/synthesis/{family_id}")
+async def request_synthesis_v2(family_id: str):
+    """
+    Request on-demand synthesis for a family.
+
+    Synthesis creates a deep analysis report when:
+    - User explicitly requests it
+    - Enough understanding has accumulated
+
+    Uses the STRONGEST model for pattern detection.
+
+    Response:
+    - essence_narrative: Who this child IS (if understanding crystallized)
+    - patterns: Cross-domain patterns detected
+    - confidence_by_domain: Confidence level per developmental domain
+    - open_questions: What we still want to learn
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        from app.chitta import get_chitta_service
+
+        chitta = get_chitta_service()
+        result = await chitta.request_synthesis(family_id)
+
+        if result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "family_id": family_id,
+            "synthesis": result,
+            "architecture": "living_gestalt",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error requesting synthesis: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/v2/send", response_model=SendMessageV2Response)
+async def send_message_v2(request: SendMessageV2Request):
+    """
+    V2 Chat Endpoint - Uses ChittaService with Living Gestalt
+
+    This endpoint uses the new Living Gestalt architecture:
+    - Two-phase LLM: extraction (with tools) + response (without tools)
+    - Curiosity-driven exploration (not completeness checklists)
+    - Returns curiosity_state instead of completeness percentage
+    - Cards derived from active exploration cycles
+
+    Response includes:
+    - response: Hebrew text from Chitta
+    - ui_data.curiosity_state: {active_curiosities, open_questions}
+    - ui_data.cards: Action cards (video suggestion, synthesis available)
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        # Get the NEW ChittaService (Living Gestalt architecture)
+        from app.chitta import get_chitta_service
 
         chitta = get_chitta_service()
 
-        # Process message with ChittaService
+        # Process message through Living Gestalt
+        # Returns: {response, curiosity_state, cards}
         result = await chitta.process_message(
             family_id=request.family_id,
             user_message=request.message,
         )
 
-        # Get updated state for card derivation
-        unified = get_unified_state_service()
-        child = unified.get_child(request.family_id)
-        session = await unified.get_or_create_session_async(request.family_id)
-
-        # Derive cards from exploration cycles
-        gestalt_cards = derive_cards_from_child(child, session, request.language)
-
-        # Build ui_data matching frontend expectations
+        # Build ui_data with new architecture
         ui_data = {
-            # Cards from exploration cycles (new system)
-            "cards": [c.model_dump() for c in gestalt_cards],
+            # NEW: Curiosity state instead of completeness
+            "curiosity_state": result.get("curiosity_state", {
+                "active_curiosities": [],
+                "open_questions": [],
+            }),
 
-            # Progress from gestalt
-            "progress": result.get("completeness", 0) / 100,
+            # Cards from ChittaService (video suggestions, synthesis available)
+            "cards": result.get("cards", []),
 
-            # Stats
+            # Stats (simplified - no completeness percentage)
             "stats": {
                 "family_id": request.family_id,
-                "completeness": result.get("completeness", 0),
-                "completeness_pct": f"{result.get('completeness', 0):.1f}%",
-                "conversation_turns": session.turn_count,
-                "active_cycles": len(child.active_exploration_cycles()),
-                "hypotheses_count": len(child.understanding.hypotheses),
-                "videos_total": child.video_count,
-                "videos_analyzed": len(child.analyzed_videos()),
+                "curiosity_count": len(result.get("curiosity_state", {}).get("active_curiosities", [])),
             },
-
-            # Artifacts (simplified for frontend) - built from exploration cycles
-            "artifacts": {
-                artifact.id: {
-                    "exists": True,
-                    "status": artifact.status,
-                }
-                for cycle in child.exploration_cycles
-                for artifact in cycle.artifacts
-            },
-
-            # Tool calls made during this turn
-            "tool_calls": result.get("tool_calls", []),
-
-            # Returning user info
-            "returning_user": result.get("returning_user"),
 
             # Architecture indicator
-            "architecture": "chitta_v2",
+            "architecture": "living_gestalt",
         }
-
-        # Handle errors gracefully
-        if result.get("error"):
-            ui_data["error"] = result["error"]
 
         return SendMessageV2Response(
             response=result["response"],
@@ -2681,8 +2842,242 @@ async def send_message_v2(request: SendMessageV2Request):
             response=error_config.get("response", "מצטערת, נתקלתי בבעיה טכנית. בואי ננסה שוב."),
             ui_data={
                 "cards": [],
-                "progress": 0,
+                "curiosity_state": {"active_curiosities": [], "open_questions": []},
                 "error": str(e),
-                "architecture": "chitta_v2",
+                "architecture": "living_gestalt",
             },
         )
+
+
+# ============================================================
+# V2 Video Endpoints - Consent-First Video Flow
+# ============================================================
+
+class VideoAcceptRequest(BaseModel):
+    """Request to accept video suggestion"""
+    family_id: str
+    cycle_id: str
+
+
+class VideoDeclineRequest(BaseModel):
+    """Request to decline video suggestion"""
+    family_id: str
+    cycle_id: str
+
+
+class VideoUploadRequest(BaseModel):
+    """Request metadata for video upload"""
+    family_id: str
+    cycle_id: str
+    scenario_id: str
+
+
+@router.post("/chat/v2/video/accept")
+async def accept_video_suggestion(request: VideoAcceptRequest):
+    """
+    Parent accepts video suggestion - NOW we generate guidelines.
+
+    This is the consent-first flow:
+    1. Card shows "video_suggestion" with accept/decline
+    2. Parent clicks "accept"
+    3. THIS endpoint generates personalized guidelines using LLM
+    4. Returns guidelines in parent-facing format (no hypothesis revealed)
+
+    Flow: hypothesis → suggestion → CONSENT → generate guidelines → upload → analyze
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        from app.chitta import get_chitta_service
+
+        chitta = get_chitta_service()
+        result = await chitta.accept_video_suggestion(
+            family_id=request.family_id,
+            cycle_id=request.cycle_id,
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "status": "ready",
+            "cycle_id": request.cycle_id,
+            "guidelines": result.get("guidelines"),
+            "message": "הנחיות הצילום מוכנות! 📹",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error accepting video suggestion: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/v2/video/decline")
+async def decline_video_suggestion(request: VideoDeclineRequest):
+    """
+    Parent declines video suggestion - respect their choice.
+
+    We mark the cycle as video_declined and DON'T ask again for this cycle.
+    The exploration continues via conversation.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        from app.chitta import get_chitta_service
+
+        chitta = get_chitta_service()
+        result = await chitta.decline_video_suggestion(
+            family_id=request.family_id,
+            cycle_id=request.cycle_id,
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "status": "declined",
+            "cycle_id": request.cycle_id,
+            "message": result.get("message", "בסדר גמור! נמשיך להכיר דרך השיחה שלנו."),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error declining video suggestion: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/chat/v2/video/guidelines/{family_id}/{cycle_id}")
+async def get_video_guidelines(family_id: str, cycle_id: str):
+    """
+    Get video guidelines for a cycle (after consent was given).
+
+    Returns parent-facing format only - no hypothesis details.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        from app.chitta import get_chitta_service
+
+        chitta = get_chitta_service()
+        result = await chitta.get_video_guidelines(
+            family_id=family_id,
+            cycle_id=cycle_id,
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting video guidelines: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/v2/video/upload")
+async def upload_video(
+    family_id: str = Form(...),
+    cycle_id: str = Form(...),
+    scenario_id: str = Form(...),
+    video: UploadFile = File(...),
+):
+    """
+    Upload a video for a scenario.
+
+    The video is saved locally and the scenario is marked as "uploaded".
+    Analysis happens on-demand via the analyze endpoint.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        from app.chitta import get_chitta_service
+
+        chitta = get_chitta_service()
+
+        # Ensure upload directory exists
+        upload_dir = Path("data/videos") / family_id
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save the video file
+        video_filename = f"{cycle_id}_{scenario_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+        video_path = upload_dir / video_filename
+
+        with open(video_path, "wb") as f:
+            content = await video.read()
+            f.write(content)
+
+        # Mark scenario as uploaded
+        result = await chitta.mark_video_uploaded(
+            family_id=family_id,
+            cycle_id=cycle_id,
+            scenario_id=scenario_id,
+            video_path=str(video_path),
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "status": "uploaded",
+            "scenario_id": scenario_id,
+            "video_path": str(video_path),
+            "message": "הסרטון הועלה בהצלחה! ✅",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading video: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/v2/video/analyze/{family_id}/{cycle_id}")
+async def analyze_videos(family_id: str, cycle_id: str):
+    """
+    Analyze uploaded videos for a cycle.
+
+    Uses video analysis service to:
+    1. Analyze each uploaded video against focus_points
+    2. Extract observations
+    3. Create evidence for the exploration cycle
+    4. Update hypothesis confidence
+
+    Returns analysis results and updated curiosity state.
+    """
+    if not app_state.initialized:
+        raise HTTPException(status_code=500, detail="App not initialized")
+
+    try:
+        from app.chitta import get_chitta_service
+
+        chitta = get_chitta_service()
+        result = await chitta.analyze_cycle_videos(
+            family_id=family_id,
+            cycle_id=cycle_id,
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "status": "analyzed",
+            "cycle_id": cycle_id,
+            "insights": result.get("insights", []),
+            "evidence_added": result.get("evidence_added", 0),
+            "confidence_update": result.get("confidence_update"),
+            "message": "ניתחתי את הסרטון! יש לי כמה תובנות 💡",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing videos: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

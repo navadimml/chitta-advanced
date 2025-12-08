@@ -35,6 +35,7 @@ from .models import (
     Response,
     SynthesisReport,
     ConversationMemory,
+    VideoScenario,
 )
 from .formatting import (
     format_understanding,
@@ -125,6 +126,7 @@ __all__ = [
     "Response",
     "SynthesisReport",
     "ConversationMemory",
+    "VideoScenario",
     # Formatting
     "format_understanding",
     "format_curiosities",

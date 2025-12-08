@@ -10,8 +10,8 @@ class ChittaAPIClient {
    * שליחת הודעה לצ'יטה
    */
   async sendMessage(familyId, message, parentName = 'הורה') {
-    // Real API call
-    const response = await fetch(`${API_BASE_URL}/chat/send`, {
+    // Real API call - Using V2 endpoint with Living Gestalt / ChittaService
+    const response = await fetch(`${API_BASE_URL}/chat/v2/send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -394,6 +394,166 @@ class ChittaAPIClient {
       {
         method: 'POST'
       }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // ==========================================
+  // Living Gestalt: Curiosity-Driven Architecture
+  // ==========================================
+
+  /**
+   * Get current curiosity state for a family
+   * Returns what the Gestalt is "curious about" - drives exploration
+   */
+  async getCuriosityState(familyId) {
+    const response = await fetch(`${API_BASE_URL}/chat/v2/curiosity/${familyId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Request on-demand synthesis report
+   * Uses strongest model for deep pattern analysis
+   */
+  async requestSynthesis(familyId) {
+    const response = await fetch(`${API_BASE_URL}/chat/v2/synthesis/${familyId}`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // ==========================================
+  // Living Gestalt: Video Evidence Flow (v2)
+  // Consent-first: suggest → accept → generate → upload → analyze
+  // ==========================================
+
+  /**
+   * Accept video suggestion - triggers personalized guidelines generation
+   * Parent accepts the video suggestion, THEN we generate guidelines
+   */
+  async acceptVideoSuggestion(familyId, cycleId) {
+    const response = await fetch(`${API_BASE_URL}/chat/v2/video/accept`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        family_id: familyId,
+        cycle_id: cycleId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Decline video suggestion - we respect their choice and don't re-ask
+   */
+  async declineVideoSuggestion(familyId, cycleId) {
+    const response = await fetch(`${API_BASE_URL}/chat/v2/video/decline`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        family_id: familyId,
+        cycle_id: cycleId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get video guidelines for a cycle (after consent was given)
+   * Returns parent-facing format only - no hypothesis revealed
+   */
+  async getVideoGuidelines(familyId, cycleId) {
+    const response = await fetch(
+      `${API_BASE_URL}/chat/v2/video/guidelines/${familyId}/${cycleId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Upload video for a scenario (v2 - Living Gestalt)
+   * Returns upload status, triggers "uploaded" card
+   */
+  async uploadVideoV2(familyId, cycleId, scenarioId, videoFile, onProgress = null) {
+    const formData = new FormData();
+    formData.append('family_id', familyId);
+    formData.append('cycle_id', cycleId);
+    formData.append('scenario_id', scenarioId);
+    formData.append('video', videoFile);
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            onProgress(percentComplete);
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch (e) {
+            reject(new Error('Failed to parse response'));
+          }
+        } else {
+          reject(new Error(`Upload failed: ${xhr.statusText}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+      xhr.open('POST', `${API_BASE_URL}/chat/v2/video/upload`);
+      xhr.send(formData);
+    });
+  }
+
+  /**
+   * Analyze uploaded videos for a cycle
+   * Returns insights (parent-facing) and updates hypothesis confidence
+   */
+  async analyzeVideos(familyId, cycleId) {
+    const response = await fetch(
+      `${API_BASE_URL}/chat/v2/video/analyze/${familyId}/${cycleId}`,
+      { method: 'POST' }
     );
 
     if (!response.ok) {

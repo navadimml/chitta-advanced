@@ -207,6 +207,92 @@ class Pattern:
     detected_at: datetime = field(default_factory=datetime.now)
 
 
+# === Video Scenarios ===
+
+@dataclass
+class VideoScenario:
+    """
+    A video filming scenario for testing a hypothesis.
+
+    PARENT-FACING fields are warm and concrete (no hypothesis revealed).
+    INTERNAL fields are for analysis (not shown to parent).
+
+    Guidelines are generated ONLY after parent consent.
+    """
+    id: str
+
+    # PARENT-FACING (warm, concrete, no hypothesis revealed)
+    title: str                          # "משחק קופסה במטבח"
+    what_to_film: str                   # Concrete filming instructions
+    rationale_for_parent: str           # Sandwich: validate→explain→reassure
+    duration_suggestion: str            # "5-7 דקות"
+    example_situations: List[str] = field(default_factory=list)  # Specific to their context
+
+    # INTERNAL (for analysis, NOT shown to parent)
+    target_hypothesis_id: str = ""      # Links to exploration cycle
+    what_we_hope_to_learn: str = ""     # Clinical goal
+    focus_points: List[str] = field(default_factory=list)  # What analyst looks for
+    category: str = "hypothesis_test"   # hypothesis_test | pattern_exploration | strength_baseline
+
+    # STATUS
+    status: str = "pending"             # pending | uploaded | analyzed
+    video_path: Optional[str] = None
+    uploaded_at: Optional[datetime] = None
+    analysis_result: Optional[Dict[str, Any]] = None
+    analyzed_at: Optional[datetime] = None
+
+    @classmethod
+    def create(
+        cls,
+        title: str,
+        what_to_film: str,
+        rationale_for_parent: str,
+        target_hypothesis_id: str,
+        what_we_hope_to_learn: str,
+        focus_points: List[str],
+        duration_suggestion: str = "5-7 דקות",
+        example_situations: List[str] = None,
+        category: str = "hypothesis_test",
+    ) -> "VideoScenario":
+        """Create a new video scenario."""
+        return cls(
+            id=generate_id(),
+            title=title,
+            what_to_film=what_to_film,
+            rationale_for_parent=rationale_for_parent,
+            duration_suggestion=duration_suggestion,
+            example_situations=example_situations or [],
+            target_hypothesis_id=target_hypothesis_id,
+            what_we_hope_to_learn=what_we_hope_to_learn,
+            focus_points=focus_points,
+            category=category,
+        )
+
+    def mark_uploaded(self, video_path: str):
+        """Mark scenario as uploaded."""
+        self.status = "uploaded"
+        self.video_path = video_path
+        self.uploaded_at = datetime.now()
+
+    def mark_analyzed(self, analysis_result: Dict[str, Any]):
+        """Mark scenario as analyzed."""
+        self.status = "analyzed"
+        self.analysis_result = analysis_result
+        self.analyzed_at = datetime.now()
+
+    def to_parent_facing_dict(self) -> Dict[str, Any]:
+        """Return only parent-facing fields (no hypothesis details)."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "what_to_film": self.what_to_film,
+            "why_matters": self.rationale_for_parent,  # Frontend expects 'why_matters'
+            "duration": self.duration_suggestion,
+            "example_situations": self.example_situations,
+            "status": self.status,
+        }
+
+
 # === Exploration Cycles ===
 
 @dataclass
@@ -216,6 +302,8 @@ class ExplorationCycle:
 
     Supports all 4 curiosity types via optional fields.
     Cycles are time-bounded - when complete, they're frozen.
+
+    Video exploration requires EXPLICIT CONSENT before guidelines are generated.
     """
     id: str
     curiosity_type: str  # "discovery" | "question" | "hypothesis" | "pattern"
@@ -230,12 +318,18 @@ class ExplorationCycle:
     # Type-specific fields
     theory: Optional[str] = None           # hypothesis
     confidence: Optional[float] = None     # hypothesis
-    video_appropriate: bool = False        # hypothesis
+    video_appropriate: bool = False        # hypothesis - LLM determines if observable
     question: Optional[str] = None         # question
     answer_fragments: List[str] = field(default_factory=list)  # question
     discovery_aspect: Optional[str] = None # discovery (essence/strengths/context)
     pattern_observation: Optional[str] = None  # pattern
     supporting_cycle_ids: List[str] = field(default_factory=list)  # pattern
+
+    # Video consent and scenarios (guidelines generated ONLY after consent)
+    video_accepted: bool = False           # Parent said YES to video
+    video_declined: bool = False           # Parent said NO - respect it, don't re-ask
+    video_suggested_at: Optional[datetime] = None  # When we suggested video
+    video_scenarios: List[VideoScenario] = field(default_factory=list)  # Generated after consent
 
     def add_evidence(self, evidence: Evidence):
         """Add evidence and update confidence if hypothesis."""
@@ -254,6 +348,45 @@ class ExplorationCycle:
     def mark_stale(self):
         """Mark cycle as stale (inactive for too long)."""
         self.status = "stale"
+
+    # Video consent methods
+    def accept_video(self):
+        """Parent accepted video suggestion."""
+        self.video_accepted = True
+        self.video_declined = False
+
+    def decline_video(self):
+        """Parent declined video - respect it, don't re-ask for this cycle."""
+        self.video_declined = True
+        self.video_accepted = False
+
+    def mark_video_suggested(self):
+        """Mark when we suggested video to parent."""
+        self.video_suggested_at = datetime.now()
+
+    def can_suggest_video(self) -> bool:
+        """Check if we can suggest video for this cycle."""
+        return (
+            self.video_appropriate and
+            not self.video_accepted and
+            not self.video_declined and
+            not self.video_scenarios  # No guidelines generated yet
+        )
+
+    def has_pending_videos(self) -> bool:
+        """Check if there are uploaded videos waiting for analysis."""
+        return any(s.status == "uploaded" for s in self.video_scenarios)
+
+    def has_analyzed_videos(self) -> bool:
+        """Check if any videos have been analyzed."""
+        return any(s.status == "analyzed" for s in self.video_scenarios)
+
+    def get_scenario(self, scenario_id: str) -> Optional[VideoScenario]:
+        """Get a video scenario by ID."""
+        for scenario in self.video_scenarios:
+            if scenario.id == scenario_id:
+                return scenario
+        return None
 
     @classmethod
     def create_for_hypothesis(
