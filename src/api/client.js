@@ -504,6 +504,22 @@ class ChittaAPIClient {
   }
 
   /**
+   * Get video analysis insights for a cycle
+   * Returns parent-appropriate insights from analyzed videos
+   */
+  async getVideoInsights(familyId, cycleId) {
+    const response = await fetch(
+      `${API_BASE_URL}/gestalt/${familyId}/insights/${cycleId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Upload video for a scenario (v2 - Living Gestalt)
    * Returns upload status, triggers "uploaded" card
    */
@@ -590,6 +606,48 @@ class ChittaAPIClient {
    */
   async getTimeline(familyId) {
     const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // ==========================================
+  // Child Space - Living Portrait
+  // ==========================================
+
+  /**
+   * Get complete ChildSpace data for the Living Portrait UI
+   * Returns data for all four tabs: essence, discoveries, observations, share
+   */
+  async getChildSpaceFull(familyId) {
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Generate a shareable summary adapted for a specific recipient
+   */
+  async generateShareableSummary(familyId, recipientType, recipientSubtype, timeAvailable = 'standard', context = null) {
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space/share/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipient_type: recipientType,
+        recipient_subtype: recipientSubtype,
+        time_available: timeAvailable,
+        context: context
+      })
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);

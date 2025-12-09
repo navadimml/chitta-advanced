@@ -14,10 +14,11 @@
 6. [Exploration Cycles](#6-exploration-cycles)
 7. [Conversation Dynamics](#7-conversation-dynamics)
 8. [Tools & Dynamic Context](#8-tools--dynamic-context)
-9. [Context Cards & The Space](#9-context-cards--the-space)
-10. [Multilanguage & i18n](#10-multilanguage--i18n)
-11. [Domain Separation (Wu Wei)](#11-domain-separation-wu-wei)
-12. [Practical Development Guide](#12-practical-development-guide)
+9. [The Three UI Surfaces: Cards, Space & Deep View](#9-the-three-ui-surfaces-cards-space--deep-view)
+10. [Conversation Memory & Distillation](#10-conversation-memory--distillation)
+11. [Multilanguage & i18n](#11-multilanguage--i18n)
+12. [Domain Separation (Wu Wei)](#12-domain-separation-wu-wei)
+13. [Practical Development Guide](#13-practical-development-guide)
 
 ---
 
@@ -1116,76 +1117,539 @@ WHAT I DON'T KNOW (gaps):
 
 ---
 
-## 9. Context Cards & The Space
+## 9. The Three UI Surfaces: Cards, Space & Deep View
 
-### Context Cards Are Actionable
+### The Core Principle
 
-Cards are not just information displays—they're **entry points to action**.
+**Conversation does the THINKING. Cards enable DOING. The Space REMEMBERS. Deep View enables EXPLORING.**
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  📊 Video Analysis Ready                                        │
-│                                                                 │
-│  We analyzed Daniel's play video and noticed some              │
-│  interesting patterns around fine motor activities.            │
-│                                                                 │
-│  [View Full Analysis]  [Discuss in Chat]  [Add to Report]      │
-└─────────────────────────────────────────────────────────────────┘
-```
+The Gestalt speaks through conversation—discussing, reflecting, wondering. Cards don't duplicate this. They enable **actions that conversation cannot do well**.
 
-Clicking any action:
-- Opens the relevant artifact, OR
-- Injects context into conversation, OR
-- Triggers a generation
+### What Conversation Does Well
 
-### Dual Access Model
+- Noticing, reflecting, wondering
+- Building understanding through dialogue
+- Emotional attunement
+- Asking questions, receiving stories
+- Discussing insights and meaning
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                                                              │
-│   CONVERSATION                    CARDS                      │
-│   ┌──────────────┐               ┌──────────────────┐       │
-│   │              │               │ 📹 Upload Video  │       │
-│   │  Natural     │               │                  │       │
-│   │  dialogue    │←── sync ────→│ We're curious    │       │
-│   │  with        │               │ about fine motor │       │
-│   │  Chitta      │               │ [Upload Now]     │       │
-│   │              │               └──────────────────┘       │
-│   │              │               ┌──────────────────┐       │
-│   │              │               │ 📄 Report Ready  │       │
-│   │              │←── sync ────→│                  │       │
-│   │              │               │ [View] [Share]   │       │
-│   └──────────────┘               └──────────────────┘       │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
+**The Gestalt speaks beautifully through conversation. Don't duplicate it with cards.**
 
-### The Space: Artifact Organization
+### What Conversation Does Poorly
 
-All generated artifacts live in **The Space**—an organized area where parents can:
+| Need | Why Conversation Fails | Solution |
+|------|------------------------|----------|
+| **Persistent access** | "Where were those filming instructions?" - lost in scroll | The Space |
+| **Async completion** | Video analyzed while parent was away - can't interrupt | Card notification |
+| **Complex actions** | "Upload a video for scenario X" - awkward in chat | Card with upload button |
+| **Status at a glance** | "How many videos left?" - requires asking | Card progress indicator |
+| **Deep exploration** | "What does this section mean?" - needs context | Deep View with threads |
 
-- View current and past reports
-- Access video analyses
-- See timeline of child's journey
-- Share specific artifacts with professionals
+### The Three Surfaces
 
 ```
-THE SPACE
-├── Reports/
-│   ├── Parent Report (Nov 28, 2024) ← current
-│   └── Parent Report (Oct 15, 2024) ← previous version
-├── Video Analyses/
-│   ├── Play Session Analysis (Nov 20)
-│   └── Interaction Video Analysis (Nov 5)
-├── Guidelines/
-│   └── Video Filming Guide (Nov 15)
-└── Timeline/
-    └── Daniel's Journey (visual timeline)
+┌─────────────────────────────────────────────────────────────────────┐
+│                           LIVING GESTALT                             │
+│                       (The Observing Intelligence)                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   SPEAKS TO LLM         │    SPEAKS TO UI                          │
+│   ──────────────        │    ───────────                           │
+│                         │                                           │
+│   Context for           │    ┌─────────────┐                       │
+│   conversation          │    │   CARDS     │  Ephemeral actions    │
+│                         │    │  (DO NOW)   │  - Upload video       │
+│   "What I know"         │    │             │  - Analysis ready     │
+│   "What I'm curious     │    └─────────────┘  - New artifact       │
+│   about"                │                                           │
+│                         │    ┌─────────────┐                       │
+│                         │    │  THE SPACE  │  Persistent access    │
+│                         │    │  (ALWAYS)   │  - All artifacts      │
+│                         │    │             │  - Version history    │
+│                         │    └──────┬──────┘  - Status overview    │
+│                         │           │                              │
+│                         │           ▼                              │
+│                         │    ┌─────────────┐                       │
+│                         │    │  DEEP VIEW  │  Living documents     │
+│                         │    │  (EXPLORE)  │  - Ask questions      │
+│                         │    │             │  - Section threads    │
+│                         │    └─────────────┘  - AI conversations   │
+│                         │                                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| Surface | Purpose | Lifespan | Example |
+|---------|---------|----------|---------|
+| **Cards** | Enable immediate action | Ephemeral (disappear after action) | "Upload video" button |
+| **Space** | Access all artifacts | Permanent (always accessible) | Report from 2 weeks ago |
+| **Deep View** | Explore artifact deeply | Session (interactive document) | Ask questions inside report |
+
+### Cards: Ephemeral Action Enablers
+
+Cards appear when action is needed **now**, then disappear. Only cards that bring **irreplaceable UX value**:
+
+```
+┌────────────────────────────────────┐
+│ 📹 Filming Guide Ready              │
+│                                    │
+│ 3 scenarios tailored for Daniel    │
+│                                    │
+│ [View Guide]  [Upload Video]       │
+└────────────────────────────────────┘
+```
+*Why card: Parent needs to reference this, action needed*
+
+```
+┌────────────────────────────────────┐
+│ ✨ Video Analysis Complete          │
+│                                    │
+│ New insights about motor patterns  │
+│                                    │
+│ [Discuss with Chitta]              │
+└────────────────────────────────────┘
+```
+*Why card: Async completion, parent was away*
+
+```
+┌────────────────────────────────────┐
+│ 📱 Upload Video                     │
+│                                    │
+│ "Free play" scenario               │
+│ 2-3 minutes of natural play        │
+│                                    │
+│ [Choose Video]                     │
+└────────────────────────────────────┘
+```
+*Why card: File upload is a UI action, not a conversation*
+
+```
+┌────────────────────────────────────┐
+│ ○○● Videos: 1 of 3                 │
+└────────────────────────────────────┘
+```
+*Why card: Instant status without asking*
+
+**What Dies (Cards That Are Noise):**
+- ❌ "Welcome!" - Chitta says hello in conversation
+- ❌ "We noticed a pattern" - Chitta discusses in conversation
+- ❌ "Knowledge is rich" - Progress lives in conversation naturally
+- ❌ "Returning user" - Chitta greets appropriately
+
+### The Space: Permanent Artifact Home
+
+The Space is a **section of the app** - a place to go, not something that pops up.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [💬 Chat]              [📁 Space]                          │
+├─────────────────────────────────────────────────────────────┤
+```
+
+All artifacts live in The Space, organized in **slots**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  THE SPACE - Daniel                                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  📋 Reports                                                 │
+│  ├── Summary (Dec 7, 2025) ← latest                         │
+│  └── Summary (Nov 20, 2025) ← version history               │
+│                                                             │
+│  📹 Videos & Analyses                                       │
+│  ├── Free play analysis (Dec 5)                             │
+│  ├── Music moment analysis (Dec 3)                          │
+│  └── Morning routine analysis (Nov 18)                      │
+│                                                             │
+│  🎬 Filming Guides                                          │
+│  └── Current guide (3 scenarios)                            │
+│                                                             │
+│  📝 Journal                                                 │
+│  └── 12 entries                                             │
+│                                                             │
+│  📈 Timeline                                                │
+│  └── Daniel's journey                                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**The Space is NOT derived** - it's a fixed structure that shows whatever artifacts exist.
+
+### Deep View: Living Documents
+
+When a parent clicks an artifact, it opens as a **Living Document** - interactive, not static:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Summary Report - Daniel                          [X]       │
+│─────────────────────────────────────────────────────────────│
+│                                                             │
+│  ## Strengths                          💬 2 conversations   │
+│  Daniel shows remarkable creativity...                      │
+│  [Click anywhere to ask a question]                         │
+│                                                             │
+│  ┌────────────────────────────────────────┐                │
+│  │ 💬 Parent: What does "creativity" mean │  ← Thread      │
+│  │    in this context?                    │                │
+│  │                                        │                │
+│  │ 🤖 Chitta: In Daniel's case, we see   │                │
+│  │    creativity in how he solves...     │                │
+│  │                                        │                │
+│  │ [Ask another question]  [✓ Got it]    │                │
+│  └────────────────────────────────────────┘                │
+│                                                             │
+│  ## Areas for Support                     💬 0             │
+│  [Click to ask a question about this section]               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Deep View Features:**
+- Document parsed into sections
+- Each section is clickable → opens question input
+- Threads attached to specific sections
+- AI responds with context about that section
+- Threads can be marked "resolved"
+- Parent can explore deeply, ask follow-ups
+
+### The Complete Flow
+
+```
+1. Chitta creates artifact (e.g., summary report)
+         │
+         ▼
+   ┌───────────────┐
+   │     CARD      │  "Your summary is ready" [View]
+   └───────┬───────┘
+           │
+           │ parent taps View
+           ▼
+   ┌───────────────┐
+   │   DEEP VIEW   │  Report opens as Living Document
+   │               │  Parent clicks section: "What does this mean?"
+   │               │  AI explains in context
+   └───────┬───────┘
+           │
+           │ parent closes (artifact persists)
+           ▼
+   ┌───────────────┐
+   │    SPACE      │  Reports → Summary (Dec 7)
+   │               │  Always accessible, can reopen anytime
+   └───────────────┘
+```
+
+### Finding Past Artifacts
+
+When parent asks about a past artifact:
+
+**In conversation:**
+> Parent: "Where's that report from a few weeks ago?"
+
+**Chitta responds:**
+> "You can find all your reports in Daniel's Space - just tap the Space tab.
+> The report from November 20th is there under Reports."
+>
+> Or here's a direct link: `[📋 Summary (Nov 20, 2025)]`
+
+The Gestalt knows what artifacts exist and can provide direct links. No card needed - this is a conversation use case.
+
+### Card Derivation (Minimal)
+
+The Gestalt doesn't need complex card logic. It simply notices:
+
+```python
+class LivingGestalt:
+
+    def cards(self) -> List[Card]:
+        """Only ephemeral action-enablers"""
+        cards = []
+
+        # Pending uploads (action needed)
+        for scenario in self.pending_video_scenarios:
+            cards.append(UploadCard(scenario))
+
+        # New artifacts (just created, unseen)
+        for artifact in self.new_unseen_artifacts:
+            cards.append(ReadyCard(artifact))
+
+        # Async completions (came back from processing)
+        for completion in self.async_completions:
+            cards.append(CompletionCard(completion))
+
+        # Progress indicator (if in multi-step flow)
+        if self.active_cycle and self.active_cycle.has_progress:
+            cards.append(ProgressCard(self.active_cycle))
+
+        return cards
+
+    # Space is NOT derived - it queries all artifacts
+    # Deep View is NOT derived - it renders any artifact
 ```
 
 ---
 
-## 10. Multilanguage & i18n
+## 10. Conversation Memory & Distillation
+
+### The Problem: Conversations Span Years
+
+Parents may use Chitta for years. Conversations accumulate - hundreds of turns, dozens of sessions. The LLM can't hold all of this in context.
+
+**Current mechanism**: Sliding window of 25 messages. Older messages are archived (stored on disk) but lost to the LLM.
+
+**The gap**: After 25 messages, the substance of earlier conversations disappears from context. Parent asks "Remember when we talked about transitions last spring?" and Chitta has no idea.
+
+### The Solution: Distillation Pipeline
+
+**The conversation is ephemeral. What was LEARNED is permanent.**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     CONVERSATION                             │
+│                                                             │
+│  Turn 1 → Turn 2 → ... → Turn 25 → Turn 26 → ...            │
+│                              │                              │
+│                    [Sliding Window: 25]                     │
+│                              │                              │
+│              ┌───────────────┼───────────────┐              │
+│              ▼               ▼               ▼              │
+│      ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │
+│      │Understanding │ │   Journal    │ │   Archive    │    │
+│      │              │ │              │ │  (raw msgs)  │    │
+│      │ Facts        │ │ "March 2024: │ │              │    │
+│      │ Patterns     │ │  discussed   │ │ (for audit/  │    │
+│      │ Essence      │ │  transitions"│ │  retrieval)  │    │
+│      └──────────────┘ └──────────────┘ └──────────────┘    │
+│              │                                              │
+│              ▼                                              │
+│      ┌──────────────┐                                       │
+│      │   GESTALT    │  ← Knows everything learned           │
+│      │              │    regardless of conversation age     │
+│      └──────────────┘                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Three Layers of Memory
+
+| Layer | What it Holds | Lifespan | Use Case |
+|-------|---------------|----------|----------|
+| **Sliding Window** | Last 25 messages (full text) | Active turn | Current conversation context |
+| **Understanding** | Distilled facts, patterns, essence | Forever | "How is Daniel's speech?" |
+| **Journal** | Significant moments + timestamps | Forever | "What did we discuss in March?" |
+| **Archive** | Raw messages (for retrieval) | Forever | Audit, specific lookups |
+| **Artifacts** | Point-in-time synthesis | Forever | Reports, analyses |
+
+### The Distillation Flow
+
+Every conversation turn, key insights flow into permanent memory:
+
+```python
+async def process_conversation_turn(message, gestalt):
+    # 1. Normal conversation processing
+    response = await chitta.respond(message)
+
+    # 2. Distill into Understanding (background, non-blocking)
+    await reflection.distill_turn(
+        message=message,
+        response=response,
+        gestalt=gestalt
+    )
+    # Extracts: new facts, pattern updates, essence updates
+
+    # 3. Journal significant moments (background)
+    if is_significant(message, response):
+        gestalt.journal.add_entry(
+            timestamp=now(),
+            summary="Parent shared story about park transition",
+            themes=["transitions", "outdoor"],
+            linked_facts=[fact_ids]
+        )
+
+    # 4. Conversation archive (already happening)
+    session.archive_old_messages()
+```
+
+### What Gets Distilled
+
+**Into Understanding (Facts):**
+- New observations about the child
+- Evidence for/against hypotheses
+- Pattern confirmations
+- Updated essence qualities
+
+**Into Journal:**
+- Significant stories shared
+- Major insights or breakthroughs
+- Exploration milestones
+- Parent emotional moments
+
+**Example:**
+
+```
+Turn 47 (March 2024):
+Parent: "Something amazing happened at the park yesterday. Daniel saw
+        the slide and instead of running away like usual, he watched
+        the other kids for 10 minutes, then walked up and went down
+        by himself!"
+
+DISTILLED:
+→ Understanding.add_fact(
+    subject="Daniel",
+    predicate="overcame_avoidance",
+    object="playground slide",
+    aspect="transitions",
+    t_valid=march_2024,
+    confidence=0.95,
+    source="parent_story"
+  )
+
+→ Understanding.update_pattern(
+    pattern="observation_before_action",
+    new_evidence="watched 10 min, then acted"
+  )
+
+→ Journal.add_entry(
+    summary="Breakthrough: Daniel overcame slide avoidance through observation",
+    themes=["transitions", "motor", "social-observation"],
+    significance="high"
+  )
+```
+
+### Answering Questions About the Past
+
+**2 years later, parent asks:** "Remember when we talked about transitions last spring?"
+
+**Chitta knows:**
+- From **Understanding**: Facts about transition struggles and progress
+- From **Journal**: "March 2024: Discussed breakthrough at park - Daniel overcame slide avoidance"
+- Can **retrieve** if needed: Original conversation from archive
+
+**Response:**
+> "Yes! In March you shared that amazing story about the park - how Daniel
+> watched the other kids for 10 minutes before going down the slide himself.
+> That was a real breakthrough. Since then we've noticed the 'observe then act'
+> pattern in other situations too. Would you like to see how that's evolved?"
+
+### Artifact Content Awareness
+
+When artifacts (reports, analyses) are created, their key insights also flow into Understanding:
+
+```python
+class ReportArtifact:
+    """When a report is created"""
+
+    def on_created(self, report_content: str, gestalt: LivingGestalt):
+        # 1. Store full artifact (for Space/Deep View)
+        artifact_id = storage.save(report_content)
+
+        # 2. Extract key insights into Understanding
+        insights = self.extract_key_insights(report_content)
+
+        for insight in insights:
+            gestalt.understanding.add_fact(
+                content=insight.content,
+                domain=insight.domain,
+                source=f"report:{artifact_id}",
+                t_valid=now(),
+            )
+
+        # 3. Journal entry
+        gestalt.journal.add_entry(
+            event="artifact_created",
+            artifact_type="summary_report",
+            artifact_id=artifact_id,
+            summary=insights.summary
+        )
+```
+
+**This enables:**
+
+| Parent Question | Chitta Uses | Source |
+|-----------------|-------------|--------|
+| "How is Daniel's motor development?" | Understanding (Facts) | Accumulated knowledge |
+| "What did November's report say?" | Understanding (Facts) | Key insights from that report |
+| "What were the exact recommendations?" | Retrieval tool | Full artifact content |
+| "Show me that report" | Link to Deep View | Artifact in Space |
+
+### The Reflection Service
+
+The `ReflectionService` runs in the background (non-blocking) and handles:
+
+1. **Turn distillation** - Extract insights from each conversation turn
+2. **Pattern detection** - Notice themes across observations
+3. **Hypothesis updates** - Adjust confidence based on new evidence
+4. **Memory updates** - Track parent communication style, preferences
+
+```python
+class ReflectionService:
+    """Background processing - NEVER blocks conversation"""
+
+    async def process_queue(self):
+        while True:
+            task = await self.queue.get()
+
+            if task.type == "distill_turn":
+                await self.distill_turn(task.message, task.response, task.gestalt)
+
+            elif task.type == "update_patterns":
+                await self.detect_patterns(task.gestalt)
+
+            elif task.type == "update_hypothesis":
+                await self.update_hypothesis_confidence(task.hypothesis_id, task.evidence)
+```
+
+### The Complete Memory Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CONVERSATION (ephemeral)                      │
+│                                                                 │
+│    Sliding window: last 25 messages                             │
+│    ───────────────────────────────────                          │
+│                         │                                        │
+│                         │ distill (background)                   │
+│                         ▼                                        │
+├─────────────────────────────────────────────────────────────────┤
+│                    UNDERSTANDING (permanent)                     │
+│                                                                 │
+│    Essence: "Daniel is a careful observer..."                   │
+│    Facts: [temporal observations with bi-temporal tracking]     │
+│    Patterns: [cross-cutting themes]                             │
+│    ───────────────────────────────────                          │
+│                         │                                        │
+│                         │ synthesize (periodic)                  │
+│                         ▼                                        │
+├─────────────────────────────────────────────────────────────────┤
+│                    ARTIFACTS (permanent)                         │
+│                                                                 │
+│    Reports: point-in-time syntheses                             │
+│    Analyses: video insights                                     │
+│    Guidelines: filming instructions                             │
+│                         │                                        │
+│                         │ key insights flow back                 │
+│                         ▼                                        │
+│                    UNDERSTANDING                                 │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                    JOURNAL (permanent)                           │
+│                                                                 │
+│    Timeline of significant moments                              │
+│    "March 2024: Breakthrough at park..."                        │
+│    "April 2024: Started new therapy..."                         │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                    ARCHIVE (permanent)                           │
+│                                                                 │
+│    Raw conversation history (for retrieval if needed)           │
+│    Not in LLM context, but queryable                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**The conversation is ephemeral. What was LEARNED is permanent.**
+
+---
+
+## 11. Multilanguage & i18n
 
 ### Principle: Language Is Separate from Logic
 
@@ -1243,7 +1707,7 @@ blocked_actions:
 
 ---
 
-## 11. Domain Separation (Wu Wei)
+## 12. Domain Separation (Wu Wei)
 
 ### The Two Layers
 
@@ -1320,7 +1784,7 @@ return i18n.get("responses.lets_begin")
 
 ---
 
-## 12. Practical Development Guide
+## 13. Practical Development Guide
 
 ### Adding a New Feature: Checklist
 
@@ -1453,7 +1917,19 @@ Before I create a hypothesis, I ask:
    - Suggest artifacts when conditions are ripe
    - Persist what matters beyond the conversation
 
-7. **Remember the purpose**
+7. **Three surfaces, three purposes**
+   - Conversation THINKS (the Gestalt speaks)
+   - Cards enable DOING (ephemeral actions)
+   - Space REMEMBERS (permanent access)
+   - Deep View enables EXPLORING (living documents)
+
+8. **Distill, don't accumulate**
+   - Conversation is ephemeral; learning is permanent
+   - Every turn extracts insights into Understanding
+   - Journal captures significant moments
+   - Artifacts synthesize point-in-time knowledge
+
+9. **Remember the purpose**
    - Help people see children clearly
    - Support, don't replace professionals
    - Create space for understanding
@@ -1464,8 +1940,17 @@ Before I create a hypothesis, I ask:
 
 ---
 
-*Version: 4.0 - Living Gestalt & Curiosity-Driven Architecture*
+*Version: 4.1 - Three Surfaces & Conversation Memory*
 *Last updated: December 2025*
+
+*Changes from v4.0:*
+- *Redesigned UI surfaces: Cards (ephemeral), Space (permanent), Deep View (interactive)*
+- *Cards only for actions conversation can't do well (upload, async completion, progress)*
+- *Deep View as Living Documents with section-level Q&A threads*
+- *Added Conversation Memory & Distillation architecture*
+- *Distillation pipeline: conversation → Understanding + Journal + Archive*
+- *Artifact content awareness: report insights flow back to Understanding*
+- *ReflectionService for background distillation (non-blocking)*
 
 *Changes from v3.0:*
 - *Gestalt reimagined as the "observing intelligence" rather than a data structure*

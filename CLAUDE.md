@@ -1,4 +1,3 @@
-
 # CLAUDE.md
 
 This file provides the Constitution and Technical Guidance for Claude Code when working on **Chitta**.
@@ -6,11 +5,20 @@ This file provides the Constitution and Technical Guidance for Claude Code when 
 ## 1. Core Philosophy: The "Why"
 
 **Chitta exists to help parents and clinicians see child development clearly.**
-We are a "Conversation-First" platform with a "Wu Wei" (dependency-based) architecture.
 
-*   **Identity**: A helpful guide, not an autonomous expert. We point; we do not replace.
-*   **Voice**: "We noticed..." not "System detected..." (Simple words, deep understanding).
-*   **Goal**: Create space for understanding. Do not fill silence with unnecessary prompts.
+Chitta is an **expert developmental psychologist** (0.5-18 years) - not just a conversationalist.
+We are a "Conversation-First" platform with a "Wu Wei" architecture.
+
+*   **Identity**: An expert guide with deep developmental psychology knowledge. We point; we do not replace.
+*   **Voice**: "שמתי לב ש..." not "המערכת זיהתה..." (Simple words, deep understanding).
+*   **Goal**: Create space for understanding through **curiosity**, not checklists.
+
+### The Living Gestalt
+
+The Gestalt is the **observing intelligence** - it HOLDS, NOTICES, and ACTS.
+- Child and Session are its memory
+- The Gestalt is the mind
+- Understanding emerges through conversation, not assessment
 
 ## 2. The 10 Golden Rules (Coding Constitution)
 
@@ -28,81 +36,167 @@ We are a "Conversation-First" platform with a "Wu Wei" (dependency-based) archit
 3.  **Adapt Like Water (Polymorphism)**:
     *   ❌ Do not build separate code paths for "Parent" vs "Clinician."
     *   ✅ Build single, adaptive functions that infer tone/depth from context.
-    *   Example: `generate_report(data, audience="clinician")` vs `generate_report(data, audience="parent")`.
 
 4.  **Show, Don't Conclude (Data Model)**:
     *   ❌ `diagnosis: "delayed"` (Interpretive labels are forbidden in raw data).
     *   ✅ `observation: { event: "looked at face", timestamp: "0:03" }` (Descriptive data).
 
 5.  **Be Invisible (UX)**:
-    *   Proactive $\neq$ Pushy. Only trigger logic when `value > interruption_cost`.
+    *   Proactive ≠ Pushy. Only trigger logic when `value > interruption_cost`.
     *   Prerequisites determine what is *available/recommended*, never what is *blocked*.
 
-6.  **Simplicity (Wu Wei)**:
-    *   Beauty is the minimum necessary complexity.
-    *   Prefer configuration (YAML) over code (Python) whenever possible.
+6.  **Simplicity (פשוט)**:
+    *   Beauty is the **minimum NECESSARY complexity** - not minimum possible.
+    *   מינימום המורכבות הנדרשת - the right amount, not less.
 
 7.  **Honest Uncertainty**:
-    *   If confidence is low, return structured data indicating ambiguity (`readiness: "need_more_info"`).
+    *   If confidence is low, return structured data indicating ambiguity.
     *   Never hallucinate certainty or generic errors.
 
 8.  **Emergence**:
-    *   Prefer small, composable functions over monolithic "Intelligent Managers." Intelligence emerges from the interaction of simple parts.
+    *   Prefer small, composable functions over monolithic "Intelligent Managers."
+    *   Intelligence emerges from the interaction of simple parts.
 
 9.  **Naming Convention**:
-    *   Use `organize`, `highlight`, `suggest`.
-    *   Avoid `diagnose`, `assess`, `decide`.
+    *   Use `notice`, `wonder`, `capture_story`, `explore`.
+    *   Avoid `diagnose`, `assess`, `decide`, `completeness`.
 
 10. **Natural Language**:
     *   Hebrew output must be natural, warm, and non-robotic.
     *   Preserve `dir="rtl"` in all UI components.
 
-## 3. The Wu Wei Development Protocol
+## 3. The Four Curiosity Types
 
-**CRITICAL: Before writing Python code, consult this decision tree.**
+Understanding emerges through **curiosity**, not checklists. Four types:
 
-We distinguish between the **Domain Layer** (Configuration) and the **Framework Layer** (Code).
+| Type | Purpose | Example |
+|------|---------|---------|
+| **discovery** | Open receiving | "Who is this child?" |
+| **question** | Following a thread | "What triggers meltdowns?" |
+| **hypothesis** | Testing a theory | "Music helps him regulate" |
+| **pattern** | Connecting dots | "Sensory input is key across domains" |
 
-### The Decision Tree
-1.  **Is this a domain feature?** (e.g., "Filming decision", "New therapy type")
-    *   **STOP.** Do not write Python logic.
-    *   **Action:**
-        1.  Add field to `ExtractedData` schema (`backend/app/core/models.py`).
-        2.  Configure "Moment" in `lifecycle_events.yaml`.
-        3.  Configure "Card" in `context_cards.yaml`.
-2.  **Is this a general mechanism?** (e.g., "Status-based card content")
-    *   **Proceed.** Modify Framework code (`backend/app/services/`).
-    *   **Rule:** Only if 3+ domain features will use it.
+**Type and certainty are INDEPENDENT**:
+- Type = what kind of exploration activity
+- Certainty = how confident within that type
 
-### Anti-Patterns to Reject
-*   **The Premature Enum**: Creating `class ActionType(Enum)` for a specific domain choice. (Use strings in YAML instead).
-*   **The Hardcoded Response**: Writing Hebrew text inside Python functions. (Put it in YAML).
-*   **The Special Case**: `if artifact == "video": do_x()`. (Make artifact behavior configurable).
+You can have a weak hypothesis (certainty=0.3) or a strong discovery (certainty=0.8).
 
 ## 4. Technical Constraints & Critical Implementation
 
+### Two-Phase LLM Architecture (CRITICAL)
+
+**Tool calls and text responses CANNOT be combined reliably.**
+
+We use TWO separate LLM calls per message:
+
+```
+Phase 1: Extraction (with tools)
+  - temperature=0.0
+  - FunctionCallingConfigMode.ANY
+  - Returns: tool calls only
+
+Phase 2: Response (without tools)
+  - temperature=0.7
+  - functions=None
+  - Returns: text only
+```
+
 ### LLM Configuration (Gemini)
-*   **Provider**: Gemini 2.5 Pro (Primary) or 2.0 Flash Exp.
-*   **CRITICAL: Disable Automatic Function Calling (AFC)**.
-    *   Gemini SDK defaults break our flow. You MUST use:
-    ```python
-    tool_config=types.ToolConfig(
-        function_calling_config=types.FunctionCallingConfig(
-            mode=types.FunctionCallingConfigMode.ANY  # Disables AFC
-        )
+
+**Provider**: Gemini 2.5 Flash (conversation), Gemini 3 Pro Preview (synthesis)
+
+**CRITICAL Configuration** - DO NOT CHANGE:
+```python
+# Phase 1: Extraction
+config_params["tool_config"] = types.ToolConfig(
+    function_calling_config=types.FunctionCallingConfig(
+        mode=types.FunctionCallingConfigMode.ANY  # Forces tool calls
     )
-    ```
-*   **Token Limits**: `max_output_tokens` must be **4000+** to prevent Hebrew truncation.
+)
+config_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(
+    disable=True,
+    maximum_remote_calls=0  # CRITICAL: Must be 0 to fully disable AFC
+)
+temperature = 0.0
 
-### Architecture Mode
-*   **Default**: `simplified` (1-2 LLM calls per message).
-*   **Logic File**: `backend/app/services/conversation_service_simplified.py` (Do not edit the legacy full service).
-*   **Core Flow**:
-    1.  Main LLM call (Intent + Extraction).
-    2.  Local function processing (No extra LLM calls).
-    3.  Semantic verification (every 3 turns).
+# Phase 2: Response
+functions = None  # NO TOOLS - forces text response
+temperature = 0.7
+```
 
-## 5. Quick Start & Environment
+**Token Limits**: `max_output_tokens` must be **4000+** to prevent Hebrew truncation.
+
+### Model Tiers
+
+| Tier | Models | Use For |
+|------|--------|---------|
+| **Strongest** | gemini-3-pro-preview, claude-opus-4-5 | Pattern detection, synthesis |
+| **Standard** | gemini-2.5-flash | Conversation, memory distillation |
+
+### What Needs LLM vs What Doesn't
+
+**Needs LLM** (minimum NECESSARY complexity):
+- Intent detection (understanding parent's meaning)
+- Story analysis (extracting developmental signals)
+- Pattern detection (cross-domain connections)
+- Response generation (natural Hebrew)
+
+**Simple Code Sufficient**:
+- Curiosity activation math (`base + boost - decay`)
+- Session transition detection (`hours >= 4`)
+- Evidence effect on confidence (`+0.1 supports, -0.15 contradicts`)
+- Formatting data for prompts
+
+## 5. Architecture Overview
+
+### Core Flow
+```
+Message arrives
+    ↓
+Phase 1: Extraction (with tools, temp=0)
+    - LLM perceives and understands
+    - Intent detected by comprehension, not keywords
+    - Tool calls: notice, wonder, capture_story, add_evidence
+    ↓
+Apply Learnings (update Child state)
+    ↓
+Phase 2: Response (without tools, temp=0.7)
+    - Turn guidance based on what was extracted
+    - Natural Hebrew response
+    ↓
+Persist + Return curiosity_state
+```
+
+### Session Management
+- **Session transition**: >4 hours gap triggers memory distillation
+- **Memory distillation**: Summarizes previous session (standard model)
+- **No background async**: Everything is synchronous, on-demand
+
+### Synthesis (On Demand)
+- Called when user requests or conditions are ripe
+- Uses **strongest model** for pattern detection
+- Creates essence narrative when understanding crystallizes
+
+## 6. Key Files Map
+
+| Category | File | Purpose |
+| :--- | :--- | :--- |
+| **Chitta Core** | `backend/app/chitta/gestalt.py` | Living Gestalt - the observing intelligence |
+| **Chitta Core** | `backend/app/chitta/curiosity.py` | Curiosity model and engine |
+| **Chitta Core** | `backend/app/chitta/service.py` | Service orchestration |
+| **Chitta Core** | `backend/app/chitta/models.py` | Data models |
+| **Chitta Core** | `backend/app/chitta/tools.py` | Tool definitions for LLM |
+| **Chitta Core** | `backend/app/chitta/formatting.py` | Prompt formatting utilities |
+| **Chitta Core** | `backend/app/chitta/reflection.py` | Synthesis and memory services |
+| **Domain Config** | `backend/config/workflows/lifecycle_events.yaml` | Lifecycle events |
+| **Domain Config** | `backend/config/workflows/context_cards.yaml` | Card logic definition |
+| **Frontend** | `src/App.jsx` | Main state orchestrator |
+| **Frontend** | `src/components/CuriosityPanel.jsx` | Curiosity display |
+| **Docs** | `backend/docs/REFACTOR_PLAN.md` | Architecture plan |
+| **Docs** | `backend/docs/architecture/LIVING_GESTALT.md` | Gestalt principles |
+
+## 7. Quick Start & Environment
 
 ### Commands
 ```bash
@@ -117,31 +211,32 @@ python -m app.main
 npm run dev
 
 # Testing
-python test_conversation_service.py       # Simplified flow
-python test_gemini_interview_enhanced.py  # Gemini integration
+pytest backend/tests/test_curiosity.py      # Unit tests
+pytest backend/tests/test_gestalt_integration.py  # Integration tests
 ```
 
-### Key Files Map
-| Category | File | Purpose |
-| :--- | :--- | :--- |
-| **Domain Config** | `backend/config/workflows/lifecycle_events.yaml` | **Start here for new features.** |
-| **Domain Config** | `backend/config/workflows/context_cards.yaml` | Card logic definition. |
-| **Data Model** | `backend/app/core/models.py` | `ExtractedData` schema. |
-| **Logic** | `backend/app/services/conversation_service_simplified.py` | Primary business logic. |
-| **Logic** | `backend/app/services/prerequisite_service.py` | Dependency checker. |
-| **LLM** | `backend/app/services/llm/gemini_provider_enhanced.py` | Gemini config (AFC disabled). |
-| **Prompts** | `backend/app/prompts/comprehensive_prompt_builder.py` | System prompt construction. |
-| **Frontend** | `src/App.jsx` | Main state orchestrator. |
-
-## 6. Development Checklist
+## 8. Development Checklist
 
 Before submitting code, verify:
-1.  [ ] Did I avoid adding a new Enum?
-2.  [ ] Did I use `lifecycle_events.yaml` instead of `if/else` logic?
-3.  [ ] Is `FunctionCallingConfigMode.ANY` active?
-4.  [ ] Is the language simple ("We noticed") and not diagnostic ("Delayed")?
-5.  [ ] Does the feature "adapt like water" (polymorphic) or is it rigid?
+
+1.  [ ] Did I preserve the **two-phase architecture**? (tools separate from response)
+2.  [ ] Is intent detection done by **LLM understanding**, not keyword matching?
+3.  [ ] Is `FunctionCallingConfigMode.ANY` active with `maximum_remote_calls=0`?
+4.  [ ] Is the language warm Hebrew ("שמתי לב") not robotic ("המערכת זיהתה")?
+5.  [ ] Am I using **curiosity** (4 types) not completeness?
+6.  [ ] Is certainty **independent** of curiosity type?
+7.  [ ] Is pattern detection using **strongest model**?
+8.  [ ] Is there **no background async** processing?
+9.  [ ] Does the feature embody **פשוט** - minimum NECESSARY complexity?
+
+## 9. Anti-Patterns to Reject
+
+*   **Keyword Intent Detection**: `if 'אתמול' in message` - LLM understands intent, not keywords
+*   **Combined Tool+Text**: Trying to get tool calls and text in one LLM call
+*   **Completeness Score**: We use curiosity activation, not completion percentage
+*   **Background Reflection**: Pattern detection is part of synthesis, not async
+*   **Simplistic vs פשוט**: Minimum NECESSARY, not minimum possible
 
 ---
-**Version**: 2.0 (Wu Wei & Principles Integrated)
-**Last Updated**: November 2025
+**Version**: 3.0 (Living Gestalt Architecture)
+**Last Updated**: December 2025

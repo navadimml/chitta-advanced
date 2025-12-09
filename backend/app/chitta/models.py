@@ -235,7 +235,7 @@ class VideoScenario:
     category: str = "hypothesis_test"   # hypothesis_test | pattern_exploration | strength_baseline
 
     # STATUS
-    status: str = "pending"             # pending | uploaded | analyzed
+    status: str = "pending"             # pending | uploaded | analyzed | validation_failed
     video_path: Optional[str] = None
     uploaded_at: Optional[datetime] = None
     analysis_result: Optional[Dict[str, Any]] = None
@@ -279,6 +279,14 @@ class VideoScenario:
         self.status = "analyzed"
         self.analysis_result = analysis_result
         self.analyzed_at = datetime.now()
+
+    def mark_validation_failed(self, analysis_result: Dict[str, Any]):
+        """Mark scenario as validation failed - allows retry with new video."""
+        self.status = "validation_failed"
+        self.analysis_result = analysis_result
+        self.analyzed_at = datetime.now()
+        # Keep video_path so we know what was uploaded (for debugging)
+        # Parent can upload a new video to replace it
 
     def to_parent_facing_dict(self) -> Dict[str, Any]:
         """Return only parent-facing fields (no hypothesis details)."""
@@ -330,6 +338,7 @@ class ExplorationCycle:
     video_declined: bool = False           # Parent said NO - respect it, don't re-ask
     video_suggested_at: Optional[datetime] = None  # When we suggested video
     video_scenarios: List[VideoScenario] = field(default_factory=list)  # Generated after consent
+    guidelines_status: Optional[str] = None  # "generating" | "ready" | "error"
 
     def add_evidence(self, evidence: Evidence):
         """Add evidence and update confidence if hypothesis."""
@@ -497,6 +506,8 @@ class Response:
     text: str
     curiosities: List[Any]  # List[Curiosity]
     open_questions: List[str]
+    # Signals that important learning occurred - triggers background crystallization
+    should_crystallize: bool = False
 
 
 # === Memory & Synthesis ===
@@ -534,6 +545,156 @@ class SynthesisReport:
     confidence_by_domain: Dict[str, float]
     open_questions: List[str]
     created_at: datetime = field(default_factory=datetime.now)
+
+
+# === Crystal (Cached Synthesis) ===
+
+@dataclass
+class InterventionPathway:
+    """A pathway connecting strength/interest to concern."""
+    hook: str              # The strength or interest that can help
+    concern: str           # The concern it can address
+    suggestion: str        # Concrete guidance
+    confidence: float = 0.5
+
+
+@dataclass
+class Crystal:
+    """
+    Crystallized understanding - cached synthesis with timestamp tracking.
+
+    The Crystal represents our deep understanding of the child at a point in time.
+    It's expensive to create (strongest model) but cached and reused.
+
+    STALENESS DETECTION:
+    - based_on_observations_through: timestamp of newest observation when crystal was formed
+    - To check staleness: compare with max(fact.t_created, story.timestamp, evidence.timestamp)
+    - If newest observation > based_on_observations_through → crystal is stale
+
+    INCREMENTAL UPDATE:
+    - When stale, don't regenerate from scratch
+    - Send previous crystal + new observations → get updated crystal
+    """
+    # The synthesis content
+    essence_narrative: Optional[str]            # Who this child IS as a whole person
+    temperament: List[str]                      # Core temperament traits
+    core_qualities: List[str]                   # What makes them them
+    patterns: List[Pattern]                     # Cross-domain connections
+    intervention_pathways: List[InterventionPathway]  # How strengths help concerns
+    open_questions: List[str]                   # What we still wonder
+
+    # Timestamp tracking for staleness
+    created_at: datetime                        # When this crystal was formed
+    based_on_observations_through: datetime     # Newest observation timestamp at formation
+
+    # Metadata
+    version: int = 1                            # Incremented on each update
+    previous_version_summary: Optional[str] = None  # Brief note on what changed
+
+    @classmethod
+    def create_empty(cls) -> "Crystal":
+        """Create an empty crystal for new children."""
+        now = datetime.now()
+        return cls(
+            essence_narrative=None,
+            temperament=[],
+            core_qualities=[],
+            patterns=[],
+            intervention_pathways=[],
+            open_questions=[],
+            created_at=now,
+            based_on_observations_through=now,
+            version=0,
+        )
+
+    def is_stale(self, latest_observation_at: datetime) -> bool:
+        """Check if crystal is stale relative to newest observation."""
+        return latest_observation_at > self.based_on_observations_through
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "essence_narrative": self.essence_narrative,
+            "temperament": self.temperament,
+            "core_qualities": self.core_qualities,
+            "patterns": [
+                {
+                    "description": p.description,
+                    "domains_involved": p.domains_involved,
+                    "confidence": p.confidence,
+                    "detected_at": p.detected_at.isoformat() if hasattr(p, 'detected_at') else None,
+                }
+                for p in self.patterns
+            ],
+            "intervention_pathways": [
+                {
+                    "hook": ip.hook,
+                    "concern": ip.concern,
+                    "suggestion": ip.suggestion,
+                    "confidence": ip.confidence,
+                }
+                for ip in self.intervention_pathways
+            ],
+            "open_questions": self.open_questions,
+            "created_at": self.created_at.isoformat(),
+            "based_on_observations_through": self.based_on_observations_through.isoformat(),
+            "version": self.version,
+            "previous_version_summary": self.previous_version_summary,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Crystal":
+        """Create from dict (persistence loading)."""
+        patterns = []
+        for p_data in data.get("patterns", []):
+            detected_at = datetime.now()
+            if p_data.get("detected_at"):
+                try:
+                    detected_at = datetime.fromisoformat(p_data["detected_at"])
+                except (ValueError, TypeError):
+                    pass
+            patterns.append(Pattern(
+                description=p_data["description"],
+                domains_involved=p_data.get("domains_involved", []),
+                confidence=p_data.get("confidence", 0.5),
+                detected_at=detected_at,
+            ))
+
+        intervention_pathways = []
+        for ip_data in data.get("intervention_pathways", []):
+            intervention_pathways.append(InterventionPathway(
+                hook=ip_data["hook"],
+                concern=ip_data["concern"],
+                suggestion=ip_data["suggestion"],
+                confidence=ip_data.get("confidence", 0.5),
+            ))
+
+        created_at = datetime.now()
+        if data.get("created_at"):
+            try:
+                created_at = datetime.fromisoformat(data["created_at"])
+            except (ValueError, TypeError):
+                pass
+
+        based_on = created_at
+        if data.get("based_on_observations_through"):
+            try:
+                based_on = datetime.fromisoformat(data["based_on_observations_through"])
+            except (ValueError, TypeError):
+                pass
+
+        return cls(
+            essence_narrative=data.get("essence_narrative"),
+            temperament=data.get("temperament", []),
+            core_qualities=data.get("core_qualities", []),
+            patterns=patterns,
+            intervention_pathways=intervention_pathways,
+            open_questions=data.get("open_questions", []),
+            created_at=created_at,
+            based_on_observations_through=based_on,
+            version=data.get("version", 1),
+            previous_version_summary=data.get("previous_version_summary"),
+        )
 
 
 # === Message Types ===

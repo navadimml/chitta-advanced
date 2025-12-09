@@ -9,6 +9,20 @@ Key changes:
 2. Simpler descriptions
 3. Clearer examples
 4. More explicit required fields
+
+⚠️  GEMINI FUNCTION CALLING CONSTRAINT ⚠️
+=========================================
+Gemini models (especially Flash) have a schema constraint that causes
+400 INVALID_ARGUMENT errors when schemas have "too much branching".
+
+This happens when you have many optional properties with `"required": []`.
+The error message says: "interspersing required properties into long runs
+of optional properties can alleviate the issue"
+
+SOLUTION: Always include at least ONE required field to anchor the schema.
+For extraction functions, use an `extraction_category` or similar field.
+
+See: https://ai.google.dev/gemini-api/docs/function-calling (schema constraints)
 """
 
 from typing import List, Dict, Any
@@ -30,6 +44,16 @@ Don't wait - extract whatever information is available right now!""",
     "parameters": {
         "type": "object",
         "properties": {
+            # ⚠️ REQUIRED: This field prevents Gemini "too much branching" error
+            # See docstring at top of file for explanation
+            "extraction_category": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["identity", "concerns", "strengths", "context"]
+                },
+                "description": "Categories of information being extracted in this call"
+            },
             "child_name": {
                 "type": "string",
                 "description": "Child's name (leave empty if not mentioned)"
@@ -64,7 +88,8 @@ Don't wait - extract whatever information is available right now!""",
                 "description": "ONLY neutral/positive context: siblings, daycare, typical routines, parent hopes. DO NOT duplicate information already in concerns/strengths/concern_description! If milestone relates to a concern (late speech) → use concern_description, NOT here!"
             }
         },
-        "required": []  # Nothing required - extract what's available
+        # ⚠️ CRITICAL: At least one required field prevents Gemini "too much branching" error
+        "required": ["extraction_category"]
     }
 }
 

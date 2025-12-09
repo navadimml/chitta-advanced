@@ -259,27 +259,131 @@ Generate a beautiful, shareable timeline that shows real developmental growth.""
         family_state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Build developmental timeline events.
-
-        Currently returns MOCK DATA to visualize the ideal end result.
-        Once knowledge graph is implemented, this will pull real longitudinal data.
-
-        Args:
-            family_state: The family state dictionary
-
-        Returns:
-            List of developmental milestone events over time
+        Build developmental timeline events from legacy session data.
+        Kept for backward compatibility.
         """
         extracted = family_state.get("extracted_data", {})
         if not isinstance(extracted, dict):
             extracted = {}
 
         child_name = extracted.get("child_name", "דניאל")
+        return self._build_mock_events(child_name)
 
-        # === MOCK DATA: Ideal timeline showing a child's LIFE ===
-        # Mix of fun moments, discoveries, growth - not just "problems to fix"
-        # This is what parents actually care about and want to remember
-        events = [
+    def build_events_from_gestalt(
+        self,
+        gestalt_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Build timeline events from Living Gestalt data.
+
+        Uses:
+        - stories: Main source of timeline events
+        - journal: Session summaries
+        - facts: Key discoveries about the child
+
+        Args:
+            gestalt_data: The gestalt data from data/children/{family_id}.json
+
+        Returns:
+            List of timeline events
+        """
+        child_name = gestalt_data.get("name", "הילד/ה")
+        events = []
+
+        # Domain to icon/category mapping
+        domain_icons = {
+            "behavioral": ("🎯", "behavior"),
+            "emotional": ("💗", "emotional"),
+            "social": ("👫", "social"),
+            "motor": ("🏃", "motor"),
+            "cognitive": ("🧠", "cognitive"),
+            "language": ("💬", "language"),
+            "sensory": ("👁️", "sensory"),
+            "strengths": ("⭐", "strength"),
+            "family": ("👨‍👩‍👧", "family"),
+            "identity": ("🎈", "identity"),
+        }
+
+        # 1. Build events from stories (main source)
+        stories = gestalt_data.get("stories", [])
+        for story in stories:
+            timestamp = story.get("timestamp", "")
+            if isinstance(timestamp, str) and len(timestamp) >= 10:
+                date_str = timestamp[5:10].replace("-", ".")  # MM.DD format
+            else:
+                date_str = "היום"
+
+            domains = story.get("domains", [])
+            primary_domain = domains[0] if domains else "general"
+            icon, category = domain_icons.get(primary_domain, ("📝", "general"))
+
+            # Build title from reveals
+            reveals = story.get("reveals", [])
+            title = reveals[0] if reveals else "רגע חשוב"
+
+            events.append({
+                "date": date_str,
+                "title": title,
+                "description": story.get("summary", ""),
+                "icon": icon,
+                "category": category
+            })
+
+        # 2. Add key facts as events (filtered to significant ones)
+        understanding = gestalt_data.get("understanding", {})
+        facts = understanding.get("facts", []) if understanding else []
+        for fact in facts:
+            # Only include high-confidence facts about strengths or identity
+            if fact.get("domain") in ["strengths", "identity"] and fact.get("confidence", 0) >= 0.9:
+                timestamp = fact.get("t_created", "")
+                if isinstance(timestamp, str) and len(timestamp) >= 10:
+                    date_str = timestamp[5:10].replace("-", ".")
+                else:
+                    date_str = "היום"
+
+                domain = fact.get("domain", "general")
+                icon, category = domain_icons.get(domain, ("✨", "discovery"))
+
+                events.append({
+                    "date": date_str,
+                    "title": "גילוי חדש" if domain == "strengths" else "הכרנו",
+                    "description": fact.get("content", ""),
+                    "icon": icon,
+                    "category": category
+                })
+
+        # 3. Add journal entries for notable moments
+        journal = gestalt_data.get("journal", [])
+        for entry in journal:
+            if entry.get("significance") in ["notable", "breakthrough"]:
+                timestamp = entry.get("timestamp", "")
+                if isinstance(timestamp, str) and len(timestamp) >= 10:
+                    date_str = timestamp[5:10].replace("-", ".")
+                else:
+                    date_str = "היום"
+
+                learned = entry.get("learned", [])
+                title = "התקדמות!" if entry.get("significance") == "breakthrough" else "שיחה חשובה"
+
+                events.append({
+                    "date": date_str,
+                    "title": title,
+                    "description": entry.get("summary", "") + (f" ({', '.join(learned[:2])})" if learned else ""),
+                    "icon": "🌟" if entry.get("significance") == "breakthrough" else "💭",
+                    "category": "milestone" if entry.get("significance") == "breakthrough" else "session"
+                })
+
+        # If no real events, return mock data
+        if not events:
+            return self._build_mock_events(child_name)
+
+        # Sort by date and limit
+        events.sort(key=lambda e: e.get("date", ""))
+        return events[:10]  # Limit to 10 events for the infographic
+
+    def _build_mock_events(self, child_name: str) -> List[Dict[str, Any]]:
+        """Build mock timeline events for demo purposes."""
+        return [
             {
                 "date": "15.09",
                 "title": "הכרנו!",
@@ -325,7 +429,7 @@ Generate a beautiful, shareable timeline that shows real developmental growth.""
             {
                 "date": "25.10",
                 "title": "עצמאות",
-                "description": "לבש נעליים לבד (על הרגל הלא נכונה 😊)",
+                "description": "לבש נעליים לבד (על הרגל הלא נכונה)",
                 "icon": "👟",
                 "category": "independence"
             },
@@ -337,8 +441,6 @@ Generate a beautiful, shareable timeline that shows real developmental growth.""
                 "category": "sweet"
             },
         ]
-
-        return events
 
 
 # Singleton instance

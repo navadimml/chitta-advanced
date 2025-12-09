@@ -61,6 +61,301 @@ from enum import Enum
 BASE_URL = "http://localhost:8000"
 DEFAULT_OUTPUT_DIR = "/home/shlomi/projects/chitta/chitta-advanced/backend/tests/xray_outputs"
 
+# Add app to path for imports
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+import asyncio
+
+
+# === Parent Simulator (Dynamic LLM-based) ===
+
+class ParentSimulator:
+    """
+    Simulates a realistic parent in conversation with Chitta.
+
+    Instead of using pre-scripted messages, this uses an LLM to generate
+    parent responses dynamically based on:
+    1. The parent's persona (child info, concerns, communication style)
+    2. What Chitta just said/asked
+    3. Conversation history
+
+    This creates more realistic back-and-forth where the parent actually
+    responds to Chitta's questions rather than following a rigid script.
+    """
+
+    def __init__(self, persona: Dict[str, Any], model: str = "gemini-flash-latest"):
+        """
+        Initialize with a parent persona.
+
+        Args:
+            persona: Dict containing child info, concerns, style, secrets, etc.
+            model: Gemini model to use (flash is fast and cheap)
+        """
+        self.persona = persona
+        self.model = model
+        self.conversation_history: List[Dict[str, str]] = []
+        self.revealed_info: List[str] = []  # Track what info has been shared
+        self._provider = None
+
+    def _get_provider(self):
+        """Lazy-load LLM provider using the existing factory"""
+        if self._provider is None:
+            from app.services.llm.factory import create_llm_provider
+            self._provider = create_llm_provider(
+                provider_type="gemini",
+                model=self.model,
+                use_enhanced=False  # Simple text gen, no function calling
+            )
+        return self._provider
+
+    def generate_response(self, chitta_message: str) -> str:
+        """
+        Generate parent's response to what Chitta said.
+
+        Args:
+            chitta_message: What Chitta just said/asked
+
+        Returns:
+            Parent's natural response in Hebrew
+        """
+        # Add Chitta's message to history
+        self.conversation_history.append({
+            "role": "chitta",
+            "content": chitta_message
+        })
+
+        # Build the prompt for the parent simulator
+        prompt = self._build_prompt(chitta_message)
+
+        # Generate response using async provider
+        from app.services.llm.base import Message
+        provider = self._get_provider()
+
+        messages = [
+            Message(role="user", content=prompt)
+        ]
+
+        # Run async chat in sync context
+        response = asyncio.get_event_loop().run_until_complete(
+            provider.chat(messages, temperature=0.7, max_tokens=1000)
+        )
+
+        parent_response = response.content.strip()
+
+        # Add to history
+        self.conversation_history.append({
+            "role": "parent",
+            "content": parent_response
+        })
+
+        return parent_response
+
+    def _build_prompt(self, chitta_message: str) -> str:
+        """Build the prompt for parent response generation"""
+
+        persona = self.persona
+
+        # Format conversation history (last 10 messages)
+        history_text = ""
+        for msg in self.conversation_history[-10:]:
+            role = "צ'יטה" if msg["role"] == "chitta" else "הורה"
+            history_text += f"{role}: {msg['content']}\n\n"
+
+        # Format concerns
+        concerns_text = "\n".join(f"- {c}" for c in persona.get('concerns', []))
+        strengths_text = "\n".join(f"- {s}" for s in persona.get('strengths', []))
+        secrets_text = "\n".join(f"- {s}" for s in persona.get('secrets_to_reveal', []))
+
+        prompt = f"""אתה משחק תפקיד של הורה בשיחה עם צ'יטה, מערכת שעוזרת להורים להבין את ההתפתחות של ילדיהם.
+
+=== פרופיל ההורה שלך ===
+{persona.get('profile_description', '')}
+
+=== מידע על הילד (שאתה יודע אבל לא בהכרח שיתפת עדיין) ===
+שם הילד: {persona.get('child_name', 'לא ידוע')}
+גיל: {persona.get('child_age', 'לא ידוע')}
+מין: {persona.get('child_gender', 'לא ידוע')}
+
+דאגות עיקריות:
+{concerns_text}
+
+חוזקות וכישורים:
+{strengths_text}
+
+היסטוריה התפתחותית:
+{persona.get('developmental_history', 'לא ידוע')}
+
+הקשר משפחתי:
+{persona.get('family_context', 'לא ידוע')}
+
+שגרה יומית:
+{persona.get('daily_routines', 'לא ידוע')}
+
+=== סגנון התקשורת שלך ===
+{persona.get('communication_style', 'טבעי ופתוח')}
+
+=== מידע שעדיין לא שיתפת (תחשוף בהדרגה כשמתאים) ===
+{secrets_text}
+
+=== היסטוריית השיחה ===
+{history_text}
+
+=== הודעה אחרונה של צ'יטה ===
+{chitta_message}
+
+=== הנחיות לתגובה ===
+1. הגב בעברית טבעית, כמו הורה אמיתי
+2. עֲנֵה על השאלה שנשאלת - אל תתעלם ממה שצ'יטה שואלת
+3. תן מידע רלוונטי לפי הפרופיל שלך
+4. אפשר להוסיף מידע נוסף מתוך "הסודות" אם זה מתאים לזרימת השיחה
+5. שמור על הסגנון שהוגדר (מפוזר/ממוקד/רגשי/עניני וכו')
+6. אם צ'יטה מבקשת אישור לפעולה כלשהי (כמו צילום), הגב בהתאם לאופי שלך
+7. התגובה צריכה להיות קצרה וטבעית (1-3 משפטים בדרך כלל)
+8. אל תחזור על מידע שכבר נאמר אלא אם נשאלת עליו ישירות
+
+כתוב רק את התגובה של ההורה, ללא הסברים או תוספות:"""
+
+        return prompt
+
+
+# === Parent Personas for Dynamic Simulation ===
+
+PARENT_PERSONAS = {
+    "scattered_worried_mom": {
+        "profile_description": """
+אמא מודאגת שנוטה לקפוץ בין נושאים. היא באה עם המלצה מחברה.
+לפעמים היא מפקפקת בעצמה ותוהה אם היא מגזימה.
+היא רוצה את הטוב ביותר לילד שלה אבל לא בטוחה מה הבעיה בדיוק.
+""",
+        "child_name": "יואב",
+        "child_age": "4",
+        "child_gender": "male",
+        "concerns": [
+            "הוא שונה מילדים אחרים בגן - לא משחק איתם",
+            "בבוקר קשה מאוד להוציא אותו מהבית",
+            "עושה סצנות כשצריך לכבות טלוויזיה",
+            "יושב לבד בגן, לא מתעניין בחברים",
+            "רגיש לרעשים חזקים",
+        ],
+        "strengths": [
+            "מאוד חכם - יודע את כל הדינוזאורים והכוכבים",
+            "יכול לשבת שעות עם ספרים על חלל",
+            "משחק יפה אחד-על-אחד עם ילדה אחת מהשכונה",
+            "כשיש לוח זמנים קבוע הוא הרבה יותר רגוע",
+        ],
+        "developmental_history": "התפתחות תקינה. התחיל לדבר בזמן.",
+        "family_context": "משפחה תומכת. יש לו אחות קטנה.",
+        "daily_routines": "בוקר קשה מאוד. שבת הכי קשה כי אין שגרה.",
+        "communication_style": """
+מפוזרת קצת - קופצת בין נושאים.
+לפעמים מפקפקת בעצמה ("אולי אני מגזימה?").
+רגשית אבל משתדלת להיות עניינית.
+כשמגלה תובנה חדשה אומרת "עכשיו שאני חושבת על זה..."
+""",
+        "secrets_to_reveal": [
+            "כשהוא רוצה משהו, הוא כן עובר מעברים בלי בעיה (סתירה לבעיית המעברים)",
+            "הרעש בגן כנראה מציק לו מאוד - רק עכשיו היא מבינה את הקשר",
+            "הוא דווקא משחק טוב עם ילדה אחת ספציפית, רק לא בקבוצה",
+            "מוכנה לצלם אותו בבוקר כשצריך לצאת מהבית",
+        ],
+    },
+
+    "focused_dad": {
+        "profile_description": """
+אבא ממוקד ועניני. מגיע מוכן עם רשימה של דברים שהוא רוצה לבדוק.
+מעדיף לקבל תשובות ברורות ותוכנית פעולה.
+פחות רגשי, יותר פרקטי.
+""",
+        "child_name": "דניאל",
+        "child_age": "3",
+        "child_gender": "male",
+        "concerns": [
+            "לא מדבר - רק כמה מילים בודדות",
+            "מבין הכל אבל לא משתמש בשפה",
+            "לא עונה לשם תמיד",
+        ],
+        "strengths": [
+            "מבין הוראות מורכבות",
+            "טוב מאוד עם פאזלים ומשחקי בנייה",
+            "יודע להשתמש בטאבלט בצורה מתקדמת",
+        ],
+        "developmental_history": "התפתחות מוטורית תקינה. הליכה בגיל שנה.",
+        "family_context": "בן יחיד. שני הורים עובדים.",
+        "daily_routines": "בגן מ-8 עד 16. ערב עם ההורים.",
+        "communication_style": """
+עניני וממוקד. שואל שאלות ישירות.
+לא אוהב לבזבז זמן. מצפה לתשובות ברורות.
+""",
+        "secrets_to_reveal": [
+            "קלינאית תקשורת אמרה להמתין עוד חצי שנה",
+            "הוא כן אומר 'אמא' ו'אבא' ו'עוד' ו'לא'",
+            "מתקשר היטב עם הכלב המשפחתי",
+        ],
+    },
+
+    "emotional_mom_motor": {
+        "profile_description": """
+אמא רגשית שמודאגת מאוד מהתפתחות מוטורית של הבת.
+קשה לה לראות את הבת שלה מתקשה בדברים שילדים אחרים עושים בקלות.
+מחפשת הרבה תמיכה והבנה.
+""",
+        "child_name": "מאיה",
+        "child_age": "3.5",
+        "child_gender": "female",
+        "concerns": [
+            "נופלת הרבה, קשה לה עם מדרגות",
+            "לפעמים נראית מסתובבת בלי מטרה",
+            "מתעייפת מהר בפעילות גופנית",
+            "קשה לה להתלבש לבד",
+        ],
+        "strengths": [
+            "מאוד חברותית - אוהבת ילדים",
+            "מדברת יפה מאוד לגילה",
+            "יצירתית - אוהבת לצייר ולשיר",
+        ],
+        "developmental_history": "התחילה ללכת מאוחר (17 חודש). תמיד היתה קצת מסורבלת.",
+        "family_context": "אח גדול בן 7 שמאוד ספורטיבי. השוואה קשה.",
+        "daily_routines": "צהרון קצר. אחר הצהריים בבית.",
+        "communication_style": """
+רגשית מאוד. לפעמים דומעת כשמספרת.
+מחפשת אמפתיה והבנה לפני פתרונות.
+""",
+        "secrets_to_reveal": [
+            "קשה לה להסביר את הבעיה במילים - צריך לראות",
+            "האח הגדול לפעמים מתעלם ממנה כי היא 'איטית'",
+            "הגננת הציעה בדיקה אצל מרפאה בעיסוק",
+        ],
+    },
+
+    "quick_test_parent": {
+        "profile_description": """
+הורה פשוט שמגיע עם שאלה ספציפית על דיבור.
+עונה ענייני ולעניין.
+""",
+        "child_name": "דניאל",
+        "child_age": "3",
+        "child_gender": "male",
+        "concerns": [
+            "לא מדבר עדיין, רק כמה מילים",
+            "מבין הכל אבל לא אומר",
+        ],
+        "strengths": [
+            "מבין שפה טוב",
+            "חכם",
+        ],
+        "developmental_history": "התפתחות מוטורית תקינה",
+        "family_context": "משפחה רגילה",
+        "daily_routines": "הולך לגן",
+        "communication_style": "ישיר וענייני",
+        "secrets_to_reveal": [],
+    },
+}
+
 
 # === Event Types ===
 
@@ -326,9 +621,8 @@ class ChittaXRayTest:
     def init_conversation(self, turn: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Initialize conversation and get Chitta's greeting (Turn 0)"""
         try:
-            resp = requests.post(
+            resp = requests.get(
                 f"{self.base_url}/api/chat/v2/init/{self.family_id}",
-                json={},
                 timeout=60
             )
             if resp.status_code == 200:
@@ -739,27 +1033,27 @@ class ChittaXRayTest:
 
         return snapshot
 
-    def run_turn_zero(self) -> Optional[TurnSnapshot]:
-        """Run Turn 0: Initialize conversation and capture Chitta's greeting"""
+    def run_turn_one_greeting(self) -> Optional[TurnSnapshot]:
+        """Run Turn 1: Initialize conversation and capture Chitta's greeting"""
         ts = datetime.now().isoformat()
 
         # Initialize conversation to get Chitta's greeting
-        init_data = self.init_conversation()
+        init_data = self.init_conversation(turn=1)
         if not init_data:
-            print("Warning: Failed to initialize conversation, skipping Turn 0")
+            print("Warning: Failed to initialize conversation, skipping Turn 1")
             return None
 
         chitta_greeting = init_data.get("greeting", init_data.get("response", ""))
         ui_data = init_data.get("ui_data", {})
 
         # Get initial gestalt data
-        gestalt_data = self.get_child_gestalt() or {}
+        gestalt_data = self.get_child_gestalt(turn=1) or {}
 
-        # Create Turn 0 event
+        # Create Turn 1 event
         events = [
             TimelineEvent(
                 timestamp=ts,
-                turn=0,
+                turn=1,
                 event_type=EventType.MESSAGE_RECEIVED,
                 category="conversation",
                 summary=f"Chitta (greeting): {chitta_greeting[:50]}...",
@@ -768,9 +1062,9 @@ class ChittaXRayTest:
         ]
 
         snapshot = TurnSnapshot(
-            turn=0,
+            turn=1,
             timestamp=ts,
-            parent_message="[Session Initialized]",
+            parent_message="[Session Started]",
             chitta_response=chitta_greeting,
             events=events,
             child_profile={},
@@ -812,21 +1106,27 @@ class ChittaXRayTest:
         print(f"Scenario: {scenario_name}")
         print(f"{'='*80}\n")
 
-        # === Turn 0: Chitta's greeting ===
-        print(f"\n--- Turn 0: Chitta's Greeting ---")
-        turn0_snapshot = self.run_turn_zero()
-        if turn0_snapshot:
-            print(f"Chitta: {turn0_snapshot.chitta_response[:200]}...")
-            print(f"\n[Turn 0 captured - initial greeting]")
+        # === Turn 1: Chitta's greeting ===
+        print(f"\n--- Turn 1 [Chitta] ---")
+        turn1_snapshot = self.run_turn_one_greeting()
+        if turn1_snapshot:
+            print(f"{turn1_snapshot.chitta_response[:200]}...")
         time.sleep(0.5)
 
-        for i, (context, message) in enumerate(messages, 1):
-            print(f"\n--- Turn {i}: {context} ---")
-            print(f"Parent: {message}")
+        current_turn = 2  # Next turn number
 
-            snapshot = self.run_turn(i, message, context)
+        # Each parent message is a turn, each Chitta response is a turn
+        for context, message in messages:
+            # Parent's turn
+            print(f"\n--- Turn {current_turn} [Parent]: {context} ---")
+            print(f"{message}")
+            current_turn += 1
 
-            print(f"Chitta: {snapshot.chitta_response[:200]}...")
+            # Chitta's turn (response)
+            print(f"\n--- Turn {current_turn} [Chitta] ---")
+            snapshot = self.run_turn(current_turn, message, context)
+            print(f"{snapshot.chitta_response[:200]}...")
+
             print(f"\nEvents detected: {len(snapshot.events)}")
             for event in snapshot.events:
                 if event.category != "conversation":
@@ -842,12 +1142,13 @@ class ChittaXRayTest:
                 if qualities:
                     print(f"  Gestalt: core_qualities={qualities[:2]}...")
 
-            # Wait longer for background reflection to process (runs every 3 turns for testing)
-            # Reflection is async and may not complete in 0.5s
-            if i % 3 == 0:
-                time.sleep(3)  # Allow reflection to complete after every 3 turns
+            current_turn += 1
+
+            # Wait longer for background reflection to process
+            if current_turn % 6 == 0:  # Every 3 exchanges (6 turns)
+                time.sleep(3)
             else:
-                time.sleep(1)  # Brief pause between other turns
+                time.sleep(1)
 
         # Capture final state
         child_data = self.get_child_data() or {}
@@ -878,6 +1179,140 @@ class ChittaXRayTest:
             self.report.cycles_completed = completed_cycles
             self.report.hypotheses_resolved = resolved_hypotheses
         # If final_cycles is empty, keep the event-based counts that were accumulated during the test
+
+        return self.report
+
+    def run_dynamic_scenario(
+        self,
+        persona_name: str,
+        max_turns: int = 20,
+        stop_on_artifact: bool = True
+    ) -> XRayReport:
+        """
+        Run a dynamic scenario with LLM-simulated parent responses.
+
+        Instead of pre-scripted messages, the parent simulator generates
+        realistic responses based on what Chitta asks.
+
+        Args:
+            persona_name: Key from PARENT_PERSONAS dict
+            max_turns: Maximum conversation turns before stopping
+            stop_on_artifact: Stop when video_guidelines artifact is created
+
+        Returns:
+            XRayReport with full timeline
+        """
+        if persona_name not in PARENT_PERSONAS:
+            raise ValueError(f"Unknown persona: {persona_name}. "
+                           f"Available: {list(PARENT_PERSONAS.keys())}")
+
+        persona = PARENT_PERSONAS[persona_name]
+        simulator = ParentSimulator(persona)
+
+        self.report.scenario_name = f"dynamic_{persona_name}"
+
+        print(f"\n{'='*80}")
+        print(f"  CHITTA TEMPORAL DESIGN X-RAY TEST (DYNAMIC)")
+        print(f"{'='*80}")
+        print(f"Session ID: {self.session_id}")
+        print(f"Family ID: {self.family_id}")
+        print(f"Persona: {persona_name}")
+        print(f"Child: {persona.get('child_name', '?')}, {persona.get('child_age', '?')} years old")
+        print(f"Max turns: {max_turns}")
+        print(f"{'='*80}\n")
+
+        # === Turn 1: Chitta's greeting ===
+        print(f"\n--- Turn 1 [Chitta] ---")
+        turn1_snapshot = self.run_turn_one_greeting()
+        chitta_greeting = ""
+        if turn1_snapshot:
+            chitta_greeting = turn1_snapshot.chitta_response
+            print(f"{chitta_greeting[:200]}...")
+        time.sleep(0.5)
+
+        current_turn = 2  # Next turn number
+        artifact_created = False
+
+        while current_turn <= max_turns:
+            # Generate parent response to Chitta's last message
+            last_chitta_message = chitta_greeting if current_turn == 2 else snapshot.chitta_response
+
+            print(f"\n--- Turn {current_turn} [Parent - Dynamic] ---")
+            try:
+                parent_message = simulator.generate_response(last_chitta_message)
+                print(f"🗣️  {parent_message}")
+            except Exception as e:
+                print(f"❌ Error generating parent response: {e}")
+                break
+
+            current_turn += 1
+
+            # Chitta's turn (response)
+            print(f"\n--- Turn {current_turn} [Chitta] ---")
+            snapshot = self.run_turn(current_turn, parent_message, "Dynamic response")
+
+            # Truncate for display
+            chitta_display = snapshot.chitta_response[:300]
+            if len(snapshot.chitta_response) > 300:
+                chitta_display += "..."
+            print(f"🤖 {chitta_display}")
+
+            # Show events
+            print(f"\nEvents: {len(snapshot.events)}")
+            for event in snapshot.events:
+                if event.category != "conversation":
+                    print(f"  - [{event.category}] {event.summary}")
+                    # Check for artifact creation
+                    if "artifact" in event.event_type.lower() and "video_guidelines" in event.summary.lower():
+                        artifact_created = True
+
+            print(f"\nState: Completeness={snapshot.completeness:.1f}%, "
+                  f"Cycles={snapshot.active_cycles_count}, "
+                  f"Hypotheses={snapshot.hypotheses_count}")
+
+            current_turn += 1
+
+            # Stop conditions
+            if stop_on_artifact and artifact_created:
+                print(f"\n✅ Video guidelines artifact created - stopping")
+                break
+
+            # Wait for processing
+            if current_turn % 6 == 0:
+                time.sleep(3)
+            else:
+                time.sleep(1)
+
+        # Capture final state
+        child_data = self.get_child_data() or {}
+        self.report.final_child_profile = child_data.get("developmental_data", {})
+        self.report.final_cycles = child_data.get("exploration_cycles", [])
+        self.report.final_patterns = child_data.get("understanding", {}).get("patterns", [])
+
+        # Update counts from final state
+        final_cycles = child_data.get("exploration_cycles", [])
+        if final_cycles:
+            self.report.cycles_created = len(final_cycles)
+            total_hypotheses = 0
+            completed_cycles = 0
+            resolved_hypotheses = 0
+            for cycle in final_cycles:
+                hypotheses = cycle.get("hypotheses", [])
+                total_hypotheses += len(hypotheses)
+                if cycle.get("status") == "complete":
+                    completed_cycles += 1
+                for hyp in hypotheses:
+                    if hyp.get("status") == "resolved":
+                        resolved_hypotheses += 1
+            self.report.hypotheses_formed = total_hypotheses
+            self.report.cycles_completed = completed_cycles
+            self.report.hypotheses_resolved = resolved_hypotheses
+
+        print(f"\n{'='*80}")
+        print(f"  DYNAMIC SCENARIO COMPLETE")
+        print(f"{'='*80}")
+        print(f"Total turns: {current_turn - 1}")
+        print(f"Artifact created: {artifact_created}")
 
         return self.report
 
@@ -1967,10 +2402,11 @@ class ChittaXRayTest:
             for event in pattern_tools[:2]:
                 args = event.details.get("arguments", {})
                 theme = args.get("theme", args.get("pattern", ""))
-                if len(theme) > 46:
-                    theme = theme[:43] + "..."
+                if len(theme) > 40:
+                    theme = theme[:37] + "..."
                 if theme:
-                    lines.append(f"│ • \"{theme}\"{'':>{44 - len(theme)}}│")
+                    padding = max(0, 44 - len(theme))
+                    lines.append(f"│ • \"{theme}\"{' ' * padding}│")
             lines.append(f"└{'─' * 24}┬{'─' * 25}┘")
             lines.append(f"                         ▼")
 
@@ -3221,14 +3657,14 @@ class ChittaXRayTest:
             <div class="meta">
                 <span>📋 Session: {self.report.session_id}</span>
                 <span>👨‍👩‍👧 Family: {self.report.family_id}</span>
-                <span>🕐 {self.report.generated_at.strftime('%Y-%m-%d %H:%M') if self.report.generated_at else 'N/A'}</span>
-                <span>🎭 Scenario: {self.report.scenario}</span>
+                <span>🕐 {self.report.generated_at[:16].replace('T', ' ') if self.report.generated_at else 'N/A'}</span>
+                <span>🎭 Scenario: {self.report.scenario_name}</span>
             </div>
         </header>
 
         <div class="stats-bar">
             <div class="stat-card">
-                <div class="stat-value">{self.report.total_turns}</div>
+                <div class="stat-value">{len(self.report.turns)}</div>
                 <div class="stat-label">Total Turns</div>
             </div>
             <div class="stat-card">
@@ -3533,7 +3969,7 @@ class ChittaXRayTest:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = os.path.join(
                 self.output_dir,
-                f"xray_{self.report.scenario}_{timestamp}.html"
+                f"xray_{self.report.scenario_name}_{timestamp}.html"
             )
 
         html_content = self._generate_html_dashboard()
@@ -3611,20 +4047,46 @@ SCENARIOS = {
 
 def main():
     parser = argparse.ArgumentParser(description="Chitta Temporal Design X-Ray Test")
-    parser.add_argument("--scenario", default="scattered_parent",
+
+    # Mutually exclusive: either --scenario (scripted) or --persona (dynamic)
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument("--scenario", default=None,
                         choices=list(SCENARIOS.keys()),
-                        help="Scenario to run")
+                        help="Run a scripted scenario (pre-defined messages)")
+    mode_group.add_argument("--persona", default=None,
+                        choices=list(PARENT_PERSONAS.keys()),
+                        help="Run a dynamic scenario with LLM-simulated parent")
+
+    parser.add_argument("--max-turns", type=int, default=30,
+                        help="Maximum turns for dynamic scenarios (default: 30)")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR,
                         help="Output directory for reports")
     parser.add_argument("--base-url", default=BASE_URL,
                         help="Base URL for Chitta API")
     args = parser.parse_args()
 
+    # Default to scripted scattered_parent if nothing specified
+    if args.scenario is None and args.persona is None:
+        args.scenario = "scattered_parent"
+
     # Run test
     tester = ChittaXRayTest(base_url=args.base_url, output_dir=args.output_dir)
-    messages = SCENARIOS[args.scenario]
 
-    report = tester.run_scenario(args.scenario, messages)
+    if args.persona:
+        # Dynamic scenario with LLM-simulated parent
+        print(f"\n🤖 Running DYNAMIC scenario with persona: {args.persona}")
+        print(f"   (Parent responses generated by LLM based on conversation context)")
+        report = tester.run_dynamic_scenario(
+            persona_name=args.persona,
+            max_turns=args.max_turns,
+            stop_on_artifact=True
+        )
+    else:
+        # Scripted scenario with pre-defined messages
+        print(f"\n📜 Running SCRIPTED scenario: {args.scenario}")
+        messages = SCENARIOS[args.scenario]
+        report = tester.run_scenario(args.scenario, messages)
+
     paths = tester.save_report()
 
     print(f"\n{'='*80}")
@@ -3639,6 +4101,7 @@ def main():
     print(f"\nFiles saved:")
     print(f"  - JSON: {paths['json']}")
     print(f"  - Markdown: {paths['markdown']}")
+    print(f"  - HTML: {paths['html']}")
 
 
 if __name__ == "__main__":

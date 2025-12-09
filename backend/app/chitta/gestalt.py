@@ -43,6 +43,7 @@ from .models import (
     Response,
     SynthesisReport,
     Message,
+    Crystal,
     parse_temporal,
 )
 from .formatting import (
@@ -51,6 +52,7 @@ from .formatting import (
     format_cycles,
     format_extraction_summary,
     format_turn_guidance,
+    format_crystal,
     build_identity_section,
     build_extraction_tools_description,
     build_response_language_instruction,
@@ -89,6 +91,7 @@ class LivingGestalt:
         journal: List[JournalEntry],
         curiosity_engine: CuriosityEngine,
         session_history: List[Message],
+        crystal: Optional[Crystal] = None,
     ):
         """
         Initialize the Living Gestalt.
@@ -102,6 +105,7 @@ class LivingGestalt:
             journal: Journal entries
             curiosity_engine: The curiosity engine
             session_history: Recent conversation history
+            crystal: Cached synthesis (patterns, essence, pathways)
         """
         self.child_id = child_id
         self.child_name = child_name
@@ -111,6 +115,7 @@ class LivingGestalt:
         self.journal = journal
         self._curiosity_engine = curiosity_engine
         self.session_history = session_history
+        self.crystal = crystal
 
         # Lazy-loaded LLM providers
         self._llm = None
@@ -178,11 +183,46 @@ class LivingGestalt:
         if len(self.session_history) > 20:
             self.session_history = self.session_history[-20:]
 
+        # Determine if crystallization should be triggered
+        should_crystallize = self._should_trigger_crystallization(extraction_result.tool_calls)
+
         return Response(
             text=response_text,
             curiosities=self.get_active_curiosities(),
             open_questions=self._curiosity_engine.get_gaps(),
+            should_crystallize=should_crystallize,
         )
+
+    def _should_trigger_crystallization(self, tool_calls: List[ToolCall]) -> bool:
+        """
+        Determine if this turn's learnings warrant background crystallization.
+
+        Important moments that trigger crystallization:
+        - Story captured (stories are GOLD)
+        - Hypothesis created or spawned exploration
+        - Significant evidence added
+
+        We don't crystallize on every turn - only on meaningful learning.
+        """
+        if not tool_calls:
+            return False
+
+        important_tools = {"capture_story", "spawn_exploration"}
+        has_important = any(tc.name in important_tools for tc in tool_calls)
+
+        # Check for hypothesis creation via wonder
+        has_hypothesis = any(
+            tc.name == "wonder" and tc.args.get("type") == "hypothesis"
+            for tc in tool_calls
+        )
+
+        # Check for significant evidence (supports or contradicts)
+        has_significant_evidence = any(
+            tc.name == "add_evidence" and tc.args.get("effect") in ("supports", "contradicts")
+            for tc in tool_calls
+        )
+
+        return has_important or has_hypothesis or has_significant_evidence
 
     def get_active_curiosities(self) -> List[Curiosity]:
         """What am I curious about right now?"""
@@ -312,12 +352,21 @@ class LivingGestalt:
         """
         child_name = self.child_name or "THIS CHILD"
 
+        # Include Crystal if available - provides holistic understanding
+        crystal_section = ""
+        if self.crystal:
+            crystal_section = f"""
+## HOLISTIC UNDERSTANDING (Crystal)
+
+{format_crystal(self.crystal)}
+"""
+
         return f"""
 # CHITTA - Extraction Phase
 
 You are Chitta, an expert developmental psychologist (0.5-18 years).
 You are perceiving what a parent shared and extracting relevant information.
-
+{crystal_section}
 ## WHAT I KNOW ABOUT {child_name}
 
 {format_understanding(context.understanding)}
@@ -354,8 +403,18 @@ Read the parent's message and extract what's relevant:
         Build prompt for Phase 2 (response).
 
         Turn-specific guidance is computed based on what was extracted.
+        Crystal provides holistic context for more insightful responses.
         """
         child_name = self.child_name or "THIS CHILD"
+
+        # Include Crystal if available - provides holistic understanding
+        crystal_section = ""
+        if self.crystal:
+            crystal_section = f"""
+## HOLISTIC UNDERSTANDING (Crystal)
+
+{format_crystal(self.crystal)}
+"""
 
         # Compute guidance from extraction
         captured_story = any(tc.name == "capture_story" for tc in extraction.tool_calls)
@@ -376,7 +435,7 @@ You are Chitta, an expert developmental psychologist (0.5-18 years).
 You are responding to what the parent shared.
 
 {build_identity_section()}
-
+{crystal_section}
 ## WHAT I KNOW ABOUT {child_name}
 
 {format_understanding(context.understanding)}
@@ -395,6 +454,7 @@ You are responding to what the parent shared.
 - Stories are GOLD - honor what was shared
 - One question at a time, if any
 - Follow the flow, don't force agenda
+- Use the holistic understanding (Crystal) to connect what's shared to patterns
 
 RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 """
@@ -620,15 +680,90 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
     # STATE ACCESS
     # ========================================
 
+    def get_latest_observation_timestamp(self) -> datetime:
+        """
+        Get the timestamp of the most recent observation.
+
+        Scans all facts, stories, and evidence to find the newest timestamp.
+        Used for Crystal staleness detection.
+        """
+        timestamps = []
+
+        # Facts
+        for fact in self.understanding.facts:
+            if hasattr(fact, 't_created') and fact.t_created:
+                timestamps.append(fact.t_created)
+
+        # Stories
+        for story in self.stories:
+            if hasattr(story, 'timestamp') and story.timestamp:
+                timestamps.append(story.timestamp)
+
+        # Evidence in exploration cycles
+        for cycle in self.exploration_cycles:
+            for evidence in cycle.evidence:
+                if hasattr(evidence, 'timestamp') and evidence.timestamp:
+                    timestamps.append(evidence.timestamp)
+
+        # Return the most recent, or now if no observations yet
+        if timestamps:
+            return max(timestamps)
+        return datetime.now()
+
+    def get_observations_since(self, since: datetime) -> Dict[str, Any]:
+        """
+        Get all observations made since a given timestamp.
+
+        Used for incremental Crystal updates - we only need to process
+        what's new since the last crystallization.
+        """
+        new_facts = [
+            f for f in self.understanding.facts
+            if hasattr(f, 't_created') and f.t_created and f.t_created > since
+        ]
+
+        new_stories = [
+            s for s in self.stories
+            if hasattr(s, 'timestamp') and s.timestamp and s.timestamp > since
+        ]
+
+        new_evidence = []
+        for cycle in self.exploration_cycles:
+            for evidence in cycle.evidence:
+                if hasattr(evidence, 'timestamp') and evidence.timestamp and evidence.timestamp > since:
+                    new_evidence.append({
+                        "cycle_focus": cycle.focus,
+                        "evidence": evidence,
+                    })
+
+        return {
+            "facts": new_facts,
+            "stories": new_stories,
+            "evidence": new_evidence,
+        }
+
+    def is_crystal_stale(self) -> bool:
+        """Check if the cached Crystal is stale and needs updating."""
+        if not self.crystal:
+            return True
+        latest = self.get_latest_observation_timestamp()
+        return self.crystal.is_stale(latest)
+
     def get_state_for_persistence(self) -> Dict[str, Any]:
         """Get state for persistence."""
-        return {
+        state = {
             "curiosity_engine": self._curiosity_engine.to_dict(),
             "session_history": [
                 {"role": m.role, "content": m.content, "timestamp": m.timestamp.isoformat()}
                 for m in self.session_history
             ],
         }
+
+        # Include crystal if present
+        if self.crystal:
+            state["crystal"] = self.crystal.to_dict()
+
+        return state
 
     @classmethod
     def from_child_data(
@@ -641,6 +776,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         journal_data: Optional[List[Dict]] = None,
         curiosity_data: Optional[Dict] = None,
         session_history_data: Optional[List[Dict]] = None,
+        crystal_data: Optional[Dict] = None,
     ) -> "LivingGestalt":
         """
         Create a LivingGestalt from persisted child data.
@@ -759,6 +895,11 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 )
                 session_history.append(msg)
 
+        # Build crystal (cached synthesis)
+        crystal = None
+        if crystal_data:
+            crystal = Crystal.from_dict(crystal_data)
+
         return cls(
             child_id=child_id,
             child_name=child_name,
@@ -768,4 +909,5 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             journal=journal,
             curiosity_engine=curiosity_engine,
             session_history=session_history,
+            crystal=crystal,
         )

@@ -691,7 +691,7 @@ if cycle.check_closure_triggers():  # confidence > 90%?
 ---
 
 *Document Version: 1.2*
-*Last Updated: December 2024*
+*Last Updated: December 2025*
 *Changes:*
 - *v1.2: Added "One Domain = One Cycle" section, expanded "Video as Evidence" with implementation details*
 - *v1.1: Added cycle closure model (evidence-driven, no parent confirmation)*

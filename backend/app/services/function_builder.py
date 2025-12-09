@@ -8,6 +8,20 @@ for intent detection, loading descriptions and examples from i18n.
 The framework layer (this file) knows HOW to build functions.
 The domain layer (extraction_schema.yaml) defines WHAT fields exist.
 The language layer (i18n) provides the actual text.
+
+⚠️  GEMINI FUNCTION CALLING CONSTRAINT ⚠️
+=========================================
+Gemini models (especially Flash) have a schema constraint that causes
+400 INVALID_ARGUMENT errors when schemas have "too much branching".
+
+This happens when you have many optional properties with `"required": []`.
+The error message says: "interspersing required properties into long runs
+of optional properties can alleviate the issue"
+
+SOLUTION: Always include at least ONE required field to anchor the schema.
+For extraction functions, use an `extraction_category` or similar field.
+
+See: https://ai.google.dev/gemini-api/docs/function-calling (schema constraints)
 """
 
 import logging
@@ -93,6 +107,17 @@ class FunctionBuilder:
         # Build properties from schema + i18n descriptions
         properties = {}
 
+        # ⚠️ REQUIRED: This field prevents Gemini "too much branching" error
+        # See docstring at top of file for explanation
+        properties["extraction_category"] = {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": ["identity", "concerns", "strengths", "history", "family", "routines", "goals", "safety"]
+            },
+            "description": "Categories of information being extracted in this call"
+        }
+
         # Basic fields
         if extraction_fields.get("child_name"):
             properties["child_name"] = {
@@ -171,7 +196,8 @@ Set to "report_only" if parent DECLINES: {negative}
             "parameters": {
                 "type": "object",
                 "properties": properties,
-                "required": []
+                # ⚠️ CRITICAL: At least one required field prevents Gemini "too much branching" error
+                "required": ["extraction_category"]
             }
         }
 

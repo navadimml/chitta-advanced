@@ -23,6 +23,9 @@ from .models import (
     ConversationMemory,
     Story,
     ExplorationCycle,
+    Crystal,
+    InterventionPathway,
+    TemporalFact,
 )
 from .curiosity import CuriosityEngine
 
@@ -444,6 +447,557 @@ Keep it to 2-3 sentences focusing on what matters most.
             patterns=patterns,
             confidence_by_domain=confidence_by_domain,
             open_questions=open_questions,
+        )
+
+    # ========================================
+    # CRYSTALLIZATION - Cached Synthesis
+    # ========================================
+
+    async def crystallize(
+        self,
+        child_name: Optional[str],
+        understanding: Understanding,
+        exploration_cycles: List[ExplorationCycle],
+        stories: List[Story],
+        curiosity_engine: CuriosityEngine,
+        latest_observation_at: datetime,
+        existing_crystal: Optional[Crystal] = None,
+    ) -> Crystal:
+        """
+        Create or update a Crystal (cached synthesis).
+
+        If existing_crystal is provided and stale, performs INCREMENTAL update:
+        - Sends previous crystal + new observations
+        - LLM updates rather than regenerates from scratch
+
+        Uses STRONGEST model.
+
+        Args:
+            child_name: Name of the child
+            understanding: Current understanding (facts, patterns)
+            exploration_cycles: Active and completed exploration cycles
+            stories: Captured stories
+            curiosity_engine: The curiosity engine for open questions
+            latest_observation_at: Timestamp of most recent observation
+            existing_crystal: Previous crystal if available (for incremental update)
+
+        Returns:
+            Crystal: New or updated crystal
+        """
+        # Determine if this is incremental or fresh
+        is_incremental = (
+            existing_crystal is not None and
+            existing_crystal.is_stale(latest_observation_at)
+        )
+
+        if is_incremental:
+            return await self._incremental_crystallize(
+                child_name=child_name,
+                understanding=understanding,
+                exploration_cycles=exploration_cycles,
+                stories=stories,
+                curiosity_engine=curiosity_engine,
+                latest_observation_at=latest_observation_at,
+                existing_crystal=existing_crystal,
+            )
+        else:
+            return await self._fresh_crystallize(
+                child_name=child_name,
+                understanding=understanding,
+                exploration_cycles=exploration_cycles,
+                stories=stories,
+                curiosity_engine=curiosity_engine,
+                latest_observation_at=latest_observation_at,
+            )
+
+    async def _fresh_crystallize(
+        self,
+        child_name: Optional[str],
+        understanding: Understanding,
+        exploration_cycles: List[ExplorationCycle],
+        stories: List[Story],
+        curiosity_engine: CuriosityEngine,
+        latest_observation_at: datetime,
+    ) -> Crystal:
+        """Create a fresh crystal from all observations."""
+        prompt = self._build_crystallization_prompt(
+            child_name=child_name,
+            understanding=understanding,
+            exploration_cycles=exploration_cycles,
+            stories=stories,
+            curiosity_engine=curiosity_engine,
+            is_incremental=False,
+            previous_crystal=None,
+            new_observations=None,
+        )
+
+        try:
+            llm = self._get_strongest_llm()
+            response = await llm.chat(
+                messages=[
+                    LLMMessage(role="system", content=prompt),
+                    LLMMessage(role="user", content="Please create a crystal synthesis of understanding for this child."),
+                ],
+                functions=None,
+                temperature=0.3,
+                max_tokens=6000,
+            )
+
+            crystal = self._parse_crystal_response(
+                response_text=response.content,
+                latest_observation_at=latest_observation_at,
+                version=1,
+            )
+            return crystal
+
+        except Exception as e:
+            logger.error(f"Fresh crystallization error: {e}")
+            return self._create_fallback_crystal(
+                understanding=understanding,
+                curiosity_engine=curiosity_engine,
+                latest_observation_at=latest_observation_at,
+            )
+
+    async def _incremental_crystallize(
+        self,
+        child_name: Optional[str],
+        understanding: Understanding,
+        exploration_cycles: List[ExplorationCycle],
+        stories: List[Story],
+        curiosity_engine: CuriosityEngine,
+        latest_observation_at: datetime,
+        existing_crystal: Crystal,
+    ) -> Crystal:
+        """
+        Update an existing crystal with new observations.
+
+        This is more efficient than fresh crystallization because:
+        1. We send the previous crystal as context
+        2. We only include observations since the last crystallization
+        3. The LLM updates rather than regenerates
+        """
+        # Get only new observations since last crystal
+        new_facts = [
+            f for f in understanding.facts
+            if hasattr(f, 't_created') and f.t_created and f.t_created > existing_crystal.based_on_observations_through
+        ]
+        new_stories = [
+            s for s in stories
+            if hasattr(s, 'timestamp') and s.timestamp and s.timestamp > existing_crystal.based_on_observations_through
+        ]
+
+        new_observations = {
+            "facts": new_facts,
+            "stories": new_stories,
+            "fact_count": len(new_facts),
+            "story_count": len(new_stories),
+        }
+
+        prompt = self._build_crystallization_prompt(
+            child_name=child_name,
+            understanding=understanding,
+            exploration_cycles=exploration_cycles,
+            stories=stories,
+            curiosity_engine=curiosity_engine,
+            is_incremental=True,
+            previous_crystal=existing_crystal,
+            new_observations=new_observations,
+        )
+
+        try:
+            llm = self._get_strongest_llm()
+            response = await llm.chat(
+                messages=[
+                    LLMMessage(role="system", content=prompt),
+                    LLMMessage(role="user", content="Please update the crystal with the new observations."),
+                ],
+                functions=None,
+                temperature=0.3,
+                max_tokens=6000,
+            )
+
+            crystal = self._parse_crystal_response(
+                response_text=response.content,
+                latest_observation_at=latest_observation_at,
+                version=existing_crystal.version + 1,
+                previous_version_summary=f"Updated with {len(new_facts)} new facts, {len(new_stories)} new stories",
+            )
+            return crystal
+
+        except Exception as e:
+            logger.error(f"Incremental crystallization error: {e}")
+            # On error, keep the existing crystal
+            return existing_crystal
+
+    def _build_crystallization_prompt(
+        self,
+        child_name: Optional[str],
+        understanding: Understanding,
+        exploration_cycles: List[ExplorationCycle],
+        stories: List[Story],
+        curiosity_engine: CuriosityEngine,
+        is_incremental: bool,
+        previous_crystal: Optional[Crystal],
+        new_observations: Optional[Dict[str, Any]],
+    ) -> str:
+        """Build prompt for crystallization (in English for token efficiency)."""
+        name = child_name or "this child"
+
+        # Format all facts
+        facts_text = "\n".join([
+            f"- [{f.domain or 'general'}] {f.content}"
+            for f in understanding.facts[:30]
+        ]) or "No facts recorded yet."
+
+        # Format stories
+        stories_text = "\n".join([
+            f"- {s.summary}\n  Reveals: {', '.join(s.reveals[:3])}"
+            for s in stories[:15]
+        ]) or "No stories captured yet."
+
+        # Format active explorations
+        active_cycles = [c for c in exploration_cycles if c.status == "active"]
+        cycles_text = "\n".join([
+            f"- [{c.curiosity_type}] {c.focus}"
+            + (f" (theory: {c.theory})" if c.theory else "")
+            + (f" (confidence: {c.confidence})" if c.confidence else "")
+            for c in active_cycles[:10]
+        ]) or "No active explorations."
+
+        # Format strengths and interests
+        strengths = [f.content for f in understanding.facts if f.domain == "strengths"]
+        interests = [f.content for f in understanding.facts if f.domain == "interests"]
+        strengths_text = ", ".join(strengths[:5]) if strengths else "Not yet known"
+        interests_text = ", ".join(interests[:5]) if interests else "Not yet known"
+
+        # Format concerns from exploration cycles
+        concerns = [c.focus for c in active_cycles if c.curiosity_type in ("hypothesis", "question")]
+        concerns_text = ", ".join(concerns[:5]) if concerns else "None defined"
+
+        # Open questions
+        gaps = curiosity_engine.get_gaps()
+        gaps_text = "\n".join([f"- {g}" for g in gaps]) or "No open questions."
+
+        if is_incremental and previous_crystal:
+            # Incremental update prompt
+            new_facts_text = "\n".join([
+                f"- [{f.domain or 'general'}] {f.content}"
+                for f in new_observations.get("facts", [])
+            ]) or "No new facts."
+
+            new_stories_text = "\n".join([
+                f"- {s.summary}"
+                for s in new_observations.get("stories", [])
+            ]) or "No new stories."
+
+            previous_patterns = "\n".join([
+                f"- {p.description} (domains: {', '.join(p.domains_involved)})"
+                for p in previous_crystal.patterns
+            ]) or "No patterns identified previously."
+
+            previous_pathways = "\n".join([
+                f"- {ip.hook} -> {ip.concern}: {ip.suggestion}"
+                for ip in previous_crystal.intervention_pathways
+            ]) or "No intervention pathways identified previously."
+
+            return f"""
+# Crystal Update - Child: {name}
+
+You are updating an existing understanding with new information.
+
+## Previous Crystal (version {previous_crystal.version})
+
+### Who is this child
+{previous_crystal.essence_narrative or "Still forming"}
+
+### Temperament
+{', '.join(previous_crystal.temperament) if previous_crystal.temperament else "Not defined"}
+
+### Core Qualities
+{', '.join(previous_crystal.core_qualities) if previous_crystal.core_qualities else "Not defined"}
+
+### Identified Patterns
+{previous_patterns}
+
+### Intervention Pathways
+{previous_pathways}
+
+### Open Questions
+{chr(10).join(['- ' + q for q in previous_crystal.open_questions]) if previous_crystal.open_questions else "None"}
+
+---
+
+## New Information Since Last Crystallization
+
+### New Facts
+{new_facts_text}
+
+### New Stories
+{new_stories_text}
+
+---
+
+## Your Task
+
+Update the crystal based on the new information:
+1. Does the new information strengthen/contradict/refine existing understanding?
+2. Are there new patterns visible now?
+3. Are there new intervention pathways?
+4. Should the essence narrative be updated?
+
+## Response Format
+
+ESSENCE:
+[Updated essence narrative - 2-3 sentences about who this child is. Write in Hebrew.]
+
+TEMPERAMENT:
+[Comma-separated list of temperament traits. Write in Hebrew.]
+
+CORE_QUALITIES:
+[Comma-separated list of core qualities. Write in Hebrew.]
+
+PATTERNS:
+- [Pattern description]: [domains involved, comma-separated]
+- [Another pattern]: [domains]
+
+INTERVENTION_PATHWAYS:
+- [Strength/Interest] -> [Concern it can help]: [Concrete suggestion]
+
+OPEN_QUESTIONS:
+- [Question 1]
+- [Question 2]
+
+WHAT_CHANGED:
+[Brief note on what changed in this update]
+"""
+
+        else:
+            # Fresh crystallization prompt
+            return f"""
+# Crystallization - Child: {name}
+
+You are creating a deep synthesis of the accumulated understanding about this child.
+This is the first crystallization - build the foundation.
+
+## Guiding Principle
+
+This child is NOT "their problem". This child is a whole person:
+- With strengths and interests
+- With their own ways of connecting to the world
+- With patterns that cross domains
+- Strengths are the door - how to reach them
+
+## Everything We Know
+
+### Facts
+{facts_text}
+
+### Stories
+{stories_text}
+
+### Active Explorations
+{cycles_text}
+
+### Strengths
+{strengths_text}
+
+### Interests
+{interests_text}
+
+### Main Concerns
+{concerns_text}
+
+### Open Questions
+{gaps_text}
+
+---
+
+## Your Task
+
+Create a crystallization of understanding:
+
+1. **Who is this child** - Essence narrative (2-3 sentences about who they are as a person)
+
+2. **Patterns** - What crosses domains? What repeats in different places?
+
+3. **Intervention Pathways** - How can strengths and interests help with concerns?
+
+4. **Open Questions** - What is still unclear?
+
+## Response Format
+
+ESSENCE:
+[Essence narrative - 2-3 sentences about who this child is as a whole person, not as "a problem". Write in Hebrew.]
+
+TEMPERAMENT:
+[Comma-separated list of temperament traits. Write in Hebrew, e.g.: רגיש, אנרגטי, זהיר]
+
+CORE_QUALITIES:
+[Comma-separated list of core qualities. Write in Hebrew, e.g.: סקרנות, התמדה, יצירתיות]
+
+PATTERNS:
+- [Pattern description]: [domains involved, comma-separated]
+- [Another pattern]: [domains]
+
+INTERVENTION_PATHWAYS:
+- [Strength or interest] -> [Concern it can help with]: [Concrete suggestion]
+
+OPEN_QUESTIONS:
+- [Question that is still unclear to us]
+- [Another question]
+"""
+
+    def _parse_crystal_response(
+        self,
+        response_text: str,
+        latest_observation_at: datetime,
+        version: int,
+        previous_version_summary: Optional[str] = None,
+    ) -> Crystal:
+        """Parse LLM response into Crystal object."""
+        if not response_text:
+            return Crystal.create_empty()
+
+        essence_narrative = None
+        temperament = []
+        core_qualities = []
+        patterns = []
+        intervention_pathways = []
+        open_questions = []
+
+        lines = response_text.split("\n")
+        current_section = None
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Detect sections
+            if line.upper().startswith("ESSENCE:"):
+                current_section = "essence"
+                continue
+            elif line.upper().startswith("TEMPERAMENT:"):
+                current_section = "temperament"
+                continue
+            elif line.upper().startswith("CORE_QUALITIES:") or line.upper().startswith("CORE QUALITIES:"):
+                current_section = "core_qualities"
+                continue
+            elif line.upper().startswith("PATTERNS:"):
+                current_section = "patterns"
+                continue
+            elif line.upper().startswith("INTERVENTION_PATHWAYS:") or line.upper().startswith("INTERVENTION PATHWAYS:"):
+                current_section = "pathways"
+                continue
+            elif line.upper().startswith("OPEN_QUESTIONS:") or line.upper().startswith("OPEN QUESTIONS:"):
+                current_section = "questions"
+                continue
+            elif line.upper().startswith("WHAT_CHANGED:") or line.upper().startswith("WHAT CHANGED:"):
+                current_section = "changed"
+                continue
+
+            # Parse content
+            if current_section == "essence" and not essence_narrative:
+                if line.startswith("[") and line.endswith("]"):
+                    continue  # Skip placeholder
+                essence_narrative = line
+
+            elif current_section == "temperament":
+                if line.startswith("[") and line.endswith("]"):
+                    continue
+                # Parse comma-separated list
+                items = [t.strip() for t in line.split(",") if t.strip()]
+                temperament.extend(items)
+
+            elif current_section == "core_qualities":
+                if line.startswith("[") and line.endswith("]"):
+                    continue
+                items = [t.strip() for t in line.split(",") if t.strip()]
+                core_qualities.extend(items)
+
+            elif current_section == "patterns" and line.startswith("-"):
+                pattern_text = line[1:].strip()
+                if ":" in pattern_text:
+                    desc, domains_part = pattern_text.split(":", 1)
+                    domains = [d.strip() for d in domains_part.split(",") if d.strip()]
+                    patterns.append(Pattern(
+                        description=desc.strip(),
+                        domains_involved=domains,
+                        confidence=0.6,
+                    ))
+
+            elif current_section == "pathways" and line.startswith("-"):
+                pathway_text = line[1:].strip()
+                # Parse: [hook] -> [concern]: [suggestion]
+                if "->" in pathway_text:
+                    parts = pathway_text.split("->")
+                    if len(parts) == 2:
+                        hook = parts[0].strip()
+                        rest = parts[1].strip()
+                        if ":" in rest:
+                            concern, suggestion = rest.split(":", 1)
+                            intervention_pathways.append(InterventionPathway(
+                                hook=hook,
+                                concern=concern.strip(),
+                                suggestion=suggestion.strip(),
+                                confidence=0.5,
+                            ))
+
+            elif current_section == "questions" and line.startswith("-"):
+                question = line[1:].strip()
+                if question and not (question.startswith("[") and question.endswith("]")):
+                    open_questions.append(question)
+
+            elif current_section == "changed" and previous_version_summary is None:
+                if not (line.startswith("[") and line.endswith("]")):
+                    previous_version_summary = line
+
+        return Crystal(
+            essence_narrative=essence_narrative,
+            temperament=temperament,
+            core_qualities=core_qualities,
+            patterns=patterns,
+            intervention_pathways=intervention_pathways,
+            open_questions=open_questions,
+            created_at=datetime.now(),
+            based_on_observations_through=latest_observation_at,
+            version=version,
+            previous_version_summary=previous_version_summary,
+        )
+
+    def _create_fallback_crystal(
+        self,
+        understanding: Understanding,
+        curiosity_engine: CuriosityEngine,
+        latest_observation_at: datetime,
+    ) -> Crystal:
+        """Create a fallback crystal without LLM when errors occur."""
+        # Extract what we can from raw data
+        patterns = list(understanding.patterns) if understanding.patterns else []
+
+        # Get open questions
+        open_questions = curiosity_engine.get_gaps()
+
+        # Get existing essence if any
+        essence_narrative = None
+        temperament = []
+        core_qualities = []
+        if understanding.essence:
+            essence_narrative = understanding.essence.narrative
+            temperament = understanding.essence.temperament or []
+            core_qualities = understanding.essence.core_qualities or []
+
+        return Crystal(
+            essence_narrative=essence_narrative,
+            temperament=temperament,
+            core_qualities=core_qualities,
+            patterns=patterns,
+            intervention_pathways=[],  # Can't derive without LLM
+            open_questions=open_questions,
+            created_at=datetime.now(),
+            based_on_observations_through=latest_observation_at,
+            version=1,
+            previous_version_summary="Created as fallback (LLM error)",
         )
 
 

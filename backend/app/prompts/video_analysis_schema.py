@@ -59,6 +59,78 @@ def get_video_analysis_schema() -> types.Schema:
                 required=["video_assignment", "parent_context", "observation_quality"]
             ),
 
+            # Video Validation - CRITICAL: Check video matches expected content
+            "video_validation": types.Schema(
+                type=types.Type.OBJECT,
+                description="Validates the uploaded video matches the expected scenario and child",
+                properties={
+                    "is_usable": types.Schema(
+                        type=types.Type.BOOLEAN,
+                        description="Whether the video can be used for analysis (True if valid)"
+                    ),
+                    "scenario_match": types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "matches_requested_scenario": types.Schema(
+                                type=types.Type.BOOLEAN,
+                                description="Does video content match the filming instructions?"
+                            ),
+                            "what_was_requested": types.Schema(type=types.Type.STRING),
+                            "what_video_shows": types.Schema(type=types.Type.STRING),
+                            "match_confidence": types.Schema(
+                                type=types.Type.STRING,
+                                description="High/Medium/Low confidence the video matches"
+                            ),
+                            "mismatch_reason": types.Schema(
+                                type=types.Type.STRING,
+                                description="If mismatch, explain what's different"
+                            )
+                        },
+                        required=["matches_requested_scenario", "what_video_shows", "match_confidence"]
+                    ),
+                    "child_verification": types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "child_visible": types.Schema(
+                                type=types.Type.BOOLEAN,
+                                description="Is a child clearly visible in the video?"
+                            ),
+                            "estimated_age_range": types.Schema(
+                                type=types.Type.STRING,
+                                description="Estimated age range of child in video (e.g., '2-4 years')"
+                            ),
+                            "age_consistent_with_profile": types.Schema(
+                                type=types.Type.BOOLEAN,
+                                description="Does estimated age match the child's profile age?"
+                            ),
+                            "gender_consistent_with_profile": types.Schema(
+                                type=types.Type.BOOLEAN,
+                                description="Does apparent gender match the child's profile?"
+                            ),
+                            "appears_to_be_same_child": types.Schema(
+                                type=types.Type.BOOLEAN,
+                                description="Does this appear to be the child discussed in the interview?"
+                            ),
+                            "verification_notes": types.Schema(
+                                type=types.Type.STRING,
+                                description="Any concerns about child identity or age mismatch"
+                            )
+                        },
+                        required=["child_visible", "age_consistent_with_profile", "appears_to_be_same_child"]
+                    ),
+                    "content_issues": types.Schema(
+                        type=types.Type.ARRAY,
+                        items=types.Schema(type=types.Type.STRING),
+                        description="List of issues: wrong child, wrong scenario, empty video, unusable quality, etc."
+                    ),
+                    "recommendation": types.Schema(
+                        type=types.Type.STRING,
+                        description="proceed_with_analysis | request_new_video | partial_analysis_possible"
+                    )
+                },
+                required=["is_usable", "scenario_match", "child_verification", "recommendation"]
+            ),
+
             # Demographics
             "child_id": types.Schema(type=types.Type.STRING),
             "demographics": types.Schema(
@@ -401,6 +473,7 @@ def get_video_analysis_schema() -> types.Schema:
         },
         required=[
             "analysis_metadata",
+            "video_validation",  # CRITICAL: Must be filled first to check video validity
             "demographics",
             "task_context_analysis",
             "holistic_summary",
