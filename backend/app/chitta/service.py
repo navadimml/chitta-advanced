@@ -1971,6 +1971,23 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         if has_crystal:
             open_questions = gestalt.crystal.open_questions or []
 
+        # === 8. EXPERT RECOMMENDATIONS ===
+        # NON-OBVIOUS professional matches based on who this child is
+        expert_recommendations = []
+        if has_crystal:
+            for rec in gestalt.crystal.expert_recommendations or []:
+                expert_recommendations.append({
+                    "profession": rec.profession,
+                    "specialization": rec.specialization,
+                    "why_this_match": rec.why_this_match,
+                    "recommended_approach": rec.recommended_approach,
+                    "why_this_approach": rec.why_this_approach,
+                    "what_to_look_for": rec.what_to_look_for,
+                    "summary_for_professional": rec.summary_for_professional,
+                    "confidence": rec.confidence,
+                    "priority": rec.priority,
+                })
+
         # Determine narrative status
         narrative_status = "available" if narrative else "forming"
         if is_crystal_stale:
@@ -1989,6 +2006,9 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             # INTERVENTION PATHWAYS - how to reach/help the child (from Crystal)
             "intervention_pathways": intervention_pathways,
             "interests": interests[:4],  # The hooks
+
+            # EXPERT RECOMMENDATIONS - NON-OBVIOUS professional matches (from Crystal)
+            "expert_recommendations": expert_recommendations,
 
             # STRENGTHS - capabilities (from observed facts)
             "strengths": strengths[:6],

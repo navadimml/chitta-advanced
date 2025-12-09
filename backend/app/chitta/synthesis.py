@@ -25,6 +25,7 @@ from .models import (
     ExplorationCycle,
     Crystal,
     InterventionPathway,
+    ExpertRecommendation,
     TemporalFact,
 )
 from .curiosity import CuriosityEngine
@@ -705,6 +706,23 @@ Keep it to 2-3 sentences focusing on what matters most.
 
 You are updating an existing understanding with new information.
 
+## CRITICAL: Parent-Friendly Language
+
+You are writing for PARENTS, not clinicians. Avoid clinical jargon.
+
+❌ NEVER USE:
+- עיבוד רגשי (emotional processing)
+- רגישות חושית (sensory sensitivity)
+- גמישות קוגניטיבית (cognitive flexibility)
+- ויסות עצמי (self-regulation)
+- מעברים (transitions - use concrete examples)
+
+✅ ALWAYS USE:
+- Simple, concrete everyday language
+- Situations parents see at home: "כשצריך לעבור ממשחק לאוכל"
+- Feelings parents recognize: "להרגיע את הלב"
+- Objects and activities from their world
+
 ## Previous Crystal (version {previous_crystal.version})
 
 ### Who is this child
@@ -748,24 +766,43 @@ Update the crystal based on the new information:
 ## Response Format
 
 ESSENCE:
-[Updated essence narrative - 2-3 sentences about who this child is. Write in Hebrew.]
+[Updated essence narrative - 2-3 sentences about who this child is. Write in warm Hebrew, no clinical terms.]
 
 TEMPERAMENT:
-[Comma-separated list of temperament traits. Write in Hebrew.]
+[Comma-separated list in everyday Hebrew. NOT: רגיש חושית. YES: רגיש לרעשים, זהיר עם דברים חדשים]
 
 CORE_QUALITIES:
-[Comma-separated list of core qualities. Write in Hebrew.]
+[Comma-separated list in everyday Hebrew. e.g.: סקרן, מתאמץ, יצירתי]
 
 PATTERNS:
-- [Pattern description]: [domains involved, comma-separated]
-- [Another pattern]: [domains]
+- [What we noticed in EVERYDAY language]: [areas involved]
+- [Another observation]: [areas]
 
 INTERVENTION_PATHWAYS:
-- [Strength/Interest] -> [Concern it can help]: [Concrete suggestion]
+- [What he loves] -> [Challenge in parent words]: [Concrete tip with example]
 
 OPEN_QUESTIONS:
-- [Question 1]
-- [Question 2]
+- [Question in parent words]
+- [Another question]
+
+EXPERT_RECOMMENDATIONS:
+Update existing recommendations or add new ones based on new information.
+Only include if professional help would genuinely benefit this child.
+
+IMPORTANT: Match based on WHAT THE CHILD LOVES, not what they struggle with.
+Ask: "What professional would USE this child's interests as a bridge?"
+
+Format for each recommendation:
+---EXPERT---
+PROFESSION: [profession in Hebrew]
+SPECIALIZATION: [Based on child's STRENGTHS/INTERESTS - NOT the problem]
+WHY_THIS_MATCH: [Connect child's strength to why this professional type would reach them]
+RECOMMENDED_APPROACH: [What approach would work]
+WHY_THIS_APPROACH: [Based on how THIS child opens up]
+WHAT_TO_LOOK_FOR: [2-3 things, comma-separated]
+SUMMARY_FOR_PROFESSIONAL: [2-3 sentence narrative about who this child is, what they love, what helps them open up, and what to be aware of]
+PRIORITY: [when_ready | soon | important]
+---END_EXPERT---
 
 WHAT_CHANGED:
 [Brief note on what changed in this update]
@@ -786,6 +823,23 @@ This child is NOT "their problem". This child is a whole person:
 - With their own ways of connecting to the world
 - With patterns that cross domains
 - Strengths are the door - how to reach them
+
+## CRITICAL: Parent-Friendly Language
+
+You are writing for PARENTS, not clinicians. Avoid clinical jargon.
+
+❌ NEVER USE:
+- עיבוד רגשי (emotional processing)
+- רגישות חושית (sensory sensitivity)
+- גמישות קוגניטיבית (cognitive flexibility)
+- ויסות עצמי (self-regulation)
+- מעברים (transitions - use concrete examples)
+
+✅ ALWAYS USE:
+- Simple, concrete everyday language
+- Situations parents see at home: "כשצריך לעבור ממשחק לאוכל", "כשיש רעש חזק"
+- Feelings parents recognize: "להרגיע את הלב", "להרגיש בטוח"
+- Objects and activities from their world: "משחקים, שירים, ספרים"
 
 ## Everything We Know
 
@@ -818,33 +872,77 @@ Create a crystallization of understanding:
 
 1. **Who is this child** - Essence narrative (2-3 sentences about who they are as a person)
 
-2. **Patterns** - What crosses domains? What repeats in different places?
+2. **Patterns** - What we noticed repeating (in everyday language!)
 
-3. **Intervention Pathways** - How can strengths and interests help with concerns?
+3. **Intervention Pathways** - What helps (connect interests to challenges)
 
-4. **Open Questions** - What is still unclear?
+4. **Open Questions** - What we want to understand better
+
+5. **Expert Recommendations** - If professional help would benefit this child, recommend SPECIFIC, NON-OBVIOUS matches
 
 ## Response Format
 
 ESSENCE:
-[Essence narrative - 2-3 sentences about who this child is as a whole person, not as "a problem". Write in Hebrew.]
+[Essence narrative - 2-3 sentences about who this child is as a whole person, not as "a problem". Write in warm Hebrew. Use concrete descriptions, not clinical terms.]
 
 TEMPERAMENT:
-[Comma-separated list of temperament traits. Write in Hebrew, e.g.: רגיש, אנרגטי, זהיר]
+[Comma-separated list in everyday Hebrew. NOT: רגיש חושית. YES: רגיש לרעשים, זהיר עם דברים חדשים, אוהב שקט]
 
 CORE_QUALITIES:
-[Comma-separated list of core qualities. Write in Hebrew, e.g.: סקרנות, התמדה, יצירתיות]
+[Comma-separated list in everyday Hebrew. e.g.: סקרן, מתאמץ, יצירתי, אוהב לעזור]
 
 PATTERNS:
-- [Pattern description]: [domains involved, comma-separated]
-- [Another pattern]: [domains]
+- [What we noticed in EVERYDAY language, e.g., "כשהוא עסוק במשחק שהוא אוהב, קשה לו לעצור"]: [areas involved]
+- [Another observation]: [areas]
 
 INTERVENTION_PATHWAYS:
-- [Strength or interest] -> [Concern it can help with]: [Concrete suggestion]
+- [What he loves] -> [Challenge in parent words]: [Concrete tip with example]
+  Example: מוזיקה -> קשה לו לעזוב משחק: לשיר שיר מיוחד כשצריך לעבור לאוכל
 
 OPEN_QUESTIONS:
-- [Question that is still unclear to us]
+- [Question in parent words, e.g., "למה דווקא בבוקר יותר קשה?" not "האם יש קושי בויסות בבוקר?"]
 - [Another question]
+
+EXPERT_RECOMMENDATIONS:
+Only include if you have enough understanding AND professional help would genuinely benefit this child.
+
+## THE KEY INSIGHT: LEVERAGE STRENGTHS TO FIND THE RIGHT PROFESSIONAL
+
+The magic is NOT in matching "problem → specialist". Every OT handles sensory issues.
+The magic is in matching "WHO THIS CHILD IS → WHO CAN REACH THEM".
+
+Think this way:
+1. What does this child LOVE? What opens them up? (music, building, animals, movement...)
+2. What kind of professional would USE THAT as a bridge?
+3. That's your NON-OBVIOUS recommendation.
+
+Format for each recommendation:
+---EXPERT---
+PROFESSION: [The profession in Hebrew, e.g., מרפא בעיסוק, פסיכולוג]
+SPECIALIZATION: [Based on what the child LOVES - NOT based on what they struggle with. e.g., "שמשלב בנייה ויצירה בעבודה" for a builder kid, "עם רקע בתיאטרון או משחק" for an imaginative kid, "שעובד עם חיות" for an animal lover]
+WHY_THIS_MATCH: [Connect the child's STRENGTH/INTEREST to why this specific professional type would reach them better]
+RECOMMENDED_APPROACH: [What approach would work, based on how THIS child connects]
+WHY_THIS_APPROACH: [Based on how THIS child opens up - what's their door?]
+WHAT_TO_LOOK_FOR: [2-3 things to ask when choosing, comma-separated]
+SUMMARY_FOR_PROFESSIONAL: [A 2-3 sentence narrative summary to share with the professional. Include: who the child is, what they love, what helps them open up, and what to be aware of. Write as if you're introducing this child to someone who will work with them.]
+PRIORITY: [when_ready | soon | important]
+---END_EXPERT---
+
+Example of a GOOD recommendation (leverages child's STRENGTH):
+---EXPERT---
+PROFESSION: מרפא בעיסוק
+SPECIALIZATION: שעובד דרך בנייה ויצירה, או עם רקע בהנדסה/אדריכלות
+WHY_THIS_MATCH: דניאל בונה לגו במשך שעות ונרגע כשהידיים עסוקות - מרפא שיעבוד איתו דרך בנייה יגיע אליו דרך מה שהוא אוהב, לא דרך מה שקשה לו
+RECOMMENDED_APPROACH: לתת לו לבנות תוך כדי שיחה, להשתמש בחומרים מישוריים, לעבוד בקצב שלו
+WHY_THIS_APPROACH: הידיים העסוקות מרגיעות אותו ומאפשרות לו להיפתח
+WHAT_TO_LOOK_FOR: האם משתמש בחומרים ובנייה בטיפול, האם גמיש לתת לילד להוביל, האם סבלני לקצב איטי
+SUMMARY_FOR_PROFESSIONAL: דניאל הוא ילד יצירתי שמתחבר לעולם דרך הידיים. כשהוא בונה או יוצר הוא נרגע ונפתח. הוא רגיש לרעשים פתאומיים ולשינויים מהירים - תנו לו זמן להסתגל ואל תפתיעו אותו. הדרך אליו היא דרך מה שהוא אוהב, לא דרך מה שקשה.
+PRIORITY: soon
+---END_EXPERT---
+
+Example of a BAD generic recommendation (DON'T DO THIS):
+PROFESSION: מרפא בעיסוק
+SPECIALIZATION: התמחות בילדים עם רגישות חושית  <-- TOO GENERIC! Based on the PROBLEM, not the CHILD
 """
 
     def _parse_crystal_response(
@@ -864,6 +962,10 @@ OPEN_QUESTIONS:
         patterns = []
         intervention_pathways = []
         open_questions = []
+        expert_recommendations = []
+
+        # First, extract expert recommendation blocks
+        expert_recommendations = self._parse_expert_recommendations(response_text)
 
         lines = response_text.split("\n")
         current_section = None
@@ -871,6 +973,15 @@ OPEN_QUESTIONS:
         for line in lines:
             line = line.strip()
             if not line:
+                continue
+
+            # Skip expert recommendation block content (already parsed)
+            if line == "---EXPERT---" or line == "---END_EXPERT---":
+                current_section = "skip_expert"
+                continue
+            if current_section == "skip_expert":
+                if line.startswith("---"):
+                    current_section = None
                 continue
 
             # Detect sections
@@ -891,6 +1002,9 @@ OPEN_QUESTIONS:
                 continue
             elif line.upper().startswith("OPEN_QUESTIONS:") or line.upper().startswith("OPEN QUESTIONS:"):
                 current_section = "questions"
+                continue
+            elif line.upper().startswith("EXPERT_RECOMMENDATIONS:") or line.upper().startswith("EXPERT RECOMMENDATIONS:"):
+                current_section = "expert"  # Skip this section header, blocks parsed separately
                 continue
             elif line.upper().startswith("WHAT_CHANGED:") or line.upper().startswith("WHAT CHANGED:"):
                 current_section = "changed"
@@ -959,11 +1073,55 @@ OPEN_QUESTIONS:
             patterns=patterns,
             intervention_pathways=intervention_pathways,
             open_questions=open_questions,
+            expert_recommendations=expert_recommendations,
             created_at=datetime.now(),
             based_on_observations_through=latest_observation_at,
             version=version,
             previous_version_summary=previous_version_summary,
         )
+
+    def _parse_expert_recommendations(self, response_text: str) -> List[ExpertRecommendation]:
+        """Parse expert recommendation blocks from response."""
+        recommendations = []
+
+        # Find all ---EXPERT--- ... ---END_EXPERT--- blocks
+        import re
+        pattern = r'---EXPERT---\s*(.*?)\s*---END_EXPERT---'
+        blocks = re.findall(pattern, response_text, re.DOTALL)
+
+        for block in blocks:
+            rec_data = {}
+            for line in block.strip().split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    key = key.strip().upper()
+                    value = value.strip()
+                    rec_data[key] = value
+
+            # Only create recommendation if we have the required fields
+            if rec_data.get("PROFESSION") and rec_data.get("SPECIALIZATION"):
+                try:
+                    recommendations.append(ExpertRecommendation(
+                        profession=rec_data.get("PROFESSION", ""),
+                        specialization=rec_data.get("SPECIALIZATION", ""),
+                        why_this_match=rec_data.get("WHY_THIS_MATCH", ""),
+                        recommended_approach=rec_data.get("RECOMMENDED_APPROACH", ""),
+                        why_this_approach=rec_data.get("WHY_THIS_APPROACH", ""),
+                        what_to_look_for=[
+                            x.strip() for x in rec_data.get("WHAT_TO_LOOK_FOR", "").split(",")
+                            if x.strip()
+                        ],
+                        summary_for_professional=rec_data.get("SUMMARY_FOR_PROFESSIONAL", ""),
+                        confidence=0.6,  # Default confidence
+                        priority=rec_data.get("PRIORITY", "when_ready").lower(),
+                    ))
+                except Exception as e:
+                    logger.warning(f"Failed to parse expert recommendation: {e}")
+
+        return recommendations
 
     def _create_fallback_crystal(
         self,
