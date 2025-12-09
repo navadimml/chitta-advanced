@@ -559,6 +559,40 @@ class InterventionPathway:
 
 
 @dataclass
+class ExpertRecommendation:
+    """
+    A specific, nuanced recommendation for professional help.
+
+    The magic is in the NON-OBVIOUS match:
+    - Not "OT" but "OT with dance/movement background"
+    - Not "psychologist" but "psychologist who works with gifted kids"
+
+    The recommendation comes from crossing:
+    - What we know works (intervention pathways, interests)
+    - Who the child is (temperament, how they connect)
+    - What they need (the actual concern)
+    """
+    # The professional
+    profession: str                  # "מטפלת בעיסוק", "פסיכולוג"
+    specialization: str              # The NON-OBVIOUS specific match
+
+    # The reasoning (in parent-friendly language)
+    why_this_match: str              # Why THIS specific type for THIS child
+
+    # What approach would work
+    recommended_approach: str        # "גישה משחקית", "עבודה דרך הגוף"
+    why_this_approach: str           # Based on how the child connects
+
+    # Practical guidance for the parent
+    what_to_look_for: List[str]      # What to ask/look for when choosing
+    summary_for_professional: str    # Narrative summary to share with the professional
+
+    # Confidence and priority
+    confidence: float = 0.5          # How confident we are this is needed
+    priority: str = "when_ready"     # "when_ready" | "soon" | "important"
+
+
+@dataclass
 class Crystal:
     """
     Crystallized understanding - cached synthesis with timestamp tracking.
@@ -587,9 +621,10 @@ class Crystal:
     created_at: datetime                        # When this crystal was formed
     based_on_observations_through: datetime     # Newest observation timestamp at formation
 
-    # Metadata
+    # Metadata and optional fields (must have defaults, so after required fields)
     version: int = 1                            # Incremented on each update
     previous_version_summary: Optional[str] = None  # Brief note on what changed
+    expert_recommendations: List[ExpertRecommendation] = field(default_factory=list)  # Non-obvious professional matches
 
     @classmethod
     def create_empty(cls) -> "Crystal":
@@ -636,6 +671,20 @@ class Crystal:
                 for ip in self.intervention_pathways
             ],
             "open_questions": self.open_questions,
+            "expert_recommendations": [
+                {
+                    "profession": er.profession,
+                    "specialization": er.specialization,
+                    "why_this_match": er.why_this_match,
+                    "recommended_approach": er.recommended_approach,
+                    "why_this_approach": er.why_this_approach,
+                    "what_to_look_for": er.what_to_look_for,
+                    "key_points_to_share": er.key_points_to_share,
+                    "confidence": er.confidence,
+                    "priority": er.priority,
+                }
+                for er in self.expert_recommendations
+            ],
             "created_at": self.created_at.isoformat(),
             "based_on_observations_through": self.based_on_observations_through.isoformat(),
             "version": self.version,
@@ -669,6 +718,20 @@ class Crystal:
                 confidence=ip_data.get("confidence", 0.5),
             ))
 
+        expert_recommendations = []
+        for er_data in data.get("expert_recommendations", []):
+            expert_recommendations.append(ExpertRecommendation(
+                profession=er_data["profession"],
+                specialization=er_data["specialization"],
+                why_this_match=er_data["why_this_match"],
+                recommended_approach=er_data["recommended_approach"],
+                why_this_approach=er_data["why_this_approach"],
+                what_to_look_for=er_data.get("what_to_look_for", []),
+                key_points_to_share=er_data.get("key_points_to_share", []),
+                confidence=er_data.get("confidence", 0.5),
+                priority=er_data.get("priority", "when_ready"),
+            ))
+
         created_at = datetime.now()
         if data.get("created_at"):
             try:
@@ -690,6 +753,7 @@ class Crystal:
             patterns=patterns,
             intervention_pathways=intervention_pathways,
             open_questions=data.get("open_questions", []),
+            expert_recommendations=expert_recommendations,
             created_at=created_at,
             based_on_observations_through=based_on,
             version=data.get("version", 1),

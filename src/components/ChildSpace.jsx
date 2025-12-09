@@ -4,7 +4,8 @@ import {
   ChevronLeft, ChevronDown, ChevronUp, Heart, Music, Palette, Zap,
   Eye, Play, Clock, Send, Copy, FileText,
   Users, GraduationCap, Home, MessageCircle,
-  Check, Loader2, ArrowRight, Search, ThumbsUp, ThumbsDown, Minus
+  Check, Loader2, ArrowRight, Search, ThumbsUp, ThumbsDown, Minus,
+  UserPlus
 } from 'lucide-react';
 import { api } from '../api/client';
 
@@ -203,6 +204,107 @@ function ExplorationCard({ exploration, index }) {
 }
 
 // ============================================
+// EXPERT RECOMMENDATION CARD - Expandable Professional Guidance
+// ============================================
+
+function ExpertRecommendationCard({ recommendation, index }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const contentRef = useRef(null);
+
+  const priorityConfig = {
+    important: { label: 'מומלץ מאוד', color: 'bg-rose-100 text-rose-700 border-rose-200' },
+    soon: { label: 'כדאי בקרוב', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+    when_ready: { label: 'כשתהיו מוכנים', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  };
+
+  const priority = priorityConfig[recommendation.priority] || priorityConfig.when_ready;
+
+  return (
+    <div
+      className={`
+        bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 shadow-sm overflow-hidden
+        transition-all duration-300 card-hover
+        opacity-0 animate-staggerIn stagger-${Math.min(index + 1, 6)}
+      `}
+    >
+      {/* Main content - clickable to expand */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full p-4 text-right cursor-pointer"
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <UserPlus className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="font-bold text-gray-800">{recommendation.profession}</h4>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-full text-xs border ${priority.color}`}>
+                  {priority.label}
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                />
+              </div>
+            </div>
+            <p className="text-sm text-blue-700 font-medium mt-1">{recommendation.specialization}</p>
+            <p className="text-sm text-gray-600 mt-2">{recommendation.why_this_match}</p>
+          </div>
+        </div>
+      </button>
+
+      {/* Expanded details section */}
+      <div
+        className={`
+          overflow-hidden transition-all duration-300 ease-out
+          ${isExpanded ? 'opacity-100' : 'opacity-0'}
+        `}
+        style={{
+          maxHeight: isExpanded ? `${contentRef.current?.scrollHeight || 500}px` : '0px',
+        }}
+      >
+        <div ref={contentRef} className="px-4 pb-4 pt-0 border-t border-blue-100/50">
+          {/* Recommended Approach */}
+          <div className="mt-3">
+            <h5 className="text-xs font-bold text-gray-500 mb-2">גישה מומלצת:</h5>
+            <p className="text-sm text-gray-700 bg-white/60 p-2 rounded-lg">{recommendation.recommended_approach}</p>
+            {recommendation.why_this_approach && (
+              <p className="text-xs text-gray-500 mt-1 pr-2">{recommendation.why_this_approach}</p>
+            )}
+          </div>
+
+          {/* What to Look For */}
+          {recommendation.what_to_look_for && recommendation.what_to_look_for.length > 0 && (
+            <div className="mt-3">
+              <h5 className="text-xs font-bold text-gray-500 mb-2">מה לשאול כשמחפשים:</h5>
+              <ul className="space-y-1">
+                {recommendation.what_to_look_for.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                    <Check className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Summary for Professional */}
+          {recommendation.summary_for_professional && (
+            <div className="mt-3">
+              <h5 className="text-xs font-bold text-gray-500 mb-2">מה לספר למטפל:</h5>
+              <p className="text-sm text-gray-700 bg-white/60 p-3 rounded-lg leading-relaxed">
+                {recommendation.summary_for_professional}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // ESSENCE TAB - The Living Portrait (Holistic View)
 // ============================================
 
@@ -224,6 +326,8 @@ function EssenceTab({ data, childName }) {
   const hasPatterns = data.patterns && data.patterns.length > 0;
   const hasPathways = data.intervention_pathways && data.intervention_pathways.length > 0;
   const hasInterests = data.interests && data.interests.length > 0;
+  const hasOpenQuestions = data.open_questions && data.open_questions.length > 0;
+  const hasExpertRecommendations = data.expert_recommendations && data.expert_recommendations.length > 0;
 
   return (
     <div className="space-y-6 pb-8">
@@ -268,13 +372,12 @@ function EssenceTab({ data, childName }) {
         </div>
       )}
 
-      {/* === 2. CROSS-DOMAIN PATTERNS - The Connections === */}
+      {/* === 2. CROSS-DOMAIN PATTERNS - What We Noticed === */}
       {hasPatterns && (
         <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.15s', animationFillMode: 'forwards' }}>
           <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
             <Zap className="w-4 h-4 text-amber-500" />
-            דפוסים שזיהינו
-            <span className="text-xs font-normal text-gray-400">מה מתחבר</span>
+            מה שמנו לב
           </h3>
           <div className="space-y-3">
             {data.patterns.map((pattern, idx) => (
@@ -301,13 +404,12 @@ function EssenceTab({ data, childName }) {
         </div>
       )}
 
-      {/* === 3. INTERVENTION PATHWAYS - How To Reach Them === */}
+      {/* === 3. INTERVENTION PATHWAYS - What Helps === */}
       {hasPathways && (
         <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}>
           <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <ArrowRight className="w-4 h-4 text-emerald-500" />
-            איך להגיע אליו
-            <span className="text-xs font-normal text-gray-400">דרכי התערבות</span>
+            <Lightbulb className="w-4 h-4 text-emerald-500" />
+            מה עוזר לו
           </h3>
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100 overflow-hidden">
             {data.intervention_pathways.map((pathway, idx) => (
@@ -317,13 +419,18 @@ function EssenceTab({ data, childName }) {
               >
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Lightbulb className="w-4 h-4 text-emerald-600" />
+                    <Heart className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-gray-800">{pathway.suggestion}</p>
-                    <p className="text-xs text-emerald-600 mt-1">
-                      {pathway.hook} ← נקודת הכניסה
+                    <p className="text-gray-800 font-medium">{pathway.suggestion}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      כי הוא אוהב {pathway.hook}
                     </p>
+                    {pathway.concern && (
+                      <p className="text-xs text-emerald-600 mt-1">
+                        עוזר כש: {pathway.concern}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -332,12 +439,27 @@ function EssenceTab({ data, childName }) {
         </div>
       )}
 
-      {/* === 4. INTERESTS - The Hooks (What Lights Them Up) === */}
+      {/* === 3.5 EXPERT RECOMMENDATIONS - Professional Help Tailored to This Child === */}
+      {hasExpertRecommendations && (
+        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.22s', animationFillMode: 'forwards' }}>
+          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-blue-500" />
+            אנשי מקצוע שיכולים לעזור
+          </h3>
+          <div className="space-y-3">
+            {data.expert_recommendations.map((rec, idx) => (
+              <ExpertRecommendationCard key={idx} recommendation={rec} index={idx} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* === 4. INTERESTS - What They Love === */}
       {hasInterests && (
         <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.25s', animationFillMode: 'forwards' }}>
           <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
             <Heart className="w-4 h-4 text-pink-500" />
-            מה מדליק אותו
+            מה הוא אוהב
           </h3>
           <div className="flex flex-wrap gap-2">
             {data.interests.map((interest, idx) => (
@@ -352,12 +474,12 @@ function EssenceTab({ data, childName }) {
         </div>
       )}
 
-      {/* === 5. STRENGTHS - Capabilities === */}
+      {/* === 5. STRENGTHS - What They're Good At === */}
       {data.strengths && data.strengths.length > 0 && (
         <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.3s', animationFillMode: 'forwards' }}>
           <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <Heart className="w-4 h-4 text-pink-500" />
-            החוזקות שגילינו
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            במה הוא מצטיין
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {data.strengths.map((strength, idx) => (
@@ -367,12 +489,12 @@ function EssenceTab({ data, childName }) {
         </div>
       )}
 
-      {/* === 6. ACTIVE EXPLORATIONS - What We're Curious About === */}
+      {/* === 6. ACTIVE EXPLORATIONS - What We're Still Learning === */}
       {data.active_explorations && data.active_explorations.length > 0 && (
         <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.35s', animationFillMode: 'forwards' }}>
           <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
             <Search className="w-4 h-4 text-indigo-500" />
-            מה אנחנו חוקרים עכשיו
+            מה אנחנו בודקים עכשיו
           </h3>
           <div className="space-y-3">
             {data.active_explorations.map((exploration, idx) => (
@@ -386,7 +508,27 @@ function EssenceTab({ data, childName }) {
         </div>
       )}
 
-      {/* === 7. FACTS BY DOMAIN (Secondary - Collapsed by Default) === */}
+      {/* === 7. OPEN QUESTIONS - What We Still Want to Understand === */}
+      {hasOpenQuestions && (
+        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
+          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
+            <MessageCircle className="w-4 h-4 text-blue-500" />
+            מה עוד רוצים להבין
+          </h3>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 border border-blue-100">
+            <ul className="space-y-2">
+              {data.open_questions.map((question, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-gray-700">
+                  <span className="text-blue-400 mt-1">?</span>
+                  <span>{question}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* === 8. FACTS BY DOMAIN (Secondary - Collapsed by Default) === */}
       {data.facts_by_domain && Object.keys(data.facts_by_domain).length > 0 && (
         <FactsSection factsData={data.facts_by_domain} />
       )}
@@ -399,7 +541,7 @@ function FactsSection({ factsData }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
+    <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.45s', animationFillMode: 'forwards' }}>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full text-sm font-bold text-gray-400 mb-3 flex items-center gap-2 hover:text-gray-600 transition"
