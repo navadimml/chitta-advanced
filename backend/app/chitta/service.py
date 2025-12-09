@@ -156,40 +156,33 @@ class ChittaService:
             if not self._is_session_transition(gestalt):
                 return gestalt
 
-        # Load child data
-        child_data = await self._child_service.get_child(family_id)
-        if not child_data:
-            # Create new child
-            child_data = await self._child_service.create_child(family_id)
+        # Load child (returns Child object or creates new one)
+        child = await self._child_service.get_or_create_child_async(family_id)
 
-        # Load session data
-        session_data = await self._session_service.get_current_session(family_id)
+        # Get or create session (using SessionService properly)
+        session = await self._session_service.get_or_create_session_async(family_id)
 
-        # Check for session transition
-        if session_data and self._is_session_transition_from_data(session_data):
-            # Distill previous session memory
-            memory = await self._distill_session_memory(session_data, child_data)
+        # Build Gestalt from persisted data
+        # Extract data from our own persistence (gestalt files)
+        child_data = self._extract_child_data_for_gestalt(child)
 
-            # Create new session with memory
-            session_data = await self._session_service.create_session(
-                family_id,
-                previous_memory=memory,
-            )
+        # Session history from SessionState
+        session_history = []
+        if session and hasattr(session, 'history'):
+            session_history = [
+                {"role": m.role, "content": m.content}
+                for m in session.history
+            ] if session.history else []
 
-        # Create or get session
-        if not session_data:
-            session_data = await self._session_service.create_session(family_id)
-
-        # Build Gestalt from data
         gestalt = LivingGestalt.from_child_data(
             child_id=family_id,
-            child_name=child_data.get("name"),
+            child_name=child.name or child_data.get("name"),
             understanding_data=child_data.get("understanding"),
             exploration_cycles_data=child_data.get("exploration_cycles"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
             curiosity_data=child_data.get("curiosity_engine"),
-            session_history_data=session_data.get("history"),
+            session_history_data=session_history,
         )
 
         # Cache it
@@ -202,22 +195,62 @@ class ChittaService:
         if family_id in self._gestalts:
             return self._gestalts[family_id]
 
-        child_data = await self._child_service.get_child(family_id)
-        if not child_data:
-            return None
+        # Try to load child - returns Child object
+        child = await self._child_service.get_or_create_child_async(family_id)
 
-        session_data = await self._session_service.get_current_session(family_id)
+        # Get or create session
+        session = await self._session_service.get_or_create_session_async(family_id)
 
-        return LivingGestalt.from_child_data(
+        # Extract data from our persistence
+        child_data = self._extract_child_data_for_gestalt(child)
+
+        # Session history
+        session_history = []
+        if session and hasattr(session, 'history'):
+            session_history = [
+                {"role": m.role, "content": m.content}
+                for m in session.history
+            ] if session.history else []
+
+        gestalt = LivingGestalt.from_child_data(
             child_id=family_id,
-            child_name=child_data.get("name"),
+            child_name=child.name or child_data.get("name"),
             understanding_data=child_data.get("understanding"),
             exploration_cycles_data=child_data.get("exploration_cycles"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
             curiosity_data=child_data.get("curiosity_engine"),
-            session_history_data=session_data.get("history") if session_data else None,
+            session_history_data=session_history,
         )
+
+        # Cache it
+        self._gestalts[family_id] = gestalt
+        return gestalt
+
+    def _extract_child_data_for_gestalt(self, child) -> Dict[str, Any]:
+        """Extract data from Child model or file in format expected by LivingGestalt."""
+        import json
+        from pathlib import Path
+
+        # Try to load from our gestalt file first (Child uses 'id' field)
+        gestalt_file = Path("data/children") / f"{child.id}.json"
+        if gestalt_file.exists():
+            try:
+                with open(gestalt_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    logger.info(f"Loaded gestalt data for {child.child_id} from file")
+                    return data
+            except Exception as e:
+                logger.warning(f"Failed to load gestalt file: {e}")
+
+        # Otherwise return empty state - will be built through conversation
+        return {
+            "understanding": None,
+            "exploration_cycles": [],
+            "stories": [],
+            "journal": [],
+            "curiosity_engine": None,
+        }
 
     def _is_session_transition(self, gestalt: LivingGestalt) -> bool:
         """Check if enough time has passed to consider this a new session."""
@@ -354,16 +387,22 @@ class ChittaService:
             "curiosity_engine": gestalt_state["curiosity_engine"],
         }
 
-        # Build session data
-        session_data = {
-            "family_id": family_id,
-            "history": gestalt_state["session_history"],
-            "last_message_at": datetime.now().isoformat(),
-        }
+        # Persist to our own file (Gestalt's state)
+        # SessionService persists sessions automatically
+        await self._persist_gestalt_to_file(family_id, child_data)
 
-        # Persist
-        await self._child_service.save_child(family_id, child_data)
-        await self._session_service.save_session(family_id, session_data)
+    async def _persist_gestalt_to_file(self, family_id: str, gestalt_data: Dict[str, Any]):
+        """Persist Gestalt state to JSON file."""
+        import json
+        from pathlib import Path
+
+        # Use a separate directory for gestalt data
+        gestalt_dir = Path("data/children")
+        gestalt_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = gestalt_dir / f"{family_id}.json"
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(gestalt_data, f, ensure_ascii=False, indent=2, default=str)
 
     # ========================================
     # CARD DERIVATION
