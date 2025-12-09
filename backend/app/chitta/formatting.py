@@ -12,7 +12,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .curiosity import Curiosity
-    from .models import Understanding, ExplorationCycle, ExtractionResult, ToolCall
+    from .models import Understanding, ExplorationCycle, ExtractionResult, ToolCall, Crystal
 
 
 # Type icons for visual display
@@ -360,3 +360,55 @@ CRITICAL: You MUST respond in natural Hebrew.
 - "שמתי לב ש..." not "המערכת זיהתה..."
 - Be human, not robotic
 """
+
+
+def format_crystal(crystal: Optional["Crystal"]) -> str:
+    """
+    Format Crystal (holistic understanding) for conversation context.
+
+    This is the KEY CONTEXT that helps the LLM understand the child holistically,
+    not just as a collection of facts. The Crystal contains:
+    - Essence narrative (who this child is)
+    - Patterns (cross-domain connections)
+    - Intervention pathways (how strengths can address concerns)
+
+    Returns English for LLM alignment.
+    """
+    if not crystal:
+        return "No crystallized understanding yet - still building picture."
+
+    sections = []
+
+    # Essence narrative - the most important part
+    if crystal.essence_narrative:
+        sections.append(f"**Who this child is**: {crystal.essence_narrative}")
+
+    # Temperament and core qualities
+    if crystal.temperament:
+        sections.append(f"**Temperament**: {', '.join(crystal.temperament)}")
+    if crystal.core_qualities:
+        sections.append(f"**Core qualities**: {', '.join(crystal.core_qualities)}")
+
+    # Patterns - cross-domain connections
+    if crystal.patterns:
+        pattern_lines = []
+        for p in crystal.patterns[:4]:
+            domains = ", ".join(p.domains_involved) if p.domains_involved else "general"
+            pattern_lines.append(f"- {p.description} (crosses: {domains})")
+        sections.append("**Patterns noticed**:\n" + "\n".join(pattern_lines))
+
+    # Intervention pathways - the practical wisdom
+    if crystal.intervention_pathways:
+        pathway_lines = []
+        for ip in crystal.intervention_pathways[:3]:
+            pathway_lines.append(f"- {ip.hook} → can help with: {ip.concern}")
+            if ip.suggestion:
+                pathway_lines.append(f"  Try: {ip.suggestion}")
+        sections.append("**Ways to reach this child**:\n" + "\n".join(pathway_lines))
+
+    # Open questions
+    if crystal.open_questions:
+        questions = [f"- {q}" for q in crystal.open_questions[:3]]
+        sections.append("**Still wondering**:\n" + "\n".join(questions))
+
+    return "\n\n".join(sections) if sections else "Building holistic understanding..."

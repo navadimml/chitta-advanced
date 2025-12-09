@@ -9,11 +9,12 @@ import { testModeOrchestrator } from './services/TestModeOrchestrator.jsx';
 
 // UI Components
 import ConversationTranscript from './components/ConversationTranscript';
-import ContextualSurface from './components/ContextualSurface';
+// ContextualSurface replaced by GestaltCards for Living Gestalt architecture
 import InputArea from './components/InputArea';
 import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
 import VideoGuidelinesView from './components/VideoGuidelinesView';
+import VideoInsightsView from './components/VideoInsightsView';
 import { TestModeBannerPortal } from './components/TestModeBannerPortal.jsx';
 import DevPanel from './components/DevPanel';
 
@@ -24,6 +25,7 @@ import LivingDocument from './components/LivingDocument';
 
 // Living Gestalt Components
 import CuriosityPanel from './components/CuriosityPanel';
+import GestaltCards from './components/GestaltCards';
 
 // Generate unique family ID (in real app, from auth)
 // Persist family ID in localStorage to maintain session across page refreshes
@@ -69,6 +71,8 @@ function App() {
   const [childName, setChildName] = useState('');
   const [videoGuidelines, setVideoGuidelines] = useState(null);
   const [showGuidelinesView, setShowGuidelinesView] = useState(false);
+  const [videoInsights, setVideoInsights] = useState(null);
+  const [showInsightsView, setShowInsightsView] = useState(false);
 
   // Test mode state
   const [testMode, setTestMode] = useState(false);
@@ -81,6 +85,7 @@ function App() {
   const [livingDocumentArtifact, setLivingDocumentArtifact] = useState(null);
 
   // Living Gestalt state (curiosity-driven exploration)
+  const [childSpace, setChildSpace] = useState(null);  // Badges and child space data
   const [curiosityState, setCuriosityState] = useState({
     active_curiosities: [],
     open_questions: []
@@ -118,12 +123,28 @@ function App() {
         setCards(ui.cards);
         setSuggestions(ui.suggestions);
 
+        // 🌟 Living Gestalt: Load curiosity state
+        if (ui.curiosity_state) {
+          setCuriosityState(ui.curiosity_state);
+          console.log('🌟 Loaded curiosity state:', ui.curiosity_state.active_curiosities?.length || 0, 'curiosities');
+        }
+
+        // 🌟 Living Gestalt: Load child space data for header
+        if (ui.child_space) {
+          setChildSpace(ui.child_space);
+          console.log('🌟 Loaded child space:', ui.child_space.badges?.length || 0, 'badges');
+        }
+
         // Set state data
         if (state.child) {
           setChildName(state.child.name || '');
         }
+        // Also get child name from child_space if available
+        if (ui.child_space?.child_name && !state.child?.name) {
+          setChildName(ui.child_space.child_name);
+        }
 
-        if (state.artifacts.baseline_video_guidelines) {
+        if (state.artifacts?.baseline_video_guidelines) {
           const content = state.artifacts.baseline_video_guidelines.content;
           // Parse JSON content (artifact stores structured data as JSON string)
           const guidelinesData = typeof content === 'string' ? JSON.parse(content) : content;
@@ -353,27 +374,27 @@ function App() {
 
     // === Living Gestalt Video Flow Actions ===
 
-    // Accept video suggestion - triggers guidelines generation
+    // Accept video suggestion - triggers async guidelines generation
     if (action === 'accept_video' && cycleId) {
       console.log('📹 Accepting video suggestion for cycle:', cycleId);
-      setIsTyping(true);
+      // Note: Don't set isTyping - the card shows its own loading state
+      // Guidelines generate in background, SSE updates cards when ready
 
       try {
         const result = await api.acceptVideoSuggestion(activeFamilyId, cycleId);
-        console.log('✅ Video accepted, guidelines ready:', result);
+        console.log('✅ Video accepted:', result);
 
+        // If guidelines were returned synchronously (testing mode), show them
         if (result.guidelines) {
           setVideoGuidelines(result.guidelines);
           setShowGuidelinesView(true);
         }
 
-        // Refresh cards to show new state
+        // Refresh cards to show new state (generating -> ready)
         await refreshCards();
       } catch (error) {
         console.error('❌ Error accepting video suggestion:', error);
         alert('שגיאה ביצירת ההנחיות. נא לנסות שוב.');
-      } finally {
-        setIsTyping(false);
       }
       return;
     }
@@ -395,11 +416,15 @@ function App() {
     }
 
     // View video insights
-    if (action === 'view_insights' && card?.scenario_ids) {
-      console.log('📹 Viewing video insights for scenarios:', card.scenario_ids);
-      // TODO: Open insights view with scenario data
-      // For now, we could show the analyzed scenarios' insights
-      alert('צפייה בתובנות עדיין בפיתוח');
+    if (action === 'view_insights' && card?.cycle_id) {
+      try {
+        const insightsData = await api.getVideoInsights(activeFamilyId, card.cycle_id);
+        setVideoInsights(insightsData);
+        setShowInsightsView(true);
+      } catch (error) {
+        console.error('Error fetching video insights:', error);
+        alert('שגיאה בטעינת התובנות. נא לנסות שוב.');
+      }
       return;
     }
 
@@ -480,11 +505,10 @@ function App() {
 
     if (action === 'analyze_videos') {
       // 🎥 Trigger video analysis (v2 with cycle_id or v1 legacy)
+      // Note: Card shows its own loading state - don't block the chat
       console.log('🎬 Starting video analysis for family:', activeFamilyId, 'cycle:', cycleId);
 
       try {
-        setIsTyping(true);
-
         let result;
         if (cycleId) {
           // Living Gestalt v2: Use cycle-specific analysis
@@ -501,7 +525,6 @@ function App() {
 
         // ⚠️ Check if confirmation is needed (legacy v1)
         if (result.needs_confirmation) {
-          setIsTyping(false);
           console.log('⚠️ Confirmation needed:', result.confirmation_message);
 
           // Show confirmation dialog
@@ -510,13 +533,11 @@ function App() {
           if (confirmed) {
             // User confirmed - re-call with confirmed=true
             console.log('✅ User confirmed - proceeding with analysis');
-            setIsTyping(true);
             const response = await fetch(`${window.location.origin}/api/video/analyze?family_id=${activeFamilyId}&confirmed=true`, {
               method: 'POST'
             });
             const confirmedResult = await response.json();
             console.log('✅ Video analysis result (confirmed):', confirmedResult);
-            setIsTyping(false);
           } else {
             console.log('❌ User cancelled analysis');
           }
@@ -525,30 +546,39 @@ function App() {
 
         // Refresh cards to show updated state
         await refreshCards();
-        setIsTyping(false);
       } catch (error) {
         console.error('❌ Error analyzing videos:', error);
         alert('שגיאה בניתוח הסרטונים. נא לנסות שוב.');
-        setIsTyping(false);
       }
       return;
     }
 
     if (action === 'generate_report') {
       // 📋 Generate report without videos
+      // Note: Card shows its own loading state - don't block the chat
       console.log('📋 Generating report for family:', activeFamilyId);
 
       try {
-        setIsTyping(true);
         const result = await api.generateReports(activeFamilyId);
         console.log('✅ Report generation result:', result);
-
         // Cards will update automatically via SSE
-        setIsTyping(false);
       } catch (error) {
         console.error('❌ Error generating report:', error);
         alert('שגיאה ביצירת הדוח. נא לנסות שוב.');
-        setIsTyping(false);
+      }
+      return;
+    }
+
+    // Upload video action (from validation_failed card) - opens guidelines view
+    if (action === 'upload_video' && cycleId) {
+      console.log('📹 Opening guidelines for re-upload, cycle:', cycleId);
+      try {
+        const result = await api.getVideoGuidelines(activeFamilyId, cycleId);
+        setVideoGuidelines(result);
+        setShowGuidelinesView(true);
+      } catch (error) {
+        console.error('❌ Error fetching guidelines for re-upload:', error);
+        alert('שגיאה בטעינת ההנחיות. נא לנסות שוב.');
       }
       return;
     }
@@ -843,6 +873,7 @@ function App() {
       <ChildSpaceHeader
         familyId={testMode && testFamilyId ? testFamilyId : familyId}
         childName={childName}
+        childSpace={childSpace}
         onSlotClick={handleHeaderSlotClick}
         onExpandClick={(expanded) => setShowChildSpace(expanded)}
       />
@@ -860,8 +891,8 @@ function App() {
       {/* Conversation Transcript */}
       <ConversationTranscript messages={messages} isTyping={isTyping} />
 
-      {/* Contextual Surface */}
-      <ContextualSurface cards={cards} onCardClick={handleCardClick} />
+      {/* Living Gestalt Cards */}
+      <GestaltCards cards={cards} onCardAction={handleCardClick} />
 
       {/* Input Area */}
       <InputArea
@@ -920,13 +951,45 @@ function App() {
         />
       )}
 
-      {/* Living Dashboard: Child Space Drawer (Phase 2) */}
+      {/* Video Insights View */}
+      {showInsightsView && videoInsights && (
+        <VideoInsightsView
+          insights={videoInsights}
+          onClose={() => setShowInsightsView(false)}
+        />
+      )}
+
+      {/* Living Dashboard: Child Space - The Living Portrait */}
       <ChildSpace
         familyId={testMode && testFamilyId ? testFamilyId : familyId}
         isOpen={showChildSpace}
         onClose={() => setShowChildSpace(false)}
-        onSlotAction={handleSlotAction}
         childName={childName}
+        onVideoClick={(video) => {
+          // Open video insights or gallery when a video is clicked
+          setShowChildSpace(false);
+          if (video.status === 'analyzed' && video.cycle_id) {
+            api.getVideoInsights(testMode && testFamilyId ? testFamilyId : familyId, video.cycle_id)
+              .then((insights) => {
+                setVideoInsights(insights);
+                setShowInsightsView(true);
+              })
+              .catch((error) => console.error('Error loading video insights:', error));
+          } else {
+            setActiveDeepView('videoGallery');
+          }
+        }}
+        onGenerateSummary={async ({ recipientType, recipientSubtype, timeAvailable, context }) => {
+          const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
+          const result = await api.generateShareableSummary(
+            activeFamilyId,
+            recipientType,
+            recipientSubtype,
+            timeAvailable,
+            context
+          );
+          return result;
+        }}
       />
 
       {/* Living Dashboard: Living Document (Phase 3) */}

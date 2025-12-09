@@ -430,24 +430,15 @@ async def upload_video(
     file: UploadFile = File(...)
 ):
     """
-    🌟 Wu Wei: Upload actual video file and trigger lifecycle moments
+    🌟 Living Gestalt: Upload video file and update gestalt state
 
     This endpoint:
     1. Saves video file to uploads/{family_id}/{video_id}.{ext}
-    2. Adds video to FamilyState with file_path and analyst_context
-    3. Checks lifecycle moments (e.g., videos_ready when count >= 3)
-    4. Sends SSE notifications for card updates
+    2. Updates VideoScenario status in gestalt to 'uploaded'
+    3. Sends SSE notifications for card updates
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
-
-    # Get services
-    graphiti = get_mock_graphiti()
-    session_service = get_session_service()
-
-    # Get state
-    state = graphiti.get_or_create_state(family_id)
-    session = session_service.get_or_create_session(family_id)
 
     # Create uploads directory structure
     uploads_dir = Path("uploads") / family_id
@@ -468,67 +459,36 @@ async def upload_video(
         logger.error(f"❌ Error saving video file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save video: {str(e)}")
 
-    # Get analyst_context from video guidelines artifact if available
-    analyst_context = None
-    guidelines_artifact = session.artifacts.get("baseline_video_guidelines")
-    if guidelines_artifact and guidelines_artifact.status == "ready":
-        try:
-            guidelines_data = json.loads(guidelines_artifact.content)
-            # Find matching scenario in guidelines
-            for guideline_scenario in guidelines_data.get("scenarios", []):
-                if guideline_scenario.get("title") == scenario or guideline_scenario.get("scenario") == scenario:
-                    analyst_context = guideline_scenario.get("analyst_context")
-                    logger.info(f"✅ Found analyst_context for scenario: {scenario}")
-                    break
-        except Exception as e:
-            logger.warning(f"⚠️ Could not extract analyst_context from guidelines: {e}")
+    # 🌟 Living Gestalt: Record video upload in gestalt state
+    from app.chitta.service import get_chitta_service
+    chitta = get_chitta_service()
 
-    # Add video to state
-    from app.models.family_state import Video
-    video = Video(
-        id=video_id,
-        scenario=scenario,
-        uploaded_at=datetime.now(),
-        duration_seconds=duration_seconds,
+    # scenario is the scenario_id from the video guidelines
+    result = await chitta.record_video_upload(
+        family_id=family_id,
+        scenario_id=scenario,  # This is the VideoScenario.id
         file_path=str(file_path),
-        analyst_context=analyst_context
+        duration_seconds=duration_seconds
     )
-    state.videos_uploaded.append(video)
-    state.last_active = datetime.now()
 
-    total_videos = len(state.videos_uploaded)
-    logger.info(f"📹 Video uploaded: {scenario} (total: {total_videos})")
+    if "error" in result:
+        logger.warning(f"⚠️ Could not record video in gestalt: {result['error']}")
 
-    # 🌟 Wu Wei: Generate updated cards (moments will trigger on next conversation turn)
-    from app.services.prerequisite_service import get_prerequisite_service
-    from app.config.card_generator import get_card_generator
-
-    prerequisite_service = get_prerequisite_service()
-    card_generator = get_card_generator()
-
-    # Build context for card evaluation
-    session_data = {
-        "family_id": family_id,
-        "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
-        "message_count": len(session.conversation_history),
-        "artifacts": session.artifacts,
-        "uploaded_video_count": total_videos,  # 🌟 Key for Wu Wei moments!
-    }
-
-    context = prerequisite_service.get_context_for_cards(session_data)
-    updated_cards = card_generator.get_visible_cards(context)
-
-    logger.info(f"📇 Updated cards after video upload: {len(updated_cards)} cards")
-
-    # 🌟 Wu Wei: Send SSE notification for card update
-    await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
+    # Get updated cards and send SSE
+    gestalt = await chitta._get_gestalt(family_id)
+    updated_cards = []
+    if gestalt:
+        updated_cards = chitta._derive_cards(gestalt)
+        logger.info(f"📇 Updated cards after video upload: {[c['type'] for c in updated_cards]}")
+        await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
 
     return {
         "success": True,
         "video_id": video_id,
-        "total_videos": total_videos,
+        "scenario_id": scenario,
         "file_path": str(file_path),
         "file_size_mb": len(content) / 1024 / 1024,
+        "gestalt_result": result,
         "cards_updated": len(updated_cards)
     }
 
@@ -1906,25 +1866,48 @@ async def generate_timeline(request: TimelineGenerateRequest):
 
     Uses Gemini image generation to create a beautiful infographic
     showing key moments and milestones.
+
+    Supports both Living Gestalt data (new) and legacy session data.
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
     try:
         from app.services.timeline_image_service import get_timeline_service
+        from pathlib import Path
+        import json
 
-        session_service = get_session_service()
-        session = session_service.get_or_create_session(request.family_id)
-
-        # Get child name from extracted data (SessionState has extracted_data directly)
-        extracted = session.extracted_data
-        child_name = extracted.child_name if extracted and extracted.child_name else "הילד/ה"
-
-        # Build events from session state
         timeline_service = get_timeline_service()
-        events = timeline_service.build_events_from_family_state(
-            session.model_dump()
-        )
+        child_name = "הילד/ה"
+        events = []
+
+        # Try Living Gestalt data first (data/children/{family_id}.json)
+        gestalt_file = Path("data/children") / f"{request.family_id}.json"
+        if gestalt_file.exists():
+            try:
+                with open(gestalt_file, "r", encoding="utf-8") as f:
+                    gestalt_data = json.load(f)
+
+                child_name = gestalt_data.get("name", "הילד/ה")
+                events = timeline_service.build_events_from_gestalt(gestalt_data)
+                logger.info(f"📊 Building timeline from gestalt data for {request.family_id}")
+            except Exception as e:
+                logger.warning(f"Failed to load gestalt data for timeline: {e}")
+
+        # Fallback to legacy session data
+        if not events:
+            session_service = get_session_service()
+            session = session_service.get_or_create_session(request.family_id)
+
+            # Get child name from extracted data (SessionState has extracted_data directly)
+            extracted = session.extracted_data
+            if extracted and extracted.child_name:
+                child_name = extracted.child_name
+
+            # Build events from session state
+            events = timeline_service.build_events_from_family_state(
+                session.model_dump()
+            )
 
         if not events:
             return {
@@ -1948,7 +1931,7 @@ async def generate_timeline(request: TimelineGenerateRequest):
                 "message": "נסה שוב מאוחר יותר"
             }
 
-        # Store as artifact
+        # Store as artifact (only if we have a session)
         from app.models.artifact import Artifact
 
         artifact = Artifact(
@@ -1967,7 +1950,9 @@ async def generate_timeline(request: TimelineGenerateRequest):
             }
         )
 
-        session.add_artifact(artifact)
+        # Add to session if available (legacy path)
+        if 'session' in locals():
+            session.add_artifact(artifact)
 
         logger.info(f"📊 Timeline generated for {child_name}: {result['image_url']}")
 
@@ -2099,37 +2084,27 @@ async def subscribe_to_state_updates(family_id: str):
 @router.get("/state/{family_id}")
 async def get_family_state(family_id: str):
     """
-    🌟 Wu Wei: Get complete family state - everything derives from this.
-    Cards are YAML-driven, evaluated from current artifacts and context.
+    🌟 Living Gestalt: Get complete family state.
+    Cards and curiosity state are derived from Living Gestalt exploration cycles.
     """
     graphiti = get_mock_graphiti()
     state = graphiti.get_or_create_state(family_id)
 
-    # Get session and build context for card evaluation
-    session_service = get_session_service()
-    session = session_service.get_or_create_session(family_id)
+    # 🌟 Living Gestalt - use ChittaService for cards and curiosity
+    from app.chitta.service import get_chitta_service
+    chitta = get_chitta_service()
+    gestalt = await chitta._get_gestalt(family_id)
 
-    # Build context for YAML-driven card evaluation
-    from app.services.prerequisite_service import get_prerequisite_service
-    from app.config.card_generator import get_card_generator
+    cards = []
+    curiosity_state = {"active_curiosities": [], "open_questions": []}
+    child_space_data = None
 
-    prerequisite_service = get_prerequisite_service()
-    card_generator = get_card_generator()
-
-    # Build session data for prerequisite evaluation
-    session_data = {
-        "family_id": family_id,
-        "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
-        "message_count": len(session.conversation_history),
-        "artifacts": session.artifacts,
-        "uploaded_video_count": len(state.videos_uploaded),  # 🌟 Get actual video count from state
-    }
-
-    # Get Wu Wei context (includes artifacts, flags, etc.)
-    context = prerequisite_service.get_context_for_cards(session_data)
-
-    # 🌟 Use YAML-driven card evaluation (not hardcoded!)
-    cards = card_generator.get_visible_cards(context)
+    if gestalt:
+        cards = chitta._derive_cards(gestalt)
+        curiosity_state = await chitta.get_curiosity_state(family_id)
+        child_space_data = chitta._derive_child_space(gestalt)
+        logger.info(f"🌟 Living Gestalt cards for {family_id}: {[c['type'] for c in cards]}")
+        logger.info(f"🌟 Curiosities: {len(curiosity_state.get('active_curiosities', []))}")
 
     # Derive other UI elements
     greeting = derive_contextual_greeting(state)
@@ -2139,10 +2114,81 @@ async def get_family_state(family_id: str):
         "state": state.dict(),
         "ui": {
             "greeting": greeting,
-            "cards": cards,  # 🌟 Wu Wei: YAML-driven cards
-            "suggestions": suggestions
+            "cards": cards,
+            "suggestions": suggestions,
+            "curiosity_state": curiosity_state,
+            "child_space": child_space_data,
         }
     }
+
+
+# === Child Space - Living Portrait ===
+
+@router.get("/family/{family_id}/child-space")
+async def get_child_space_full(family_id: str):
+    """
+    Get complete ChildSpace data for the Living Portrait UI.
+
+    Returns data for all four tabs:
+    - essence: The living portrait (narrative, strengths, explorations, facts)
+    - discoveries: Timeline of discovery milestones
+    - observations: Video gallery with AI insights
+    - share: Sharing options and status
+
+    IMPORTANT: This endpoint ensures Crystal exists before returning data.
+    If Crystal is missing or stale, it will be generated (may add latency).
+    """
+    from app.chitta.service import get_chitta_service
+    chitta = get_chitta_service()
+    gestalt = await chitta._get_gestalt(family_id)
+
+    if not gestalt:
+        raise HTTPException(status_code=404, detail="Family not found")
+
+    # Ensure Crystal exists before deriving child space
+    # This guarantees we have holistic understanding, not just raw facts
+    await chitta.ensure_crystal_fresh(family_id)
+
+    # Re-fetch gestalt with updated crystal
+    gestalt = await chitta._get_gestalt(family_id)
+
+    return chitta.derive_child_space_full(gestalt)
+
+
+class GenerateSummaryRequest(BaseModel):
+    """Request to generate shareable summary"""
+    recipient_type: str
+    recipient_subtype: str
+    time_available: str = "standard"
+    context: Optional[str] = None
+
+
+@router.post("/family/{family_id}/child-space/share/generate")
+async def generate_shareable_summary(
+    family_id: str,
+    request: GenerateSummaryRequest
+):
+    """
+    Generate a shareable summary adapted for the recipient.
+
+    Uses LLM with strong model to translate understanding
+    into the appropriate voice profile.
+    """
+    from app.chitta.service import get_chitta_service
+    chitta = get_chitta_service()
+
+    result = await chitta.generate_shareable_summary(
+        family_id=family_id,
+        recipient_type=request.recipient_type,
+        recipient_subtype=request.recipient_subtype,
+        time_available=request.time_available,
+        additional_context=request.context,
+    )
+
+    if result.get("error") and not result.get("content"):
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    return result
 
 
 # === Test Mode Endpoints (Parent Simulator) ===
@@ -2385,28 +2431,60 @@ async def execute_card_action(request: CardActionRequest):
     """
     Execute an action from a card.
 
-    Actions include:
-    - view_artifact: Navigate to artifact view
-    - upload_video: Navigate to video upload
-    - show_insight: Display insight message
+    Living Gestalt actions:
+    - accept_video: Parent accepts video suggestion, triggers guidelines generation
+    - decline_video: Parent declines video suggestion
+    - view_guidelines: Navigate to guidelines view
+    - analyze_videos: Trigger video analysis
+    - view_insights: View video insights
     - dismiss: Dismiss a card
     """
+    from app.chitta.service import get_chitta_service
+
     try:
-        unified = get_unified_state_service()
-        child = unified.get_child(request.family_id)
-        session = await unified.get_or_create_session_async(request.family_id)
+        chitta = get_chitta_service()
+        action = request.action
+        params = request.params
+        family_id = request.family_id
+        cycle_id = params.get("cycle_id")
 
-        result = handle_card_action(
-            action=request.action,
-            params=request.params,
-            child=child,
-            session=session,
-        )
+        # Route to ChittaService methods
+        if action == "accept_video":
+            if not cycle_id:
+                return CardActionResponse(success=False, result={"error": "cycle_id required"})
+            result = await chitta.accept_video_suggestion(family_id, cycle_id)
 
-        # Persist any changes
-        from app.services.child_service import get_child_service
-        get_child_service().save_child(child)
-        await unified._persist_session(session)
+        elif action == "decline_video":
+            if not cycle_id:
+                return CardActionResponse(success=False, result={"error": "cycle_id required"})
+            result = await chitta.decline_video_suggestion(family_id, cycle_id)
+
+        elif action == "view_guidelines":
+            if not cycle_id:
+                return CardActionResponse(success=False, result={"error": "cycle_id required"})
+            result = await chitta.get_video_guidelines(family_id, cycle_id)
+            result["action"] = "navigate"
+            result["target"] = "guidelines_view"
+
+        elif action == "analyze_videos":
+            # TODO: Implement video analysis trigger
+            result = {"action": "navigate", "target": "video_analysis", "cycle_id": cycle_id}
+
+        elif action == "view_insights":
+            # TODO: Implement insights view
+            result = {"action": "navigate", "target": "insights_view", "cycle_id": cycle_id}
+
+        elif action == "dismiss":
+            result = {"status": "dismissed"}
+
+        else:
+            result = {"error": f"Unknown action: {action}"}
+
+        # Send SSE to update cards
+        gestalt = await chitta._get_gestalt(family_id)
+        if gestalt:
+            updated_cards = chitta._derive_cards(gestalt)
+            await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
 
         return CardActionResponse(
             success="error" not in result,
@@ -2463,6 +2541,145 @@ async def get_gestalt_summary(family_id: str):
 
     except Exception as e:
         logger.error(f"Error getting gestalt summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# === Video Insights Endpoint ===
+
+class VideoInsight(BaseModel):
+    """A single video insight."""
+    text: str
+    type: str  # "insight" | "strength" | "evidence"
+
+
+class VideoValidationResult(BaseModel):
+    """Video validation result - checks if video matches expected scenario and child."""
+    is_usable: bool = True
+    scenario_matches: Optional[bool] = None
+    what_video_shows: Optional[str] = None
+    child_visible: Optional[bool] = None
+    child_appears_consistent: Optional[bool] = None
+    validation_issues: List[str] = []
+    recommendation: Optional[str] = None  # "proceed_with_analysis" | "request_new_video"
+
+
+class VideoScenarioInsights(BaseModel):
+    """Insights from a single video scenario."""
+    scenario_id: str
+    title: str
+    verdict: Optional[str] = None  # "supports" | "contradicts" | "inconclusive"
+    confidence_level: Optional[str] = None
+    insights_for_parent: List[str] = []
+    strengths_observed: List[str] = []
+    analyzed_at: Optional[str] = None
+    video_validation: Optional[VideoValidationResult] = None
+
+
+class VideoInsightsResponse(BaseModel):
+    """Response model for video insights."""
+    family_id: str
+    cycle_id: str
+    focus: str
+    insights: List[VideoScenarioInsights]
+    total_analyzed: int
+
+
+@router.get("/gestalt/{family_id}/insights/{cycle_id}", response_model=VideoInsightsResponse)
+async def get_video_insights(family_id: str, cycle_id: str):
+    """
+    Get video analysis insights for a specific exploration cycle.
+
+    Returns parent-appropriate insights:
+    - insights_for_parent: Warm, concrete observations
+    - strengths_observed: Positive observations about the child
+    - verdict: Summary (supports/contradicts/inconclusive)
+
+    Does NOT expose:
+    - Internal hypothesis evidence
+    - Clinical analysis details
+    """
+    try:
+        from app.chitta.service import get_chitta_service
+        chitta = get_chitta_service()
+        gestalt = await chitta._get_gestalt(family_id)
+
+        if not gestalt:
+            raise HTTPException(status_code=404, detail=f"Family {family_id} not found")
+
+        # Find the cycle
+        cycle = None
+        for c in gestalt.exploration_cycles:
+            if c.id == cycle_id:
+                cycle = c
+                break
+
+        if not cycle:
+            raise HTTPException(status_code=404, detail=f"Cycle {cycle_id} not found")
+
+        # Helper to normalize list items (can be str or dict with key)
+        def normalize_list(items: list, key: str = None) -> List[str]:
+            """Convert list items to strings, handling dict format."""
+            result = []
+            for item in items:
+                if isinstance(item, str):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    # Try common keys: 'strength', 'insight', 'text', or the provided key
+                    for k in [key, 'strength', 'insight', 'text', 'content']:
+                        if k and k in item:
+                            result.append(item[k])
+                            break
+                    else:
+                        # If no known key, use first string value
+                        for v in item.values():
+                            if isinstance(v, str):
+                                result.append(v)
+                                break
+            return result
+
+        # Extract insights from analyzed video scenarios
+        insights = []
+        for scenario in cycle.video_scenarios:
+            if scenario.status == "analyzed" and scenario.analysis_result:
+                result = scenario.analysis_result
+
+                # Extract video validation data if present
+                validation_data = result.get("video_validation")
+                video_validation = None
+                if validation_data:
+                    video_validation = VideoValidationResult(
+                        is_usable=validation_data.get("is_usable", True),
+                        scenario_matches=validation_data.get("scenario_matches"),
+                        what_video_shows=validation_data.get("what_video_shows"),
+                        child_visible=validation_data.get("child_visible"),
+                        child_appears_consistent=validation_data.get("child_appears_consistent"),
+                        validation_issues=validation_data.get("validation_issues", []),
+                        recommendation=validation_data.get("recommendation"),
+                    )
+
+                insights.append(VideoScenarioInsights(
+                    scenario_id=scenario.id,
+                    title=scenario.title,
+                    verdict=result.get("verdict"),
+                    confidence_level=result.get("confidence_level"),
+                    insights_for_parent=normalize_list(result.get("insights_for_parent", []), "insight"),
+                    strengths_observed=normalize_list(result.get("strengths_observed", []), "strength"),
+                    analyzed_at=scenario.analyzed_at.isoformat() if scenario.analyzed_at else None,
+                    video_validation=video_validation,
+                ))
+
+        return VideoInsightsResponse(
+            family_id=family_id,
+            cycle_id=cycle_id,
+            focus=cycle.focus,
+            insights=insights,
+            total_analyzed=len(insights),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting video insights: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

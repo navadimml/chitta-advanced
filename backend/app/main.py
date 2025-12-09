@@ -2,6 +2,7 @@
 Chitta Backend - FastAPI Application
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -24,11 +25,28 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup/shutdown events"""
+    # Startup
+    logger.info("🚀 Starting Chitta Backend...")
+    await app_state.initialize()
+    logger.info("✅ Chitta Backend ready!")
+
+    yield
+
+    # Shutdown
+    logger.info("👋 Shutting down Chitta Backend...")
+    await app_state.shutdown()
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Chitta API",
     description="API for Chitta child development assessment platform",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS
@@ -48,18 +66,6 @@ app.include_router(router, prefix="/api")
 uploads_dir = Path(__file__).parent.parent / "uploads"
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
-
-# Startup/Shutdown events
-@app.on_event("startup")
-async def startup():
-    logger.info("🚀 Starting Chitta Backend...")
-    await app_state.initialize()
-    logger.info("✅ Chitta Backend ready!")
-
-@app.on_event("shutdown")
-async def shutdown():
-    logger.info("👋 Shutting down Chitta Backend...")
-    await app_state.shutdown()
 
 # Health check
 @app.get("/health")

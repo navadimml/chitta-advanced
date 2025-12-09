@@ -121,15 +121,35 @@ class VideoAnalysisService:
             logger.info("✅ Validating analysis structure...")
             validated_result = self._validate_analysis(analysis_result)
 
-            # Mark artifact as ready
-            artifact.mark_ready(json.dumps(validated_result, ensure_ascii=False))
-            artifact.generation_duration_seconds = time.time() - start_time
-            artifact.generation_model = getattr(self.llm_provider, "model_name", "unknown")
+            # Check if video validation failed
+            if validated_result.get("_validation_failed"):
+                # Video didn't pass validation - mark with special status
+                validation_reason = validated_result.get("_validation_reason", ["Unknown validation failure"])
+                recommendation = validated_result.get("_validation_recommendation", "request_new_video")
 
-            logger.info(
-                f"✅ Video analysis complete in {artifact.generation_duration_seconds:.2f}s "
-                f"for {child_name} - {guideline_title}"
-            )
+                logger.warning(f"⚠️ Video validation failed: {validation_reason}")
+
+                # Still store the result (contains validation info) but mark status appropriately
+                artifact.status = "validation_failed"
+                artifact.content = json.dumps(validated_result, ensure_ascii=False)
+                artifact.error_message = f"Video validation failed: {'; '.join(validation_reason)}"
+                artifact.generation_duration_seconds = time.time() - start_time
+                artifact.generation_model = getattr(self.llm_provider, "model_name", "unknown")
+
+                logger.info(
+                    f"⚠️ Video analysis complete but VALIDATION FAILED in {artifact.generation_duration_seconds:.2f}s "
+                    f"for {child_name} - {guideline_title}. Recommendation: {recommendation}"
+                )
+            else:
+                # Mark artifact as ready
+                artifact.mark_ready(json.dumps(validated_result, ensure_ascii=False))
+                artifact.generation_duration_seconds = time.time() - start_time
+                artifact.generation_model = getattr(self.llm_provider, "model_name", "unknown")
+
+                logger.info(
+                    f"✅ Video analysis complete in {artifact.generation_duration_seconds:.2f}s "
+                    f"for {child_name} - {guideline_title}"
+                )
 
         except Exception as e:
             logger.error(f"❌ Error analyzing video: {e}", exc_info=True)
@@ -326,6 +346,7 @@ class VideoAnalysisService:
     def _validate_analysis(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validate analysis structure and ensure required fields.
+        Also checks video_validation to determine if video is usable.
 
         Args:
             analysis: Raw analysis from LLM
@@ -335,6 +356,7 @@ class VideoAnalysisService:
         """
         required_sections = [
             "analysis_metadata",
+            "video_validation",  # NEW: Critical validation section
             "demographics",
             "task_context_analysis",
             "holistic_summary",
@@ -351,6 +373,36 @@ class VideoAnalysisService:
         if missing_sections:
             logger.warning(f"⚠️ Analysis missing sections: {missing_sections}")
             # Log but don't fail - LLM might have used slightly different structure
+
+        # Check video validation results
+        video_validation = analysis.get("video_validation", {})
+        if video_validation:
+            is_usable = video_validation.get("is_usable", True)
+            recommendation = video_validation.get("recommendation", "proceed_with_analysis")
+            content_issues = video_validation.get("content_issues", [])
+
+            # Log validation results
+            scenario_match = video_validation.get("scenario_match", {})
+            child_verification = video_validation.get("child_verification", {})
+
+            if not is_usable:
+                logger.error(f"❌ VIDEO VALIDATION FAILED!")
+                logger.error(f"   - Recommendation: {recommendation}")
+                logger.error(f"   - Issues: {content_issues}")
+                logger.error(f"   - Scenario match: {scenario_match.get('matches_requested_scenario', 'unknown')}")
+                logger.error(f"   - Child verification: {child_verification.get('appears_to_be_same_child', 'unknown')}")
+
+                # Mark the analysis with validation failure
+                analysis["_validation_failed"] = True
+                analysis["_validation_reason"] = content_issues or ["Video did not pass validation"]
+                analysis["_validation_recommendation"] = recommendation
+            else:
+                # Log successful validation
+                logger.info(f"✅ Video validation passed")
+                if not scenario_match.get("matches_requested_scenario", True):
+                    logger.warning(f"   ⚠️ Scenario mismatch but continuing: {scenario_match.get('mismatch_reason', 'unknown')}")
+                if not child_verification.get("appears_to_be_same_child", True):
+                    logger.warning(f"   ⚠️ Child verification concern: {child_verification.get('verification_notes', 'unknown')}")
 
         # Ensure strengths are present (critical for holistic approach)
         if not analysis.get("observed_strengths"):

@@ -115,6 +115,30 @@ def build_video_analysis_prompt(
 2. **Provide evidence** - what supports or contradicts our working theories?
 3. **See the whole child** - strengths, essence, and capacity alongside concerns
 
+## VIDEO VALIDATION (CRITICAL - Do First!)
+
+Before analyzing, you MUST validate the video content:
+
+1. **Scenario Match Check:**
+   - Does the video show what the parent was asked to film?
+   - If asked to film "מעבר בין פעילויות" (transition between activities), does the video show that?
+   - If the video shows something completely different (e.g., child on a chair spinning), mark as mismatch
+
+2. **Child Verification Check:**
+   - Is a child visible in the video?
+   - Does the child's apparent age match the profile? (Child is {age_years} years old)
+   - Does the child's apparent gender match the profile? (Child is {gender})
+   - If the child looks significantly different in age (e.g., profile says 3.5 years, video shows 8-year-old), flag this!
+
+3. **Validation Decision:**
+   - **is_usable: true** → Video matches scenario and child, proceed with full analysis
+   - **is_usable: false** → Wrong scenario, wrong child, or unusable - explain in content_issues
+   - **recommendation: "request_new_video"** → Video cannot be used, parent should re-film
+   - **recommendation: "partial_analysis_possible"** → Some issues but some analysis possible
+   - **recommendation: "proceed_with_analysis"** → Video is valid
+
+**IMPORTANT:** If validation fails (is_usable: false), still fill in all other sections with placeholders or "N/A - video validation failed" to maintain schema compliance.
+
 ## Living Gestalt Philosophy
 
 You see the WHOLE child, not just problems:
@@ -217,6 +241,30 @@ You MUST return a valid JSON object with the following structure. Do NOT include
         "duration_adequacy": "<string>",
         "context_richness": "<string>"
       }}
+    }},
+
+    // =================================================================
+    // 0.1 VIDEO VALIDATION (CRITICAL - Fill this FIRST!)
+    // =================================================================
+    "video_validation": {{
+      "is_usable": <boolean: true if video is valid for analysis>,
+      "scenario_match": {{
+        "matches_requested_scenario": <boolean: does video content match what was requested?>,
+        "what_was_requested": "{instruction}",
+        "what_video_shows": "<Describe what the video actually shows>",
+        "match_confidence": "<High|Medium|Low>",
+        "mismatch_reason": "<If mismatch, explain: e.g., 'Video shows child spinning on chair, not transition scenario'>"
+      }},
+      "child_verification": {{
+        "child_visible": <boolean: is a child clearly visible?>,
+        "estimated_age_range": "<e.g., '3-4 years' based on visual estimation>",
+        "age_consistent_with_profile": <boolean: does estimated age match {age_years} years?>,
+        "gender_consistent_with_profile": <boolean: does apparent gender match {gender}?>,
+        "appears_to_be_same_child": <boolean: is this likely the child from the interview?>,
+        "verification_notes": "<Any concerns: e.g., 'Child in video appears to be 7-8 years old, profile says 3.5'>"
+      }},
+      "content_issues": ["<List issues if any: 'wrong child', 'wrong scenario', 'video too dark', etc.>"],
+      "recommendation": "<proceed_with_analysis|request_new_video|partial_analysis_possible>"
     }},
 
     // =================================================================
