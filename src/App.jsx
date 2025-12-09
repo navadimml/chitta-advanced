@@ -22,6 +22,9 @@ import ChildSpaceHeader from './components/ChildSpaceHeader';
 import ChildSpace from './components/ChildSpace';
 import LivingDocument from './components/LivingDocument';
 
+// Living Gestalt Components
+import CuriosityPanel from './components/CuriosityPanel';
+
 // Generate unique family ID (in real app, from auth)
 // Persist family ID in localStorage to maintain session across page refreshes
 // Also check URL params for family ID (useful for dev mode)
@@ -76,6 +79,12 @@ function App() {
   // Living Dashboard state (Phase 2 & 3)
   const [showChildSpace, setShowChildSpace] = useState(false);
   const [livingDocumentArtifact, setLivingDocumentArtifact] = useState(null);
+
+  // Living Gestalt state (curiosity-driven exploration)
+  const [curiosityState, setCuriosityState] = useState({
+    active_curiosities: [],
+    open_questions: []
+  });
 
   // Ref to track last processed message (prevent duplicate triggers)
   const lastProcessedMessageRef = useRef(null);
@@ -297,6 +306,10 @@ function App() {
         if (response.ui_data.video_guidelines) {
           setVideoGuidelines(response.ui_data.video_guidelines);
         }
+        // Living Gestalt: Update curiosity state
+        if (response.ui_data.curiosity_state) {
+          setCuriosityState(response.ui_data.curiosity_state);
+        }
       }
 
       // 🌟 Wu Wei: Handle action validation (config-driven from action_graph.yaml)
@@ -330,55 +343,134 @@ function App() {
   };
 
   // Handle card click
-  const handleCardClick = async (action) => {
+  // action: the action string (e.g., 'accept_video', 'view_guidelines')
+  // card: the full card object (contains cycle_id for Living Gestalt cards)
+  const handleCardClick = async (action, card = null) => {
     if (!action) return; // Status cards have no action
+
+    const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
+    const cycleId = card?.cycle_id;
+
+    // === Living Gestalt Video Flow Actions ===
+
+    // Accept video suggestion - triggers guidelines generation
+    if (action === 'accept_video' && cycleId) {
+      console.log('📹 Accepting video suggestion for cycle:', cycleId);
+      setIsTyping(true);
+
+      try {
+        const result = await api.acceptVideoSuggestion(activeFamilyId, cycleId);
+        console.log('✅ Video accepted, guidelines ready:', result);
+
+        if (result.guidelines) {
+          setVideoGuidelines(result.guidelines);
+          setShowGuidelinesView(true);
+        }
+
+        // Refresh cards to show new state
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error accepting video suggestion:', error);
+        alert('שגיאה ביצירת ההנחיות. נא לנסות שוב.');
+      } finally {
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    // Decline video suggestion
+    if (action === 'decline_video' && cycleId) {
+      console.log('📹 Declining video suggestion for cycle:', cycleId);
+
+      try {
+        await api.declineVideoSuggestion(activeFamilyId, cycleId);
+        console.log('✅ Video declined');
+
+        // Refresh cards to remove the suggestion
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error declining video suggestion:', error);
+      }
+      return;
+    }
+
+    // View video insights
+    if (action === 'view_insights' && card?.scenario_ids) {
+      console.log('📹 Viewing video insights for scenarios:', card.scenario_ids);
+      // TODO: Open insights view with scenario data
+      // For now, we could show the analyzed scenarios' insights
+      alert('צפייה בתובנות עדיין בפיתוח');
+      return;
+    }
+
+    // View synthesis
+    if (action === 'view_synthesis') {
+      console.log('📊 Requesting synthesis');
+      setIsTyping(true);
+
+      try {
+        const result = await api.requestSynthesis(activeFamilyId);
+        console.log('✅ Synthesis result:', result);
+        // TODO: Open synthesis view
+        alert('סיכום עדיין בפיתוח');
+      } catch (error) {
+        console.error('❌ Error requesting synthesis:', error);
+        alert('שגיאה ביצירת הסיכום. נא לנסות שוב.');
+      } finally {
+        setIsTyping(false);
+      }
+      return;
+    }
 
     // Handle both 'view_guidelines' (old) and 'view_video_guidelines' (from action_graph.yaml)
     if (action === 'view_guidelines' || action === 'view_video_guidelines') {
-      // 🌟 Wu Wei: Fetch the artifact content before showing the view
-      const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
-
-      console.log('📹 Fetching video guidelines for family:', activeFamilyId);
+      console.log('📹 Viewing video guidelines for family:', activeFamilyId, 'cycle:', cycleId);
 
       try {
-        const artifact = await api.getArtifact(activeFamilyId, 'baseline_video_guidelines');
-        console.log('📦 Artifact received:', artifact);
+        let guidelinesData;
 
-        if (artifact && artifact.content) {
-          console.log('📄 Content type:', typeof artifact.content);
-          console.log('📄 Content preview:', typeof artifact.content === 'string'
-            ? artifact.content.substring(0, 200)
-            : JSON.stringify(artifact.content).substring(0, 200));
-
-          // Check if content is old markdown format (starts with #)
-          if (typeof artifact.content === 'string' && artifact.content.trim().startsWith('#')) {
-            console.warn('⚠️ Old markdown format detected. Guidelines need regeneration.');
-            alert('ההנחיות במבנה ישן. נא להתחיל שיחה חדשה כדי ליצור הנחיות מעודכנות.');
-            return;
-          }
-
-          // Parse JSON content (artifact stores structured data as JSON string)
-          let guidelinesData;
-          try {
-            guidelinesData = typeof artifact.content === 'string'
-              ? JSON.parse(artifact.content)
-              : artifact.content;
-          } catch (parseError) {
-            console.error('❌ Failed to parse guidelines JSON:', parseError);
-            console.error('Content was:', artifact.content.substring(0, 500));
-            alert('שגיאה בקריאת ההנחיות. נא לנסות שוב או להתחיל שיחה חדשה.');
-            return;
-          }
-
-          console.log('✅ Parsed guidelines:', guidelinesData);
-          console.log('✅ Has scenarios:', guidelinesData.scenarios?.length);
-
-          setVideoGuidelines(guidelinesData);
-          setShowGuidelinesView(true);
+        if (cycleId) {
+          // Living Gestalt v2: Fetch from cycle-specific endpoint
+          const result = await api.getVideoGuidelines(activeFamilyId, cycleId);
+          console.log('📦 Guidelines from cycle:', result);
+          guidelinesData = result;
         } else {
-          console.error('❌ Artifact not ready or missing content:', artifact);
-          alert('ההנחיות עדיין לא מוכנות. נא לנסות שוב בעוד רגעים.');
+          // Legacy: Fetch from artifact system
+          const artifact = await api.getArtifact(activeFamilyId, 'baseline_video_guidelines');
+          console.log('📦 Artifact received:', artifact);
+
+          if (artifact && artifact.content) {
+            console.log('📄 Content type:', typeof artifact.content);
+
+            // Check if content is old markdown format (starts with #)
+            if (typeof artifact.content === 'string' && artifact.content.trim().startsWith('#')) {
+              console.warn('⚠️ Old markdown format detected. Guidelines need regeneration.');
+              alert('ההנחיות במבנה ישן. נא להתחיל שיחה חדשה כדי ליצור הנחיות מעודכנות.');
+              return;
+            }
+
+            // Parse JSON content (artifact stores structured data as JSON string)
+            try {
+              guidelinesData = typeof artifact.content === 'string'
+                ? JSON.parse(artifact.content)
+                : artifact.content;
+            } catch (parseError) {
+              console.error('❌ Failed to parse guidelines JSON:', parseError);
+              alert('שגיאה בקריאת ההנחיות. נא לנסות שוב או להתחיל שיחה חדשה.');
+              return;
+            }
+          } else {
+            console.error('❌ Artifact not ready or missing content:', artifact);
+            alert('ההנחיות עדיין לא מוכנות. נא לנסות שוב בעוד רגעים.');
+            return;
+          }
         }
+
+        console.log('✅ Guidelines data:', guidelinesData);
+        console.log('✅ Has scenarios:', guidelinesData?.scenarios?.length);
+
+        setVideoGuidelines(guidelinesData);
+        setShowGuidelinesView(true);
       } catch (error) {
         console.error('❌ Error fetching video guidelines:', error);
         alert('שגיאה בטעינת ההנחיות. נא לנסות שוב.');
@@ -387,16 +479,27 @@ function App() {
     }
 
     if (action === 'analyze_videos') {
-      // 🎥 Trigger video analysis
-      const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
-      console.log('🎬 Starting video analysis for family:', activeFamilyId);
+      // 🎥 Trigger video analysis (v2 with cycle_id or v1 legacy)
+      console.log('🎬 Starting video analysis for family:', activeFamilyId, 'cycle:', cycleId);
 
       try {
         setIsTyping(true);
-        const result = await api.analyzeVideos(activeFamilyId);
+
+        let result;
+        if (cycleId) {
+          // Living Gestalt v2: Use cycle-specific analysis
+          result = await api.analyzeVideos(activeFamilyId, cycleId);
+        } else {
+          // Legacy v1: Use old endpoint
+          const response = await fetch(`${window.location.origin}/api/video/analyze?family_id=${activeFamilyId}`, {
+            method: 'POST'
+          });
+          result = await response.json();
+        }
+
         console.log('✅ Video analysis result:', result);
 
-        // ⚠️ Check if confirmation is needed
+        // ⚠️ Check if confirmation is needed (legacy v1)
         if (result.needs_confirmation) {
           setIsTyping(false);
           console.log('⚠️ Confirmation needed:', result.confirmation_message);
@@ -408,7 +511,10 @@ function App() {
             // User confirmed - re-call with confirmed=true
             console.log('✅ User confirmed - proceeding with analysis');
             setIsTyping(true);
-            const confirmedResult = await api.analyzeVideos(activeFamilyId, true);
+            const response = await fetch(`${window.location.origin}/api/video/analyze?family_id=${activeFamilyId}&confirmed=true`, {
+              method: 'POST'
+            });
+            const confirmedResult = await response.json();
             console.log('✅ Video analysis result (confirmed):', confirmedResult);
             setIsTyping(false);
           } else {
@@ -417,7 +523,8 @@ function App() {
           return;
         }
 
-        // Cards will update automatically via SSE
+        // Refresh cards to show updated state
+        await refreshCards();
         setIsTyping(false);
       } catch (error) {
         console.error('❌ Error analyzing videos:', error);
@@ -429,7 +536,6 @@ function App() {
 
     if (action === 'generate_report') {
       // 📋 Generate report without videos
-      const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
       console.log('📋 Generating report for family:', activeFamilyId);
 
       try {
@@ -740,6 +846,16 @@ function App() {
         onSlotClick={handleHeaderSlotClick}
         onExpandClick={(expanded) => setShowChildSpace(expanded)}
       />
+
+      {/* Living Gestalt: Curiosity Panel (shows what Chitta is exploring) */}
+      {curiosityState.active_curiosities.length > 0 && (
+        <div className="px-4 py-2">
+          <CuriosityPanel
+            curiosityState={curiosityState}
+            collapsed={true}
+          />
+        </div>
+      )}
 
       {/* Conversation Transcript */}
       <ConversationTranscript messages={messages} isTyping={isTyping} />

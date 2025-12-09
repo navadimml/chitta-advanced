@@ -59,14 +59,18 @@ export default function ContextualSurface({ cards, onCardClick }) {
           const isProgress = card.card_type === 'progress' || card.status === 'processing';
           const isSuccess = card.card_type === 'success' || card.status === 'new';
 
+          // Living Gestalt: Check if card has actions array (new format) vs single action (old format)
+          const hasActionsArray = card.actions && Array.isArray(card.actions);
+          const hasLegacyAction = card.action && !hasActionsArray;
+
           return (
             <div
               key={idx}
-              onClick={() => card.action && onCardClick(card.action)}
+              onClick={() => hasLegacyAction && onCardClick(card.action, card)}
               className={`${cardColor} ${
                 isGuidance ? 'border-2 p-4' : 'border p-3'
               } rounded-xl ${
-                card.action ? 'cursor-pointer hover:shadow-lg hover:scale-[1.03] active:scale-[0.99]' : ''
+                hasLegacyAction ? 'cursor-pointer hover:shadow-lg hover:scale-[1.03] active:scale-[0.99]' : ''
               } ${isProgress ? 'animate-pulse-subtle' : ''} transition-all duration-300 ease-out group relative overflow-hidden`}
               style={{
                 animation: `cardSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.08}s both`,
@@ -103,7 +107,7 @@ export default function ContextualSurface({ cards, onCardClick }) {
                     </div>
                     <div className={`opacity-90 leading-relaxed ${
                       isGuidance ? 'text-base mt-1' : 'text-sm opacity-80'
-                    }`}>{card.subtitle}</div>
+                    }`}>{card.subtitle || card.description}</div>
 
                     {/* Breadcrumbs - ברור ובולט */}
                     {isStatusCard && (
@@ -169,10 +173,32 @@ export default function ContextualSurface({ cards, onCardClick }) {
                     )}
                   </div>
                 </div>
-                {card.action && (
+                {hasLegacyAction && (
                   <Icons.ChevronRight className="w-5 h-5 opacity-50 group-hover:opacity-100 transition" />
                 )}
               </div>
+
+              {/* Living Gestalt: Action buttons for cards with actions array */}
+              {hasActionsArray && (
+                <div className="flex gap-2 mt-3 relative z-10">
+                  {card.actions.map((actionItem, actionIdx) => (
+                    <button
+                      key={actionIdx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCardClick(actionItem.action, card);
+                      }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        actionItem.primary
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {actionItem.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
