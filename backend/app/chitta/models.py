@@ -20,6 +20,73 @@ def generate_id() -> str:
     return str(uuid.uuid4())[:8]
 
 
+# === Developmental Timeline (SKELETON - Future Feature) ===
+
+@dataclass
+class DevelopmentalMilestone:
+    """
+    SKELETON - NOT YET IMPLEMENTED
+
+    A significant developmental event in the child's life.
+
+    This is the foundation for a proper developmental timeline feature.
+    Unlike system events (when we analyzed a video), these are real-world
+    developmental moments that matter to parents and clinicians.
+
+    FUTURE IMPLEMENTATION NOTES:
+    - Belongs in the child's Understanding (part of Gestalt state)
+    - Should be displayed in ChildSpace - either in "מה גילינו" tab
+      transformed into a developmental timeline, or as a dedicated view
+    - Extraction: LLM tool during conversation when parent mentions milestones
+    - Display: Age-based timeline (not date-based) showing child's journey
+
+    Examples:
+    - "First words at 12 months"
+    - "Started walking at 14 months"
+    - "Regression in speech at 2 years"
+    - "Started OT therapy at 3 years"
+    - "Toilet trained at 3.5 years"
+
+    Required for implementation:
+    1. Add `developmental_milestones: List[DevelopmentalMilestone]` to Gestalt
+    2. Create LLM tool: `record_milestone` for extraction during conversation
+    3. Update ChildSpace UI to display age-based timeline
+    4. Consider: auto-extraction from existing facts that have temporal info
+    """
+    id: str
+    description: str              # What happened: "אמר מילה ראשונה"
+    age_months: Optional[int]     # Age when it happened (in months)
+    age_description: Optional[str] # Or free text: "בגיל שנה", "לפני חצי שנה"
+    domain: str                   # motor, language, social, emotional, cognitive, behavioral
+    milestone_type: str           # achievement, concern, regression, intervention, observation
+    source: str                   # conversation, parent_report, clinical
+    recorded_at: datetime
+    notes: Optional[str] = None
+
+    @classmethod
+    def create(
+        cls,
+        description: str,
+        domain: str,
+        milestone_type: str = "observation",
+        age_months: Optional[int] = None,
+        age_description: Optional[str] = None,
+        source: str = "conversation",
+        notes: Optional[str] = None,
+    ) -> "DevelopmentalMilestone":
+        return cls(
+            id=generate_id(),
+            description=description,
+            age_months=age_months,
+            age_description=age_description,
+            domain=domain,
+            milestone_type=milestone_type,
+            source=source,
+            recorded_at=datetime.now(),
+            notes=notes,
+        )
+
+
 # === Journal & Stories ===
 
 @dataclass
@@ -679,7 +746,7 @@ class Crystal:
                     "recommended_approach": er.recommended_approach,
                     "why_this_approach": er.why_this_approach,
                     "what_to_look_for": er.what_to_look_for,
-                    "key_points_to_share": er.key_points_to_share,
+                    "summary_for_professional": er.summary_for_professional,
                     "confidence": er.confidence,
                     "priority": er.priority,
                 }
@@ -727,7 +794,7 @@ class Crystal:
                 recommended_approach=er_data["recommended_approach"],
                 why_this_approach=er_data["why_this_approach"],
                 what_to_look_for=er_data.get("what_to_look_for", []),
-                key_points_to_share=er_data.get("key_points_to_share", []),
+                summary_for_professional=er_data.get("summary_for_professional", ""),
                 confidence=er_data.get("confidence", 0.5),
                 priority=er_data.get("priority", "when_ready"),
             ))
@@ -758,6 +825,79 @@ class Crystal:
             based_on_observations_through=based_on,
             version=data.get("version", 1),
             previous_version_summary=data.get("previous_version_summary"),
+        )
+
+
+# === Shared Summaries ===
+
+@dataclass
+class SharedSummary:
+    """
+    A summary generated for sharing with a professional or person.
+
+    Persisted to allow accessing previous summaries in later sessions.
+    The content includes a timestamp in Hebrew for context.
+    """
+    id: str
+    recipient_type: str           # "professional" | "family" | "custom"
+    recipient_description: str    # "מטפלת בעיסוק", "סבתא", etc.
+    content: str                  # The actual summary text
+    created_at: datetime
+    comprehensive: bool = False   # Was this a comprehensive summary?
+
+    # Optional - links to crystal recommendation if relevant
+    expert_recommendation_id: Optional[str] = None
+
+    @classmethod
+    def create(
+        cls,
+        recipient_description: str,
+        content: str,
+        recipient_type: str = "professional",
+        comprehensive: bool = False,
+        expert_recommendation_id: Optional[str] = None,
+    ) -> "SharedSummary":
+        """Create a new shared summary with timestamp."""
+        return cls(
+            id=generate_id(),
+            recipient_type=recipient_type,
+            recipient_description=recipient_description,
+            content=content,
+            created_at=datetime.now(),
+            comprehensive=comprehensive,
+            expert_recommendation_id=expert_recommendation_id,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "id": self.id,
+            "recipient_type": self.recipient_type,
+            "recipient_description": self.recipient_description,
+            "content": self.content,
+            "created_at": self.created_at.isoformat(),
+            "comprehensive": self.comprehensive,
+            "expert_recommendation_id": self.expert_recommendation_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SharedSummary":
+        """Create from dict (persistence loading)."""
+        created_at = datetime.now()
+        if data.get("created_at"):
+            try:
+                created_at = datetime.fromisoformat(data["created_at"])
+            except (ValueError, TypeError):
+                pass
+
+        return cls(
+            id=data.get("id", generate_id()),
+            recipient_type=data.get("recipient_type", "professional"),
+            recipient_description=data.get("recipient_description", ""),
+            content=data.get("content", ""),
+            created_at=created_at,
+            comprehensive=data.get("comprehensive", False),
+            expert_recommendation_id=data.get("expert_recommendation_id"),
         )
 
 
