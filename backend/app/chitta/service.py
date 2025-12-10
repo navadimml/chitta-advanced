@@ -206,6 +206,7 @@ class ChittaService:
             curiosity_data=child_data.get("curiosity_engine"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
+            shared_summaries_data=child_data.get("shared_summaries"),
         )
 
         # Cache it
@@ -245,6 +246,7 @@ class ChittaService:
             curiosity_data=child_data.get("curiosity_engine"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
+            shared_summaries_data=child_data.get("shared_summaries"),
         )
 
         # Cache it
@@ -429,6 +431,10 @@ class ChittaService:
         # Include crystal if present
         if "crystal" in gestalt_state:
             child_data["crystal"] = gestalt_state["crystal"]
+
+        # Include shared summaries
+        if "shared_summaries" in gestalt_state:
+            child_data["shared_summaries"] = gestalt_state["shared_summaries"]
 
         # Persist to our own file (Gestalt's state)
         # SessionService persists sessions automatically
@@ -665,85 +671,18 @@ class ChittaService:
 
     def _derive_child_space(self, gestalt: LivingGestalt) -> Dict[str, Any]:
         """
-        Derive child space data from gestalt for header badges.
+        Derive child space data for header.
 
-        Returns data for ChildSpaceHeader component:
-        - badges: Quick-access pills showing what's available
-        - videos: Count of videos with analysis status
-        - exploration_summary: Brief summary of active explorations
+        Returns minimal data for ChildSpaceHeader component:
+        - child_name: For display
+        - badges: Empty - status info belongs in context cards, not duplicated here
+
+        The header is just a simple entry point to ChildSpace.
+        All actionable status (videos, guidelines, insights) is shown via context cards.
         """
-        badges = []
-
-        # Count videos from exploration cycles
-        total_videos = 0
-        analyzed_videos = 0
-        pending_videos = 0
-
-        for cycle in gestalt.exploration_cycles:
-            for scenario in cycle.video_scenarios:
-                total_videos += 1
-                if scenario.status == "analyzed":
-                    analyzed_videos += 1
-                elif scenario.status == "uploaded":
-                    pending_videos += 1
-
-        # Video badge
-        if total_videos > 0:
-            if pending_videos > 0:
-                badges.append({
-                    "slot_id": "videos",
-                    "icon": "🎬",
-                    "text": f"{pending_videos} ממתין",
-                    "status": "pending",
-                })
-            elif analyzed_videos > 0:
-                badges.append({
-                    "slot_id": "videos",
-                    "icon": "🎬",
-                    "text": str(total_videos),
-                    "status": "ready",
-                })
-
-        # Guidelines badge - check if any cycle has guidelines ready
-        has_guidelines = any(
-            c.guidelines_status == "ready" and c.video_scenarios
-            for c in gestalt.exploration_cycles
-        )
-        if has_guidelines:
-            badges.append({
-                "slot_id": "filming_guidelines",
-                "icon": "📹",
-                "text": "הנחיות",
-                "status": "ready",
-            })
-
-        # Journal badge - from gestalt.journal
-        journal_count = len(gestalt.journal)
-        if journal_count > 0:
-            badges.append({
-                "slot_id": "journal",
-                "icon": "📝",
-                "text": str(journal_count),
-                "status": "ready",
-            })
-
-        # Insights badge - if any video has been analyzed
-        if analyzed_videos > 0:
-            badges.append({
-                "slot_id": "insights",
-                "icon": "✨",
-                "text": "תובנות",
-                "status": "ready",
-            })
-
         return {
             "child_name": gestalt.child_name,
-            "badges": badges,
-            "video_count": total_videos,
-            "analyzed_count": analyzed_videos,
-            "pending_count": pending_videos,
-            "journal_count": journal_count,
-            "exploration_count": len([c for c in gestalt.exploration_cycles if c.status == "active"]),
+            "badges": [],  # No badges - context cards handle status display
         }
 
     # ========================================
@@ -2231,10 +2170,19 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         }
 
     def _derive_share_options(self, gestalt: LivingGestalt) -> Dict[str, Any]:
-        """Derive the Share tab options."""
+        """
+        Derive the Share tab options.
+
+        COHERENCE PRINCIPLE: Share is an extension of Crystal - the expert recommendations
+        that appear in Crystal also appear here, making it feel like one unified experience.
+        The user flows naturally from "who should see this child" → "let's share with them".
+        """
         # Check if we have enough understanding to share
         has_facts = len(gestalt.understanding.facts) >= 3
         has_exploration = len(gestalt.exploration_cycles) > 0
+
+        # Can generate if we have facts AND exploration
+        # (Crystal is a result of exploration, so if we have crystal we should have exploration too)
         can_generate = has_facts and has_exploration
 
         not_ready_reason = None
@@ -2244,10 +2192,49 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             else:
                 not_ready_reason = "נשמח להכיר את הילד קצת יותר לפני שנוכל לשתף."
 
+        # Get expert recommendations from Crystal (coherent with Essence tab)
+        # These are the SAME experts shown in Crystal, making Share feel unified
+        expert_recommendations = []
+        has_crystal = hasattr(gestalt, 'crystal') and gestalt.crystal is not None
+        if has_crystal and gestalt.crystal.expert_recommendations:
+            for rec in gestalt.crystal.expert_recommendations:
+                expert_recommendations.append({
+                    "profession": rec.profession,
+                    "specialization": rec.specialization,
+                    "why_this_match": rec.why_this_match,
+                    "recommended_approach": rec.recommended_approach,
+                    "why_this_approach": rec.why_this_approach,
+                    "what_to_look_for": rec.what_to_look_for,
+                    "summary_for_professional": rec.summary_for_professional,
+                    "confidence": rec.confidence,
+                    "priority": rec.priority,
+                })
+
+        # Get previous summaries (most recent first)
+        previous_summaries = []
+        if hasattr(gestalt, 'shared_summaries') and gestalt.shared_summaries:
+            # Sort by created_at descending
+            sorted_summaries = sorted(
+                gestalt.shared_summaries,
+                key=lambda s: s.created_at,
+                reverse=True
+            )
+            for summary in sorted_summaries[:10]:  # Keep last 10
+                previous_summaries.append({
+                    "id": summary.id,
+                    "recipient": summary.recipient_description,
+                    "created_at": summary.created_at.isoformat(),
+                    "comprehensive": summary.comprehensive,
+                    # Content preview (first 100 chars)
+                    "preview": (summary.content[:100] + "...") if len(summary.content) > 100 else summary.content,
+                })
+
         return {
             "can_generate": can_generate,
             "not_ready_reason": not_ready_reason,
-            "previous_summaries": [],  # TODO: Store and retrieve
+            # Expert recommendations flow from Crystal → Share (unified experience)
+            "expert_recommendations": expert_recommendations,
+            "previous_summaries": previous_summaries,
         }
 
     def _infer_strength_domain(self, content: str) -> str:
@@ -2276,151 +2263,194 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
     async def generate_shareable_summary(
         self,
         family_id: str,
-        recipient_type: str,
-        recipient_subtype: str,
-        time_available: str = "standard",
+        expert: Optional[Dict[str, Any]] = None,
+        expert_description: Optional[str] = None,
+        crystal_insights: Optional[Dict[str, Any]] = None,
         additional_context: Optional[str] = None,
+        comprehensive: bool = False,
     ) -> Dict[str, Any]:
         """
         Generate a shareable summary adapted for the recipient.
 
-        CRITICAL PHILOSOPHY:
-        - Parent already knows the facts - they told us!
-        - What they need is SYNTHESIS: patterns, connections, guidance
-        - Strengths are intervention pathways, not just nice-to-knows
-        - Every summary should answer: "Who is this child and how do we help them?"
+        WU-WEI APPROACH:
+        Instead of rigid rules and voice profiles, we explain clearly what we need
+        and leverage the model's intelligence to determine appropriate:
+        - Writing style and tone
+        - Level of technical language
+        - Depth and detail
+        - What to emphasize based on the expert's likely priorities
+
+        The model should consider:
+        - Who is this expert and what do they care about?
+        - How busy are they? What format would they prefer?
+        - What would be genuinely useful for them to know?
         """
         gestalt = await self._get_gestalt(family_id)
         if not gestalt:
             return {"error": "Family not found", "content": ""}
 
-        # Get voice profile based on recipient type
-        profile = self._get_voice_profile(recipient_subtype or recipient_type)
-
-        # Build gestalt summary for prompt
         child_name = gestalt.child_name or "הילד/ה"
 
-        # Get essence narrative
-        essence_narrative = ""
-        if gestalt.understanding.essence and gestalt.understanding.essence.narrative:
-            essence_narrative = gestalt.understanding.essence.narrative
+        # Build the expert description from various sources
+        expert_info = self._build_expert_description(expert, expert_description)
 
-        # Get patterns (cross-domain connections)
-        patterns_summary = []
-        if gestalt.understanding.patterns:
-            for pattern in gestalt.understanding.patterns:
-                domains_text = ", ".join(pattern.domains_involved) if pattern.domains_involved else ""
-                patterns_summary.append(f"- {pattern.description} (מתחברים: {domains_text})")
+        # Collect all relevant child information
+        child_summary = self._build_child_summary_for_sharing(gestalt)
 
-        # Get strengths and interests (intervention hooks)
-        strengths = []
-        interests = []
-        for fact in gestalt.understanding.facts:
-            if fact.domain == "strengths":
-                strengths.append(fact.content)
-            elif fact.domain == "interests":
-                interests.append(fact.content)
+        # Build crystal insights section if available
+        crystal_section = ""
+        if crystal_insights:
+            crystal_section = f"""
+## תובנות מהקריסטל (מה שכבר זיהינו כרלוונטי למומחה הזה)
+- **למה המומחה הזה מתאים:** {crystal_insights.get('why_this_match', 'לא צוין')}
+- **גישה מומלצת:** {crystal_insights.get('recommended_approach', 'לא צוין')}
+- **סיכום מקצועי:** {crystal_insights.get('summary_for_professional', 'לא צוין')}
+"""
 
-        # Get concerns/explorations
-        concerns = []
-        for cycle in gestalt.exploration_cycles:
-            if cycle.status == "active":
-                concerns.append({
-                    "focus": cycle.focus,
-                    "theory": cycle.theory or "בבדיקה",
-                    "domain": cycle.focus_domain,
-                })
+        # Depth instruction based on comprehensive flag
+        depth_instruction = ""
+        if comprehensive:
+            depth_instruction = """
+## רמת פירוט: מקיף
+ההורה ביקש סיכום מקיף ומפורט. זה מתאים לפגישה ראשונה או להערכה מעמיקה.
+כתוב סיכום ארוך ומפורט יותר מהרגיל, עם:
+- רקע נרחב יותר על הילד
+- פירוט של כל הדפוסים והקשרים
+- דוגמאות קונקרטיות
+- המלצות מפורטות
+"""
+        else:
+            depth_instruction = """
+## רמת פירוט: סטנדרטית
+התאם את האורך למומחה - רופאים עסוקים צריכים תמציתי, מטפלים יכולים לקבל יותר.
+"""
 
-        # Build intervention pathways hint
-        pathways_hint = self._build_pathways_hint(strengths, interests, concerns)
+        # The wu-wei prompt - explain clearly, let model do the thinking
+        prompt = f"""# משימה: כתיבת סיכום לשיתוף עם מומחה
 
-        # Core facts (briefly, for context)
-        core_facts = []
-        for fact in gestalt.understanding.facts[:10]:
-            if fact.domain not in ("strengths", "interests"):
-                core_facts.append(f"- {fact.content}")
+## מי אתה
+את/ה עוזר/ת להורה לכתוב סיכום על הילד שלו לשיתוף עם מומחה.
+המטרה: לעזור למומחה להבין מהר מי הילד ואיך הוא יכול לעזור.
 
-        # Build the prompt with HOLISTIC focus
-        prompt = f"""# Generate Holistic Summary (Hebrew)
+## על המומחה שאליו פונים
+{expert_info}
+{depth_instruction}
+{crystal_section}
 
-אתה עוזר להורה לשתף את ההבנה ההוליסטית על הילד עם {profile['name_he']}.
+{f"## הקשר נוסף מההורה" + chr(10) + additional_context if additional_context else ""}
 
-## העיקרון המנחה
-הסיכום לא צריך לחזור על עובדות שההורה כבר יודע.
-מה שההורה צריך הוא:
-1. **מי הילד הזה כבן-אדם שלם** - לא רק הקשיים
-2. **דפוסים שמחברים** - איפה רואים את אותו דבר במקומות שונים
-3. **דרכי התערבות** - איך החוזקות והתחומי עניין יכולים לעזור עם הקשיים
-4. **המלצות קונקרטיות** - מה לעשות, לא רק מה לדעת
-
-## מידע על הילד
+## מה שאנחנו יודעים על הילד
 
 **שם:** {child_name}
 
-**מי הוא (תמצית):**
-{essence_narrative if essence_narrative else "עדיין מתגבשת תמונה"}
+{child_summary}
 
-**חוזקות ותחומי עניין (אלה הם הכלים שלנו!):**
-חוזקות: {', '.join(strengths) if strengths else 'בבדיקה'}
-מה מדליק אותו: {', '.join(interests) if interests else 'בבדיקה'}
+---
 
-**דפוסים שזיהינו (מה מתחבר בין תחומים):**
-{chr(10).join(patterns_summary) if patterns_summary else 'עדיין מזהים דפוסים'}
+## מה אני צריך ממך
 
-**קשיים/תחומים שאנחנו חוקרים:**
-{chr(10).join([f"- {c['focus']}: {c['theory']}" for c in concerns]) if concerns else 'לא הוגדרו קשיים ספציפיים'}
+**כתוב סיכום שההורה יוכל לשלוח למומחה הזה.**
 
-**דרכי התערבות אפשריות (חיבור חוזקות לקשיים):**
-{pathways_hint if pathways_hint else 'יש לחשוב איך להשתמש בחוזקות לעזור עם הקשיים'}
+**חשוב מאוד:** התחל ישירות בסיכום עצמו. אל תכתוב הקדמה או הסבר להורה על איך כתבת את הסיכום או למה בחרת בסגנון הזה. ההורה רוצה להעתיק את הטקסט ולשלוח אותו ישירות למומחה.
 
-**עובדות רקע (בקצרה):**
-{chr(10).join(core_facts[:5]) if core_facts else 'אין עובדות נוספות'}
+### עקרונות מנחים:
 
-## פרופיל הנמען
-**סוג:** {profile['name_he']}
-**רמת פירוט:** {profile['detail_level']}
-**זמן זמין:** {time_available}
+1. **התאם את הסגנון למומחה** - חשוב:
+   - כמה עסוק המומחה הזה בדרך כלל? רופא במרפאה עסוקה צריך תמציתי. פסיכולוג פרטי יכול לקבל יותר פירוט.
+   - מה רמת הידע המקצועי שלו? נוירולוג מבין מונחים קליניים. גננת צריכה שפה פשוטה.
+   - מה הוא באמת צריך לדעת? מטפלת בעיסוק תרצה לדעת על קשיים חושיים ומוטוריים. פסיכולוג ירצה לדעת על רגש והתנהגות.
 
-{f"## הקשר נוסף מההורה: {additional_context}" if additional_context else ""}
+2. **התחל עם מי הילד, לא עם הבעיה** - זה לא רשימת סימפטומים. זה ילד שלם.
 
-## הנחיות לכתיבה
+3. **הדגש חוזקות כמנופי עבודה** - לא רק "הוא אוהב מוזיקה" אלא "מוזיקה יכולה לשמש ככלי ויסות ולגשר על קשיים"
 
-**מבנה מומלץ:**
-1. פתיחה עם מי הילד (לא עם הבעיה) - פסקה אחת חמה
-2. הדפוסים שראינו - מה מתחבר, לא רשימת סימפטומים
-3. החוזקות כדרכי התערבות - "הוא אוהב X, אז אפשר להשתמש בזה עבור Y"
-4. המלצות קונקרטיות - מה לעשות בפועל
-5. שאלות פתוחות (אם רלוונטי לנמען)
+4. **תן דוגמאות קונקרטיות (סצנות)** - זה קריטי! במקום "מתקשה במעברים", תן סצנה אחת מפורטת שהמומחה יוכל לדמיין:
+   - מה קורה בפועל (בכי עז, שכיבה על הרצפה, סירוב לזוז)
+   - עוצמה ומשך (10-15 דקות, לא 2 דקות ולא שעה)
+   - מה עובד ומה לא עובד (התראה מראש לא תמיד מספיקה, הסחה כן עוזרת)
+   - וריאביליות (לפעמים קל יותר, לפעמים קשה יותר)
 
-**סגנון:**
-{"- השתמש במינוח קליני מקצועי" if profile.get('include_clinical_hints', False) else "- השתמש בשפה פשוטה ונגישה"}
-{"- התחל עם החוזקות" if profile.get('include_strengths_first', True) else ""}
-{"- כלול המלצות מעשיות" if profile.get('include_practical_strategies', True) else ""}
-- כתוב בעברית חמה וטבעית, לא רובוטית
-- **חשוב:** אל תסתפק ברשימת עובדות - חבר, נתח, הנחה
+   דוגמה טובה: "כשמגיע הזמן לסיים משחק ולצאת לגן, גם אם נתנו התראה של 5 דקות מראש, הוא עלול להגיב בבכי עז, לשכב על הרצפה, ולסרב לזוז. המצב יכול להימשך 10-15 דקות, ולעיתים רק הסחה (כמו שיר או הצעה לקחת משהו איתו) עוזרת."
 
-כתוב את הסיכום עכשיו:
+5. **אל תחזור על מה שההורה כבר יודע** - ההורה סיפר לנו את הסיפור. מה שהוא צריך זה סינתזה, חיבורים, כיוונים.
+
+6. **שלב מידע התפתחותי/טמפורלי** - למטפלים רבים חשוב להבין:
+   - כמה זמן זה קורה? (לאחרונה? מאז תמיד? התחיל בגיל מסוים?)
+   - האם יש שיפור/החמרה/יציבות לאורך זמן?
+   - מה כבר ניסו ומה עבד/לא עבד?
+   - האם יש דפוס עקבי או שהמצב משתנה?
+   דוגמה: "הקושי במעברים קיים מגיל שנתיים, עם החמרה מסוימת מאז הכניסה לגן. ניסינו טיימרים ויזואליים - עזר חלקית."
+
+7. **כתוב בעברית טבעית וחמה** - לא רובוטית, לא פורמלית מדי
+
+### פורמט מומלץ (התאם לפי המומחה):
+
+לרופאים עסוקים: פסקת פתיחה קצרה + נקודות תמציתיות + דוגמה אחת קונקרטית + ציר זמן קצר
+לפסיכולוגים/מטפלים: יותר נרטיבי, עם עומק רגשי + כמה סצנות מפורטות + היסטוריה התפתחותית
+לגננות/מורים: מעשי, מה עובד ומה לא, טיפים קונקרטיים + דוגמאות מהשטח
+למטפלים בעיסוק/קלינאיות תקשורת: רקע התפתחותי + התקדמות לאורך זמן + מה כבר נוסה
+
+---
+
+כתוב את הסיכום עכשיו (התחל ישר בסיכום, בלי הקדמה):
 """
 
         try:
-            # Use strong model
-            from app.services.llm.factory import create_llm_provider
             from app.services.llm.base import Message as LLMMessage
+            from .models import SharedSummary
 
             llm = gestalt._get_strong_llm()
             response = await llm.chat(
                 messages=[LLMMessage(role="user", content=prompt)],
                 functions=None,
-                temperature=0.7,
-                max_tokens=6000,  # Hebrew summaries need more tokens to avoid truncation
+                temperature=1.0,  # Higher temp for more natural, creative writing
+                max_tokens=6000,  # Hebrew summaries need more tokens
             )
 
             content = response.content or ""
+
+            # Get expert name for response
+            expert_name = "מומחה"
+            if expert:
+                expert_name = expert.get("profession") or expert.get("customDescription") or "מומחה"
+
+            # Add timestamp to the content for context
+            now = datetime.now()
+            date_str = now.strftime("%d/%m/%Y")
+            content_with_date = f"[סיכום זה נוצר ב-{date_str}]\n\n{content}"
+
+            # Determine recipient type
+            recipient_type = "professional"
+            if expert and expert.get("customDescription"):
+                recipient_type = "custom"
+
+            # Create and save the summary
+            shared_summary = SharedSummary.create(
+                recipient_description=expert_name,
+                content=content_with_date,
+                recipient_type=recipient_type,
+                comprehensive=comprehensive,
+            )
+
+            # Add to gestalt and persist
+            gestalt.shared_summaries.append(shared_summary)
+            await self._persist_gestalt(family_id, gestalt)
+
+            logger.info(f"Saved shared summary for {family_id} to {expert_name}")
+
             return {
-                "content": content,
-                "recipient_type": recipient_type,
-                "recipient_subtype": recipient_subtype,
-                "generated_at": datetime.now().isoformat(),
+                "content": content_with_date,
+                "expert": expert_name,
+                "generated_at": now.isoformat(),
+                "summary_id": shared_summary.id,
+                # Include the saved summary for immediate UI update
+                "saved_summary": {
+                    "id": shared_summary.id,
+                    "recipient": shared_summary.recipient_description,
+                    "created_at": shared_summary.created_at.isoformat(),
+                    "comprehensive": shared_summary.comprehensive,
+                    "preview": (content_with_date[:100] + "...") if len(content_with_date) > 100 else content_with_date,
+                },
             }
 
         except Exception as e:
@@ -2429,6 +2459,204 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                 "error": str(e),
                 "content": f"לצערנו לא הצלחנו ליצור סיכום. נסו שוב מאוחר יותר.",
             }
+
+    def _build_expert_description(
+        self,
+        expert: Optional[Dict[str, Any]],
+        expert_description: Optional[str],
+    ) -> str:
+        """Build a rich description of the expert for the prompt."""
+        parts = []
+
+        if expert:
+            # Handle crystal recommendation format
+            if "profession" in expert:
+                parts.append(f"**מקצוע:** {expert['profession']}")
+            if "specialty" in expert:
+                parts.append(f"**התמחות:** {expert['specialty']}")
+            if "customDescription" in expert:
+                parts.append(f"**תיאור:** {expert['customDescription']}")
+
+        if expert_description:
+            parts.append(f"**הסבר מההורה למה המומחה הזה:** {expert_description}")
+
+        if not parts:
+            return "**מומחה:** לא צוין מומחה ספציפי. כתוב סיכום כללי שיתאים לאיש מקצוע בתחום ההתפתחות."
+
+        return chr(10).join(parts)
+
+    def _build_child_summary_for_sharing(self, gestalt: "LivingGestalt") -> str:
+        """Build a comprehensive child summary for sharing prompt."""
+        sections = []
+
+        # Essence narrative
+        if gestalt.understanding.essence and gestalt.understanding.essence.narrative:
+            sections.append(f"**מי הוא (תמצית):**\n{gestalt.understanding.essence.narrative}")
+
+        # Strengths and interests
+        strengths = []
+        interests = []
+        for fact in gestalt.understanding.facts:
+            if fact.domain == "strengths":
+                strengths.append(fact.content)
+            elif fact.domain == "interests":
+                interests.append(fact.content)
+
+        if strengths or interests:
+            s = "**חוזקות ותחומי עניין:**\n"
+            if strengths:
+                s += f"חוזקות: {', '.join(strengths)}\n"
+            if interests:
+                s += f"מה מדליק אותו: {', '.join(interests)}"
+            sections.append(s)
+
+        # Patterns
+        if gestalt.understanding.patterns:
+            patterns_text = []
+            for pattern in gestalt.understanding.patterns:
+                domains = ", ".join(pattern.domains_involved) if pattern.domains_involved else ""
+                patterns_text.append(f"- {pattern.description} (מתחברים: {domains})")
+            sections.append(f"**דפוסים שזיהינו:**\n" + chr(10).join(patterns_text))
+
+        # Active explorations/concerns with temporal context
+        concerns = []
+        for cycle in gestalt.exploration_cycles:
+            if cycle.status == "active":
+                theory_text = f": {cycle.theory}" if cycle.theory else ""
+                confidence_text = ""
+                if cycle.confidence is not None:
+                    if cycle.confidence > 0.7:
+                        confidence_text = " (ביטחון גבוה)"
+                    elif cycle.confidence < 0.4:
+                        confidence_text = " (עדיין בבדיקה)"
+                concerns.append(f"- {cycle.focus}{theory_text}{confidence_text}")
+        if concerns:
+            sections.append(f"**תחומים שאנחנו חוקרים:**\n" + chr(10).join(concerns))
+
+        # Temporal/developmental information from exploration cycles
+        temporal_insights = self._extract_temporal_insights(gestalt)
+        if temporal_insights:
+            sections.append(f"**התפתחות לאורך זמן:**\n{temporal_insights}")
+
+        # Core facts (limited)
+        other_facts = [f.content for f in gestalt.understanding.facts[:8]
+                       if f.domain not in ("strengths", "interests")]
+        if other_facts:
+            sections.append(f"**עובדות נוספות:**\n" + chr(10).join([f"- {f}" for f in other_facts]))
+
+        return chr(10) + chr(10).join(sections) if sections else "אין מספיק מידע עדיין"
+
+    def _extract_temporal_insights(self, gestalt: "LivingGestalt") -> str:
+        """
+        Extract temporal/developmental insights from facts and exploration cycles.
+
+        This is critical for professionals who need to understand:
+        - How long has this been going on?
+        - Is it improving, stable, or worsening?
+        - What interventions have been tried and their effects?
+        - Trajectory of our understanding over time
+        """
+        insights = []
+
+        # === FACT TIMESTAMP ANALYSIS ===
+        facts = gestalt.understanding.facts
+        if facts:
+            # Get facts with timestamps
+            dated_facts = [(f, f.t_created) for f in facts if f.t_created]
+
+            if dated_facts:
+                # Sort by creation date
+                dated_facts.sort(key=lambda x: x[1])
+
+                # Calculate span of knowledge
+                earliest = dated_facts[0][1]
+                latest = dated_facts[-1][1]
+                span_days = (latest - earliest).days
+
+                if span_days > 0:
+                    if span_days >= 30:
+                        months = span_days // 30
+                        insights.append(f"- מכירים את הילד כ-{months} חודשים")
+                    elif span_days >= 7:
+                        weeks = span_days // 7
+                        insights.append(f"- מכירים את הילד כ-{weeks} שבועות")
+
+                # Look for domain-based temporal patterns
+                domain_timeline = {}
+                for fact, timestamp in dated_facts:
+                    domain = fact.domain or "general"
+                    if domain not in domain_timeline:
+                        domain_timeline[domain] = []
+                    domain_timeline[domain].append((fact.content, timestamp))
+
+                # Analyze trajectory per domain (if multiple facts over time)
+                for domain, domain_facts in domain_timeline.items():
+                    if len(domain_facts) >= 2 and domain not in ("identity", "general"):
+                        first_time = domain_facts[0][1]
+                        last_time = domain_facts[-1][1]
+                        days_diff = (last_time - first_time).days
+                        if days_diff > 7:  # More than a week between observations
+                            insights.append(f"- {domain}: עוקבים כבר {days_diff} ימים")
+
+                # Recent vs early learnings (what we learned about recently)
+                if span_days >= 14 and len(dated_facts) >= 5:
+                    midpoint = earliest + (latest - earliest) / 2
+                    early_facts = [f for f, t in dated_facts if t < midpoint]
+                    recent_facts = [f for f, t in dated_facts if t >= midpoint]
+
+                    # Check if new domains emerged recently
+                    early_domains = set(f.domain for f in early_facts if f.domain)
+                    recent_domains = set(f.domain for f in recent_facts if f.domain)
+                    new_domains = recent_domains - early_domains
+                    if new_domains:
+                        insights.append(f"- לאחרונה התחלנו לבחון גם: {', '.join(new_domains)}")
+
+        # === EXPLORATION CYCLE ANALYSIS ===
+        for cycle in gestalt.exploration_cycles:
+            # Check for evidence with temporal information
+            if not cycle.evidence:
+                continue
+
+            supports = []
+            contradicts = []
+            for ev in cycle.evidence:
+                if ev.effect == "supports":
+                    supports.append(ev.content)
+                elif ev.effect == "contradicts":
+                    contradicts.append(ev.content)
+
+            # If we have both supporting and contradicting evidence, that's interesting
+            if supports and contradicts:
+                insights.append(f"- לגבי {cycle.focus}: יש סימנים מעורבים - {supports[0]}, אבל גם {contradicts[0]}")
+            elif len(supports) > 2:
+                # Multiple supporting evidence suggests consistent pattern
+                insights.append(f"- {cycle.focus}: דפוס עקבי שנראה במספר הקשרים")
+
+            # Check cycle age for timeline context
+            if cycle.created_at:
+                cycle_age_days = (datetime.now() - cycle.created_at).days
+                if cycle_age_days > 14 and cycle.status == "active":
+                    insights.append(f"- {cycle.focus}: בבדיקה כבר {cycle_age_days} ימים")
+
+            # Check cycle status for developmental trajectory
+            if cycle.status == "complete" and cycle.confidence and cycle.confidence > 0.7:
+                insights.append(f"- {cycle.focus}: הבנה מגובשת לאחר תקופת מעקב")
+
+        # Check for completed cycles that might indicate progress
+        completed_cycles = [c for c in gestalt.exploration_cycles if c.status == "complete"]
+        if completed_cycles:
+            insights.append(f"- סיימנו לבחון {len(completed_cycles)} תחומים והגענו למסקנות")
+
+        # === STORY TIMESTAMP ANALYSIS ===
+        if gestalt.stories:
+            dated_stories = [(s, s.timestamp) for s in gestalt.stories if s.timestamp]
+            if len(dated_stories) >= 2:
+                dated_stories.sort(key=lambda x: x[1])
+                story_span_days = (dated_stories[-1][1] - dated_stories[0][1]).days
+                if story_span_days > 7:
+                    insights.append(f"- יש לנו {len(dated_stories)} סיפורים לאורך {story_span_days} ימים")
+
+        return chr(10).join(insights) if insights else ""
 
     def _build_pathways_hint(
         self,
@@ -2470,134 +2698,6 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                     break
 
         return "\n".join(hints[:5]) if hints else ""
-
-    def _get_voice_profile(self, profile_id: str) -> Dict[str, Any]:
-        """Get voice profile configuration."""
-        profiles = {
-            "neurologist": {
-                "name_he": "נוירולוג",
-                "terminology": "clinical",
-                "detail_level": "dense",
-                "include_clinical_hints": True,
-                "include_practical_strategies": False,
-                "include_strengths_first": False,
-                "include_open_questions": True,
-            },
-            "psychologist": {
-                "name_he": "פסיכולוג",
-                "terminology": "clinical",
-                "detail_level": "dense",
-                "include_clinical_hints": True,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": True,
-            },
-            "ot": {
-                "name_he": "מטפלת בעיסוק",
-                "terminology": "clinical",
-                "detail_level": "dense",
-                "include_clinical_hints": True,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": True,
-            },
-            "speech_therapist": {
-                "name_he": "קלינאית תקשורת",
-                "terminology": "clinical",
-                "detail_level": "dense",
-                "include_clinical_hints": True,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": False,
-            },
-            "pediatrician": {
-                "name_he": "רופא ילדים",
-                "terminology": "clinical",
-                "detail_level": "moderate",
-                "include_clinical_hints": True,
-                "include_practical_strategies": False,
-                "include_strengths_first": False,
-                "include_open_questions": False,
-            },
-            "kindergarten": {
-                "name_he": "גננת",
-                "terminology": "educational",
-                "detail_level": "moderate",
-                "include_clinical_hints": False,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": False,
-            },
-            "teacher": {
-                "name_he": "מורה",
-                "terminology": "educational",
-                "detail_level": "moderate",
-                "include_clinical_hints": False,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": False,
-            },
-            "daycare": {
-                "name_he": "מטפלת במעון",
-                "terminology": "warm",
-                "detail_level": "light",
-                "include_clinical_hints": False,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": False,
-            },
-            "grandparent": {
-                "name_he": "סבא/סבתא",
-                "terminology": "warm",
-                "detail_level": "light",
-                "include_clinical_hints": False,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": False,
-            },
-            "family": {
-                "name_he": "משפחה",
-                "terminology": "warm",
-                "detail_level": "light",
-                "include_clinical_hints": False,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": False,
-            },
-            "parent_peer": {
-                "name_he": "הורה אחר",
-                "terminology": "warm",
-                "detail_level": "moderate",
-                "include_clinical_hints": False,
-                "include_practical_strategies": True,
-                "include_strengths_first": True,
-                "include_open_questions": False,
-            },
-        }
-        return profiles.get(profile_id, profiles["family"])
-
-    def _get_profile_instructions(self, profile: Dict, time_available: str) -> str:
-        """Get specific instructions based on profile."""
-        instructions = []
-
-        if profile["terminology"] == "clinical":
-            instructions.append("השתמש בטרמינולוגיה מקצועית ורלוונטית")
-        elif profile["terminology"] == "warm":
-            instructions.append("השתמש בשפה חמה ונגישה, בלי מונחים מקצועיים")
-        else:
-            instructions.append("השתמש בשפה פשוטה ומובנת")
-
-        if time_available == "brief":
-            instructions.append("כתוב סיכום קצר ותמציתי (5-7 נקודות עיקריות)")
-        elif time_available == "comprehensive":
-            instructions.append("כתוב סיכום מקיף ומפורט")
-        else:
-            instructions.append("כתוב סיכום מאוזן עם מספיק פירוט")
-
-        if profile.get("include_strengths_first"):
-            instructions.append("התחל מהחוזקות של הילד לפני האתגרים")
-
-        return "\n".join(f"- {i}" for i in instructions)
 
 
 # Singleton instance for easy access

@@ -5,7 +5,7 @@ API Routes for Chitta
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 import asyncio
 import json
@@ -2156,11 +2156,18 @@ async def get_child_space_full(family_id: str):
 
 
 class GenerateSummaryRequest(BaseModel):
-    """Request to generate shareable summary"""
-    recipient_type: str
-    recipient_subtype: str
+    """Request to generate shareable summary - wu-wei approach"""
+    # Expert info - can be a crystal recommendation or custom
+    expert: Optional[Dict[str, Any]] = None  # {profession, specialty, customDescription...}
+    expert_description: Optional[str] = None  # User's description of why this expert
+    context: Optional[str] = None  # Additional context from parent
+    crystal_insights: Optional[Dict[str, Any]] = None  # Insights from crystal for this expert
+    comprehensive: bool = False  # Whether to generate comprehensive summary
+
+    # Legacy fields for backward compatibility
+    recipient_type: Optional[str] = None
+    recipient_subtype: Optional[str] = None
     time_available: str = "standard"
-    context: Optional[str] = None
 
 
 @router.post("/family/{family_id}/child-space/share/generate")
@@ -2171,24 +2178,53 @@ async def generate_shareable_summary(
     """
     Generate a shareable summary adapted for the recipient.
 
-    Uses LLM with strong model to translate understanding
-    into the appropriate voice profile.
+    Wu-wei approach: Explain clearly what we need and let the model's
+    intelligence determine appropriate style, tone, and depth.
     """
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
 
     result = await chitta.generate_shareable_summary(
         family_id=family_id,
-        recipient_type=request.recipient_type,
-        recipient_subtype=request.recipient_subtype,
-        time_available=request.time_available,
+        expert=request.expert,
+        expert_description=request.expert_description,
+        crystal_insights=request.crystal_insights,
         additional_context=request.context,
+        comprehensive=request.comprehensive,
     )
 
     if result.get("error") and not result.get("content"):
         raise HTTPException(status_code=500, detail=result["error"])
 
     return result
+
+
+@router.get("/family/{family_id}/child-space/share/summaries/{summary_id}")
+async def get_saved_summary(family_id: str, summary_id: str):
+    """
+    Get a previously saved summary by ID.
+
+    Returns the full content of a shared summary for viewing or re-sharing.
+    """
+    from app.chitta.service import get_chitta_service
+    chitta = get_chitta_service()
+
+    gestalt = await chitta._get_gestalt(family_id)
+    if not gestalt:
+        raise HTTPException(status_code=404, detail="Family not found")
+
+    # Find the summary
+    for summary in gestalt.shared_summaries:
+        if summary.id == summary_id:
+            return {
+                "id": summary.id,
+                "recipient": summary.recipient_description,
+                "content": summary.content,
+                "created_at": summary.created_at.isoformat(),
+                "comprehensive": summary.comprehensive,
+            }
+
+    raise HTTPException(status_code=404, detail="Summary not found")
 
 
 # === Test Mode Endpoints (Parent Simulator) ===

@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   X, Sparkles, Lightbulb, Video, Share2,
   ChevronLeft, ChevronDown, ChevronUp, Heart, Music, Palette, Zap,
-  Eye, Play, Clock, Send, Copy, FileText,
+  Eye, Play, Clock, Send, Copy, FileText, Printer,
   Users, GraduationCap, Home, MessageCircle,
   Check, Loader2, ArrowRight, Search, ThumbsUp, ThumbsDown, Minus,
-  UserPlus
+  UserPlus, FileCheck
 } from 'lucide-react';
 import { api } from '../api/client';
 
@@ -32,6 +32,69 @@ const TABS = [
   { id: 'observations', icon: Video, label: 'מה ראינו', color: 'from-emerald-500 to-teal-500' },
   { id: 'share', icon: Share2, label: 'שיתוף', color: 'from-pink-500 to-rose-500' },
 ];
+
+// ============================================
+// LOADING ANIMATION COMPONENT
+// ============================================
+
+function LoadingAnimation({ childName }) {
+  return (
+    <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden">
+      {/* Subtle floating blobs */}
+      <div
+        className="absolute w-32 h-32 rounded-full bg-gray-100 opacity-40 blur-2xl"
+        style={{
+          top: '10%',
+          right: '10%',
+          animation: 'float1 8s ease-in-out infinite',
+        }}
+      />
+      <div
+        className="absolute w-24 h-24 rounded-full bg-gray-100 opacity-30 blur-2xl"
+        style={{
+          bottom: '20%',
+          left: '5%',
+          animation: 'float2 10s ease-in-out infinite',
+        }}
+      />
+      <div
+        className="absolute w-20 h-20 rounded-full bg-gray-100 opacity-25 blur-2xl"
+        style={{
+          top: '40%',
+          left: '20%',
+          animation: 'float3 12s ease-in-out infinite',
+        }}
+      />
+
+      {/* Simple breathing circle */}
+      <div
+        className="relative z-10 w-12 h-12 rounded-full bg-gray-200 animate-pulse mb-8"
+        style={{ animationDuration: '2s' }}
+      />
+
+      {/* Clean text */}
+      <p className="relative z-10 text-base text-gray-400 font-normal">
+        {childName ? `טוען את המרחב של ${childName}` : 'טוען'}
+      </p>
+
+      {/* Blob animations */}
+      <style>{`
+        @keyframes float1 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-10px, 15px) scale(1.1); }
+        }
+        @keyframes float2 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(15px, -10px) scale(1.05); }
+        }
+        @keyframes float3 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-8px, -12px) scale(1.08); }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 // ============================================
 // STRENGTH CARD COMPONENT
@@ -409,7 +472,7 @@ function EssenceTab({ data, childName }) {
         <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}>
           <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-emerald-500" />
-            מה עוזר לו
+            מה יכול לעזור לו
           </h3>
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100 overflow-hidden">
             {data.intervention_pathways.map((pathway, idx) => (
@@ -424,11 +487,11 @@ function EssenceTab({ data, childName }) {
                   <div>
                     <p className="text-gray-800 font-medium">{pathway.suggestion}</p>
                     <p className="text-sm text-gray-600 mt-1">
-                      כי הוא אוהב {pathway.hook}
+                      <span className="text-emerald-600 font-medium">החוזקה:</span> {pathway.hook}
                     </p>
                     {pathway.concern && (
-                      <p className="text-xs text-emerald-600 mt-1">
-                        עוזר כש: {pathway.concern}
+                      <p className="text-xs text-gray-500 mt-1">
+                        <span className="text-amber-600">יעזור עם:</span> {pathway.concern}
                       </p>
                     )}
                   </div>
@@ -576,140 +639,44 @@ function FactsSection({ factsData }) {
 }
 
 // ============================================
-// DISCOVERIES TAB - Journey Timeline
+// DISCOVERIES TAB - Developmental Timeline
 // ============================================
 
+/**
+ * FUTURE FEATURE: Developmental Timeline
+ *
+ * This tab will show the child's developmental journey - real milestones
+ * that matter to parents and clinicians, organized by age.
+ *
+ * Examples:
+ * - "מילים ראשונות - 12 חודשים"
+ * - "התחיל ללכת - 14 חודשים"
+ * - "נסיגה בדיבור - גיל שנתיים"
+ * - "התחיל טיפול בעיסוק - 3 שנים"
+ *
+ * Implementation needed:
+ * 1. Add developmental_milestones to Gestalt (see models.py skeleton)
+ * 2. Create LLM tool to extract milestones from conversation
+ * 3. Build age-based timeline UI here
+ */
 function DiscoveriesTab({ data, onVideoClick }) {
-  if (!data || !data.milestones || data.milestones.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 px-8">
-        <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mb-4 animate-gentleFloat">
-          <Lightbulb className="w-10 h-10 text-amber-400" />
-        </div>
-        <p className="text-gray-500 text-center">
-          מסע הגילוי רק מתחיל...<br />
-          כל שיחה מוסיפה עוד נדבך
+  // Always show the "coming soon" state for now
+  // The developmental timeline feature is not yet implemented
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-8">
+      <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mb-4 animate-gentleFloat">
+        <Lightbulb className="w-10 h-10 text-amber-400" />
+      </div>
+      <h3 className="text-lg font-bold text-gray-700 mb-2">ציר זמן התפתחותי</h3>
+      <p className="text-gray-500 text-center text-sm">
+        בקרוב כאן יופיע ציר הזמן ההתפתחותי של הילד -<br />
+        אבני דרך משמעותיות לפי גיל
+      </p>
+      <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200 max-w-xs">
+        <p className="text-xs text-amber-700 text-center">
+          💡 ספרו לנו על אבני דרך בהתפתחות הילד במהלך השיחה,
+          ואנחנו נבנה את ציר הזמן שלו
         </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="pb-8">
-      {/* Stats bar */}
-      {data.days_since_start !== undefined && (
-        <div className="flex items-center justify-around py-4 mb-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl opacity-0 animate-fadeIn">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-amber-600">{data.days_since_start}</div>
-            <div className="text-xs text-gray-500">ימים</div>
-          </div>
-          <div className="w-px h-8 bg-amber-200" />
-          <div className="text-center">
-            <div className="text-2xl font-bold text-amber-600">{data.total_videos || 0}</div>
-            <div className="text-xs text-gray-500">סרטונים</div>
-          </div>
-          <div className="w-px h-8 bg-amber-200" />
-          <div className="text-center">
-            <div className="text-2xl font-bold text-amber-600">{data.insights_discovered || 0}</div>
-            <div className="text-xs text-gray-500">תובנות</div>
-          </div>
-        </div>
-      )}
-
-      {/* Timeline */}
-      <div className="relative">
-        {/* Timeline line */}
-        <div className="absolute right-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-amber-300 via-orange-300 to-transparent" />
-
-        {/* Milestones - clickable for videos */}
-        <div className="space-y-4">
-          {data.milestones.map((milestone, idx) => (
-            <TimelineMilestone
-              key={milestone.id}
-              milestone={milestone}
-              index={idx}
-              onVideoClick={onVideoClick}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TimelineMilestone({ milestone, index, onVideoClick }) {
-  const typeConfig = {
-    started: { icon: Heart, color: 'bg-pink-500', bg: 'bg-pink-50' },
-    exploration_began: { icon: Search, color: 'bg-indigo-500', bg: 'bg-indigo-50' },
-    video_analyzed: { icon: Video, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
-    insight: { icon: Lightbulb, color: 'bg-amber-500', bg: 'bg-amber-50' },
-    pattern: { icon: Sparkles, color: 'bg-purple-500', bg: 'bg-purple-50' },
-    synthesis: { icon: FileText, color: 'bg-blue-500', bg: 'bg-blue-50' },
-  };
-
-  const config = typeConfig[milestone.type] || typeConfig.insight;
-  const Icon = config.icon;
-  const hasVideo = milestone.video_id;
-
-  const handleVideoClick = () => {
-    if (hasVideo && onVideoClick) {
-      onVideoClick({
-        id: milestone.video_id,
-        exploration_id: milestone.exploration_id,
-      });
-    }
-  };
-
-  return (
-    <div
-      className={`
-        relative pr-12 opacity-0 animate-staggerIn stagger-${Math.min(index + 1, 6)}
-      `}
-    >
-      {/* Timeline dot */}
-      <div className={`
-        absolute right-3 w-5 h-5 rounded-full ${config.color}
-        flex items-center justify-center shadow-lg
-        ${milestone.significance === 'major' ? 'ring-4 ring-white' : ''}
-      `}>
-        <Icon className="w-3 h-3 text-white" />
-      </div>
-
-      {/* Content - clickable if has video */}
-      <div
-        className={`
-          ${config.bg} rounded-2xl p-4 card-hover
-          ${hasVideo ? 'cursor-pointer' : ''}
-        `}
-        onClick={hasVideo ? handleVideoClick : undefined}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <h4 className="font-bold text-gray-800">{milestone.title_he}</h4>
-            <p className="text-sm text-gray-600 mt-1">{milestone.description_he}</p>
-          </div>
-          {hasVideo && (
-            <button
-              onClick={(e) => { e.stopPropagation(); handleVideoClick(); }}
-              className="p-2 bg-white rounded-full shadow-sm hover:shadow-md transition hover:scale-110"
-            >
-              <Play className="w-4 h-4 text-emerald-500" />
-            </button>
-          )}
-        </div>
-        {milestone.timestamp && (
-          <div className="flex items-center gap-1 mt-2 text-xs text-gray-400">
-            <Clock className="w-3 h-3" />
-            {formatDate(milestone.timestamp)}
-          </div>
-        )}
-        {/* Video indicator */}
-        {hasVideo && (
-          <div className="flex items-center gap-1 mt-2 text-xs text-emerald-600 font-medium">
-            <Video className="w-3 h-3" />
-            לחץ לצפייה בסרטון
-          </div>
-        )}
       </div>
     </div>
   );
@@ -988,82 +955,88 @@ function StyledSummary({ content, recipientType }) {
 }
 
 // ============================================
-// SHARE TAB - Adaptive Sharing
+// SHARE TAB - Wu-Wei Sharing (Crystal-Driven)
 // ============================================
 
-const RECIPIENT_TYPES = [
-  {
-    id: 'professional',
-    icon: GraduationCap,
-    label: 'איש מקצוע',
-    description: 'רופא, מטפל, פסיכולוג',
-    color: 'from-blue-500 to-indigo-500',
-    subtypes: [
-      { id: 'neurologist', label: 'נוירולוג' },
-      { id: 'psychologist', label: 'פסיכולוג' },
-      { id: 'ot', label: 'מטפלת בעיסוק' },
-      { id: 'speech_therapist', label: 'קלינאית תקשורת' },
-      { id: 'pediatrician', label: 'רופא ילדים' },
-    ]
-  },
-  {
-    id: 'educational',
-    icon: Users,
-    label: 'מסגרת חינוכית',
-    description: 'גננת, מורה, מטפלת',
-    color: 'from-emerald-500 to-teal-500',
-    subtypes: [
-      { id: 'kindergarten', label: 'גננת' },
-      { id: 'teacher', label: 'מורה' },
-      { id: 'daycare', label: 'מטפלת במעון' },
-    ]
-  },
-  {
-    id: 'family',
-    icon: Home,
-    label: 'משפחה',
-    description: 'סבים, דודים, בן זוג',
-    color: 'from-pink-500 to-rose-500',
-    subtypes: [
-      { id: 'grandparent', label: 'סבא/סבתא' },
-      { id: 'family', label: 'משפחה רחבה' },
-    ]
-  },
-  {
-    id: 'peer',
-    icon: MessageCircle,
-    label: 'הורה אחר',
-    description: 'קבוצת תמיכה, חברים',
-    color: 'from-purple-500 to-violet-500',
-    subtypes: [
-      { id: 'parent_peer', label: 'הורה אחר' },
-    ]
-  },
+// Fallback expert suggestions for when crystal doesn't have recommendations
+const FALLBACK_EXPERT_OPTIONS = [
+  { id: 'ot', label: 'מרפא/ת בעיסוק', profession: 'מרפא בעיסוק' },
+  { id: 'psychologist', label: 'פסיכולוג/ית', profession: 'פסיכולוג' },
+  { id: 'speech', label: 'קלינאי/ת תקשורת', profession: 'קלינאי תקשורת' },
+  { id: 'neurologist', label: 'נוירולוג/ית', profession: 'נוירולוג' },
+  { id: 'kindergarten', label: 'גננת', profession: 'גננת' },
+  { id: 'teacher', label: 'מורה', profession: 'מורה' },
+  { id: 'grandparent', label: 'סבא/סבתא', profession: 'סבא או סבתא' },
+  { id: 'family', label: 'בן/בת משפחה', profession: 'בן משפחה' },
 ];
 
 function ShareTab({ data, familyId, onGenerateSummary }) {
-  const [selectedType, setSelectedType] = useState(null);
-  const [selectedSubtype, setSelectedSubtype] = useState(null);
-  const [timeAvailable, setTimeAvailable] = useState('standard');
+  const [selectedExpert, setSelectedExpert] = useState(null);
+  const [customExpert, setCustomExpert] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
   const [additionalContext, setAdditionalContext] = useState('');
+  const [isComprehensive, setIsComprehensive] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [viewingSavedSummary, setViewingSavedSummary] = useState(null);
+  const [loadingSavedSummary, setLoadingSavedSummary] = useState(false);
+  // Track newly generated summaries in this session (prepended to the list)
+  const [newSummaries, setNewSummaries] = useState([]);
 
   const canGenerate = data?.can_generate !== false;
+  // Combine new summaries (most recent first) with existing ones from server
+  const previousSummaries = [...newSummaries, ...(data?.previous_summaries || [])];
+  const hasPreviousSummaries = previousSummaries.length > 0;
+
+  // Expert recommendations flow from Crystal → Share (unified experience)
+  // Same experts shown in Crystal's "מי צריך לראות את הילד הזה" appear here
+  const recommendedExperts = data?.expert_recommendations || [];
+  const hasRecommendedExperts = recommendedExperts.length > 0;
+
+  const handleViewSavedSummary = async (summaryId) => {
+    setLoadingSavedSummary(true);
+    try {
+      const response = await fetch(`/api/family/${familyId}/child-space/share/summaries/${summaryId}`);
+      if (response.ok) {
+        const summary = await response.json();
+        setViewingSavedSummary(summary);
+      }
+    } catch (error) {
+      console.error('Error loading saved summary:', error);
+    } finally {
+      setLoadingSavedSummary(false);
+    }
+  };
 
   const handleGenerate = async () => {
-    if (!selectedSubtype) return;
+    const expertDescription = selectedExpert
+      ? (selectedExpert.profession + (selectedExpert.specialization ? ` (${selectedExpert.specialization})` : ''))
+      : customExpert;
+
+    if (!expertDescription) return;
 
     setIsGenerating(true);
     try {
+      // Pass the full expert info and let backend handle the wu-wei generation
       const result = await onGenerateSummary({
-        recipientType: selectedType.id,
-        recipientSubtype: selectedSubtype.id,
-        timeAvailable,
-        context: additionalContext
+        expert: selectedExpert || { customDescription: customExpert },
+        expertDescription,
+        context: additionalContext,
+        comprehensive: isComprehensive,
+        // Pass crystal insights for context
+        crystalInsights: selectedExpert ? {
+          why_this_match: selectedExpert.why_this_match,
+          recommended_approach: selectedExpert.recommended_approach,
+          summary_for_professional: selectedExpert.summary_for_professional,
+        } : null,
       });
       setGeneratedContent(result.content);
+
+      // Add the new summary to the list for immediate UI update
+      if (result.saved_summary) {
+        setNewSummaries(prev => [result.saved_summary, ...prev]);
+      }
     } catch (error) {
       console.error('Error generating summary:', error);
     } finally {
@@ -1079,15 +1052,114 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
     }
   };
 
+  const handlePrint = () => {
+    if (!generatedContent) return;
+    const printWindow = window.open('', '_blank');
+    const expertName = selectedExpert?.profession || customExpert || 'איש מקצוע';
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="he">
+      <head>
+        <meta charset="UTF-8">
+        <title>סיכום ל${expertName}</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+          h1 { font-size: 1.5em; border-bottom: 2px solid #333; padding-bottom: 10px; }
+          h2 { font-size: 1.2em; color: #444; margin-top: 1.5em; }
+          p { margin: 0.5em 0; }
+          ul, ol { margin: 0.5em 0; padding-right: 1.5em; }
+          @media print { body { margin: 0; padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <h1>סיכום ל${expertName}</h1>
+        ${generatedContent.replace(/\n/g, '<br>')}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   const handleBack = () => {
-    if (generatedContent) {
+    if (viewingSavedSummary) {
+      setViewingSavedSummary(null);
+    } else if (generatedContent) {
       setGeneratedContent(null);
-    } else if (selectedSubtype) {
-      setSelectedSubtype(null);
-    } else if (selectedType) {
-      setSelectedType(null);
+    } else if (selectedExpert || customExpert) {
+      setSelectedExpert(null);
+      setCustomExpert('');
+      setShowCustomInput(false);
     }
   };
+
+  // View saved summary
+  if (viewingSavedSummary) {
+    return (
+      <div className="pb-8 opacity-0 animate-fadeIn" style={{ animationFillMode: 'forwards' }}>
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            חזרה
+          </button>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(viewingSavedSummary.content);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className={`
+              flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition
+              ${copied ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
+            `}
+          >
+            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copied ? 'הועתק!' : 'העתק'}
+          </button>
+        </div>
+
+        <h3 className="font-bold text-xl text-gray-800 mb-2 flex items-center gap-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          סיכום ל{viewingSavedSummary.recipient}
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">
+          {formatDate(viewingSavedSummary.created_at)}
+          {viewingSavedSummary.comprehensive && ' • מקיף'}
+        </p>
+
+        <StyledSummary content={viewingSavedSummary.content} recipientType="professional" />
+
+        <div className="flex gap-2 mt-6">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(viewingSavedSummary.content);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition shadow-sm"
+          >
+            <Copy className="w-4 h-4" />
+            העתק
+          </button>
+          <button
+            onClick={() => {
+              const text = encodeURIComponent(viewingSavedSummary.content);
+              window.open(`https://wa.me/?text=${text}`, '_blank');
+            }}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-500/25"
+          >
+            <Send className="w-4 h-4" />
+            וואטסאפ
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Not ready state
   if (!canGenerate) {
@@ -1103,11 +1175,12 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
     );
   }
 
-  // Generated content view - Beautiful styled display
+  // Generated content view
   if (generatedContent) {
+    const expertName = selectedExpert?.profession || customExpert || 'איש מקצוע';
     return (
       <div className="pb-8 opacity-0 animate-fadeIn" style={{ animationFillMode: 'forwards' }}>
-        {/* Header with back button */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={handleBack}
@@ -1120,9 +1193,7 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
             onClick={handleCopy}
             className={`
               flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition
-              ${copied
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
+              ${copied ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
             `}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -1132,51 +1203,56 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
 
         {/* Title */}
         <h3 className="font-bold text-xl text-gray-800 mb-4 flex items-center gap-2">
-          <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${selectedType?.color || 'from-indigo-500 to-purple-500'} flex items-center justify-center`}>
-            {selectedType?.icon && <selectedType.icon className="w-5 h-5 text-white" />}
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+            <Share2 className="w-5 h-5 text-white" />
           </div>
-          סיכום ל{selectedSubtype?.label}
+          סיכום ל{expertName}
         </h3>
 
-        {/* Styled content */}
-        <StyledSummary content={generatedContent} recipientType={selectedType?.id} />
+        {/* Content */}
+        <StyledSummary content={generatedContent} recipientType="professional" />
 
         {/* Share buttons */}
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-2 mt-6">
           <button
             onClick={handleCopy}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition shadow-sm"
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition shadow-sm"
           >
-            <Copy className="w-5 h-5" />
-            העתק טקסט
+            <Copy className="w-4 h-4" />
+            העתק
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition shadow-sm"
+          >
+            <Printer className="w-4 h-4" />
+            הדפס
           </button>
           <button
             onClick={() => {
               const text = encodeURIComponent(generatedContent);
               window.open(`https://wa.me/?text=${text}`, '_blank');
             }}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-500/25"
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-500/25"
           >
-            <Send className="w-5 h-5" />
-            שלח בוואטסאפ
+            <Send className="w-4 h-4" />
+            וואטסאפ
           </button>
         </div>
 
-        {/* Regenerate option */}
         <button
-          onClick={() => {
-            setGeneratedContent(null);
-          }}
+          onClick={() => setGeneratedContent(null)}
           className="w-full mt-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition"
         >
-          צור סיכום חדש עם הגדרות שונות
+          צור סיכום חדש
         </button>
       </div>
     );
   }
 
-  // Subtype selection + options
-  if (selectedType) {
+  // Expert selected - show context form
+  if (selectedExpert || customExpert) {
+    const expertName = selectedExpert?.profession || customExpert;
     return (
       <div className="pb-8 opacity-0 animate-fadeIn" style={{ animationFillMode: 'forwards' }}>
         <button
@@ -1187,133 +1263,231 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
           חזרה
         </button>
 
-        <h3 className="font-bold text-gray-800 mb-4">
-          {selectedSubtype ? 'התאמה אישית' : `בחרו סוג ${selectedType.label}`}
-        </h3>
-
-        {!selectedSubtype ? (
-          // Subtype selection
-          <div className="grid grid-cols-2 gap-3">
-            {selectedType.subtypes.map((subtype) => (
-              <button
-                key={subtype.id}
-                onClick={() => setSelectedSubtype(subtype)}
-                className="p-4 bg-white border border-gray-200 rounded-xl text-right hover:border-indigo-300 hover:bg-indigo-50 transition card-hover"
-              >
-                <span className="font-medium text-gray-800">{subtype.label}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          // Options form
-          <div className="space-y-5">
-            {/* Time available */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                כמה זמן יש ל{selectedSubtype.label}?
-              </label>
-              <div className="flex gap-2">
-                {[
-                  { id: 'brief', label: 'קצר', desc: '2-3 דקות' },
-                  { id: 'standard', label: 'רגיל', desc: '5-10 דקות' },
-                  { id: 'comprehensive', label: 'מלא', desc: '15+ דקות' },
-                ].map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => setTimeAvailable(option.id)}
-                    className={`
-                      flex-1 py-3 px-2 rounded-xl border-2 transition text-center
-                      ${timeAvailable === option.id
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}
-                    `}
-                  >
-                    <div className="font-medium">{option.label}</div>
-                    <div className="text-xs opacity-70">{option.desc}</div>
-                  </button>
-                ))}
-              </div>
+        {/* Selected expert card */}
+        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl p-4 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-white" />
             </div>
-
-            {/* Additional context */}
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                יש משהו ספציפי שחשוב להדגיש? (אופציונלי)
-              </label>
-              <textarea
-                value={additionalContext}
-                onChange={(e) => setAdditionalContext(e.target.value)}
-                placeholder="למשל: הפגישה היא בעקבות התקף חרדה שהיה לו בגן..."
-                className="w-full p-3 border border-gray-200 rounded-xl resize-none h-24 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition"
-              />
-            </div>
-
-            {/* Generate button */}
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className={`
-                w-full py-4 rounded-xl font-bold text-white transition
-                flex items-center justify-center gap-2
-                ${isGenerating
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 shadow-lg hover:shadow-xl'}
-              `}
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  מכין סיכום...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  צור סיכום
-                </>
+              <div className="font-bold text-gray-800">{expertName}</div>
+              {selectedExpert?.specialization && (
+                <div className="text-sm text-indigo-600">{selectedExpert.specialization}</div>
               )}
-            </button>
+              {selectedExpert?.why_this_match && (
+                <div className="text-xs text-gray-500 mt-1">{selectedExpert.why_this_match}</div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Context input */}
+        <div className="space-y-5">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              יש משהו ספציפי שחשוב להדגיש? (אופציונלי)
+            </label>
+            <textarea
+              value={additionalContext}
+              onChange={(e) => setAdditionalContext(e.target.value)}
+              placeholder="למשל: הפגישה היא בעקבות אירוע ספציפי, או יש משהו שמטריד במיוחד..."
+              className="w-full p-3 border border-gray-200 rounded-xl resize-none h-24 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition"
+            />
+          </div>
+
+          {/* Comprehensive toggle */}
+          <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
+            <input
+              type="checkbox"
+              checked={isComprehensive}
+              onChange={(e) => setIsComprehensive(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-300 text-indigo-500 focus:ring-indigo-200"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-indigo-500" />
+                <span className="font-medium text-gray-700">סיכום מקיף</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                כולל יותר פירוט ועומק - מתאים לפגישות ראשונות או להערכות מקיפות
+              </p>
+            </div>
+          </label>
+
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className={`
+              w-full py-4 rounded-xl font-bold text-white transition
+              flex items-center justify-center gap-2
+              ${isGenerating
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 shadow-lg hover:shadow-xl'}
+            `}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                כותב סיכום מותאם...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                צור סיכום
+              </>
+            )}
+          </button>
+        </div>
       </div>
     );
   }
 
-  // Main recipient type selection
+  // Main view - Expert selection
   return (
     <div className="pb-8">
       <p className="text-gray-600 mb-6">
-        שתפו את ההבנה על הילד עם מי שחשוב - בשפה שמתאימה להם
+        בחרו למי לשתף - הסיכום ייכתב בסגנון ובאורך המתאימים לאיש המקצוע
       </p>
 
-      <div className="space-y-3">
-        {RECIPIENT_TYPES.map((type, idx) => {
-          const Icon = type.icon;
-          return (
+      {/* Recommended experts from crystal */}
+      {hasRecommendedExperts && (
+        <div className="mb-6">
+          <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            מומחים שהמלצנו עליהם
+          </h4>
+          <div className="space-y-2">
+            {recommendedExperts.map((expert, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedExpert(expert)}
+                className={`
+                  w-full p-4 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl
+                  flex items-center gap-4 text-right
+                  hover:border-amber-300 hover:shadow-md transition card-hover
+                  opacity-0 animate-staggerIn stagger-${idx + 1}
+                `}
+              >
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                  <GraduationCap className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-800">{expert.profession}</div>
+                  {expert.specialization && (
+                    <div className="text-sm text-amber-700 truncate">{expert.specialization}</div>
+                  )}
+                  {expert.why_this_match && (
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">{expert.why_this_match}</div>
+                  )}
+                </div>
+                <ArrowRight className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Divider */}
+      {hasRecommendedExperts && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-sm text-gray-400">או בחרו מומחה אחר</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+      )}
+
+      {/* Custom input or quick options */}
+      {showCustomInput ? (
+        <div className="space-y-3">
+          <input
+            type="text"
+            value={customExpert}
+            onChange={(e) => setCustomExpert(e.target.value)}
+            placeholder="כתבו את סוג איש המקצוע..."
+            className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition text-right"
+            autoFocus
+          />
+          <div className="flex gap-2">
             <button
-              key={type.id}
-              onClick={() => setSelectedType(type)}
+              onClick={() => {
+                setShowCustomInput(false);
+                setCustomExpert('');
+              }}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition"
+            >
+              ביטול
+            </button>
+            <button
+              onClick={() => customExpert && handleGenerate()}
+              disabled={!customExpert}
               className={`
-                w-full p-4 bg-white border border-gray-200 rounded-2xl
-                flex items-center gap-4 text-right
-                hover:border-indigo-300 hover:shadow-md transition card-hover
-                opacity-0 animate-staggerIn stagger-${idx + 1}
+                flex-1 py-2 rounded-xl font-medium transition
+                ${customExpert
+                  ? 'bg-indigo-500 text-white hover:bg-indigo-600'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
               `}
             >
-              <div className={`
-                w-12 h-12 rounded-xl bg-gradient-to-br ${type.color}
-                flex items-center justify-center flex-shrink-0
-              `}>
-                <Icon className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-gray-800">{type.label}</div>
-                <div className="text-sm text-gray-500">{type.description}</div>
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-400" />
+              המשך
             </button>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Quick options grid */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {FALLBACK_EXPERT_OPTIONS.slice(0, 6).map((option) => (
+              <button
+                key={option.id}
+                onClick={() => setSelectedExpert({ profession: option.profession })}
+                className="p-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 transition"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom option */}
+          <button
+            onClick={() => setShowCustomInput(true)}
+            className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition flex items-center justify-center gap-2"
+          >
+            <span className="text-xl">+</span>
+            איש מקצוע אחר
+          </button>
+
+          {/* Previous summaries */}
+          {hasPreviousSummaries && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-400" />
+                סיכומים קודמים
+              </h4>
+              <div className="space-y-2">
+                {previousSummaries.map((summary, idx) => (
+                  <button
+                    key={summary.id}
+                    onClick={() => handleViewSavedSummary(summary.id)}
+                    disabled={loadingSavedSummary}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-right hover:bg-gray-100 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-800">
+                        ל{summary.recipient}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {formatDate(summary.created_at)}
+                      </span>
+                    </div>
+                    {summary.comprehensive && (
+                      <span className="text-xs text-indigo-600 mt-1 inline-block">מקיף</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1401,27 +1575,35 @@ export default function ChildSpace({
   }, [familyId, isOpen, childSpaceData]);
 
   // Update tab indicator position (supports both RTL and LTR)
+  // Note: depends on isOpen to trigger when panel opens (refs become available)
   useEffect(() => {
-    const activeTabEl = tabsRef.current[activeTab];
-    const indicator = tabIndicatorRef.current;
-    const container = activeTabEl?.parentElement;
-    if (activeTabEl && indicator && container) {
-      const isRTL = getComputedStyle(container).direction === 'rtl';
-      indicator.style.width = `${activeTabEl.offsetWidth}px`;
+    if (!isOpen) return;
 
-      if (isRTL) {
-        // RTL: position from right edge
-        const containerWidth = container.offsetWidth;
-        const tabRight = containerWidth - activeTabEl.offsetLeft - activeTabEl.offsetWidth;
-        indicator.style.right = `${tabRight}px`;
-        indicator.style.left = 'auto';
-      } else {
-        // LTR: position from left edge
-        indicator.style.left = `${activeTabEl.offsetLeft}px`;
-        indicator.style.right = 'auto';
+    // Small delay to ensure DOM is ready after panel animation starts
+    const timer = setTimeout(() => {
+      const activeTabEl = tabsRef.current[activeTab];
+      const indicator = tabIndicatorRef.current;
+      const container = activeTabEl?.parentElement;
+      if (activeTabEl && indicator && container) {
+        const isRTL = getComputedStyle(container).direction === 'rtl';
+        indicator.style.width = `${activeTabEl.offsetWidth}px`;
+
+        if (isRTL) {
+          // RTL: position from right edge
+          const containerWidth = container.offsetWidth;
+          const tabRight = containerWidth - activeTabEl.offsetLeft - activeTabEl.offsetWidth;
+          indicator.style.right = `${tabRight}px`;
+          indicator.style.left = 'auto';
+        } else {
+          // LTR: position from left edge
+          indicator.style.left = `${activeTabEl.offsetLeft}px`;
+          indicator.style.right = 'auto';
+        }
       }
-    }
-  }, [activeTab]);
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [activeTab, isOpen]);
 
   if (!isOpen) return null;
 
@@ -1507,9 +1689,7 @@ export default function ChildSpace({
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 pt-4 hide-scrollbar">
           {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-            </div>
+            <LoadingAnimation childName={displayName} />
           ) : (
             <>
               {/* Tab Title Header - Shows current section */}
