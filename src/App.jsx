@@ -24,7 +24,6 @@ import ChildSpace from './components/ChildSpace';
 import LivingDocument from './components/LivingDocument';
 
 // Living Gestalt Components
-import CuriosityPanel from './components/CuriosityPanel';
 import GestaltCards from './components/GestaltCards';
 
 // Generate unique family ID (in real app, from auth)
@@ -160,7 +159,7 @@ function App() {
         // Fallback to default greeting
         setMessages([{
           sender: 'chitta',
-          text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
+          text: 'היי! אני צ\'יטה 💙\n\nכיף שהגעת! אשמח להכיר את הילד שלך ולהבין איך אפשר לעזור.\n\nמה השם והגיל?',
           timestamp: new Date().toISOString()
         }]);
       }
@@ -875,18 +874,12 @@ function App() {
         childName={childName}
         childSpace={childSpace}
         onSlotClick={handleHeaderSlotClick}
-        onExpandClick={(expanded) => setShowChildSpace(expanded)}
+        isExpanded={showChildSpace}
+        onExpandClick={(expanded) => {
+          console.log('App.jsx: onExpandClick received, expanded:', expanded, 'setting showChildSpace');
+          setShowChildSpace(expanded);
+        }}
       />
-
-      {/* Living Gestalt: Curiosity Panel (shows what Chitta is exploring) */}
-      {curiosityState.active_curiosities.length > 0 && (
-        <div className="px-4 py-2">
-          <CuriosityPanel
-            curiosityState={curiosityState}
-            collapsed={true}
-          />
-        </div>
-      )}
 
       {/* Conversation Transcript */}
       <ConversationTranscript messages={messages} isTyping={isTyping} />
@@ -979,14 +972,11 @@ function App() {
             setActiveDeepView('videoGallery');
           }
         }}
-        onGenerateSummary={async ({ recipientType, recipientSubtype, timeAvailable, context }) => {
+        onGenerateSummary={async ({ expert, expertDescription, context, crystalInsights, comprehensive }) => {
           const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
           const result = await api.generateShareableSummary(
             activeFamilyId,
-            recipientType,
-            recipientSubtype,
-            timeAvailable,
-            context
+            { expert, expertDescription, context, crystalInsights, comprehensive }
           );
           return result;
         }}
@@ -1028,7 +1018,7 @@ function App() {
                       // Show Chitta's initial greeting (same as real conversation)
                       const greetingMessage = {
                         sender: 'chitta',
-                        text: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
+                        text: 'היי! אני צ\'יטה 💙\n\nכיף שהגעת! אשמח להכיר את הילד שלך ולהבין איך אפשר לעזור.\n\nמה השם והגיל?',
                         timestamp: new Date().toISOString()
                       };
 
