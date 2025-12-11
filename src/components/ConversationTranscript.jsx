@@ -29,7 +29,7 @@ export default function ConversationTranscript({ messages, isTyping }) {
             }}
           >
             <div
-              className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-3.5 text-base leading-relaxed ${
+              className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-3.5 text-lg leading-relaxed ${
                 msg.sender === 'user'
                   ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-200/50'
                   : 'bg-white text-gray-800 border border-gray-100 shadow-md'

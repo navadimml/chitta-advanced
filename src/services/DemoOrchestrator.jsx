@@ -384,7 +384,7 @@ class DemoOrchestrator {
         // Message 0: Chitta greets (already shown in app)
         {
           role: 'assistant',
-          content: 'שלום! אני צ\'יטה 💙\n\nנעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור. נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.\n\nבואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?',
+          content: 'היי! אני צ\'יטה 💙\n\nכיף שהגעת! אשמח להכיר את הילד שלך ולהבין איך אפשר לעזור.\n\nמה השם והגיל?',
           delay_ms: 0
         },
         // Message 1: Parent shares name and age

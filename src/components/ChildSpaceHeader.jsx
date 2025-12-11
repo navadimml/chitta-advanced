@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, FileText, Video, BookOpen, Film, Loader2, Sparkles } from 'lucide-react';
+import { ChevronDown, FileText, Video, Film, Loader2, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
 
 /**
@@ -22,7 +22,6 @@ const SLOT_ICONS = {
   current_report: FileText,
   filming_guidelines: Film,
   videos: Video,
-  journal: BookOpen,
   insights: Sparkles,
 };
 
@@ -71,11 +70,11 @@ export default function ChildSpaceHeader({
   childSpace,  // 🌟 Living Gestalt: Receive child space data as prop
   onSlotClick,
   onExpandClick,
+  isExpanded = false,  // Controlled from parent
   className = ''
 }) {
   const [badges, setBadges] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
 
   // 🌟 Living Gestalt: Use childSpace prop if available, otherwise fallback to API
   useEffect(() => {
@@ -114,9 +113,11 @@ export default function ChildSpaceHeader({
 
   // Handle expand click
   const handleExpandClick = () => {
-    setIsExpanded(!isExpanded);
+    console.log('ChildSpaceHeader: handleExpandClick called, isExpanded:', isExpanded, '-> will pass:', !isExpanded);
     if (onExpandClick) {
       onExpandClick(!isExpanded);
+    } else {
+      console.warn('ChildSpaceHeader: onExpandClick is not defined');
     }
   };
 
@@ -139,13 +140,20 @@ export default function ChildSpaceHeader({
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {/* Child avatar/name */}
           {displayName && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm">
+            <div className="flex items-center gap-2 group">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm transition-all duration-200 group-hover:scale-110 group-hover:shadow-md group-hover:ring-2 group-hover:ring-purple-200">
                 {displayName.charAt(0)}
               </div>
-              <span className="text-sm font-medium text-gray-700 hidden sm:inline">
-                {displayName}
-              </span>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-gray-700 hidden sm:inline">
+                  {displayName}
+                </span>
+                {badges.length === 0 && !isLoading && (
+                  <span className="text-[10px] text-gray-400 hidden sm:inline group-hover:text-purple-500 transition-colors">
+                    לחצו לפרטים
+                  </span>
+                )}
+              </div>
             </div>
           )}
 

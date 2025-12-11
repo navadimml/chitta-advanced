@@ -17,12 +17,11 @@ font_family: Heebo
 greetings:
 
   first_visit: |
-    שלום! אני צ'יטה 💙
+    היי! אני צ'יטה 💙
 
-    נעים להכיר אותך! אני כאן כדי להכיר את הילד/ה שלך ולהבין איך אפשר לעזור.
-    נשוחח קצת יחד, ואז נמשיך לשלבים הבאים.
+    כיף שהגעת! אשמח להכיר את הילד שלך ולהבין איך אפשר לעזור.
 
-    בואי נתחיל - מה שם הילד/ה שלך ובן/בת כמה?
+    מה השם והגיל?
 
   returning:
     same_session: "שלום שוב! 💙 איפה עצרנו?"
