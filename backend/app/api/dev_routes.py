@@ -8,21 +8,17 @@ Key endpoints:
 - /dev/xray/html/{filename} - View HTML dashboard for a report
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse, FileResponse
-from typing import Literal, Optional
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
+from typing import Optional
 import logging
-import os
 import json
-import subprocess
 import asyncio
 import sys
 from pathlib import Path
 from datetime import datetime
 
 from app.services.session_service import get_session_service
-from app.services.lifecycle_manager import get_lifecycle_manager
-from app.services.prerequisite_service import get_prerequisite_service
 
 logger = logging.getLogger(__name__)
 
@@ -479,588 +475,14 @@ async def get_xray_report(filename: str):
         raise HTTPException(status_code=500, detail=f"Invalid JSON in report: {e}")
 
 
-# Test scenarios with different stages of completion
-TEST_SCENARIOS = {
-    "early_conversation": {
-        "description": "Early conversation - basic info only",
-        "data": {
-            "child_name": "דני",
-            "age": 3,
-            "gender": "male",
-            "primary_concerns": ["speech"],
-        },
-        "completeness": 0.3,
-        "message_count": 3,
-    },
-    "guidelines_ready": {
-        "description": "Rich knowledge - guidelines should generate",
-        "data": {
-            "child_name": "דני",
-            "age": 3,
-            "gender": "male",
-            "primary_concerns": ["speech", "social"],
-            "concern_details": "דני לא מדבר הרבה ומתקשה לשחק עם ילדים אחרים. כשהוא משחק בגן, הוא נוטה לשחק לבד ולא מגיב כשילדים מנסים להצטרף אליו. הוא לא משתמש במילים הרבה, בעיקר מצביע או מושך אותי למה שהוא רוצה.",
-            "strengths": "דני אוהב לבנות עם קוביות ויש לו דמיון מדהים. הוא יכול לבנות מגדלים גבוהים ומורכבים. הוא גם אוהב ספרים ויכול להתרכז בהם לזמן ארוך.",
-            "developmental_history": "דני נולד בזמן, התפתחות תקינה עד גיל שנה וחצי, אז החלו הקשיים בשפה. הוא התחיל ללכת בזמן (13 חודשים) אבל המילים הראשונות הגיעו מאוחר (24 חודשים).",
-            "family_context": "דני הוא הילד הראשון במשפחה, יש לו אח קטן בן שנה. אבא עובד הרבה, אמא בחופשת לידה. יש קשר טוב עם סבא וסבתא שעוזרים הרבה.",
-            "daily_routines": "דני הולך לגן בבוקר (8:00-13:00), אוכל טוב, ישן היטב בלילה (20:00-7:00). אחר הצהריים משחק בבית או בפארק. אוהב מאוד את זמן האמבטיה.",
-        },
-        "completeness": 0.8,
-        "message_count": 12,
-    },
-    "videos_uploaded": {
-        "description": "Videos uploaded - ready for analysis",
-        "data": {
-            "child_name": "דני",
-            "age": 3,
-            "gender": "male",
-            "primary_concerns": ["speech", "social"],
-            "concern_details": "דני לא מדבר הרבה ומתקשה לשחק עם ילדים אחרים. כשהוא משחק בגן, הוא נוטה לשחק לבד ולא מגיב כשילדים מנסים להצטרף אליו.",
-            "strengths": "דני אוהב לבנות עם קוביות ויש לו דמיון מדהים. הוא יכול לבנות מגדלים גבוהים ומורכבים.",
-            "developmental_history": "דני נולד בזמן, התפתחות תקינה עד גיל שנה וחצי, אז החלו הקשיים בשפה.",
-            "family_context": "דני הוא הילד הראשון במשפחה, יש לו אח קטן בן שנה.",
-            "daily_routines": "דני הולך לגן בבוקר, אוכל טוב, ישן היטב בלילה.",
-        },
-        "completeness": 0.85,
-        "message_count": 15,
-        "uploaded_videos": 3,  # Simulate videos uploaded
-    },
-    "living_dashboard": {
-        "description": "🌟 Living Dashboard demo - all artifacts ready",
-        "data": {
-            "child_name": "דני",
-            "age": 3,
-            "gender": "male",
-            "primary_concerns": ["speech", "social"],
-            "concern_details": "דני לא מדבר הרבה ומתקשה לשחק עם ילדים אחרים.",
-            "strengths": "דני אוהב לבנות עם קוביות ויש לו דמיון מדהים.",
-            "developmental_history": "דני נולד בזמן, התפתחות תקינה עד גיל שנה וחצי.",
-            "family_context": "דני הוא הילד הראשון במשפחה.",
-            "daily_routines": "דני הולך לגן בבוקר, אוכל טוב, ישן היטב.",
-        },
-        "completeness": 0.95,
-        "message_count": 15,
-        "uploaded_videos": 3,
-        "seed_artifacts": True,  # Special flag to seed mock artifacts
-    },
-    "video_with_hypothesis": {
-        "description": "📹 Video observation test - parent struggling to describe, ACTIVE hypothesis exists",
-        "data": {
-            "child_name": "נועם",
-            "age": 3.5,
-            "gender": "male",
-            "primary_concerns": ["speech", "sensory"],
-            "concern_details": "נועם מתקשה עם מעברים ושינויים בשגרה. קשה לתאר מה בדיוק קורה, אבל משהו לא מסתדר.",
-            "strengths": "נועם אוהב מאוד מוזיקה ויכול לשיר שירים שלמים. הוא גם מאוד יצירתי בציור.",
-            "developmental_history": "התפתחות תקינה עד גיל שנתיים, אז התחיל להיות מאוד רגיש לרעשים.",
-            "family_context": "משפחה דוברת עברית, יש אחות גדולה בת 6.",
-            "daily_routines": "גן בבוקר עד 14:00, אחר כצהריים בבית.",
-        },
-        "completeness": 0.75,
-        "message_count": 10,
-        "seed_hypotheses": True,  # Special flag to seed hypotheses
-        "hypotheses": [
-            {
-                "id": "hyp_sensory_transitions",
-                "theory": "נועם רגיש במיוחד לשינויים סנסוריים, ולכן מעברים קשים לו",
-                "domain": "sensory",
-                "confidence": 0.7,
-                "status": "active",  # CRITICAL - must be active for video tool
-                "questions_to_explore": [
-                    "האם הרגישות מופיעה גם במעברים שקטים?",
-                    "האם הכנה מראש עוזרת?",
-                    "אילו מעברים קשים יותר?"
-                ],
-                "evidence": [
-                    {
-                        "source": "conversation",
-                        "content": "ההורה ציין שהילד מאוד רגיש לרעשים",
-                        "domain": "sensory"
-                    },
-                    {
-                        "source": "conversation",
-                        "content": "מעברים בין פעילויות מאוד קשים",
-                        "domain": "regulation"
-                    }
-                ]
-            },
-            {
-                "id": "hyp_verbal_expression",
-                "theory": "לנועם יש מה לומר אבל הוא מתקשה להוציא את המילים",
-                "domain": "communication",
-                "confidence": 0.5,
-                "status": "forming",
-                "questions_to_explore": [
-                    "האם הוא מתקשר טוב יותר בשירה?",
-                    "האם יש פער בין הבנה לביטוי?"
-                ],
-                "evidence": [
-                    {
-                        "source": "conversation",
-                        "content": "יכול לשיר שירים שלמים אבל מתקשה בדיבור רגיל",
-                        "domain": "communication"
-                    }
-                ]
-            }
-        ],
-        "conversation_context": [
-            ("user", "שלום, אני דואג לנועם בן 3.5"),
-            ("assistant", "שלום, ספר/י לי על נועם"),
-            ("user", "הוא מאוד רגיש לרעשים וקשה לו עם שינויים"),
-            ("assistant", "מה קורה כשיש מעברים?"),
-            ("user", "קשה לי להסביר... זה משהו שצריך לראות"),
-        ]
-    },
-}
-
-
-@router.post("/seed/{scenario}")
-async def seed_test_scenario(
-    scenario: Literal["early_conversation", "guidelines_ready", "videos_uploaded", "living_dashboard", "video_with_hypothesis"],
-    family_id: str = "dev_test_family",
-    generate_artifacts: bool = False
-):
-    """
-    🔧 DEV ONLY: Seed a test scenario with pre-populated data
-
-    This allows you to quickly test features at different stages without
-    going through the full conversation flow.
-
-    Available scenarios:
-    - early_conversation: Basic info only, no guidelines yet
-    - guidelines_ready: Rich knowledge, triggers guideline generation
-    - videos_uploaded: Simulates videos uploaded, ready for analysis
-
-    Args:
-        scenario: Which test scenario to seed
-        family_id: Family ID to use (default: dev_test_family)
-        generate_artifacts: If True, triggers artifact generation (SLOW - 2+ min)
-                          If False (default), only seeds data (FAST - instant)
-
-    Returns the seeded session state
-    """
-
-    scenario_config = TEST_SCENARIOS[scenario]
-
-    logger.info(f"🌱 Seeding test scenario '{scenario}' for family '{family_id}'")
-
-    # Get services
-    session_service = get_session_service()
-    lifecycle_manager = get_lifecycle_manager()
-    prereq_service = get_prerequisite_service()
-
-    # Create/update session
-    session = session_service.get_or_create_session(family_id)
-    session_service.update_extracted_data(family_id, scenario_config["data"])
-    session.completeness = scenario_config["completeness"]
-
-    # Add realistic conversation history based on extracted data
-    # This allows artifact generation to extract meaningful content
-    child_name = scenario_config["data"].get("child_name", "הילד/ה")
-    age = scenario_config["data"].get("age", 3)
-    concerns = scenario_config["data"].get("concern_details", "")
-    strengths = scenario_config["data"].get("strengths", "")
-    dev_history = scenario_config["data"].get("developmental_history", "")
-    family_ctx = scenario_config["data"].get("family_context", "")
-    routines = scenario_config["data"].get("daily_routines", "")
-
-    # Build realistic conversation turns
-    conversation_turns = [
-        ("user", f"שלום, אני רוצה לדבר על {child_name}"),
-        ("assistant", f"שלום! שמחה להכיר. {child_name} - שם יפה. בן כמה הוא/היא?"),
-        ("user", f"{child_name} בן/בת {age}"),
-        ("assistant", "תודה. מה הדאגה העיקרית שלך לגבי ההתפתחות שלו/ה?"),
-        ("user", concerns if concerns else "יש לי כמה דאגות"),
-        ("assistant", "אני מבינה. ספרי לי יותר על החוזקות שלו/ה - במה הוא/היא מצטיין/ת?"),
-        ("user", strengths if strengths else "יש לו/ה הרבה חוזקות"),
-        ("assistant", "נהדר. איך היתה ההתפתחות שלו/ה עד כה?"),
-        ("user", dev_history if dev_history else "התפתחות תקינה בעיקרון"),
-        ("assistant", "תודה. ספרי לי על המשפחה והסביבה שלכם"),
-        ("user", family_ctx if family_ctx else "משפחה רגילה"),
-        ("assistant", "מה נראה יום טיפוסי אצלכם?"),
-        ("user", routines if routines else "יום רגיל, גן בבוקר"),
-    ]
-
-    # Add only the number of turns specified in scenario
-    for i, (role, content) in enumerate(conversation_turns[:scenario_config["message_count"]]):
-        session.conversation_history.append({
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat()
-        })
-
-    # Handle video upload simulation
-    if scenario_config.get("uploaded_videos"):
-        from app.models.family_state import Video
-        from app.services.mock_graphiti import get_mock_graphiti
-
-        graphiti = get_mock_graphiti()
-        state = graphiti.get_or_create_state(family_id)
-
-        for i in range(scenario_config["uploaded_videos"]):
-            video = Video(
-                id=f"vid_{i+1}",
-                scenario=["ארוחת בוקר", "משחק חופשי", "זמן אמבטיה"][i % 3],
-                uploaded_at=datetime.now(),
-                duration_seconds=60 + i * 30,
-            )
-            state.videos_uploaded.append(video)
-
-        logger.info(f"📹 Simulated {len(state.videos_uploaded)} videos uploaded")
-
-    # 📹 Video with Hypothesis: Seed hypotheses into Child.understanding
-    if scenario_config.get("seed_hypotheses"):
-        from app.models.understanding import Hypothesis, Evidence, DevelopmentalUnderstanding
-        from app.services.unified_state_service import get_unified_state_service
-
-        logger.info("📹 Seeding hypotheses for video observation test...")
-
-        unified = get_unified_state_service()
-        child = unified.get_child(family_id)
-
-        # Seed hypotheses from scenario config
-        for hyp_data in scenario_config.get("hypotheses", []):
-            # Create evidence objects
-            evidence_list = []
-            for ev_data in hyp_data.get("evidence", []):
-                evidence = Evidence(
-                    source=ev_data.get("source", "conversation"),
-                    content=ev_data.get("content", ""),
-                    domain=ev_data.get("domain"),
-                    observed_at=datetime.now()
-                )
-                evidence_list.append(evidence)
-
-            # Create hypothesis with ACTIVE status
-            hypothesis = Hypothesis(
-                id=hyp_data.get("id", f"hyp_{len(child.understanding.hypotheses)}"),
-                theory=hyp_data.get("theory", ""),
-                domain=hyp_data.get("domain", "general"),
-                confidence=hyp_data.get("confidence", 0.5),
-                status=hyp_data.get("status", "active"),  # CRITICAL for video tool
-                evidence=evidence_list,
-                questions_to_explore=hyp_data.get("questions_to_explore", []),
-                formed_at=datetime.now(),
-                last_evidence_at=datetime.now()
-            )
-            child.understanding.add_hypothesis(hypothesis)
-            logger.info(f"  ✅ Added hypothesis: {hypothesis.id} ({hypothesis.status})")
-
-        # Use custom conversation context if provided
-        if scenario_config.get("conversation_context"):
-            for role, content in scenario_config["conversation_context"]:
-                session.conversation_history.append({
-                    "role": role,
-                    "content": content,
-                    "timestamp": datetime.now().isoformat()
-                })
-            logger.info(f"  ✅ Added {len(scenario_config['conversation_context'])} conversation turns")
-
-        logger.info(f"✅ Seeded {len(child.understanding.hypotheses)} hypotheses for video observation test")
-
-    # 🌟 Living Dashboard: Seed mock artifacts for demo
-    if scenario_config.get("seed_artifacts"):
-        from app.models.artifact import Artifact
-
-        logger.info("🌟 Seeding Living Dashboard demo artifacts...")
-
-        # Mock Parent Report (markdown with sections for Living Documents)
-        parent_report_content = """# דוח התפתחות - דני
-
-## סיכום כללי
-
-דני הוא ילד בן 3 עם יכולות קוגניטיביות טובות. הוא מראה עניין רב בפעילויות בנייה ומשחקי דמיון.
-ישנם תחומים הדורשים תמיכה, במיוחד בתחום התקשורת והאינטראקציה החברתית.
-
-## התפתחות מוטורית
-
-דני מראה התפתחות מוטורית תקינה לגילו. הוא יכול לרוץ, לקפוץ ולטפס.
-המוטוריקה העדינה שלו טובה - הוא בונה מגדלים גבוהים ומורכבים עם קוביות.
-
-## תקשורת ושפה
-
-זהו תחום שדורש תשומת לב. דני משתמש במילים בודדות ובעיקר מתקשר באמצעות הצבעה ומשיכה.
-הוא מבין הוראות פשוטות אך מתקשה לבטא את עצמו מילולית.
-
-### המלצות לתקשורת
-- לעודד תקשורת מילולית בכל הזדמנות
-- להשתמש בתמונות ומילים יחד
-- לשיר שירים פשוטים עם חזרות
-
-## התפתחות חברתית-רגשית
-
-דני נוטה לשחק לבד ומתקשה להצטרף למשחק עם ילדים אחרים.
-הוא לא תמיד מגיב כשילדים מנסים לשתף אותו במשחק.
-
-## חוזקות
-
-- דמיון עשיר ויכולת בנייה מרשימה
-- יכולת ריכוז גבוהה בפעילויות שמעניינות אותו
-- סקרנות והתעניינות בספרים
-
-## המלצות
-
-1. התייעצות עם קלינאית תקשורת
-2. הצטרפות לקבוצת משחק קטנה
-3. המשך עידוד פעילויות בנייה ויצירה
-"""
-
-        parent_report = Artifact(
-            artifact_id="baseline_parent_report",
-            artifact_type="report",
-            status="ready",
-            content=parent_report_content,
-            content_format="markdown",
-            created_at=datetime.now(),
-            ready_at=datetime.now()
-        )
-        session.add_artifact(parent_report)
-
-        # Mock Video Guidelines (JSON) - Structure matches VideoGuidelinesView component
-        guidelines_content = {
-            "child_name": "דני",
-            "introduction": "הסרטונים שתצלמו יעזרו לנו להבין טוב יותר את דני בסביבה הטבעית שלו. אנחנו לא מחפשים 'ביצועים' - אלא רגעים אמיתיים מהחיים. הסרטונים האלה יאפשרו לנו לראות את החוזקות של דני, להבין את סגנון התקשורת שלו, ולזהות הזדמנויות לתמיכה בהתפתחות שלו.",
-            "estimated_duration": "15-20 דקות סה״כ",
-            "focus_areas": ["תקשורת", "אינטראקציה חברתית", "משחק"],
-            "scenarios": [
-                {
-                    "title": "ארוחת בוקר",
-                    "context": "רגע יומיומי שמאפשר לראות תקשורת טבעית",
-                    "duration": "3-5 דקות",
-                    "what_to_film": "צלמו את דני במהלך ארוחת הבוקר הרגילה. שימו את הטלפון במקום יציב (אפשר להישען על קופסה או ספר) כך שרואים את דני ואת מי שאוכל איתו. פשוט תנהגו כרגיל - דברו, אכלו, היו טבעיים.",
-                    "why_matters": "ארוחות הן הזדמנות מצוינת לראות איך דני מתקשר כשהוא רוצה משהו, איך הוא מגיב לשיחה, ואיך הוא מתמודד עם שגרה יומיומית.",
-                    "analyst_context": {
-                        "guideline_title": "ארוחת בוקר",
-                        "look_for": ["יוזמת תקשורת", "בקשות", "קשר עין", "תגובה לפניות"]
-                    }
-                },
-                {
-                    "title": "משחק חופשי",
-                    "context": "הזדמנות לראות יצירתיות ודמיון",
-                    "duration": "5-7 דקות",
-                    "what_to_film": "תנו לדני לבחור במה לשחק - קוביות, בובות, מכוניות, כל מה שהוא אוהב. שבו לידו על הרצפה עם הטלפון. אתם יכולים לשחק איתו או פשוט לשבת ליד ולצפות. אל תכוונו את המשחק - תנו לו להוביל.",
-                    "why_matters": "משחק חופשי מראה לנו את עולם הדמיון של דני, איך הוא פותר בעיות, ואיך הוא מתייחס לצעצועים ולאנשים סביבו.",
-                    "analyst_context": {
-                        "guideline_title": "משחק חופשי",
-                        "look_for": ["משחק סימבולי", "ריכוז", "יצירתיות", "שיתוף"]
-                    }
-                },
-                {
-                    "title": "זמן אמבטיה",
-                    "context": "רגע של קרבה וויסות חושי",
-                    "duration": "3-5 דקות",
-                    "what_to_film": "צלמו את דני בזמן האמבטיה או משחק עם מים. שימו לב לבטיחות - הטלפון צריך להיות במקום יבש ויציב. צלמו איך הוא מגיב למים, לבועות סבון, לצעצועי אמבטיה.",
-                    "why_matters": "זמן אמבטיה מראה לנו איך דני מתמודד עם חוויות חושיות (מים, טמפרטורה, מגע) ואיך הוא משתף פעולה בשגרה יומיומית.",
-                    "analyst_context": {
-                        "guideline_title": "זמן אמבטיה",
-                        "look_for": ["ויסות חושי", "שיתוף פעולה", "הנאה", "תקשורת"]
-                    }
-                }
-            ],
-            "general_tips": [
-                "צלמו בסביבה טבעית ורגועה - לא צריך לסדר או להכין משהו מיוחד",
-                "אל תנסו לכוון את דני או לבקש ממנו לעשות דברים - תנו לו להיות טבעי",
-                "תאורה טובה חשובה - עדיף אור טבעי מהחלון",
-                "אם דני שם לב למצלמה ומופרע - עצרו וחכו שיתרגל, או נסו שוב מאוחר יותר",
-                "אין 'סרטון מושלם' - גם רגעים של תסכול או קושי הם בעלי ערך"
-            ]
-        }
-
-        import json
-        guidelines = Artifact(
-            artifact_id="baseline_video_guidelines",
-            artifact_type="guidelines",
-            status="ready",
-            content=json.dumps(guidelines_content, ensure_ascii=False),
-            content_format="json",
-            created_at=datetime.now(),
-            ready_at=datetime.now()
-        )
-        session.add_artifact(guidelines)
-
-        # Add journal entries to state
-        from app.models.family_state import JournalEntry, Artifact as FamilyArtifact
-        graphiti = get_mock_graphiti()
-        state = graphiti.get_or_create_state(family_id)
-
-        state.journal_entries = [
-            JournalEntry(
-                id="entry_1",
-                content="היום דני אמר 'מים' בפעם הראשונה! התרגשתי מאוד.",
-                timestamp=datetime.now()
-            ),
-            JournalEntry(
-                id="entry_2",
-                content="שיחקנו יחד בקוביות והוא בנה מגדל ענק.",
-                timestamp=datetime.now()
-            ),
-        ]
-
-        # Set child info
-        state.child = {"name": "דני", "age": 3}
-
-        # 🔧 CRITICAL: Also add artifacts to FamilyState.artifacts (for /state endpoint)
-        # The frontend reads from state.artifacts, not session.artifacts
-        state.artifacts["baseline_parent_report"] = FamilyArtifact(
-            type="baseline_parent_report",
-            content={"raw": parent_report_content, "format": "markdown"},
-            created_at=datetime.now()
-        )
-        state.artifacts["baseline_video_guidelines"] = FamilyArtifact(
-            type="baseline_video_guidelines",
-            content=guidelines_content,  # Already a dict
-            created_at=datetime.now()
-        )
-
-        # 📜 Add historical versions of artifacts for demo
-        # This demonstrates the "version history" feature in ChildSpace
-        from datetime import timedelta
-
-        # Historical parent report (version 1 - older, shorter)
-        old_report_content = """# דוח התפתחות ראשוני - דני
-
-## סיכום כללי
-
-דני הוא ילד בן 3. נצפו קשיים בתחום התקשורת והאינטראקציה החברתית.
-
-## תחומים לבדיקה
-
-- תקשורת ושפה
-- התפתחות חברתית
-
-## המלצות ראשוניות
-
-1. להמשיך במעקב
-2. לשקול הפניה להערכה מקצועית
-"""
-        old_report = Artifact(
-            artifact_id="baseline_parent_report_v1",
-            artifact_type="report",
-            status="ready",
-            content=old_report_content,
-            content_format="markdown",
-            created_at=datetime.now() - timedelta(days=7),
-            ready_at=datetime.now() - timedelta(days=7)
-        )
-        session.add_artifact(old_report)
-
-        # Even older report (version 0 - initial assessment)
-        initial_report_content = """# הערכה ראשונית - דני
-
-## פרטים בסיסיים
-
-שם: דני
-גיל: 3
-דאגות עיקריות: תקשורת
-
-## הערות
-
-ממתין למידע נוסף מההורים.
-"""
-        initial_report = Artifact(
-            artifact_id="baseline_parent_report_v0",
-            artifact_type="report",
-            status="ready",
-            content=initial_report_content,
-            content_format="markdown",
-            created_at=datetime.now() - timedelta(days=14),
-            ready_at=datetime.now() - timedelta(days=14)
-        )
-        session.add_artifact(initial_report)
-
-        logger.info(f"✅ Seeded {len(session.artifacts)} artifacts (including history) for Living Dashboard demo")
-
-    # Build context for card evaluation
-    session_data = {
-        "family_id": family_id,
-        "extracted_data": session.extracted_data.model_dump(),
-        "message_count": len(session.conversation_history),
-        "artifacts": session.artifacts,
-        "completeness": session.completeness,
-    }
-    context = prereq_service.get_context_for_cards(session_data)
-    context["conversation_history"] = session.conversation_history
-
-    # For guidelines_ready scenario, we need to pre-generate interview_summary
-    # Otherwise the guidelines generation will fail due to missing dependency
-    if scenario == "guidelines_ready" and not generate_artifacts:
-        logger.info(f"📝 Pre-generating interview_summary for guidelines_ready scenario...")
-        from app.services.artifact_generation_service import ArtifactGenerationService
-        from app.services.llm.factory import create_llm_provider
-
-        # Create artifact service
-        llm_provider = create_llm_provider("gemini", "gemini-2.5-pro")
-        artifact_service = ArtifactGenerationService(llm_provider)
-
-        # Generate interview_summary artifact directly
-        try:
-            interview_summary_artifact = await artifact_service.generate_interview_summary(
-                artifact_id="baseline_interview_summary",
-                session_data={
-                    "family_id": family_id,
-                    "extracted_data": session.extracted_data.model_dump(),
-                    "conversation_history": session.conversation_history,
-                    "artifacts": {}
-                }
-            )
-            session.add_artifact(interview_summary_artifact)
-            logger.info(f"✅ Pre-generated interview_summary: {interview_summary_artifact.status}")
-        except Exception as e:
-            logger.error(f"❌ Failed to pre-generate interview_summary: {e}")
-            import traceback
-            traceback.print_exc()
-
-    # Optionally trigger artifact generation (SLOW - 2+ min for guidelines)
-    result = None
-    if generate_artifacts:
-        logger.info(f"⏳ Triggering artifact generation (this may take 2+ minutes)...")
-        result = await lifecycle_manager.process_lifecycle_events(
-            family_id=family_id,
-            context=context,
-            session=session
-        )
-        logger.info(f"✅ Seeded scenario '{scenario}': {result['artifacts_generated']}")
-    else:
-        logger.info(f"✅ Seeded scenario '{scenario}' (data only, artifacts pre-generated if needed)")
-
-    return {
-        "success": True,
-        "scenario": scenario,
-        "description": scenario_config["description"],
-        "family_id": family_id,
-        "generate_artifacts": generate_artifacts,
-        "session_state": {
-            "completeness": session.completeness,
-            "message_count": len(session.conversation_history),
-            "artifacts": [
-                {
-                    "artifact_id": a.artifact_id,
-                    "status": a.status,
-                    "is_ready": a.is_ready,
-                }
-                for a in session.artifacts.values()
-            ],
-        },
-        "lifecycle_result": result,
-    }
-
-
-@router.get("/scenarios")
-async def list_scenarios():
-    """
-    🔧 DEV ONLY: List all available test scenarios
-    """
-    return {
-        "scenarios": {
-            name: {
-                "name": name,
-                "description": config["description"],
-                "completeness": config["completeness"],
-                "message_count": config["message_count"],
-            }
-            for name, config in TEST_SCENARIOS.items()
-        }
-    }
+# ========================================
+# 🗑️ DEPRECATED: Old seeding system removed
+# ========================================
+# The old TEST_SCENARIOS and /seed/{scenario} endpoint used deprecated
+# services (session_service, lifecycle_manager, prerequisite_service).
+# Use the new Living Gestalt seeding system below instead:
+# - GET /dev/seed/gestalt/scenarios - List available scenarios
+# - POST /dev/seed/gestalt/{scenario} - Seed a scenario
 
 
 @router.get("/session/{family_id}/memory")
@@ -1133,27 +555,35 @@ GESTALT_SCENARIOS = {
     },
     "video_analyzed": {
         "name": "Video Analyzed",
-        "description": "ניתוח הושלם עם תובנות.",
-        "expected_cards": ["video_insights"],
-        "next_action": "צפו בתובנות, המשיכו בשיחה",
+        "description": "ניתוח הושלם - כרטיס פידבק (לא פעולה).",
+        "expected_cards": ["video_analyzed"],  # Feedback card, not action card
+        "next_action": "סגרו את הכרטיס והמשיכו בשיחה - התובנות כבר משולבות",
     },
     "multi_hypothesis": {
         "name": "Multiple Hypotheses",
         "description": "מספר השערות פעילות בשלבים שונים.",
-        "expected_cards": ["video_suggestion", "synthesis_available"],
+        "expected_cards": ["video_suggestion"],  # Only cycle-bound cards
         "next_action": "בדקו טיפול במספר כרטיסים",
     },
-    "synthesis_ready": {
-        "name": "Synthesis Ready",
-        "description": "מספיק מידע נאסף לדוח סינתזה.",
-        "expected_cards": ["synthesis_available"],
-        "next_action": "בקשו סינתזה",
-    },
+    # NOTE: synthesis_ready scenario removed - synthesis is not a context card.
+    # Synthesis is a HOLISTIC artifact that users pull from ChildSpace when ready.
     "rich_conversation": {
         "name": "Rich Conversation History",
         "description": "שיחה עשירה עם הרבה עובדות, סיפורים והשערות - אידיאלי לבדיקת זיכרון ותגובות.",
         "expected_cards": ["video_suggestion"],
         "next_action": "שלחו הודעה וראו שהמערכת מכירה את הילד",
+    },
+    "with_crystal": {
+        "name": "Full Crystal (Static)",
+        "description": "Crystal סטטי מוכן מראש - לבדיקת עיצוב לשונית המהות בלי להמתין ל-LLM.",
+        "expected_cards": [],  # No cards - Crystal is holistic, user-initiated from Space
+        "next_action": "פתחו את לשונית 'מהות' בממשק וראו את כל הנתונים",
+    },
+    "dynamic_crystal": {
+        "name": "Dynamic Crystal (LLM Generated)",
+        "description": "נתונים עשירים ללא Crystal - כשנפתח הפורטרט, ה-LLM יצור Crystal דינמי עם תובנות, מה יכול לעזור, והמלצות.",
+        "expected_cards": ["video_suggestion"],
+        "next_action": "פתחו את הפורטרט - ה-Crystal ייווצר דינמית ע\"י ה-LLM",
     },
 }
 
@@ -1236,7 +666,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                 "focus": "קושי במעברים",
                 "focus_domain": "behavioral",
                 "status": "active",
-                "theory": "הקושי במעברים נובע מרגישות חושית - שינוי הסביבה מציף את המערכת החושית",
+                "theory": "יכול להיות שמעברים קשים לו כי השינוי מרגיש גדול ומאיים",
                 "confidence": 0.5,
                 "video_appropriate": True,
                 "video_accepted": False,
@@ -1257,7 +687,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                 "focus": "קושי במעברים",
                 "focus_domain": "behavioral",
                 "status": "active",
-                "theory": "הקושי במעברים נובע מרגישות חושית",
+                "theory": "נראה שמעברים מרגישים לו גדולים - אולי בגלל איך שהוא קולט את הסביבה",
                 "confidence": 0.5,
                 "video_appropriate": True,
                 "video_accepted": True,
@@ -1275,6 +705,8 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                     "focus_points": ["מה קורה ברגע שאומרים 'יוצאים'", "האם יש סימנים מקדימים", "מה עוזר להרגיע"],
                     "category": "hypothesis_test",
                     "status": "pending",
+                    "created_at": (datetime.now() - timedelta(days=2)).isoformat(),  # Simulate guidelines generated 2 days ago
+                    "reminder_dismissed": False,
                 }],
                 "evidence": [
                     {"content": "מתפרץ כשצריך לצאת מהבית", "effect": "supports", "source": "conversation", "timestamp": datetime.now().isoformat()},
@@ -1289,7 +721,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                 "focus": "קושי במעברים",
                 "focus_domain": "behavioral",
                 "status": "active",
-                "theory": "הקושי במעברים נובע מרגישות חושית",
+                "theory": "נראה שמעברים מרגישים לו גדולים - אולי בגלל איך שהוא קולט את הסביבה",
                 "confidence": 0.5,
                 "video_appropriate": True,
                 "video_accepted": True,
@@ -1321,7 +753,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                 "focus": "קושי במעברים",
                 "focus_domain": "behavioral",
                 "status": "active",
-                "theory": "הקושי במעברים נובע מרגישות חושית",
+                "theory": "נראה שמעברים מרגישים לו גדולים - אולי בגלל איך שהוא קולט את הסביבה",
                 "confidence": 0.75,  # Increased after analysis
                 "video_appropriate": True,
                 "video_accepted": True,
@@ -1367,7 +799,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                     "focus": "קושי במעברים",
                     "focus_domain": "behavioral",
                     "status": "active",
-                    "theory": "הקושי במעברים נובע מרגישות חושית",
+                    "theory": "נראה שמעברים מרגישים לו גדולים - אולי בגלל איך שהוא קולט את הסביבה",
                     "confidence": 0.5,
                     "video_appropriate": True,
                     "video_accepted": False,
@@ -1401,7 +833,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                     "focus": "קושי במעברים",
                     "focus_domain": "behavioral",
                     "status": "complete",
-                    "theory": "הקושי במעברים נובע מרגישות חושית",
+                    "theory": "נראה שמעברים מרגישים לו גדולים - אולי בגלל איך שהוא קולט את הסביבה",
                     "confidence": 0.85,
                     "video_appropriate": True,
                     "video_accepted": True,
@@ -1438,7 +870,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                 "focus": "קושי במעברים",
                 "focus_domain": "behavioral",
                 "status": "active",
-                "theory": "הקושי במעברים נובע מרגישות חושית ומקושי בוויסות עצמי",
+                "theory": "יכול להיות שמעברים קשים לו כי השינוי מרגיש גדול ומאיים",
                 "confidence": 0.6,
                 "video_appropriate": True,
                 "video_accepted": False,
@@ -1452,10 +884,79 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
                 "created_at": datetime.now().isoformat(),
             }]
         },
+        # dynamic_crystal: Rich data for LLM to generate Crystal dynamically (NO pre-built crystal)
+        "dynamic_crystal": {
+            "exploration_cycles": [{
+                "id": "cycle_transitions",
+                "curiosity_type": "hypothesis",
+                "focus": "קושי במעברים",
+                "focus_domain": "behavioral",
+                "status": "active",
+                "theory": "יכול להיות שמעברים קשים לו כי השינוי מרגיש גדול ומאיים",
+                "confidence": 0.6,
+                "video_appropriate": True,
+                "video_accepted": False,
+                "video_declined": False,
+                "video_scenarios": [],
+                "evidence": [
+                    {"content": "מתפרץ כשצריך לצאת מהבית", "effect": "supports", "source": "conversation", "timestamp": datetime.now().isoformat()},
+                    {"content": "רגיש לרעשים חזקים", "effect": "supports", "source": "conversation", "timestamp": datetime.now().isoformat()},
+                    {"content": "לוקח זמן להירגע אחרי שינוי", "effect": "supports", "source": "conversation", "timestamp": datetime.now().isoformat()},
+                ],
+                "created_at": datetime.now().isoformat(),
+            }]
+        },
+        # with_crystal: same exploration cycles as synthesis_ready, crystal added separately below
+        "with_crystal": {
+            "exploration_cycles": [
+                {
+                    "id": "cycle_transitions",
+                    "curiosity_type": "hypothesis",
+                    "focus": "קושי במעברים",
+                    "focus_domain": "behavioral",
+                    "status": "complete",
+                    "theory": "נראה שמעברים מרגישים לו גדולים - אולי בגלל איך שהוא קולט את הסביבה",
+                    "confidence": 0.85,
+                    "video_appropriate": True,
+                    "video_accepted": True,
+                    "video_scenarios": [{
+                        "id": "scenario_morning",
+                        "title": "מעבר בוקר - יציאה לגן",
+                        "what_to_film": f"צלמו את {child_name} בבוקר כשצריך לצאת מהבית.",
+                        "rationale_for_parent": "זה יעזור לראות איך הוא מגיב לשינויים.",
+                        "duration_suggestion": "5-7 דקות",
+                        "target_hypothesis_id": "cycle_transitions",
+                        "status": "analyzed",
+                        "video_path": "/uploads/mock_video.mp4",
+                        "uploaded_at": (datetime.now() - timedelta(hours=1)).isoformat(),
+                        "analyzed_at": datetime.now().isoformat(),
+                        "analysis_result": {"verdict": "supports", "confidence_level": "high"},
+                    }],
+                    "evidence": [
+                        {"content": "מתפרץ כשצריך לצאת", "effect": "supports", "source": "conversation", "timestamp": datetime.now().isoformat()},
+                        {"content": "מכסה אוזניים בסרטון", "effect": "supports", "source": "video", "timestamp": datetime.now().isoformat()},
+                    ],
+                    "created_at": (datetime.now() - timedelta(days=2)).isoformat(),
+                },
+                {
+                    "id": "cycle_social",
+                    "curiosity_type": "question",
+                    "focus": "משחק חברתי",
+                    "focus_domain": "social",
+                    "status": "complete",
+                    "question": "האם יש קושי חברתי?",
+                    "answer_fragments": ["מעדיף משחק עצמאי", "יש יכולת לשחק עם אחותו"],
+                    "evidence": [
+                        {"content": "משחק לבד בגן", "effect": "supports", "source": "conversation", "timestamp": datetime.now().isoformat()},
+                    ],
+                    "created_at": (datetime.now() - timedelta(days=1)).isoformat(),
+                },
+            ]
+        },
     }
 
-    # Additional rich facts for rich_conversation
-    if scenario == "rich_conversation":
+    # Additional rich facts for rich_conversation and dynamic_crystal
+    if scenario in ("rich_conversation", "dynamic_crystal"):
         base_understanding["facts"].extend([
             {"content": "אוהב צעצועים שמסתובבים", "domain": "play", "confidence": 0.9, "source": "conversation", "t_created": datetime.now().isoformat()},
             {"content": "לא אוהב להתלכלך בחול", "domain": "sensory", "confidence": 0.85, "source": "conversation", "t_created": datetime.now().isoformat()},
@@ -1472,7 +973,8 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
             {"role": "user", "content": "אוכל רק כמה דברים ספציפיים - פסטה, במבה, בננה. קשה להכניס דברים חדשים."},
         ])
 
-    return {
+    # Build result with base data
+    result = {
         "name": child_name,
         "understanding": base_understanding,
         "stories": base_stories,
@@ -1480,6 +982,117 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
         "session_history": base_session_history,
         **scenarios_data.get(scenario, {}),
     }
+
+    # Add Crystal for scenarios that should have it
+    # NOTE: dynamic_crystal is NOT here - it uses LLM to generate Crystal dynamically
+    if scenario in ["with_crystal", "synthesis_ready"]:
+        result["crystal"] = {
+            "essence_narrative": f"{child_name} הוא ילד בעל עולם פנימי עשיר, שאוהב ליצור ולבנות. הרגישות החושית שלו היא גם חוזקה - היא מאפשרת לו להתרכז לעומק בדברים שמעניינים אותו. הוא זקוק לזמן להתאקלם לשינויים, אבל כשנותנים לו את המרחב הזה, הוא מפתיע ביכולת ההסתגלות שלו.",
+            "temperament": ["רגיש", "יצירתי", "עיקש", "מתבונן"],
+            "core_qualities": ["סקרנות עמוקה", "התמדה", "דמיון עשיר", "יכולת ריכוז גבוהה"],
+            "patterns": [
+                {
+                    "description": f"המוזיקה היא ערוץ ויסות מרכזי עבור {child_name} - הוא נרגע ומתחבר דרכה",
+                    "domains_involved": ["emotional", "sensory", "strengths"],
+                    "confidence": 0.85,
+                    "detected_at": datetime.now().isoformat(),
+                },
+                {
+                    "description": "כשצריך לעבור לפעילות אחרת, הוא צריך הרבה זמן להתארגן - נראה שהשינוי מרגיש לו גדול",
+                    "domains_involved": ["sensory", "behavioral", "emotional"],
+                    "confidence": 0.8,
+                    "detected_at": datetime.now().isoformat(),
+                },
+                {
+                    "description": "הבנייה והיצירה הם דרך להביע את עצמו ולהרגיש שליטה",
+                    "domains_involved": ["cognitive", "emotional", "motor"],
+                    "confidence": 0.75,
+                    "detected_at": datetime.now().isoformat(),
+                },
+            ],
+            "intervention_pathways": [
+                {
+                    "hook": "אהבת המוזיקה והיכולת לשיר שירים שלמים",
+                    "concern": "קושי במעברים",
+                    "suggestion": f"לנגן שיר מוכר לפני מעברים - ליצור 'שיר מעברים' ש{child_name} יידע שמסמן שינוי קרב",
+                    "confidence": 0.8,
+                },
+                {
+                    "hook": "הנאה מבנייה עם קוביות",
+                    "concern": "קושי בביטוי מילולי",
+                    "suggestion": f"לבנות יחד ולדבר על מה שבונים - 'איזה צבע?' 'עוד אחד?' - ליצור הזדמנויות לתקשורת דרך משחק אהוב",
+                    "confidence": 0.75,
+                },
+                {
+                    "hook": "יכולת ריכוז גבוהה בפעילויות מעניינות",
+                    "concern": "רגישות חושית",
+                    "suggestion": f"להשתמש בפעילויות מרוכזות (לגו, ציור) כ'עוגן' לפני ואחרי מצבים מאתגרים חושית",
+                    "confidence": 0.7,
+                },
+            ],
+            "open_questions": [
+                f"האם {child_name} מגיב אחרת למעברים כשהוא יודע מראש מה יקרה?",
+                "האם יש הבדל בין מעברים בבית לבין מעברים בגן?",
+                f"איך {child_name} מגיב לילדים אחרים שמנסים להצטרף למשחק שלו?",
+            ],
+            "expert_recommendations": [
+                {
+                    "profession": "מרפא בעיסוק",
+                    "specialization": f"מרפא שעובד דרך בנייה ויצירה, מכיר עולם הלגו והמשחק הקונסטרוקטיבי",
+                    "why_this_match": f"{child_name} בונה לשעות ונרגע כשהידיים עסוקות - מרפא שיעבוד איתו דרך בנייה יגיע אליו דרך מה שהוא אוהב, לא דרך מה שקשה לו",
+                    "recommended_approach": "גישה משחקית דרך בנייה ויצירה",
+                    "why_this_approach": f"כי {child_name} מתחבר דרך הידיים והעיניים, לא דרך הוראות מילוליות",
+                    "what_to_look_for": [
+                        "מרפא שיש לו קוביות ולגו בחדר הטיפולים",
+                        "מישהו שנותן לילד להוביל את המשחק",
+                        "גישה רגועה וסבלנית, בלי לחץ להתקדם מהר",
+                    ],
+                    "summary_for_professional": f"{child_name} הוא ילד בן 3.5, יצירתי ובעל דמיון עשיר. הוא בונה מגדלים מורכבים ויכול להתרכז בבנייה לזמן ארוך. יש לו רגישות חושית, במיוחד לרעשים, וקושי במעברים. הדרך להגיע אליו היא דרך הידיים - בנייה, יצירה, משחק בחומרים. המוזיקה גם מרגיעה אותו. הוא צריך זמן להתאקלם לסביבה חדשה ולאנשים חדשים.",
+                    "confidence": 0.75,
+                    "priority": "when_ready",
+                },
+                {
+                    "profession": "קלינאית תקשורת",
+                    "specialization": "קלינאית שמשלבת מוזיקה ושירה בטיפול, או עם רקע במוזיקה תרפיה",
+                    "why_this_match": f"{child_name} שר שירים שלמים אבל מתקשה בדיבור רגיל - קלינאית שתעבוד דרך השירה תוכל להשתמש בחוזקה הזו כגשר לתקשורת",
+                    "recommended_approach": "גישה מבוססת משחק ומוזיקה",
+                    "why_this_approach": f"כי {child_name} כבר מצליח להוציא מילים דרך שירה - זה הערוץ הפתוח שלו",
+                    "what_to_look_for": [
+                        "קלינאית שמשתמשת בשירים ומוזיקה כחלק מהטיפול",
+                        "גישה משחקית, לא 'תרגולית'",
+                        "מישהי שנותנת לילד להוביל ולא דוחפת",
+                    ],
+                    "summary_for_professional": f"{child_name} הוא ילד בן 3.5 שמתקשה בביטוי מילולי אבל שר שירים שלמים בצורה מדויקת. הוא מבין הרבה יותר ממה שהוא מביע. הוא רגיש חושית ומתחבר דרך מוזיקה ובנייה. הגישה המשחקית והמוזיקלית היא המפתח להגיע אליו. הוא זקוק לזמן להתחמם לאנשים חדשים.",
+                    "confidence": 0.7,
+                    "priority": "soon",
+                },
+            ],
+            "portrait_sections": [
+                {
+                    "title": "העולם הפנימי והיצירה",
+                    "icon": "🧩",
+                    "content": f"{child_name} הוא ילד עם עולם פנימי עשיר ודמיון מפותח. הוא מבטא את עצמו בעיקר דרך בנייה ויצירה - יכול לבנות מגדלים מרשימים ולהתרכז בזה לזמן ארוך. המוזיקה היא חלק בלתי נפרד ממנו, והוא שר שירים שלמים בהנאה גלויה.",
+                    "content_type": "paragraph",
+                },
+                {
+                    "title": "התמודדות עם שינויים",
+                    "icon": "⏳",
+                    "content": f"מעברים בין פעילויות מהווים אתגר עבור {child_name}. הוא צריך זמן להתכונן לשינויים, ואת הזמן הזה כדאי לתת לו. כשמכינים אותו מראש ונותנים לו להיפרד בקצב שלו, המעברים הרבה יותר קלים.",
+                    "content_type": "paragraph",
+                },
+                {
+                    "title": "הסביבה האופטימלית עבורו",
+                    "icon": "🌱",
+                    "content": f"• סביבה שקטה יחסית, בלי רעשים פתאומיים\n• הכנה מראש לפני שינויים ('עוד 5 דקות נצא')\n• מוזיקה כגשר - שיר מעברים יכול לעזור מאוד\n• זמן לבנות וליצור - זה מרגיע ומעצים אותו",
+                    "content_type": "bullets",
+                },
+            ],
+            "created_at": (datetime.now() - timedelta(hours=2)).isoformat(),
+            "based_on_observations_through": datetime.now().isoformat(),
+            "version": 1,
+        }
+
+    return result
 
 
 @router.get("/seed/gestalt/scenarios")
@@ -1524,8 +1137,9 @@ async def seed_gestalt_scenario(
     - video_uploaded: Video uploaded, ready for analysis
     - video_analyzed: Analysis complete, insights available
     - multi_hypothesis: Multiple active explorations
-    - synthesis_ready: Ready for synthesis
+    - synthesis_ready: Ready for synthesis (includes Crystal)
     - rich_conversation: Rich data for testing responses
+    - with_crystal: Full Crystal with patterns, pathways, and expert recommendations
 
     Returns:
     - family_id: Use this in the URL to open the app

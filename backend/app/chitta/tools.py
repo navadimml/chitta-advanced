@@ -75,6 +75,10 @@ Choose the type based on what kind of exploration this is:
   Example: "Music helps him regulate", "Transitions are harder in mornings"
   Set video_appropriate=true if this could be tested by observing video
 
+  IMPORTANT: Frame the theory as TENTATIVE, not as fact:
+  ❌ "הקושי במעברים נובע מרגישות חושית" (stating mechanism as fact)
+  ✅ "יכול להיות שמעברים קשים כי השינוי מרגיש גדול עבורו" (tentative)
+
 - **pattern**: Connecting dots across domains
   Example: "Sensory input affects regulation", "Social challenges link to communication"
 
@@ -104,7 +108,7 @@ IMPORTANT: Certainty is INDEPENDENT of type.
             },
             "theory": {
                 "type": "string",
-                "description": "For hypothesis: the theory to test"
+                "description": "For hypothesis: the theory to test. Use TENTATIVE language (יכול להיות ש..., נראה ש..., אולי...). NEVER state mechanisms as facts."
             },
             "video_appropriate": {
                 "type": "boolean",

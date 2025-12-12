@@ -11,8 +11,10 @@ DESIGN:
 - No background tasks, no queues
 """
 
+import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -27,7 +29,9 @@ from .models import (
     InterventionPathway,
     ExpertRecommendation,
     TemporalFact,
+    PortraitSection,
 )
+from .portrait_schema import PortraitOutput
 from .curiosity import CuriosityEngine
 
 # Import LLM abstraction layer
@@ -520,7 +524,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         curiosity_engine: CuriosityEngine,
         latest_observation_at: datetime,
     ) -> Crystal:
-        """Create a fresh crystal from all observations."""
+        """Create a fresh crystal from all observations using structured output."""
         prompt = self._build_crystallization_prompt(
             child_name=child_name,
             understanding=understanding,
@@ -534,18 +538,21 @@ Keep it to 2-3 sentences focusing on what matters most.
 
         try:
             llm = self._get_strongest_llm()
-            response = await llm.chat(
+
+            # Use structured output with Pydantic schema
+            response_data = await llm.chat_with_structured_output(
                 messages=[
                     LLMMessage(role="system", content=prompt),
-                    LLMMessage(role="user", content="Please create a crystal synthesis of understanding for this child."),
+                    LLMMessage(role="user", content="Create a portrait of this child."),
                 ],
-                functions=None,
-                temperature=0.3,
-                max_tokens=6000,
+                response_schema=PortraitOutput.model_json_schema(),
+                temperature=0.7,  # Balanced creativity with structured output
             )
 
-            crystal = self._parse_crystal_response(
-                response_text=response.content,
+            # Validate and convert to Crystal
+            portrait = PortraitOutput.model_validate(response_data)
+            crystal = self._portrait_to_crystal(
+                portrait=portrait,
                 latest_observation_at=latest_observation_at,
                 version=1,
             )
@@ -641,8 +648,8 @@ Keep it to 2-3 sentences focusing on what matters most.
         previous_crystal: Optional[Crystal],
         new_observations: Optional[Dict[str, Any]],
     ) -> str:
-        """Build prompt for crystallization (in English for token efficiency)."""
-        name = child_name or "this child"
+        """Build prompt for crystallization - focuses on guidance, not schema."""
+        name = child_name or "הילד"
 
         # Format all facts
         facts_text = "\n".join([
@@ -692,7 +699,7 @@ Keep it to 2-3 sentences focusing on what matters most.
             ]) or "No new stories."
 
             previous_patterns = "\n".join([
-                f"- {p.description} (domains: {', '.join(p.domains_involved)})"
+                f"- {p.description}: {', '.join(p.domains_involved)}"
                 for p in previous_crystal.patterns
             ]) or "No patterns identified previously."
 
@@ -792,10 +799,14 @@ Only include if professional help would genuinely benefit this child.
 IMPORTANT: Match based on WHAT THE CHILD LOVES, not what they struggle with.
 Ask: "What professional would USE this child's interests as a bridge?"
 
+⚠️ HEBREW ONLY: Write everything in Hebrew. Do NOT add English translations in parentheses.
+❌ NOT: ריפוי בעיסוק (Occupational Therapy)
+✅ YES: ריפוי בעיסוק
+
 Format for each recommendation:
 ---EXPERT---
 PROFESSION: [profession in Hebrew]
-SPECIALIZATION: [Based on child's STRENGTHS/INTERESTS - NOT the problem]
+SPECIALIZATION: [A REAL specialization that RESONATES with this child's strengths. Be creative! e.g., "טיפול באומנות", "מוזיקה טיפולית", "טיפול בעזרת בעלי חיים", "טיפול בתנועה"]
 WHY_THIS_MATCH: [Connect child's strength to why this professional type would reach them]
 RECOMMENDED_APPROACH: [What approach would work]
 WHY_THIS_APPROACH: [Based on how THIS child opens up]
@@ -809,39 +820,168 @@ WHAT_CHANGED:
 """
 
         else:
-            # Fresh crystallization prompt
+            # Fresh crystallization prompt - Expert-guided portrait creation
             return f"""
-# Crystallization - Child: {name}
+# Portrait Creation for {name}
 
-You are creating a deep synthesis of the accumulated understanding about this child.
-This is the first crystallization - build the foundation.
+You are creating a PORTRAIT - a living image of who this child is - not a report.
 
-## Guiding Principle
+---
 
-This child is NOT "their problem". This child is a whole person:
-- With strengths and interests
-- With their own ways of connecting to the world
-- With patterns that cross domains
-- Strengths are the door - how to reach them
+## 1. THE PORTRAIT PHILOSOPHY
 
-## CRITICAL: Parent-Friendly Language
+### What makes a portrait different from a report:
+- A report lists findings. A portrait captures essence.
+- A report is clinical. A portrait is human.
+- A report could be about anyone. A portrait could only be about THIS child.
 
-You are writing for PARENTS, not clinicians. Avoid clinical jargon.
+### The Two Gifts of a Good Portrait
 
-❌ NEVER USE:
-- עיבוד רגשי (emotional processing)
-- רגישות חושית (sensory sensitivity)
-- גמישות קוגניטיבית (cognitive flexibility)
-- ויסות עצמי (self-regulation)
-- מעברים (transitions - use concrete examples)
+**RECOGNITION (the foundation)**
+A parent reads and feels: "כן! זה בדיוק הוא!"
+This validates their experience, makes them feel seen, reduces isolation.
+Recognition is therapeutic in itself.
 
-✅ ALWAYS USE:
-- Simple, concrete everyday language
-- Situations parents see at home: "כשצריך לעבור ממשחק לאוכל", "כשיש רעש חזק"
-- Feelings parents recognize: "להרגיע את הלב", "להרגיש בטוח"
-- Objects and activities from their world: "משחקים, שירים, ספרים"
+**CLINICAL INSIGHT (the gift)**
+A parent reads and thinks: "לא ראיתי את זה ככה קודם"
+Parents know their child's raw data better than anyone.
+What they often lack is the FRAMEWORK to connect the dots:
+- "The humming during meals AND the need for routine before bed - same pattern"
+- "His interest in organizing things AND his difficulty with transitions - related"
+- "This isn't bad behavior - this is age-appropriate given his profile"
 
-## Everything We Know
+**Recognition is the foundation, insight is the gift. The best portrait does BOTH.**
+
+### Clinical Knowledge as Lens, Not Voice
+You SEE with clinical precision. You SPEAK with parental warmth.
+Your knowledge is the lens through which you understand - not the voice through which you communicate.
+
+---
+
+## 2. LANGUAGE PRINCIPLES
+
+### The Grandma Test
+Would a grandmother understand every word? If not, rewrite.
+
+### Situational Language
+Describe HOW the child moves through the world, not what they "have":
+- ❌ "יש לו רגישות חושית" (clinical label)
+- ✅ "כשיש רעש חזק הוא מכסה את האוזניים ומחפש פינה שקטה" (situation)
+
+### Forbidden Terms (NEVER use these):
+- עיבוד רגשי, רגישות חושית, גמישות קוגניטיבית
+- ויסות עצמי, מעברים (use concrete examples instead)
+- Any English in parentheses
+
+### Evidence Visibility
+Parents should see WHERE you saw something:
+- ❌ "הוא מתקשה בשינויים" (conclusion without evidence)
+- ✅ "כשצריך לצאת מהבית בבוקר, הוא צריך הרבה זמן להתארגן" (observable)
+
+---
+
+## 3. UNDERSTANDING PATTERNS (The Clinical Gift)
+
+Patterns are cross-domain connections parents can't see on their own.
+NOT just "he does X" - but "when A happens, B follows, which connects to C".
+
+### What makes a pattern valuable:
+1. CROSS-DOMAIN connections (sensory → behavioral → emotional)
+2. PREDICTIVE power (if we see X, Y is likely)
+3. ACTIONABLE insight (knowing this helps parents respond better)
+
+### Pattern Examples:
+- GOOD: "כשיש רעש פתאומי, הוא מתכווץ ומתקשה להמשיך במה שעשה"
+  (Connects sensory → physical → cognitive)
+- BAD: "הוא רגיש לרעשים" (Single observation, no chain)
+
+---
+
+## 4. EXPERT RECOMMENDATIONS (Preparing Ground, Not Referral)
+
+### THE KEY INSIGHT: Match by WHO THIS CHILD IS, not what they struggle with
+
+The magic is NOT "problem → specialist". Every OT handles sensory issues.
+The magic is "WHO THIS CHILD IS → WHO CAN REACH THEM".
+
+Ask yourself:
+1. What does this child LOVE? What opens them up?
+2. What kind of professional would USE THAT as a bridge?
+3. That's your NON-OBVIOUS recommendation.
+
+### Preparing Ground vs Making Referral
+- ❌ "You need to see a specialist" (pressure)
+- ✅ "When you feel ready, this kind of professional might connect well with him" (opening)
+
+### The when_to_consider Field
+Use parent-centered language like "כשתרגישו מוכנים" not clinical urgency like "soon".
+
+### The summary_for_professional Field (CRITICAL)
+This is what parents share with the professional. You are DESCRIBING, not DIAGNOSING.
+
+**Your role:**
+- Describe the child and what they're like
+- Share observable behaviors in situations
+- Let the professional form their own clinical impression
+
+**NOT your role:**
+- Pre-diagnose with clinical labels
+- Assert mechanisms ("this is caused by...")
+- Prescribe what the child "needs"
+
+**WRONG:**
+"בן 3.5, מציג דפוס של רגישות חושית שמשפיעה על ההשתתפות החברתית. זקוק לכלים לוויסות."
+
+**RIGHT:**
+"בן 3.5, אינטליגנטי ומוזיקלי מאוד. כשיש רעש חזק הוא מכסה את האוזניים ומחפש פינה שקטה. בגן קשה לו להישאר בפעילות קבוצתית כשיש המולה."
+
+---
+
+## 5. FRAMING CHALLENGES
+
+Challenges are not "something wrong with this child" but "a situation that's hard FOR him".
+The child is whole. The environment/situation creates difficulty.
+
+- ❌ "הוא מתקשה בויסות" (deficit framing)
+- ✅ "יש מצבים שמציפים אותו" (situational framing)
+
+---
+
+## 6. HYPOTHESES AND CONFIDENCE
+
+Never state mechanisms as facts. Show uncertainty:
+- ❌ "זה בגלל רגישות חושית" (stating mechanism as fact)
+- ✅ "ייתכן שזה קשור לאיך שהוא קולט רעשים" (hypothesis)
+
+---
+
+## 7. OPEN QUESTIONS
+
+Open questions are what we're still curious about - framed as CURIOSITY, not as GAPS.
+
+**Good open questions:**
+- Ask what parents wonder about: "למה דווקא בבוקר יותר קשה?"
+- Invite exploration: "מה קורה כשיש לו זמן להתכונן מראש?"
+- Are genuine questions, not statements
+
+**Bad open questions:**
+- ❌ "חסר מידע על התנהגות בבוקר" (deficit framing)
+- ❌ "צריך להבין את הקושי החושי" (clinical task)
+- ❌ "הקושי במעברים נובע מרגישות חושית" (statement, not question)
+
+---
+
+## THE 5-QUESTION TEST (Check your portrait against these)
+
+1. **Gift or Verdict?** Does this feel like a gift to the parent or a verdict on their child?
+2. **Child or Patient?** Does this describe a child or a patient?
+3. **Share or Hide?** Would a parent want to share this with grandma, or hide it?
+4. **Open or Close?** Does this open doors for the child or close them?
+5. **Evidence Visible?** Can parents see WHERE you saw what you're describing?
+
+---
+
+## WHAT WE KNOW ABOUT THIS CHILD
 
 ### Facts
 {facts_text}
@@ -866,84 +1006,95 @@ You are writing for PARENTS, not clinicians. Avoid clinical jargon.
 
 ---
 
-## Your Task
+## YOUR OUTPUT
 
-Create a crystallization of understanding:
+Create the portrait. Write everything in warm, everyday Hebrew.
+The schema is provided - just fill in the fields with thoughtful, parent-friendly content.
 
-1. **Who is this child** - Essence narrative (2-3 sentences about who they are as a person)
-
-2. **Patterns** - What we noticed repeating (in everyday language!)
-
-3. **Intervention Pathways** - What helps (connect interests to challenges)
-
-4. **Open Questions** - What we want to understand better
-
-5. **Expert Recommendations** - If professional help would benefit this child, recommend SPECIFIC, NON-OBVIOUS matches
-
-## Response Format
-
-ESSENCE:
-[Essence narrative - 2-3 sentences about who this child is as a whole person, not as "a problem". Write in warm Hebrew. Use concrete descriptions, not clinical terms.]
-
-TEMPERAMENT:
-[Comma-separated list in everyday Hebrew. NOT: רגיש חושית. YES: רגיש לרעשים, זהיר עם דברים חדשים, אוהב שקט]
-
-CORE_QUALITIES:
-[Comma-separated list in everyday Hebrew. e.g.: סקרן, מתאמץ, יצירתי, אוהב לעזור]
-
-PATTERNS:
-- [What we noticed in EVERYDAY language, e.g., "כשהוא עסוק במשחק שהוא אוהב, קשה לו לעצור"]: [areas involved]
-- [Another observation]: [areas]
-
-INTERVENTION_PATHWAYS:
-- [What he loves] -> [Challenge in parent words]: [Concrete tip with example]
-  Example: מוזיקה -> קשה לו לעזוב משחק: לשיר שיר מיוחד כשצריך לעבור לאוכל
-
-OPEN_QUESTIONS:
-- [Question in parent words, e.g., "למה דווקא בבוקר יותר קשה?" not "האם יש קושי בויסות בבוקר?"]
-- [Another question]
-
-EXPERT_RECOMMENDATIONS:
-Only include if you have enough understanding AND professional help would genuinely benefit this child.
-
-## THE KEY INSIGHT: LEVERAGE STRENGTHS TO FIND THE RIGHT PROFESSIONAL
-
-The magic is NOT in matching "problem → specialist". Every OT handles sensory issues.
-The magic is in matching "WHO THIS CHILD IS → WHO CAN REACH THEM".
-
-Think this way:
-1. What does this child LOVE? What opens them up? (music, building, animals, movement...)
-2. What kind of professional would USE THAT as a bridge?
-3. That's your NON-OBVIOUS recommendation.
-
-Format for each recommendation:
----EXPERT---
-PROFESSION: [The profession in Hebrew, e.g., מרפא בעיסוק, פסיכולוג]
-SPECIALIZATION: [Based on what the child LOVES - NOT based on what they struggle with. e.g., "שמשלב בנייה ויצירה בעבודה" for a builder kid, "עם רקע בתיאטרון או משחק" for an imaginative kid, "שעובד עם חיות" for an animal lover]
-WHY_THIS_MATCH: [Connect the child's STRENGTH/INTEREST to why this specific professional type would reach them better]
-RECOMMENDED_APPROACH: [What approach would work, based on how THIS child connects]
-WHY_THIS_APPROACH: [Based on how THIS child opens up - what's their door?]
-WHAT_TO_LOOK_FOR: [2-3 things to ask when choosing, comma-separated]
-SUMMARY_FOR_PROFESSIONAL: [A 2-3 sentence narrative summary to share with the professional. Include: who the child is, what they love, what helps them open up, and what to be aware of. Write as if you're introducing this child to someone who will work with them.]
-PRIORITY: [when_ready | soon | important]
----END_EXPERT---
-
-Example of a GOOD recommendation (leverages child's STRENGTH):
----EXPERT---
-PROFESSION: מרפא בעיסוק
-SPECIALIZATION: שעובד דרך בנייה ויצירה, או עם רקע בהנדסה/אדריכלות
-WHY_THIS_MATCH: דניאל בונה לגו במשך שעות ונרגע כשהידיים עסוקות - מרפא שיעבוד איתו דרך בנייה יגיע אליו דרך מה שהוא אוהב, לא דרך מה שקשה לו
-RECOMMENDED_APPROACH: לתת לו לבנות תוך כדי שיחה, להשתמש בחומרים מישוריים, לעבוד בקצב שלו
-WHY_THIS_APPROACH: הידיים העסוקות מרגיעות אותו ומאפשרות לו להיפתח
-WHAT_TO_LOOK_FOR: האם משתמש בחומרים ובנייה בטיפול, האם גמיש לתת לילד להוביל, האם סבלני לקצב איטי
-SUMMARY_FOR_PROFESSIONAL: דניאל הוא ילד יצירתי שמתחבר לעולם דרך הידיים. כשהוא בונה או יוצר הוא נרגע ונפתח. הוא רגיש לרעשים פתאומיים ולשינויים מהירים - תנו לו זמן להסתגל ואל תפתיעו אותו. הדרך אליו היא דרך מה שהוא אוהב, לא דרך מה שקשה.
-PRIORITY: soon
----END_EXPERT---
-
-Example of a BAD generic recommendation (DON'T DO THIS):
-PROFESSION: מרפא בעיסוק
-SPECIALIZATION: התמחות בילדים עם רגישות חושית  <-- TOO GENERIC! Based on the PROBLEM, not the CHILD
+Remember:
+- portrait_sections: 3-5 thematic cards with meaningful titles (not generic)
+- narrative: 2-3 sentences about WHO this child IS
+- temperament: everyday descriptions (רגיש לרעשים, not רגישות חושית)
+- patterns: cross-domain insights with domains tagged
+- intervention_pathways: connect what they love to what's hard
+- open_questions: genuine questions in parent language (למה...? מה קורה כש...?)
+- expert_recommendations: ONLY if genuinely helpful, match by strengths
 """
+
+    def _portrait_to_crystal(
+        self,
+        portrait: PortraitOutput,
+        latest_observation_at: datetime,
+        version: int,
+        previous_version_summary: Optional[str] = None,
+    ) -> Crystal:
+        """Convert Pydantic PortraitOutput to Crystal dataclass."""
+        # Convert portrait sections
+        portrait_sections = [
+            PortraitSection(
+                title=s.title,
+                icon=s.icon,
+                content=s.content,
+                content_type=s.content_type,
+            )
+            for s in portrait.portrait_sections
+        ]
+
+        # Convert patterns
+        valid_domains = {"behavioral", "emotional", "sensory", "social", "motor", "cognitive", "communication", "identity", "strengths", "daily_routines", "family", "play"}
+        patterns = [
+            Pattern(
+                description=p.description,
+                domains_involved=[d.lower() for d in p.domains if d.lower() in valid_domains] or ["behavioral"],
+                confidence=0.6,
+            )
+            for p in portrait.patterns
+        ]
+
+        # Convert intervention pathways
+        intervention_pathways = [
+            InterventionPathway(
+                hook=ip.hook,
+                concern=ip.concern,
+                suggestion=ip.suggestion,
+                confidence=0.5,
+            )
+            for ip in portrait.intervention_pathways
+        ]
+
+        # Convert expert recommendations
+        expert_recommendations = []
+        for rec in portrait.expert_recommendations:
+            what_to_look_for = rec.what_to_look_for
+            if isinstance(what_to_look_for, str):
+                what_to_look_for = [x.strip() for x in what_to_look_for.split(",") if x.strip()]
+
+            expert_recommendations.append(ExpertRecommendation(
+                profession=rec.profession,
+                specialization=rec.specialization,
+                why_this_match=rec.why_this_match,
+                recommended_approach=rec.recommended_approach,
+                why_this_approach=rec.why_this_approach,
+                what_to_look_for=what_to_look_for,
+                summary_for_professional=rec.summary_for_professional,
+                confidence=0.6,
+                priority=rec.when_to_consider,
+            ))
+
+        return Crystal(
+            essence_narrative=portrait.narrative,
+            temperament=portrait.temperament,
+            core_qualities=portrait.core_qualities,
+            patterns=patterns,
+            intervention_pathways=intervention_pathways,
+            open_questions=portrait.open_questions,
+            expert_recommendations=expert_recommendations,
+            portrait_sections=portrait_sections,
+            created_at=datetime.now(),
+            based_on_observations_through=latest_observation_at,
+            version=version,
+            previous_version_summary=previous_version_summary,
+        )
 
     def _parse_crystal_response(
         self,
@@ -952,119 +1103,89 @@ SPECIALIZATION: התמחות בילדים עם רגישות חושית  <-- TOO 
         version: int,
         previous_version_summary: Optional[str] = None,
     ) -> Crystal:
-        """Parse LLM response into Crystal object."""
+        """Parse JSON response into Crystal object."""
         if not response_text:
             return Crystal.create_empty()
 
-        essence_narrative = None
-        temperament = []
-        core_qualities = []
+        # Extract JSON from response (may be wrapped in ```json ... ```)
+        json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # Try parsing the whole response as JSON
+            json_str = response_text.strip()
+
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse crystal JSON: {e}")
+            logger.debug(f"Raw response: {response_text[:500]}...")
+            return Crystal.create_empty()
+
+        # Parse portrait sections
+        portrait_sections = []
+        for section in data.get("portrait_sections", []):
+            try:
+                portrait_sections.append(PortraitSection(
+                    title=section.get("title", ""),
+                    icon=section.get("icon", "💡"),
+                    content=section.get("content", ""),
+                    content_type=section.get("content_type", "paragraph"),
+                ))
+            except Exception as e:
+                logger.warning(f"Failed to parse portrait section: {e}")
+
+        # Parse essence
+        essence_data = data.get("essence", {})
+        essence_narrative = essence_data.get("narrative")
+        temperament = essence_data.get("temperament", [])
+        core_qualities = essence_data.get("core_qualities", [])
+
+        # Parse patterns
         patterns = []
+        valid_domains = {"behavioral", "emotional", "sensory", "social", "motor", "cognitive", "communication", "identity", "strengths", "daily_routines", "family", "play"}
+        for p in data.get("patterns", []):
+            domains = [d.lower() for d in p.get("domains", []) if d.lower() in valid_domains]
+            patterns.append(Pattern(
+                description=p.get("description", ""),
+                domains_involved=domains if domains else ["behavioral"],
+                confidence=0.6,
+            ))
+
+        # Parse intervention pathways
         intervention_pathways = []
-        open_questions = []
+        for ip in data.get("intervention_pathways", []):
+            intervention_pathways.append(InterventionPathway(
+                hook=ip.get("hook", ""),
+                concern=ip.get("concern", ""),
+                suggestion=ip.get("suggestion", ""),
+                confidence=0.5,
+            ))
+
+        # Parse open questions
+        open_questions = data.get("open_questions", [])
+
+        # Parse expert recommendations
         expert_recommendations = []
+        for rec in data.get("expert_recommendations", []):
+            try:
+                what_to_look_for = rec.get("what_to_look_for", [])
+                if isinstance(what_to_look_for, str):
+                    what_to_look_for = [x.strip() for x in what_to_look_for.split(",") if x.strip()]
 
-        # First, extract expert recommendation blocks
-        expert_recommendations = self._parse_expert_recommendations(response_text)
-
-        lines = response_text.split("\n")
-        current_section = None
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Skip expert recommendation block content (already parsed)
-            if line == "---EXPERT---" or line == "---END_EXPERT---":
-                current_section = "skip_expert"
-                continue
-            if current_section == "skip_expert":
-                if line.startswith("---"):
-                    current_section = None
-                continue
-
-            # Detect sections
-            if line.upper().startswith("ESSENCE:"):
-                current_section = "essence"
-                continue
-            elif line.upper().startswith("TEMPERAMENT:"):
-                current_section = "temperament"
-                continue
-            elif line.upper().startswith("CORE_QUALITIES:") or line.upper().startswith("CORE QUALITIES:"):
-                current_section = "core_qualities"
-                continue
-            elif line.upper().startswith("PATTERNS:"):
-                current_section = "patterns"
-                continue
-            elif line.upper().startswith("INTERVENTION_PATHWAYS:") or line.upper().startswith("INTERVENTION PATHWAYS:"):
-                current_section = "pathways"
-                continue
-            elif line.upper().startswith("OPEN_QUESTIONS:") or line.upper().startswith("OPEN QUESTIONS:"):
-                current_section = "questions"
-                continue
-            elif line.upper().startswith("EXPERT_RECOMMENDATIONS:") or line.upper().startswith("EXPERT RECOMMENDATIONS:"):
-                current_section = "expert"  # Skip this section header, blocks parsed separately
-                continue
-            elif line.upper().startswith("WHAT_CHANGED:") or line.upper().startswith("WHAT CHANGED:"):
-                current_section = "changed"
-                continue
-
-            # Parse content
-            if current_section == "essence" and not essence_narrative:
-                if line.startswith("[") and line.endswith("]"):
-                    continue  # Skip placeholder
-                essence_narrative = line
-
-            elif current_section == "temperament":
-                if line.startswith("[") and line.endswith("]"):
-                    continue
-                # Parse comma-separated list
-                items = [t.strip() for t in line.split(",") if t.strip()]
-                temperament.extend(items)
-
-            elif current_section == "core_qualities":
-                if line.startswith("[") and line.endswith("]"):
-                    continue
-                items = [t.strip() for t in line.split(",") if t.strip()]
-                core_qualities.extend(items)
-
-            elif current_section == "patterns" and line.startswith("-"):
-                pattern_text = line[1:].strip()
-                if ":" in pattern_text:
-                    desc, domains_part = pattern_text.split(":", 1)
-                    domains = [d.strip() for d in domains_part.split(",") if d.strip()]
-                    patterns.append(Pattern(
-                        description=desc.strip(),
-                        domains_involved=domains,
-                        confidence=0.6,
-                    ))
-
-            elif current_section == "pathways" and line.startswith("-"):
-                pathway_text = line[1:].strip()
-                # Parse: [hook] -> [concern]: [suggestion]
-                if "->" in pathway_text:
-                    parts = pathway_text.split("->")
-                    if len(parts) == 2:
-                        hook = parts[0].strip()
-                        rest = parts[1].strip()
-                        if ":" in rest:
-                            concern, suggestion = rest.split(":", 1)
-                            intervention_pathways.append(InterventionPathway(
-                                hook=hook,
-                                concern=concern.strip(),
-                                suggestion=suggestion.strip(),
-                                confidence=0.5,
-                            ))
-
-            elif current_section == "questions" and line.startswith("-"):
-                question = line[1:].strip()
-                if question and not (question.startswith("[") and question.endswith("]")):
-                    open_questions.append(question)
-
-            elif current_section == "changed" and previous_version_summary is None:
-                if not (line.startswith("[") and line.endswith("]")):
-                    previous_version_summary = line
+                expert_recommendations.append(ExpertRecommendation(
+                    profession=rec.get("profession", ""),
+                    specialization=rec.get("specialization", ""),
+                    why_this_match=rec.get("why_this_match", ""),
+                    recommended_approach=rec.get("recommended_approach", ""),
+                    why_this_approach=rec.get("why_this_approach", ""),
+                    what_to_look_for=what_to_look_for,
+                    summary_for_professional=rec.get("summary_for_professional", ""),
+                    confidence=0.6,
+                    priority=rec.get("priority", "when_ready").lower(),
+                ))
+            except Exception as e:
+                logger.warning(f"Failed to parse expert recommendation: {e}")
 
         return Crystal(
             essence_narrative=essence_narrative,
@@ -1074,54 +1195,12 @@ SPECIALIZATION: התמחות בילדים עם רגישות חושית  <-- TOO 
             intervention_pathways=intervention_pathways,
             open_questions=open_questions,
             expert_recommendations=expert_recommendations,
+            portrait_sections=portrait_sections,
             created_at=datetime.now(),
             based_on_observations_through=latest_observation_at,
             version=version,
-            previous_version_summary=previous_version_summary,
+            previous_version_summary=data.get("what_changed", previous_version_summary),
         )
-
-    def _parse_expert_recommendations(self, response_text: str) -> List[ExpertRecommendation]:
-        """Parse expert recommendation blocks from response."""
-        recommendations = []
-
-        # Find all ---EXPERT--- ... ---END_EXPERT--- blocks
-        import re
-        pattern = r'---EXPERT---\s*(.*?)\s*---END_EXPERT---'
-        blocks = re.findall(pattern, response_text, re.DOTALL)
-
-        for block in blocks:
-            rec_data = {}
-            for line in block.strip().split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    key = key.strip().upper()
-                    value = value.strip()
-                    rec_data[key] = value
-
-            # Only create recommendation if we have the required fields
-            if rec_data.get("PROFESSION") and rec_data.get("SPECIALIZATION"):
-                try:
-                    recommendations.append(ExpertRecommendation(
-                        profession=rec_data.get("PROFESSION", ""),
-                        specialization=rec_data.get("SPECIALIZATION", ""),
-                        why_this_match=rec_data.get("WHY_THIS_MATCH", ""),
-                        recommended_approach=rec_data.get("RECOMMENDED_APPROACH", ""),
-                        why_this_approach=rec_data.get("WHY_THIS_APPROACH", ""),
-                        what_to_look_for=[
-                            x.strip() for x in rec_data.get("WHAT_TO_LOOK_FOR", "").split(",")
-                            if x.strip()
-                        ],
-                        summary_for_professional=rec_data.get("SUMMARY_FOR_PROFESSIONAL", ""),
-                        confidence=0.6,  # Default confidence
-                        priority=rec_data.get("PRIORITY", "when_ready").lower(),
-                    ))
-                except Exception as e:
-                    logger.warning(f"Failed to parse expert recommendation: {e}")
-
-        return recommendations
 
     def _create_fallback_crystal(
         self,
