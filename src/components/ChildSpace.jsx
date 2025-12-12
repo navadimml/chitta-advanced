@@ -1,13 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   X, Sparkles, Lightbulb, Video, Share2,
-  ChevronLeft, ChevronDown, ChevronUp, Heart, Music, Palette, Zap,
+  ChevronLeft, ChevronDown, ChevronUp, ChevronRight, Heart, Music, Palette, Zap,
   Eye, Play, Clock, Send, Copy, FileText, Printer,
   Users, GraduationCap, Home, MessageCircle,
   Check, Loader2, ArrowRight, Search, ThumbsUp, ThumbsDown, Minus,
-  UserPlus, FileCheck
+  UserPlus, FileCheck, GitBranch, Link2, Camera, Upload, Brain,
+  Maximize2, Trash2, RefreshCw
 } from 'lucide-react';
 import { api } from '../api/client';
+
+// Backend base URL for static files (videos)
+const BACKEND_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:8000';
+
+// Helper to convert relative video paths to full URLs
+function getVideoUrl(videoPath) {
+  if (!videoPath) return null;
+  // If it's already a full URL, return as-is
+  if (videoPath.startsWith('http://') || videoPath.startsWith('https://')) {
+    return videoPath;
+  }
+  // Otherwise, prepend the backend base URL
+  return `${BACKEND_BASE_URL}/${videoPath}`;
+}
 
 /**
  * ChildSpace - The Living Portrait
@@ -27,10 +42,10 @@ import { api } from '../api/client';
 // ============================================
 
 const TABS = [
-  { id: 'essence', icon: Sparkles, label: 'מי זה', color: 'from-purple-500 to-indigo-500' },
-  { id: 'discoveries', icon: Lightbulb, label: 'מה גילינו', color: 'from-amber-500 to-orange-500' },
-  { id: 'observations', icon: Video, label: 'מה ראינו', color: 'from-emerald-500 to-teal-500' },
-  { id: 'share', icon: Share2, label: 'שיתוף', color: 'from-pink-500 to-rose-500' },
+  { id: 'essence', icon: Heart, label: 'הדיוקן', color: 'from-rose-400 to-orange-400' },
+  { id: 'discoveries', icon: Lightbulb, label: 'מה גילינו', color: 'from-amber-400 to-yellow-400' },
+  { id: 'observations', icon: Video, label: 'מה ראינו', color: 'from-teal-400 to-cyan-400' },
+  { id: 'share', icon: Share2, label: 'שיתוף', color: 'from-blue-400 to-indigo-400' },
 ];
 
 // ============================================
@@ -39,57 +54,160 @@ const TABS = [
 
 function LoadingAnimation({ childName }) {
   return (
-    <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden">
-      {/* Subtle floating blobs */}
+    <div className="relative flex flex-col items-center justify-center min-h-[400px] overflow-hidden">
+      {/* Massive drifting blobs - varied colors */}
       <div
-        className="absolute w-32 h-32 rounded-full bg-gray-100 opacity-40 blur-2xl"
+        className="absolute rounded-full"
         style={{
+          width: '500px',
+          height: '500px',
+          background: 'radial-gradient(circle, rgba(99,182,205,0.2) 0%, transparent 60%)',
+          top: '-20%',
+          right: '-30%',
+          filter: 'blur(60px)',
+          animation: 'drift1 30s ease-in-out infinite',
+        }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{
+          width: '600px',
+          height: '600px',
+          background: 'radial-gradient(circle, rgba(245,190,160,0.18) 0%, transparent 60%)',
+          bottom: '-30%',
+          left: '-40%',
+          filter: 'blur(70px)',
+          animation: 'drift2 35s ease-in-out infinite',
+        }}
+      />
+
+      {/* Mid layer blobs */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          width: '350px',
+          height: '350px',
+          background: 'radial-gradient(circle, rgba(167,210,170,0.25) 0%, transparent 60%)',
           top: '10%',
-          right: '10%',
-          animation: 'float1 8s ease-in-out infinite',
+          left: '-10%',
+          filter: 'blur(50px)',
+          animation: 'drift3 25s ease-in-out infinite',
         }}
       />
       <div
-        className="absolute w-24 h-24 rounded-full bg-gray-100 opacity-30 blur-2xl"
+        className="absolute rounded-full"
         style={{
-          bottom: '20%',
-          left: '5%',
-          animation: 'float2 10s ease-in-out infinite',
+          width: '300px',
+          height: '300px',
+          background: 'radial-gradient(circle, rgba(200,175,215,0.22) 0%, transparent 60%)',
+          bottom: '5%',
+          right: '-15%',
+          filter: 'blur(45px)',
+          animation: 'drift4 28s ease-in-out infinite',
         }}
       />
+
+      {/* Near layer - smaller drifters */}
       <div
-        className="absolute w-20 h-20 rounded-full bg-gray-100 opacity-25 blur-2xl"
+        className="absolute rounded-full"
         style={{
+          width: '200px',
+          height: '200px',
+          background: 'radial-gradient(circle, rgba(250,215,180,0.3) 0%, transparent 60%)',
           top: '40%',
-          left: '20%',
-          animation: 'float3 12s ease-in-out infinite',
+          right: '10%',
+          filter: 'blur(35px)',
+          animation: 'drift5 20s ease-in-out infinite',
+        }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{
+          width: '180px',
+          height: '180px',
+          background: 'radial-gradient(circle, rgba(180,210,230,0.28) 0%, transparent 60%)',
+          bottom: '30%',
+          left: '5%',
+          filter: 'blur(30px)',
+          animation: 'drift6 22s ease-in-out infinite',
         }}
       />
 
-      {/* Simple breathing circle */}
+      {/* Three bouncing dots */}
+      <div className="relative z-10 flex items-center gap-2">
+        <div
+          className="w-3 h-3 rounded-full bg-gray-400"
+          style={{ animation: 'bounce 1.4s ease-in-out infinite' }}
+        />
+        <div
+          className="w-3 h-3 rounded-full bg-gray-400"
+          style={{ animation: 'bounce 1.4s ease-in-out 0.2s infinite' }}
+        />
+        <div
+          className="w-3 h-3 rounded-full bg-gray-400"
+          style={{ animation: 'bounce 1.4s ease-in-out 0.4s infinite' }}
+        />
+      </div>
+
+      {/* Poetic text */}
       <div
-        className="relative z-10 w-12 h-12 rounded-full bg-gray-200 animate-pulse mb-8"
-        style={{ animationDuration: '2s' }}
-      />
+        className="relative z-10 mt-6 text-center"
+        style={{ animation: 'textFade 3s ease-in-out infinite' }}
+      >
+        <p className="text-sm text-gray-500 font-medium">
+          {childName || 'טוען'}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          אוספים את מה שלמדנו
+        </p>
+      </div>
 
-      {/* Clean text */}
-      <p className="relative z-10 text-base text-gray-400 font-normal">
-        {childName ? `טוען את המרחב של ${childName}` : 'טוען'}
-      </p>
-
-      {/* Blob animations */}
       <style>{`
-        @keyframes float1 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-10px, 15px) scale(1.1); }
+        @keyframes drift1 {
+          0%, 100% { transform: translate(0, 0); }
+          25% { transform: translate(-80px, 60px); }
+          50% { transform: translate(-40px, 120px); }
+          75% { transform: translate(60px, 40px); }
         }
-        @keyframes float2 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(15px, -10px) scale(1.05); }
+        @keyframes drift2 {
+          0%, 100% { transform: translate(0, 0); }
+          25% { transform: translate(100px, -50px); }
+          50% { transform: translate(60px, -100px); }
+          75% { transform: translate(-40px, -30px); }
         }
-        @keyframes float3 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-8px, -12px) scale(1.08); }
+        @keyframes drift3 {
+          0%, 100% { transform: translate(0, 0); }
+          33% { transform: translate(70px, 50px); }
+          66% { transform: translate(30px, -40px); }
+        }
+        @keyframes drift4 {
+          0%, 100% { transform: translate(0, 0); }
+          33% { transform: translate(-60px, -40px); }
+          66% { transform: translate(-90px, 30px); }
+        }
+        @keyframes drift5 {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(-50px, 40px); }
+        }
+        @keyframes drift6 {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(40px, -50px); }
+        }
+        @keyframes bounce {
+          0%, 80%, 100% {
+            transform: translateY(0);
+          }
+          40% {
+            transform: translateY(-12px);
+          }
+        }
+        @keyframes textFade {
+          0%, 100% {
+            opacity: 0;
+          }
+          50% {
+            opacity: 1;
+          }
         }
       `}</style>
     </div>
@@ -371,6 +489,121 @@ function ExpertRecommendationCard({ recommendation, index }) {
 // ESSENCE TAB - The Living Portrait (Holistic View)
 // ============================================
 
+// Premium card color schemes - warm, professional palette
+const CARD_SCHEMES = [
+  { bg: 'bg-gradient-to-br from-orange-50 to-amber-50', border: 'border-orange-200', accent: 'text-orange-600', icon: 'bg-orange-100' },
+  { bg: 'bg-gradient-to-br from-teal-50 to-cyan-50', border: 'border-teal-200', accent: 'text-teal-600', icon: 'bg-teal-100' },
+  { bg: 'bg-gradient-to-br from-rose-50 to-pink-50', border: 'border-rose-200', accent: 'text-rose-600', icon: 'bg-rose-100' },
+  { bg: 'bg-gradient-to-br from-sky-50 to-blue-50', border: 'border-sky-200', accent: 'text-sky-600', icon: 'bg-sky-100' },
+  { bg: 'bg-gradient-to-br from-emerald-50 to-green-50', border: 'border-emerald-200', accent: 'text-emerald-600', icon: 'bg-emerald-100' },
+  { bg: 'bg-gradient-to-br from-amber-50 to-yellow-50', border: 'border-amber-200', accent: 'text-amber-600', icon: 'bg-amber-100' },
+];
+
+// Icon mapping based on section title keywords
+const getIconForSection = (title) => {
+  const titleLower = title?.toLowerCase() || '';
+  if (titleLower.includes('פנימי') || titleLower.includes('עולם') || titleLower.includes('ניגון') || titleLower.includes('מוזיקה')) return Music;
+  if (titleLower.includes('רגיש') || titleLower.includes('סביבה') || titleLower.includes('חושי')) return Eye;
+  if (titleLower.includes('מעבר') || titleLower.includes('שינוי') || titleLower.includes('פעילות')) return Clock;
+  if (titleLower.includes('חברתי') || titleLower.includes('משחק') || titleLower.includes('ילדים')) return Users;
+  if (titleLower.includes('חוזק') || titleLower.includes('יכולת') || titleLower.includes('מיומנות')) return Zap;
+  if (titleLower.includes('יצירה') || titleLower.includes('בנייה') || titleLower.includes('אמנות')) return Palette;
+  return Heart; // Default
+};
+
+function PortraitCard({ section, index = 0 }) {
+  const scheme = CARD_SCHEMES[index % CARD_SCHEMES.length];
+  const IconComponent = getIconForSection(section.title);
+
+  // Parse bullets if content type is bullets
+  const renderContent = () => {
+    if (section.content_type === 'bullets') {
+      const items = section.content
+        .split(/[•\n]/)
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+
+      return (
+        <ul className="space-y-2.5 mt-3">
+          {items.map((item, idx) => (
+            <li key={idx} className="flex items-start gap-3">
+              <div className={`w-1.5 h-1.5 rounded-full ${scheme.accent.replace('text-', 'bg-')} mt-2 flex-shrink-0`} />
+              <span className="text-gray-700 leading-relaxed">{item}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return <p className="text-gray-700 leading-relaxed mt-3">{section.content}</p>;
+  };
+
+  return (
+    <div
+      className={`${scheme.bg} rounded-2xl border ${scheme.border} p-6 opacity-0 animate-fadeIn transition-all duration-200 hover:shadow-md`}
+      style={{ animationDelay: `${0.1 + index * 0.08}s`, animationFillMode: 'forwards' }}
+    >
+      <div className="flex items-center gap-4">
+        <div className={`w-11 h-11 ${scheme.icon} rounded-xl flex items-center justify-center flex-shrink-0`}>
+          <IconComponent className={`w-5 h-5 ${scheme.accent}`} />
+        </div>
+        <h3 className="text-gray-800 font-semibold text-lg">{section.title}</h3>
+      </div>
+      {renderContent()}
+    </div>
+  );
+}
+
+/**
+ * PatternCard - displays cross-domain insights
+ * Clean, professional style with teal accent
+ */
+function PatternCard({ pattern, index = 0 }) {
+  return (
+    <div
+      className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-2xl border border-slate-200 p-5 opacity-0 animate-fadeIn transition-all duration-200 hover:shadow-md"
+      style={{ animationDelay: `${0.1 + index * 0.08}s`, animationFillMode: 'forwards' }}
+    >
+      <div className="flex items-start gap-4">
+        <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Eye className="w-5 h-5 text-teal-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-gray-700 leading-relaxed">{pattern.description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * InterventionPathwayCard - displays "what can help" suggestions
+ * Shows the connection: strength → concern → practical suggestion
+ */
+function InterventionPathwayCard({ pathway, index = 0 }) {
+  return (
+    <div
+      className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-200 p-5 opacity-0 animate-fadeIn transition-all duration-200 hover:shadow-md"
+      style={{ animationDelay: `${0.1 + index * 0.08}s`, animationFillMode: 'forwards' }}
+    >
+      <div className="flex items-start gap-4">
+        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Zap className="w-5 h-5 text-amber-600" />
+        </div>
+        <div className="flex-1">
+          {/* Connection header */}
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="px-2.5 py-1 bg-amber-100 text-amber-700 text-sm font-medium rounded-lg">{pathway.hook}</span>
+            <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span className="text-gray-600 text-sm">{pathway.concern}</span>
+          </div>
+          {/* Practical suggestion */}
+          <p className="text-gray-700 leading-relaxed">{pathway.suggestion}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EssenceTab({ data, childName }) {
   if (!data) {
     return (
@@ -386,127 +619,58 @@ function EssenceTab({ data, childName }) {
     );
   }
 
-  const hasPatterns = data.patterns && data.patterns.length > 0;
-  const hasPathways = data.intervention_pathways && data.intervention_pathways.length > 0;
-  const hasInterests = data.interests && data.interests.length > 0;
-  const hasOpenQuestions = data.open_questions && data.open_questions.length > 0;
-  const hasExpertRecommendations = data.expert_recommendations && data.expert_recommendations.length > 0;
+  // Use portrait_sections if available (new format from backend)
+  const hasPortraitSections = data.portrait_sections && data.portrait_sections.length > 0;
 
   return (
-    <div className="space-y-6 pb-8">
-
-      {/* === 1. ESSENCE NARRATIVE - Who Is This Child === */}
-      {data.narrative ? (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.1s', animationFillMode: 'forwards' }}>
-          <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 rounded-3xl p-6 border border-purple-100 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-5 h-5 text-purple-500" />
-              <h3 className="font-bold text-purple-700">מי זה {childName}</h3>
-            </div>
-            <p className="text-gray-700 text-lg leading-relaxed">
-              {data.narrative}
-            </p>
-            {/* Temperament & Core Qualities */}
-            {(data.temperament?.length > 0 || data.core_qualities?.length > 0) && (
-              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-purple-100/50">
-                {data.temperament?.map((t, idx) => (
-                  <span key={`temp-${idx}`} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
-                    {t}
-                  </span>
-                ))}
-                {data.core_qualities?.map((q, idx) => (
-                  <span key={`qual-${idx}`} className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
-                    {q}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="space-y-4 pb-8">
+      {/* Portrait Sections - the main content */}
+      {hasPortraitSections ? (
+        data.portrait_sections.map((section, idx) => (
+          <PortraitCard key={idx} section={section} index={idx} />
+        ))
       ) : (
-        <div className="opacity-0 animate-fadeIn bg-gradient-to-br from-gray-50 to-slate-50 rounded-3xl p-6 border border-gray-100" style={{ animationDelay: '0.1s', animationFillMode: 'forwards' }}>
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-5 h-5 text-gray-400" />
-            <h3 className="font-bold text-gray-500">מי זה {childName}</h3>
-          </div>
-          <p className="text-gray-500 text-sm">
-            ככל שנשוחח יותר, התמונה המלאה תתגבש...
-          </p>
+        // Fallback if no portrait sections
+        <div className="text-center text-gray-500 py-8">
+          ככל שנשוחח יותר, התמונה תתבהר...
         </div>
       )}
 
-      {/* === 2. CROSS-DOMAIN PATTERNS - What We Noticed === */}
-      {hasPatterns && (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.15s', animationFillMode: 'forwards' }}>
-          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-500" />
-            מה שמנו לב
+      {/* Patterns - cross-domain connections (critical insight) */}
+      {data.patterns && data.patterns.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-gray-200 opacity-0 animate-fadeIn" style={{ animationDelay: '0.35s', animationFillMode: 'forwards' }}>
+          <h3 className="text-gray-600 font-medium mb-4 flex items-center gap-2">
+            <Lightbulb className="w-4 h-4" />
+            תובנות
           </h3>
           <div className="space-y-3">
             {data.patterns.map((pattern, idx) => (
-              <div
-                key={idx}
-                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100"
-              >
-                <p className="text-gray-800 font-medium">{pattern.description}</p>
-                {pattern.domains && pattern.domains.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {pattern.domains.map((domain, dIdx) => (
-                      <span
-                        key={dIdx}
-                        className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs"
-                      >
-                        {getDomainLabel(domain)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <PatternCard key={idx} pattern={pattern} index={idx} />
             ))}
           </div>
         </div>
       )}
 
-      {/* === 3. INTERVENTION PATHWAYS - What Helps === */}
-      {hasPathways && (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}>
-          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-emerald-500" />
-            מה יכול לעזור לו
+      {/* Intervention Pathways - "what can help" sections (very important!) */}
+      {data.intervention_pathways && data.intervention_pathways.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-gray-200 opacity-0 animate-fadeIn" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
+          <h3 className="text-gray-600 font-medium mb-4 flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-amber-500" />
+            מה יכול לעזור
           </h3>
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100 overflow-hidden">
+          <div className="space-y-3">
             {data.intervention_pathways.map((pathway, idx) => (
-              <div
-                key={idx}
-                className={`p-4 ${idx > 0 ? 'border-t border-emerald-100/50' : ''}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Heart className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-gray-800 font-medium">{pathway.suggestion}</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      <span className="text-emerald-600 font-medium">החוזקה:</span> {pathway.hook}
-                    </p>
-                    {pathway.concern && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        <span className="text-amber-600">יעזור עם:</span> {pathway.concern}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <InterventionPathwayCard key={idx} pathway={pathway} index={idx} />
             ))}
           </div>
         </div>
       )}
 
-      {/* === 3.5 EXPERT RECOMMENDATIONS - Professional Help Tailored to This Child === */}
-      {hasExpertRecommendations && (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.22s', animationFillMode: 'forwards' }}>
-          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-blue-500" />
+      {/* Expert recommendations - kept separate, simpler presentation */}
+      {data.expert_recommendations && data.expert_recommendations.length > 0 && (
+        <div className="mt-8 pt-6 border-t border-gray-200 opacity-0 animate-fadeIn" style={{ animationDelay: '0.5s', animationFillMode: 'forwards' }}>
+          <h3 className="text-gray-600 font-medium mb-4 flex items-center gap-2">
+            <UserPlus className="w-4 h-4" />
             אנשי מקצוע שיכולים לעזור
           </h3>
           <div className="space-y-3">
@@ -517,46 +681,11 @@ function EssenceTab({ data, childName }) {
         </div>
       )}
 
-      {/* === 4. INTERESTS - What They Love === */}
-      {hasInterests && (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.25s', animationFillMode: 'forwards' }}>
-          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <Heart className="w-4 h-4 text-pink-500" />
-            מה הוא אוהב
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {data.interests.map((interest, idx) => (
-              <span
-                key={idx}
-                className="px-4 py-2 bg-gradient-to-r from-pink-50 to-rose-50 text-pink-700 rounded-full text-sm border border-pink-100"
-              >
-                {interest.content}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* === 5. STRENGTHS - What They're Good At === */}
-      {data.strengths && data.strengths.length > 0 && (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.3s', animationFillMode: 'forwards' }}>
-          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            במה הוא מצטיין
-          </h3>
-          <div className="grid grid-cols-2 gap-3">
-            {data.strengths.map((strength, idx) => (
-              <StrengthCard key={idx} strength={strength} index={idx} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* === 6. ACTIVE EXPLORATIONS - What We're Still Learning === */}
+      {/* Active explorations - minimal presentation */}
       {data.active_explorations && data.active_explorations.length > 0 && (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.35s', animationFillMode: 'forwards' }}>
-          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <Search className="w-4 h-4 text-indigo-500" />
+        <div className="mt-6 pt-6 border-t border-gray-200 opacity-0 animate-fadeIn" style={{ animationDelay: '0.6s', animationFillMode: 'forwards' }}>
+          <h3 className="text-gray-600 font-medium mb-4 flex items-center gap-2">
+            <Search className="w-4 h-4" />
             מה אנחנו בודקים עכשיו
           </h3>
           <div className="space-y-3">
@@ -569,31 +698,6 @@ function EssenceTab({ data, childName }) {
             ))}
           </div>
         </div>
-      )}
-
-      {/* === 7. OPEN QUESTIONS - What We Still Want to Understand === */}
-      {hasOpenQuestions && (
-        <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
-          <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-            <MessageCircle className="w-4 h-4 text-blue-500" />
-            מה עוד רוצים להבין
-          </h3>
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 border border-blue-100">
-            <ul className="space-y-2">
-              {data.open_questions.map((question, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-gray-700">
-                  <span className="text-blue-400 mt-1">?</span>
-                  <span>{question}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* === 8. FACTS BY DOMAIN (Secondary - Collapsed by Default) === */}
-      {data.facts_by_domain && Object.keys(data.facts_by_domain).length > 0 && (
-        <FactsSection factsData={data.facts_by_domain} />
       )}
     </div>
   );
@@ -683,11 +787,459 @@ function DiscoveriesTab({ data, onVideoClick }) {
 }
 
 // ============================================
-// OBSERVATIONS TAB - Video Gallery
+// OBSERVATIONS TAB - Unified Scenario-Centric View
 // ============================================
 
-function ObservationsTab({ data, onVideoClick }) {
-  if (!data || !data.videos || data.videos.length === 0) {
+// Status translations for Hebrew
+const STATUS_HEBREW = {
+  'analyzed': 'נותח',
+  'pending': 'ממתין לצילום',
+  'uploaded': 'ממתין לניתוח',
+  'validation_failed': 'לא תקין',
+};
+
+// Status colors
+const STATUS_COLORS = {
+  analyzed: 'bg-emerald-500',
+  uploaded: 'bg-amber-500',
+  pending: 'bg-violet-500',
+  validation_failed: 'bg-red-500',
+};
+
+/**
+ * Unified ScenarioCard - Shows the full journey of a scenario:
+ * hypothesis context → guidelines → video → analysis results
+ */
+function ScenarioCard({ scenario, onUpload, onAnalyze, onRemove, uploadProgress, uploadingScenarioId, analyzingScenarioId }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const videoRef = useRef(null);
+
+  // Determine state from scenario data
+  const hasVideo = !!scenario.video_path;
+  const isAnalyzed = scenario.status === 'analyzed';
+  const isPendingAnalysis = scenario.status === 'uploaded';
+  const isPendingFilming = scenario.status === 'pending';
+  const isValidationFailed = scenario.status === 'validation_failed';
+  // Get scenario ID (try different field names, matching handleUpload)
+  const scenarioId = scenario.id || scenario.scenario_id || scenario.title;
+  const isUploadingThis = uploadingScenarioId === scenarioId;
+  const isAnalyzingThis = analyzingScenarioId === scenarioId || analyzingScenarioId === 'all';
+
+  // Get the most relevant date (uploaded_at for videos, created_at for pending)
+  const dateToShow = scenario.uploaded_at || scenario.created_at;
+  const relativeTime = getRelativeTimeHebrew(dateToShow);
+  const formattedDateTime = formatDateTimeHebrew(dateToShow);
+
+  // Fullscreen handler
+  const handleFullscreen = useCallback(() => {
+    if (videoRef.current) {
+      if (videoRef.current.requestFullscreen) {
+        videoRef.current.requestFullscreen();
+      } else if (videoRef.current.webkitEnterFullscreen) {
+        // iOS Safari
+        videoRef.current.webkitEnterFullscreen();
+      }
+    }
+  }, []);
+
+  return (
+    <div className={`
+      bg-white rounded-2xl border-2 overflow-hidden transition-all duration-200
+      ${isAnalyzed ? 'border-emerald-200 hover:border-emerald-300' :
+        isPendingAnalysis ? 'border-amber-200 hover:border-amber-300' :
+        isValidationFailed ? 'border-red-200 hover:border-red-300' :
+        'border-violet-200 hover:border-violet-300'}
+    `}>
+      {/* HEADER - always visible */}
+      <div
+        className="p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            {/* Hypothesis context - what we're exploring */}
+            {scenario.hypothesis_title && (
+              <div className="text-xs text-gray-400 mb-1 flex items-center gap-1 truncate">
+                <Lightbulb className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{scenario.hypothesis_title}</span>
+              </div>
+            )}
+
+            {/* Scenario title */}
+            <h4 className="font-bold text-gray-800">{scenario.title}</h4>
+
+            {/* Status + video indicator */}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${STATUS_COLORS[scenario.status] || 'bg-gray-500'}`}>
+                {STATUS_HEBREW[scenario.status] || scenario.status}
+              </span>
+              {hasVideo && (
+                <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <Video className="w-3 h-3" />
+                  יש סרטון
+                </span>
+              )}
+              {relativeTime && (
+                <span className="text-xs text-gray-400 flex items-center gap-1" title={formattedDateTime}>
+                  <Clock className="w-3 h-3" />
+                  {relativeTime}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`} />
+        </div>
+      </div>
+
+      {/* EXPANDED CONTENT */}
+      {isExpanded && (
+        <div className="border-t border-gray-100 animate-expandIn" onClick={(e) => e.stopPropagation()}>
+
+          {/* GUIDELINES SECTION - always available */}
+          {scenario.what_to_film && (
+            <div className="p-4 bg-violet-50/50">
+              <h5 className="font-semibold text-violet-900 text-sm mb-2 flex items-center gap-1">
+                <FileText className="w-4 h-4" />
+                הנחיות צילום
+              </h5>
+              <p className="text-sm text-violet-800 leading-relaxed">{scenario.what_to_film}</p>
+              {scenario.rationale_for_parent && (
+                <p className="text-sm text-indigo-700 mt-2">
+                  <span className="font-medium">💡 למה זה חשוב: </span>
+                  {scenario.rationale_for_parent}
+                </p>
+              )}
+              {scenario.duration_suggestion && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-violet-600">
+                  <Clock className="w-3 h-3" />
+                  {scenario.duration_suggestion}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIDEO SECTION - if uploaded */}
+          {hasVideo && (
+            <div className="p-4 border-t border-gray-100">
+              {/* Video wrapper - constrains both video and buttons to same width */}
+              <div className="max-w-lg">
+                {/* Video container with controls overlay */}
+                <div className="relative group overflow-hidden rounded-lg">
+                  <video
+                    ref={videoRef}
+                    src={getVideoUrl(scenario.video_path)}
+                    controls
+                    playsInline
+                    className="w-full h-auto bg-black object-contain"
+                    style={{ maxHeight: '400px' }}
+                  />
+                  {/* Fullscreen button overlay */}
+                  <button
+                    onClick={handleFullscreen}
+                    className="absolute top-2 left-2 p-2 bg-black/50 hover:bg-black/70 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="מסך מלא"
+                  >
+                    <Maximize2 className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Video action buttons - same width as video */}
+                <div className="mt-3 flex items-center gap-2">
+                  {/* Analyze button if pending analysis */}
+                  {isPendingAnalysis && onAnalyze && (
+                    <button
+                      onClick={() => onAnalyze(scenario)}
+                      disabled={isAnalyzingThis}
+                      className={`flex-1 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2
+                        ${isAnalyzingThis
+                          ? 'bg-indigo-400 text-white cursor-wait'
+                          : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                    >
+                      {isAnalyzingThis ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          מנתח...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-4 h-4" />
+                          נתח סרטון
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Replace video */}
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          onUpload(e.target.files[0], scenario);
+                        }
+                      }}
+                      className="hidden"
+                      disabled={isUploadingThis}
+                    />
+                    <div className={`
+                      px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700
+                      transition-colors flex items-center gap-1.5 text-sm
+                      ${isUploadingThis ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}>
+                      <RefreshCw className="w-4 h-4" />
+                      החלף
+                    </div>
+                  </label>
+
+                  {/* Remove video - only if not analyzed */}
+                  {!isAnalyzed && onRemove && (
+                    <button
+                      onClick={() => setShowRemoveConfirm(true)}
+                      className="px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg text-red-600
+                        transition-colors flex items-center gap-1.5 text-sm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      מחק
+                    </button>
+                  )}
+                </div>
+
+                {/* Remove confirmation */}
+                {showRemoveConfirm && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800 mb-2">בטוח שברצונך למחוק את הסרטון?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          onRemove(scenario);
+                          setShowRemoveConfirm(false);
+                        }}
+                        className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                      >
+                        כן, מחק
+                      </button>
+                      <button
+                        onClick={() => setShowRemoveConfirm(false)}
+                        className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                      >
+                        ביטול
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Validation failed - comprehensive explanation */}
+              {isValidationFailed && (
+                <div className="mt-3 space-y-3">
+                  {/* What went wrong - clear header */}
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <h5 className="font-semibold text-amber-900 text-sm mb-2 flex items-center gap-2">
+                      <span className="text-lg">⚠️</span>
+                      הסרטון לא תואם לבקשה
+                    </h5>
+
+                    {/* What the video actually shows */}
+                    {scenario.what_video_shows && (
+                      <div className="mb-3">
+                        <p className="text-xs text-amber-700 font-medium mb-1">מה הסרטון מראה:</p>
+                        <p className="text-sm text-amber-900 bg-white/50 rounded-lg px-3 py-2">
+                          {scenario.what_video_shows}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Specific validation issues */}
+                    {scenario.validation_issues?.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs text-amber-700 font-medium mb-1">מה חסר:</p>
+                        <ul className="space-y-1">
+                          {scenario.validation_issues.map((issue, idx) => (
+                            <li key={idx} className="text-sm text-amber-900 flex items-start gap-2">
+                              <span className="text-amber-500 flex-shrink-0">•</span>
+                              <span>{issue}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Reminder of what was requested */}
+                    {scenario.what_to_film && (
+                      <div className="pt-3 border-t border-amber-200">
+                        <p className="text-xs text-amber-700 font-medium mb-1">מה ביקשנו לצלם:</p>
+                        <p className="text-sm text-amber-900">{scenario.what_to_film}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Clear call to action */}
+                  <div className="text-center text-sm text-gray-600">
+                    נסו להעלות סרטון חדש שמתאים להנחיות
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ANALYSIS RESULTS - if analyzed */}
+          {isAnalyzed && scenario.observations?.length > 0 && (
+            <div className="p-4 bg-emerald-50/50">
+              <h5 className="font-semibold text-emerald-900 text-sm mb-2 flex items-center gap-1">
+                <Eye className="w-4 h-4" />
+                מה גילינו
+              </h5>
+              <div className="space-y-2">
+                {scenario.observations.map((obs, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-sm">
+                    <span className="text-emerald-600 font-mono text-xs flex-shrink-0">{obs.timestamp_start}</span>
+                    <span className="text-gray-700">{obs.content}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Strengths */}
+              {scenario.strengths_observed?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {scenario.strengths_observed.map((strength, idx) => (
+                    <span key={idx} className="px-2 py-0.5 bg-pink-100 text-pink-700 rounded-full text-xs">
+                      {strength}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* UPLOAD SECTION - if pending filming or re-upload */}
+          {(isPendingFilming || isValidationFailed) && (
+            <div className="p-4">
+              <div className="flex gap-2">
+                <label className="flex-1 cursor-pointer">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        onUpload(e.target.files[0], scenario);
+                      }
+                    }}
+                    className="hidden"
+                    disabled={isUploadingThis}
+                  />
+                  <div className={`
+                    py-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white font-bold rounded-xl
+                    text-center transition-all flex items-center justify-center gap-2
+                    ${isUploadingThis ? 'opacity-50 cursor-not-allowed' : 'hover:from-violet-600 hover:to-purple-600'}
+                  `}>
+                    <Camera className="w-5 h-5" />
+                    צלם
+                  </div>
+                </label>
+                <label className="flex-1 cursor-pointer">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        onUpload(e.target.files[0], scenario);
+                      }
+                    }}
+                    className="hidden"
+                    disabled={isUploadingThis}
+                  />
+                  <div className={`
+                    py-3 bg-white border-2 border-violet-300 text-violet-700 font-bold rounded-xl
+                    text-center transition-all flex items-center justify-center gap-2
+                    ${isUploadingThis ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}
+                  `}>
+                    <Upload className="w-5 h-5" />
+                    בחר קובץ
+                  </div>
+                </label>
+              </div>
+
+              {/* Upload progress */}
+              {isUploadingThis && (
+                <div className="mt-3">
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-300"
+                      style={{ width: `${Math.max(uploadProgress, 5)}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1 text-center">
+                    {uploadProgress > 0 ? `מעלה... ${uploadProgress}%` : 'מתחיל העלאה...'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ObservationsTab({ data, onUpload, onAnalyze, onRemove, uploadProgress, uploadingScenarioId }) {
+  // Track which scenario is being analyzed
+  const [analyzingScenarioId, setAnalyzingScenarioId] = useState(null);
+
+  // Wrapper for analyze that tracks loading state
+  const handleAnalyze = useCallback(async (scenario) => {
+    if (!onAnalyze) return;
+    const scenarioId = scenario?.id || scenario?.scenario_id || scenario?.title || 'all';
+    setAnalyzingScenarioId(scenarioId);
+    try {
+      await onAnalyze(scenario);
+    } finally {
+      setAnalyzingScenarioId(null);
+    }
+  }, [onAnalyze]);
+
+  // Merge videos and pending scenarios into unified list
+  const allScenarios = useMemo(() => {
+    const scenarios = [];
+
+    // Add videos (which are scenarios with uploaded videos)
+    for (const video of (data?.videos || [])) {
+      scenarios.push({
+        ...video,
+        video_path: video.video_path,
+        observations: video.observations || [],
+      });
+    }
+
+    // Add pending scenarios (no video yet)
+    for (const pending of (data?.pending_scenarios || [])) {
+      scenarios.push({
+        ...pending,
+        status: pending.status || 'pending',
+        video_path: null,
+      });
+    }
+
+    // Sort: pending first, then by date (newest first)
+    return scenarios.sort((a, b) => {
+      // Pending filming first
+      if (a.status === 'pending' && b.status !== 'pending') return -1;
+      if (b.status === 'pending' && a.status !== 'pending') return 1;
+      // Then pending analysis
+      if (a.status === 'uploaded' && b.status === 'analyzed') return -1;
+      if (b.status === 'uploaded' && a.status === 'analyzed') return 1;
+      // Then by date (newest first)
+      const dateA = new Date(a.uploaded_at || a.created_at || 0);
+      const dateB = new Date(b.uploaded_at || b.created_at || 0);
+      return dateB - dateA;
+    });
+  }, [data]);
+
+  // Empty state
+  if (allScenarios.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-8">
         <div className="w-20 h-20 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-full flex items-center justify-center mb-4 animate-gentleFloat">
@@ -701,111 +1253,116 @@ function ObservationsTab({ data, onVideoClick }) {
     );
   }
 
+  const pendingFilmingCount = data?.pending_scenarios?.length || 0;
+  const pendingAnalysisCount = data?.pending_count || 0;
+  const analyzedCount = data?.analyzed_count || 0;
+
   return (
-    <div className="space-y-4 pb-8">
-      {/* Stats */}
-      <div className="flex items-center gap-4 opacity-0 animate-fadeIn">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-sm">
-          <Check className="w-4 h-4" />
-          {data.analyzed_count} נותחו
+    <div className="space-y-6 pb-8">
+      {/* Stats header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          {pendingFilmingCount > 0 && (
+            <span className="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-sm flex items-center gap-1">
+              <Camera className="w-3.5 h-3.5" />
+              {pendingFilmingCount} ממתינים לצילום
+            </span>
+          )}
+          {pendingAnalysisCount > 0 && (
+            <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              {pendingAnalysisCount} ממתינים לניתוח
+            </span>
+          )}
+          {analyzedCount > 0 && (
+            <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm flex items-center gap-1">
+              <Check className="w-3.5 h-3.5" />
+              {analyzedCount} נותחו
+            </span>
+          )}
         </div>
-        {data.pending_count > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-sm">
-            <Clock className="w-4 h-4" />
-            {data.pending_count} ממתינים
-          </div>
+
+        {/* Batch analyze button */}
+        {pendingAnalysisCount > 0 && onAnalyze && (
+          <button
+            onClick={() => handleAnalyze(null)}
+            disabled={!!analyzingScenarioId}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2
+              ${analyzingScenarioId
+                ? 'bg-indigo-400 text-white cursor-wait'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+          >
+            {analyzingScenarioId === 'all' ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                מנתח...
+              </>
+            ) : (
+              <>
+                <Brain className="w-4 h-4" />
+                נתח הכל
+              </>
+            )}
+          </button>
         )}
       </div>
 
-      {/* Video cards */}
-      <div className="space-y-4">
-        {data.videos.map((video, idx) => (
-          <VideoCard
-            key={video.id}
-            video={video}
-            index={idx}
-            onClick={() => onVideoClick && onVideoClick(video)}
-          />
+      {/* Unified scenario cards */}
+      <div className="space-y-4 max-w-2xl">
+        {allScenarios.map((scenario, idx) => (
+          <div
+            key={scenario.id || idx}
+            className="opacity-0 animate-staggerIn"
+            style={{ animationDelay: `${idx * 0.05}s`, animationFillMode: 'forwards' }}
+          >
+            <ScenarioCard
+              scenario={scenario}
+              onUpload={onUpload}
+              onAnalyze={handleAnalyze}
+              onRemove={onRemove}
+              uploadProgress={uploadProgress}
+              uploadingScenarioId={uploadingScenarioId}
+              analyzingScenarioId={analyzingScenarioId}
+            />
+          </div>
         ))}
       </div>
     </div>
   );
 }
 
-function VideoCard({ video, index, onClick }) {
-  const isAnalyzed = video.status === 'analyzed';
-  const isPending = video.status === 'pending' || video.status === 'uploaded';
+// Helper function for Hebrew relative time
+function getRelativeTimeHebrew(dateString) {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
-  return (
-    <div
-      className={`
-        bg-white rounded-2xl border overflow-hidden card-hover cursor-pointer
-        opacity-0 animate-staggerIn stagger-${Math.min(index + 1, 6)}
-        ${isAnalyzed ? 'border-emerald-200' : isPending ? 'border-amber-200' : 'border-gray-200'}
-      `}
-      onClick={onClick}
-    >
-      {/* Video thumbnail area */}
-      <div className="relative h-32 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-          <Play className="w-6 h-6 text-white mr-[-2px]" />
-        </div>
-        {/* Duration badge */}
-        {video.duration_seconds > 0 && (
-          <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-white text-xs rounded">
-            {formatDuration(video.duration_seconds)}
-          </div>
-        )}
-        {/* Status badge */}
-        <div className={`
-          absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium
-          ${isAnalyzed ? 'bg-emerald-500 text-white' : isPending ? 'bg-amber-500 text-white' : 'bg-gray-500 text-white'}
-        `}>
-          {isAnalyzed ? 'נותח' : isPending ? 'ממתין' : video.status}
-        </div>
-      </div>
+  if (diffDays === 0) {
+    if (diffHours < 1) return 'עכשיו';
+    if (diffHours === 1) return 'לפני שעה';
+    return `לפני ${diffHours} שעות`;
+  }
+  if (diffDays === 1) return 'אתמול';
+  if (diffDays === 2) return 'שלשום';
+  if (diffDays < 7) return `לפני ${diffDays} ימים`;
+  if (diffDays < 14) return 'לפני שבוע';
+  return `לפני ${Math.floor(diffDays / 7)} שבועות`;
+}
 
-      {/* Content */}
-      <div className="p-4">
-        <h4 className="font-bold text-gray-800">{video.title}</h4>
-        <p className="text-sm text-gray-500 mt-1">{video.hypothesis_title}</p>
-
-        {/* Observations preview */}
-        {isAnalyzed && video.observations && video.observations.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <div className="text-xs font-medium text-gray-400">תצפיות:</div>
-            {video.observations.slice(0, 2).map((obs, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-sm">
-                <span className="text-emerald-500 font-mono text-xs mt-0.5">
-                  {obs.timestamp_start}
-                </span>
-                <span className="text-gray-600 line-clamp-1">{obs.content}</span>
-              </div>
-            ))}
-            {video.observations.length > 2 && (
-              <div className="text-xs text-indigo-500">
-                +{video.observations.length - 2} תצפיות נוספות
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Strengths observed */}
-        {isAnalyzed && video.strengths_observed && video.strengths_observed.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {video.strengths_observed.map((strength, idx) => (
-              <span
-                key={idx}
-                className="px-2 py-0.5 bg-pink-50 text-pink-600 rounded-full text-xs"
-              >
-                {strength}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+// Helper function for formatted datetime in Hebrew locale
+function formatDateTimeHebrew(dateString) {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  // Format: DD/MM/YY HH:MM
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear().toString().slice(-2);
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 // ============================================
@@ -1545,12 +2102,23 @@ export default function ChildSpace({
   childSpaceData,
   onVideoClick,
   onGenerateSummary,
+  initialTab = 'essence',  // Allow opening to specific tab
+  onUploadVideo,  // Callback for video upload
 }) {
-  const [activeTab, setActiveTab] = useState('essence');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingScenarioId, setUploadingScenarioId] = useState(null);
   const tabIndicatorRef = useRef(null);
   const tabsRef = useRef({});
+
+  // Update active tab when initialTab prop changes (e.g., opening to specific tab)
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   // Use provided data or fetch from API
   useEffect(() => {
@@ -1604,6 +2172,77 @@ export default function ChildSpace({
 
     return () => clearTimeout(timer);
   }, [activeTab, isOpen]);
+
+  // Inline upload handler
+  const handleUpload = async (file, scenario) => {
+    console.log('📹 handleUpload called:', { file: file?.name, scenario });
+    if (!file || !familyId) {
+      console.error('❌ Upload blocked: missing file or familyId', { file: !!file, familyId });
+      return;
+    }
+
+    // Get scenario ID (try different field names)
+    const scenarioId = scenario.id || scenario.scenario_id || scenario.title;
+    const cycleId = scenario.target_hypothesis_id || scenario.hypothesis_id || scenario.cycle_id;
+
+    console.log('📹 Starting upload:', { familyId, cycleId, scenarioId, fileName: file.name });
+    setUploadingScenarioId(scenarioId);
+    setUploadProgress(0);
+
+    try {
+      // uploadVideoV2 expects: familyId, cycleId, scenarioId, file, onProgress
+      await api.uploadVideoV2(familyId, cycleId, scenarioId, file, (progress) => {
+        console.log('📹 Upload progress:', progress);
+        setUploadProgress(progress);
+      });
+      console.log('✅ Upload complete');
+      // Refresh data after upload
+      const result = await api.getChildSpaceFull(familyId);
+      setData(result);
+    } catch (error) {
+      console.error('❌ Upload failed:', error);
+    } finally {
+      setUploadProgress(0);
+      setUploadingScenarioId(null);
+    }
+  };
+
+  // Analyze video handler
+  const handleAnalyze = async (scenario) => {
+    if (!familyId) return;
+
+    try {
+      if (scenario) {
+        // Analyze single video - analyzeVideos expects familyId, cycleId
+        const cycleId = scenario.target_hypothesis_id || scenario.hypothesis_id || scenario.cycle_id;
+        await api.analyzeVideos(familyId, cycleId);
+      } else {
+        // Analyze all pending videos
+        await api.analyzeVideos(familyId, true);
+      }
+      // Refresh data after analysis
+      const result = await api.getChildSpaceFull(familyId);
+      setData(result);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+    }
+  };
+
+  // Remove video handler (placeholder - needs backend API)
+  const handleRemove = async (scenario) => {
+    if (!familyId) return;
+
+    try {
+      // TODO: Implement when backend API is ready
+      // const cycleId = scenario.target_hypothesis_id || scenario.hypothesis_id || scenario.cycle_id;
+      // await api.removeVideoScenario(familyId, cycleId, scenario.id);
+      console.log('Remove video requested for scenario:', scenario.id);
+      // For now, show a message that this feature is coming
+      alert('מחיקת סרטון תתאפשר בקרוב');
+    } catch (error) {
+      console.error('Remove failed:', error);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -1704,7 +2343,7 @@ export default function ChildSpace({
                     <div>
                       <h3 className="font-bold text-lg text-gray-800">{currentTab?.label}</h3>
                       <p className="text-xs text-gray-500">
-                        {activeTab === 'essence' && `מי זה ${displayName}`}
+                        {activeTab === 'essence' && `הדיוקן של ${displayName}`}
                         {activeTab === 'discoveries' && 'מסע ההבנה שלנו'}
                         {activeTab === 'observations' && 'הסרטונים וההתבוננות'}
                         {activeTab === 'share' && 'שתפו את ההבנה'}
@@ -1721,7 +2360,14 @@ export default function ChildSpace({
                 <DiscoveriesTab data={data?.discoveries} onVideoClick={onVideoClick} />
               )}
               {activeTab === 'observations' && (
-                <ObservationsTab data={data?.observations} onVideoClick={onVideoClick} />
+                <ObservationsTab
+                  data={data?.observations}
+                  onUpload={handleUpload}
+                  onAnalyze={handleAnalyze}
+                  onRemove={handleRemove}
+                  uploadProgress={uploadProgress}
+                  uploadingScenarioId={uploadingScenarioId}
+                />
               )}
               {activeTab === 'share' && (
                 <ShareTab

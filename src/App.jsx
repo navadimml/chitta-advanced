@@ -81,6 +81,7 @@ function App() {
 
   // Living Dashboard state (Phase 2 & 3)
   const [showChildSpace, setShowChildSpace] = useState(false);
+  const [childSpaceInitialTab, setChildSpaceInitialTab] = useState('essence');  // Which tab to open to
   const [livingDocumentArtifact, setLivingDocumentArtifact] = useState(null);
 
   // Living Gestalt state (curiosity-driven exploration)
@@ -447,57 +448,42 @@ function App() {
     }
 
     // Handle both 'view_guidelines' (old) and 'view_video_guidelines' (from action_graph.yaml)
+    // Now opens ChildSpace to the observations tab instead of a modal
     if (action === 'view_guidelines' || action === 'view_video_guidelines') {
-      console.log('📹 Viewing video guidelines for family:', activeFamilyId, 'cycle:', cycleId);
+      console.log('📹 Opening ChildSpace observations tab for video guidelines');
+      setChildSpaceInitialTab('observations');
+      setShowChildSpace(true);
+      return;
+    }
 
+    // Dismiss reminder - stop showing card but keep guidelines accessible
+    if (action === 'dismiss_reminder' && card?.scenario_ids) {
+      console.log('🔕 Dismissing reminder for scenarios:', card.scenario_ids);
       try {
-        let guidelinesData;
-
-        if (cycleId) {
-          // Living Gestalt v2: Fetch from cycle-specific endpoint
-          const result = await api.getVideoGuidelines(activeFamilyId, cycleId);
-          console.log('📦 Guidelines from cycle:', result);
-          guidelinesData = result;
-        } else {
-          // Legacy: Fetch from artifact system
-          const artifact = await api.getArtifact(activeFamilyId, 'baseline_video_guidelines');
-          console.log('📦 Artifact received:', artifact);
-
-          if (artifact && artifact.content) {
-            console.log('📄 Content type:', typeof artifact.content);
-
-            // Check if content is old markdown format (starts with #)
-            if (typeof artifact.content === 'string' && artifact.content.trim().startsWith('#')) {
-              console.warn('⚠️ Old markdown format detected. Guidelines need regeneration.');
-              alert('ההנחיות במבנה ישן. נא להתחיל שיחה חדשה כדי ליצור הנחיות מעודכנות.');
-              return;
-            }
-
-            // Parse JSON content (artifact stores structured data as JSON string)
-            try {
-              guidelinesData = typeof artifact.content === 'string'
-                ? JSON.parse(artifact.content)
-                : artifact.content;
-            } catch (parseError) {
-              console.error('❌ Failed to parse guidelines JSON:', parseError);
-              alert('שגיאה בקריאת ההנחיות. נא לנסות שוב או להתחיל שיחה חדשה.');
-              return;
-            }
-          } else {
-            console.error('❌ Artifact not ready or missing content:', artifact);
-            alert('ההנחיות עדיין לא מוכנות. נא לנסות שוב בעוד רגעים.');
-            return;
-          }
-        }
-
-        console.log('✅ Guidelines data:', guidelinesData);
-        console.log('✅ Has scenarios:', guidelinesData?.scenarios?.length);
-
-        setVideoGuidelines(guidelinesData);
-        setShowGuidelinesView(true);
+        await api.executeCardAction(activeFamilyId, 'dismiss_reminder', {
+          cycle_id: cycleId,
+          scenario_ids: card.scenario_ids,
+        });
+        console.log('✅ Reminder dismissed - guidelines still in ChildSpace');
+        await refreshCards();
       } catch (error) {
-        console.error('❌ Error fetching video guidelines:', error);
-        alert('שגיאה בטעינת ההנחיות. נא לנסות שוב.');
+        console.error('❌ Error dismissing reminder:', error);
+      }
+      return;
+    }
+
+    // Reject guidelines - parent decided not to film
+    if (action === 'reject_guidelines' && card?.scenario_ids) {
+      console.log('❌ Rejecting guidelines for scenarios:', card.scenario_ids);
+      try {
+        await api.executeCardAction(activeFamilyId, 'reject_guidelines', {
+          cycle_id: cycleId,
+          scenario_ids: card.scenario_ids,
+        });
+        console.log('✅ Guidelines rejected');
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error rejecting guidelines:', error);
       }
       return;
     }
@@ -956,8 +942,12 @@ function App() {
       <ChildSpace
         familyId={testMode && testFamilyId ? testFamilyId : familyId}
         isOpen={showChildSpace}
-        onClose={() => setShowChildSpace(false)}
+        onClose={() => {
+          setShowChildSpace(false);
+          setChildSpaceInitialTab('essence');  // Reset to default tab on close
+        }}
         childName={childName}
+        initialTab={childSpaceInitialTab}
         onVideoClick={(video) => {
           // Open video insights or gallery when a video is clicked
           setShowChildSpace(false);
@@ -979,6 +969,13 @@ function App() {
             { expert, expertDescription, context, crystalInsights, comprehensive }
           );
           return result;
+        }}
+        onUploadVideo={(scenario) => {
+          // Open video upload view for the selected scenario
+          console.log('📹 Opening video upload for scenario:', scenario.title);
+          setShowChildSpace(false);
+          setActiveDeepView('upload');
+          setActiveViewData(scenario);  // Pass scenario directly, VideoUploadView expects it as scenarioData
         }}
       />
 

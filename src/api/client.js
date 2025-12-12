@@ -580,6 +580,30 @@ class ChittaAPIClient {
   }
 
   /**
+   * Execute a card action (dismiss_reminder, reject_guidelines, etc.)
+   * Used for actions that need backend processing but don't have dedicated endpoints
+   */
+  async executeCardAction(familyId, action, params = {}) {
+    const response = await fetch(`${API_BASE_URL}/gestalt/card-action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        family_id: familyId,
+        action: action,
+        params: params
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Generate timeline infographic
    */
   async generateTimeline(familyId, style = 'warm') {
@@ -633,19 +657,21 @@ class ChittaAPIClient {
   }
 
   /**
-   * Generate a shareable summary adapted for a specific recipient
+   * Generate a shareable summary adapted for a specific expert
+   * Wu-wei approach: Pass expert info and let model determine style
    */
-  async generateShareableSummary(familyId, recipientType, recipientSubtype, timeAvailable = 'standard', context = null) {
+  async generateShareableSummary(familyId, { expert, expertDescription, context, crystalInsights, comprehensive }) {
     const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space/share/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        recipient_type: recipientType,
-        recipient_subtype: recipientSubtype,
-        time_available: timeAvailable,
-        context: context
+        expert,
+        expert_description: expertDescription,
+        context,
+        crystal_insights: crystalInsights,
+        comprehensive: comprehensive || false
       })
     });
 

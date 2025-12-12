@@ -386,6 +386,8 @@ class ChittaService:
                             "focus_points": s.focus_points,
                             "category": s.category,
                             "status": s.status,
+                            "created_at": s.created_at.isoformat() if s.created_at else None,
+                            "reminder_dismissed": s.reminder_dismissed,
                             "video_path": s.video_path,
                             "uploaded_at": s.uploaded_at.isoformat() if s.uploaded_at else None,
                             "analysis_result": s.analysis_result,
@@ -532,13 +534,39 @@ class ChittaService:
 
     def _derive_cards(self, gestalt: LivingGestalt) -> List[Dict]:
         """
-        Derive action cards from current state.
+        Derive context cards from current gestalt state.
 
-        Video cards follow CONSENT-FIRST approach:
-        1. video_suggestion - Ask parent if they want guidelines (NO generation yet)
-        2. video_guidelines_ready - After consent, guidelines generated
-        3. video_uploaded - Video uploaded, ready for analysis
-        4. video_insights - Analysis complete, insights available
+        CARD PHILOSOPHY: Two Categories of Artifacts
+        =============================================
+
+        1. CYCLE-BOUND ARTIFACTS → Context Cards
+           - Emerge from a specific exploration cycle (hypothesis, question)
+           - Require timely action from the parent
+           - Part of an active investigation flow
+           - The gestalt reaching out: "I need something from you to continue"
+
+        2. HOLISTIC ARTIFACTS → ChildSpace (User-Initiated)
+           - Reflect the whole understanding (not a specific cycle)
+           - Created when the user decides they need them
+           - Serve external purposes (sharing, documentation)
+           - The user pulls from gestalt: "Show me what you understand"
+
+        Card Types:
+        -----------
+        ACTION CARDS (request something from parent):
+        - video_suggestion: Hypothesis formed, video would help, needs consent
+        - video_guidelines_generating: Parent accepted, generating guidelines
+        - video_guidelines_ready: Guidelines ready, needs upload
+        - video_uploaded: Video uploaded, ready for analysis
+        - video_validation_failed: Video doesn't match request, retry
+
+        FEEDBACK CARDS (acknowledge, just needs dismissal):
+        - video_analyzed: Analysis complete, insights woven into understanding
+
+        NOT context cards (holistic, user-initiated from Space):
+        - Shareable summaries → Share tab
+        - Crystal/Essence → Essence tab
+        - Synthesis reports → User requests when ready
         """
         cards = []
 
@@ -604,19 +632,27 @@ class ChittaService:
                 break
 
             # Stage 2.5: Guidelines ready (parent accepted, guidelines generated, no uploads yet)
+            # Only show if at least one scenario hasn't been dismissed or rejected
+            pending_scenarios = [
+                s for s in cycle.video_scenarios
+                if s.status == "pending" and not s.reminder_dismissed
+            ]
             if (cycle.video_accepted and
-                cycle.video_scenarios and
+                pending_scenarios and
                 not cycle.has_pending_videos() and
                 not cycle.has_analyzed_videos()):
                 cards.append({
                     "type": "video_guidelines_ready",
                     "title": "הנחיות צילום מוכנות",
-                    "description": f"{len(cycle.video_scenarios)} תרחישים מותאמים אישית",
+                    "description": f"{len(pending_scenarios)} תרחישים מותאמים אישית",
                     "dismissible": True,
                     "actions": [
-                        {"label": "צפה בהנחיות", "action": "view_guidelines", "primary": True}
+                        {"label": "צפה בהנחיות", "action": "view_guidelines", "primary": True},
+                        {"label": "אל תזכיר", "action": "dismiss_reminder"},
+                        {"label": "לא רלוונטי", "action": "reject_guidelines"},
                     ],
                     "cycle_id": cycle.id,
+                    "scenario_ids": [s.id for s in pending_scenarios],
                     "priority": "high",
                 })
                 break
@@ -637,35 +673,30 @@ class ChittaService:
                 })
                 break
 
-            # Stage 4: Video analyzed, insights available
+            # Stage 4: Video analyzed - FEEDBACK card (not action card)
+            # This acknowledges the parent's effort in filming and uploading.
+            # Unlike action cards, this just needs dismissal - insights are woven into conversation.
             analyzed_scenarios = [s for s in cycle.video_scenarios if s.status == "analyzed"]
             if analyzed_scenarios:
                 cards.append({
-                    "type": "video_insights",
-                    "title": "יש תובנות מהסרטון!",
-                    "description": "ראיתי את הסרטון ויש לי כמה תובנות לשתף",
+                    "type": "video_analyzed",
+                    "title": "ניתחתי את הסרטון",
+                    "description": "התובנות משולבות בהבנה שלי. נוכל לדבר על מה שראיתי בשיחה.",
                     "dismissible": True,
+                    "feedback_card": True,  # Marks this as feedback, not action
                     "actions": [
-                        {"label": "ראה תובנות", "action": "view_insights", "primary": True}
+                        {"label": "הבנתי", "action": "dismiss", "primary": True}
                     ],
                     "cycle_id": cycle.id,
                     "scenario_ids": [s.id for s in analyzed_scenarios],
-                    "priority": "high",
+                    "priority": "medium",  # Lower than action cards
                 })
                 break
 
-        # Synthesis suggestion when conditions are ripe
-        if gestalt._should_synthesize():
-            cards.append({
-                "type": "synthesis_available",
-                "title": "סיכום מוכן",
-                "description": "יש מספיק מידע ליצור סיכום",
-                "dismissible": True,
-                "actions": [
-                    {"label": "צפה בסיכום", "action": "view_synthesis", "primary": True}
-                ],
-                "priority": "low",
-            })
+        # NOTE: No "synthesis_available" card here.
+        # Synthesis/summaries are HOLISTIC artifacts - user pulls them from ChildSpace,
+        # not pushed via context cards. Context cards are for CYCLE-BOUND artifacts
+        # that need timely parent action.
 
         return cards
 
@@ -840,6 +871,66 @@ class ChittaService:
                 return self._build_guidelines_response(gestalt, cycle.video_scenarios)
 
         return {"error": "No video guidelines found for this cycle"}
+
+    async def dismiss_scenario_reminders(
+        self, family_id: str, scenario_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Dismiss reminder cards for scenarios but keep guidelines accessible.
+
+        Parent chose "Don't remind me" - we stop showing the card,
+        but the guidelines remain in ChildSpace Observations tab.
+        """
+        gestalt = await self._get_gestalt(family_id)
+        if not gestalt:
+            return {"error": "Family not found"}
+
+        dismissed_count = 0
+        for cycle in gestalt.exploration_cycles:
+            for scenario in cycle.video_scenarios:
+                if scenario.id in scenario_ids:
+                    scenario.dismiss_reminder()
+                    dismissed_count += 1
+
+        if dismissed_count > 0:
+            await self._persist_gestalt(family_id, gestalt)
+            return {
+                "status": "dismissed",
+                "count": dismissed_count,
+                "message": "לא אזכיר, ההנחיות עדיין זמינות בחלל הילד",
+            }
+
+        return {"error": "No matching scenarios found"}
+
+    async def reject_scenarios(
+        self, family_id: str, scenario_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Reject scenarios - parent decided not to film.
+
+        Parent chose "Not relevant" - we mark these scenarios as rejected.
+        They won't appear in reminders or in ChildSpace pending list.
+        """
+        gestalt = await self._get_gestalt(family_id)
+        if not gestalt:
+            return {"error": "Family not found"}
+
+        rejected_count = 0
+        for cycle in gestalt.exploration_cycles:
+            for scenario in cycle.video_scenarios:
+                if scenario.id in scenario_ids:
+                    scenario.reject()
+                    rejected_count += 1
+
+        if rejected_count > 0:
+            await self._persist_gestalt(family_id, gestalt)
+            return {
+                "status": "rejected",
+                "count": rejected_count,
+                "message": "בסדר, נמשיך להכיר בדרכים אחרות",
+            }
+
+        return {"error": "No matching scenarios found"}
 
     async def record_video_upload(
         self,
@@ -1927,6 +2018,18 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                     "priority": rec.priority,
                 })
 
+        # === 9. PORTRAIT SECTIONS ===
+        # Parent-friendly thematic cards (LLM-generated in Crystal)
+        portrait_sections = []
+        if has_crystal:
+            for section in gestalt.crystal.portrait_sections or []:
+                portrait_sections.append({
+                    "title": section.title,
+                    "icon": section.icon,
+                    "content": section.content,
+                    "content_type": section.content_type,
+                })
+
         # Determine narrative status
         narrative_status = "available" if narrative else "forming"
         if is_crystal_stale:
@@ -1960,6 +2063,9 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
             # FACTS - secondary (grouped, for context)
             "facts_by_domain": facts_by_domain,
+
+            # PORTRAIT SECTIONS - parent-friendly thematic cards (from Crystal)
+            "portrait_sections": portrait_sections,
 
             # METADATA - Crystal status for UI
             "crystal_status": {
@@ -2107,8 +2213,9 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         }
 
     def _derive_observations(self, gestalt: LivingGestalt) -> Dict[str, Any]:
-        """Derive the Observations tab - video gallery."""
+        """Derive the Observations tab - video gallery and pending scenarios."""
         videos = []
+        pending_scenarios = []
 
         for cycle in gestalt.exploration_cycles:
             for scenario in cycle.video_scenarios:
@@ -2138,6 +2245,15 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                         # Extract insights
                         insights = scenario.analysis_result.get("insights", [])
 
+                    # For validation_failed, extract validation details
+                    validation_info = {}
+                    if scenario.status == "validation_failed" and scenario.analysis_result:
+                        video_validation = scenario.analysis_result.get("video_validation", {})
+                        validation_info = {
+                            "what_video_shows": video_validation.get("what_video_shows", ""),
+                            "validation_issues": video_validation.get("validation_issues", []),
+                        }
+
                     videos.append({
                         "id": scenario.id,
                         "title": scenario.title,
@@ -2151,6 +2267,27 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                         "observations": observations,
                         "strengths_observed": strengths,
                         "insights": insights,
+                        # Include guidelines so they persist after upload
+                        "what_to_film": scenario.what_to_film,
+                        "rationale_for_parent": scenario.rationale_for_parent,
+                        # Validation failure info (only populated for validation_failed status)
+                        **validation_info,
+                    })
+                elif scenario.status == "pending" and scenario.what_to_film:
+                    # Pending scenario with guidelines - waiting for upload
+                    # This is where parent can always find filming guidelines
+                    pending_scenarios.append({
+                        "id": scenario.id,
+                        "title": scenario.title,
+                        "what_to_film": scenario.what_to_film,
+                        "rationale_for_parent": scenario.rationale_for_parent,
+                        "duration_suggestion": scenario.duration_suggestion,
+                        "example_situations": scenario.example_situations or [],
+                        "hypothesis_title": cycle.theory or cycle.focus,
+                        "hypothesis_id": cycle.id,
+                        "cycle_focus": cycle.focus,
+                        "created_at": scenario.created_at.isoformat() if scenario.created_at else None,
+                        "reminder_dismissed": scenario.reminder_dismissed,
                     })
 
         # Sort by upload date, newest first
@@ -2164,6 +2301,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
         return {
             "videos": videos,
+            "pending_scenarios": pending_scenarios,  # Scenarios awaiting filming
             "total_videos": len(videos),
             "analyzed_count": analyzed,
             "pending_count": pending,
