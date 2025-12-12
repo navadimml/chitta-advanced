@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Video,
   FileText,
-  Sparkles,
   Eye,
   CheckCircle2,
   Loader2,
@@ -13,19 +12,31 @@ import {
   Wand2,
   AlertTriangle,
   Upload,
+  BellOff,
+  XCircle,
 } from 'lucide-react';
 
 /**
- * Living Gestalt Cards - Subtle, professional card rendering for video workflow
+ * Living Gestalt Cards - Context cards for the video workflow
  *
- * Card types:
- * - video_suggestion: Suggest video recording
- * - video_guidelines_generating: Guidelines being generated
- * - video_guidelines_ready: Guidelines ready to view
- * - video_uploaded: Video uploaded, ready to analyze
- * - video_analyzing: Video being analyzed
- * - video_insights: Insights available
- * - synthesis_available: Synthesis report ready
+ * CARD PHILOSOPHY: Two Categories
+ * ================================
+ * Context cards are for CYCLE-BOUND artifacts - things that emerge from
+ * exploration cycles and need parent action or acknowledgment.
+ *
+ * HOLISTIC artifacts (synthesis, summaries, essence) are NOT cards -
+ * they're pulled by the user from ChildSpace when ready.
+ *
+ * ACTION CARDS (need parent decision/action):
+ * - video_suggestion: Hypothesis formed, video would help, needs consent
+ * - video_guidelines_generating: Guidelines being created
+ * - video_guidelines_ready: Guidelines ready, needs upload
+ * - video_uploaded: Video ready for analysis
+ * - video_analyzing: Analysis in progress
+ * - video_validation_failed: Video didn't match request
+ *
+ * FEEDBACK CARDS (just acknowledge, dismiss only):
+ * - video_analyzed: Analysis complete, insights integrated into understanding
  */
 
 // Card type configurations with icons, colors, and styling
@@ -77,15 +88,6 @@ const CARD_CONFIGS = {
     buttonBg: 'bg-indigo-600 hover:bg-indigo-700',
     isLoading: true,
   },
-  video_insights: {
-    icon: Sparkles,
-    accentColor: 'pink',
-    borderColor: 'border-pink-200',
-    bgColor: 'bg-pink-50/50',
-    iconBg: 'bg-pink-100',
-    iconColor: 'text-pink-600',
-    buttonBg: 'bg-pink-600 hover:bg-pink-700',
-  },
   video_validation_failed: {
     icon: AlertTriangle,
     accentColor: 'amber',
@@ -95,15 +97,19 @@ const CARD_CONFIGS = {
     iconColor: 'text-amber-600',
     buttonBg: 'bg-amber-600 hover:bg-amber-700',
   },
-  synthesis_available: {
-    icon: FileText,
-    accentColor: 'cyan',
-    borderColor: 'border-cyan-200',
-    bgColor: 'bg-cyan-50/50',
-    iconBg: 'bg-cyan-100',
-    iconColor: 'text-cyan-600',
-    buttonBg: 'bg-cyan-600 hover:bg-cyan-700',
+  // FEEDBACK CARD - not action card. Analysis complete, insights woven into understanding.
+  video_analyzed: {
+    icon: CheckCircle2,  // Check icon - acknowledgment, not action
+    accentColor: 'teal',
+    borderColor: 'border-teal-200',
+    bgColor: 'bg-teal-50/50',
+    iconBg: 'bg-teal-100',
+    iconColor: 'text-teal-600',
+    buttonBg: 'bg-teal-600 hover:bg-teal-700',
+    isFeedback: true,  // Marks as feedback card (dismiss only)
   },
+  // NOTE: synthesis_available removed - synthesis is HOLISTIC, not cycle-bound.
+  // Users pull it from ChildSpace (Essence/Share tabs), not via cards.
 };
 
 // Default config for unknown types
@@ -241,9 +247,10 @@ function getActionIcon(actionType) {
     accept_video: <CheckCircle2 className="w-4 h-4" />,
     view_guidelines: <Eye className="w-4 h-4" />,
     analyze_videos: <Brain className="w-4 h-4" />,
-    view_insights: <Sparkles className="w-4 h-4" />,
-    view_synthesis: <FileText className="w-4 h-4" />,
     upload_video: <Upload className="w-4 h-4" />,
+    dismiss: <CheckCircle2 className="w-4 h-4" />,  // For feedback cards
+    dismiss_reminder: <BellOff className="w-4 h-4" />,  // Don't remind me
+    reject_guidelines: <XCircle className="w-4 h-4" />,  // Not relevant
   };
   return icons[actionType] || null;
 }
