@@ -46,6 +46,44 @@ class InterventionPathwaySchema(BaseModel):
     suggestion: str = Field(description="Concrete actionable tip")
 
 
+class ProfessionalSummarySchema(BaseModel):
+    """
+    Holistic-first summary for a professional.
+
+    Every recipient gets the WHOLE child - that's Chitta's core value.
+    The lens (emphasis) changes based on recipient_type.
+    """
+    # Core holistic content (same for all recipients)
+    who_this_child_is: str = Field(
+        description="2-3 sentences about who this child IS as a whole person"
+    )
+    strengths_and_interests: str = Field(
+        description="What opens them up, what they love"
+    )
+    what_parents_shared: str = Field(
+        description="Thread 1: Parent observations in their words"
+    )
+    what_we_noticed: str = Field(
+        description="Thread 2: Patterns and connections - frame as offerings"
+    )
+    what_remains_open: str = Field(
+        description="Thread 3: Questions worth exploring"
+    )
+
+    # Recipient-specific lens
+    recipient_type: str = Field(
+        description="'teacher' | 'specialist' | 'medical'"
+    )
+    role_specific_section: str = Field(
+        description="teacher: daily strategies, specialist: investigation questions, medical: observable patterns"
+    )
+
+    # The invitation
+    invitation: str = Field(
+        description="What we hope they'll help explore"
+    )
+
+
 class ExpertRecommendationSchema(BaseModel):
     """
     Professional recommendation - preparing the ground, not a referral.
@@ -68,8 +106,8 @@ class ExpertRecommendationSchema(BaseModel):
     what_to_look_for: List[str] = Field(
         description="2-3 things to ask when choosing a professional"
     )
-    summary_for_professional: str = Field(
-        description="DESCRIBE, don't diagnose: age, interests/strengths, observable behaviors in situations (e.g., 'כשיש רעש הוא מכסה אוזניים'). NO clinical labels, NO mechanisms, NO prescriptions. Let the professional form their own impression."
+    professional_summaries: List[ProfessionalSummarySchema] = Field(
+        description="Holistic summaries for different recipients (teacher, specialist, medical)"
     )
     when_to_consider: str = Field(
         default="כשתרגישו מוכנים",

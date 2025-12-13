@@ -2013,7 +2013,19 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                     "recommended_approach": rec.recommended_approach,
                     "why_this_approach": rec.why_this_approach,
                     "what_to_look_for": rec.what_to_look_for,
-                    "summary_for_professional": rec.summary_for_professional,
+                    "professional_summaries": [
+                        {
+                            "recipient_type": ps.recipient_type,
+                            "who_this_child_is": ps.who_this_child_is,
+                            "strengths_and_interests": ps.strengths_and_interests,
+                            "what_parents_shared": ps.what_parents_shared,
+                            "what_we_noticed": ps.what_we_noticed,
+                            "what_remains_open": ps.what_remains_open,
+                            "role_specific_section": ps.role_specific_section,
+                            "invitation": ps.invitation,
+                        }
+                        for ps in (rec.professional_summaries or [])
+                    ],
                     "confidence": rec.confidence,
                     "priority": rec.priority,
                 })
@@ -2343,7 +2355,19 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                     "recommended_approach": rec.recommended_approach,
                     "why_this_approach": rec.why_this_approach,
                     "what_to_look_for": rec.what_to_look_for,
-                    "summary_for_professional": rec.summary_for_professional,
+                    "professional_summaries": [
+                        {
+                            "recipient_type": ps.recipient_type,
+                            "who_this_child_is": ps.who_this_child_is,
+                            "strengths_and_interests": ps.strengths_and_interests,
+                            "what_parents_shared": ps.what_parents_shared,
+                            "what_we_noticed": ps.what_we_noticed,
+                            "what_remains_open": ps.what_remains_open,
+                            "role_specific_section": ps.role_specific_section,
+                            "invitation": ps.invitation,
+                        }
+                        for ps in (rec.professional_summaries or [])
+                    ],
                     "confidence": rec.confidence,
                     "priority": rec.priority,
                 })
