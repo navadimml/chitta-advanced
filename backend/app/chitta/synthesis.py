@@ -28,6 +28,7 @@ from .models import (
     Crystal,
     InterventionPathway,
     ExpertRecommendation,
+    ProfessionalSummary,
     TemporalFact,
     PortraitSection,
 )
@@ -811,7 +812,7 @@ WHY_THIS_MATCH: [Connect child's strength to why this professional type would re
 RECOMMENDED_APPROACH: [What approach would work]
 WHY_THIS_APPROACH: [Based on how THIS child opens up]
 WHAT_TO_LOOK_FOR: [2-3 things, comma-separated]
-SUMMARY_FOR_PROFESSIONAL: [2-3 sentence narrative about who this child is, what they love, what helps them open up, and what to be aware of]
+SUMMARY_FOR_PROFESSIONAL: [A gift to the clinician - show three threads: (1) What parents shared, (2) What we noticed - patterns/behaviors, (3) What remains open to explore. Frame as offerings, invite exploration, leave room for clinician to discover.]
 PRIORITY: [when_ready | soon | important]
 ---END_EXPERT---
 
@@ -916,24 +917,55 @@ Ask yourself:
 ### The when_to_consider Field
 Use parent-centered language like "כשתרגישו מוכנים" not clinical urgency like "soon".
 
-### The summary_for_professional Field (CRITICAL)
-This is what parents share with the professional. You are DESCRIBING, not DIAGNOSING.
+### professional_summaries - HOLISTIC-FIRST SUMMARIES (CRITICAL)
 
-**Your role:**
-- Describe the child and what they're like
-- Share observable behaviors in situations
-- Let the professional form their own clinical impression
+Each expert_recommendation needs summaries for THREE recipient types.
+Every recipient gets the WHOLE child - holistic understanding is Chitta's core value.
+The lens (emphasis) changes based on who's receiving.
 
-**NOT your role:**
-- Pre-diagnose with clinical labels
-- Assert mechanisms ("this is caused by...")
-- Prescribe what the child "needs"
+**Your role: Help the professional know WHERE TO LOOK**
+You are not the one who names. You are the one who prepares the ground.
+The summary should make them think: "This helps me know where to look. Now let me see for myself."
 
-**WRONG:**
+**The Three Threads (present in ALL summaries):**
+1. **who_this_child_is** - 2-3 sentences about who this child IS as a whole person
+2. **strengths_and_interests** - what opens them up, what they love (the bridge for any professional)
+3. **what_parents_shared** - parent observations in THEIR words
+4. **what_we_noticed** - patterns, connections (framed as offerings, not findings)
+5. **what_remains_open** - questions worth exploring
+
+**The Three Recipient Types:**
+
+**1. teacher** - Getting the summary to help with daily functioning
+- role_specific_section: Practical strategies, what works at home, daily tips
+- invitation: "We hope you can help us understand how he is in the classroom setting"
+- Focus: Concrete, actionable, "here's what helps"
+
+**2. specialist** - Getting the summary to guide assessment
+- role_specific_section: Investigation questions, "worth checking if...", areas to explore
+- invitation: "We'd value your professional perspective on these patterns"
+- Focus: Opens doors for clinical investigation, doesn't close them
+
+**3. medical** - Getting the summary for developmental context
+- role_specific_section: Observable patterns, developmental markers, timeline
+- invitation: "This background might be helpful context for your evaluation"
+- Focus: Factual observations, developmental history, no interpretations
+
+**Framing principles:**
+- Hypotheses are OFFERINGS, not findings ("שמנו לב ש..." not "יש לו...")
+- Pattern recognition OPENS questions, not closes them
+- Invite them in - leave room to discover, confirm, refine, or disagree
+- Say "here is what's worth understanding" not "here is what's wrong"
+
+**The Test:** Does this summary OPEN doors or CLOSE them?
+
+**WRONG (closes doors):**
 "בן 3.5, מציג דפוס של רגישות חושית שמשפיעה על ההשתתפות החברתית. זקוק לכלים לוויסות."
 
-**RIGHT:**
-"בן 3.5, אינטליגנטי ומוזיקלי מאוד. כשיש רעש חזק הוא מכסה את האוזניים ומחפש פינה שקטה. בגן קשה לו להישאר בפעילות קבוצתית כשיש המולה."
+**RIGHT (opens doors):**
+"בן 3.5, מוזיקלי ויצירתי מאוד - בונה לגו במשך שעות.
+ההורים שיתפו שכשיש רעש חזק הוא מכסה את האוזניים. בגן קשה לו להישאר בפעילות קבוצתית כשיש המולה.
+שמנו לב לקשר אפשרי - שווה לבדוק."
 
 ---
 
@@ -1069,6 +1101,21 @@ Remember:
             if isinstance(what_to_look_for, str):
                 what_to_look_for = [x.strip() for x in what_to_look_for.split(",") if x.strip()]
 
+            # Convert professional summaries (holistic-first structure)
+            professional_summaries = [
+                ProfessionalSummary(
+                    who_this_child_is=ps.who_this_child_is,
+                    strengths_and_interests=ps.strengths_and_interests,
+                    what_parents_shared=ps.what_parents_shared,
+                    what_we_noticed=ps.what_we_noticed,
+                    what_remains_open=ps.what_remains_open,
+                    recipient_type=ps.recipient_type,
+                    role_specific_section=ps.role_specific_section,
+                    invitation=ps.invitation,
+                )
+                for ps in rec.professional_summaries
+            ]
+
             expert_recommendations.append(ExpertRecommendation(
                 profession=rec.profession,
                 specialization=rec.specialization,
@@ -1076,7 +1123,7 @@ Remember:
                 recommended_approach=rec.recommended_approach,
                 why_this_approach=rec.why_this_approach,
                 what_to_look_for=what_to_look_for,
-                summary_for_professional=rec.summary_for_professional,
+                professional_summaries=professional_summaries,
                 confidence=0.6,
                 priority=rec.when_to_consider,
             ))
@@ -1173,6 +1220,20 @@ Remember:
                 if isinstance(what_to_look_for, str):
                     what_to_look_for = [x.strip() for x in what_to_look_for.split(",") if x.strip()]
 
+                # Parse professional summaries (holistic-first structure)
+                professional_summaries = []
+                for ps in rec.get("professional_summaries", []):
+                    professional_summaries.append(ProfessionalSummary(
+                        who_this_child_is=ps.get("who_this_child_is", ""),
+                        strengths_and_interests=ps.get("strengths_and_interests", ""),
+                        what_parents_shared=ps.get("what_parents_shared", ""),
+                        what_we_noticed=ps.get("what_we_noticed", ""),
+                        what_remains_open=ps.get("what_remains_open", ""),
+                        recipient_type=ps.get("recipient_type", "specialist"),
+                        role_specific_section=ps.get("role_specific_section", ""),
+                        invitation=ps.get("invitation", ""),
+                    ))
+
                 expert_recommendations.append(ExpertRecommendation(
                     profession=rec.get("profession", ""),
                     specialization=rec.get("specialization", ""),
@@ -1180,7 +1241,7 @@ Remember:
                     recommended_approach=rec.get("recommended_approach", ""),
                     why_this_approach=rec.get("why_this_approach", ""),
                     what_to_look_for=what_to_look_for,
-                    summary_for_professional=rec.get("summary_for_professional", ""),
+                    professional_summaries=professional_summaries,
                     confidence=0.6,
                     priority=rec.get("priority", "when_ready").lower(),
                 ))

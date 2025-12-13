@@ -128,6 +128,13 @@ async def test_crystallization_generates_all_fields():
     print(f"\n👨‍⚕️ EXPERT_RECOMMENDATIONS ({len(crystal.expert_recommendations)}):")
     for i, er in enumerate(crystal.expert_recommendations):
         print(f"  {i+1}. {er.profession} - {er.specialization}")
+        print(f"     professional_summaries count: {len(er.professional_summaries)}")
+        for ps in er.professional_summaries:
+            print(f"       - {ps.recipient_type}:")
+            who_preview = ps.who_this_child_is[:60] if len(ps.who_this_child_is) > 60 else ps.who_this_child_is
+            print(f"         who: {who_preview}...")
+            role_preview = ps.role_specific_section[:60] if len(ps.role_specific_section) > 60 else ps.role_specific_section
+            print(f"         role_specific: {role_preview}...")
 
     print(f"\n❓ OPEN_QUESTIONS ({len(crystal.open_questions)}):")
     for i, q in enumerate(crystal.open_questions):
@@ -140,6 +147,16 @@ async def test_crystallization_generates_all_fields():
     assert len(crystal.patterns) > 0, "patterns should not be empty"
     assert len(crystal.intervention_pathways) > 0, "intervention_pathways should not be empty"
     assert len(crystal.portrait_sections) > 0, "portrait_sections should not be empty"
+
+    # Verify holistic-first professional summaries if expert_recommendations exist
+    if len(crystal.expert_recommendations) > 0:
+        er = crystal.expert_recommendations[0]
+        assert len(er.professional_summaries) == 3, "expert_recommendation should have 3 professional_summaries (teacher, specialist, medical)"
+        recipient_types = {ps.recipient_type for ps in er.professional_summaries}
+        assert recipient_types == {"teacher", "specialist", "medical"}, f"expected all 3 recipient types, got: {recipient_types}"
+        for ps in er.professional_summaries:
+            assert ps.who_this_child_is, f"professional_summary for {ps.recipient_type} missing who_this_child_is"
+            assert ps.role_specific_section, f"professional_summary for {ps.recipient_type} missing role_specific_section"
 
     print("\n✅ ALL ASSERTIONS PASSED!")
 
