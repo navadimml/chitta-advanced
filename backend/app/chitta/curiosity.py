@@ -1,7 +1,7 @@
 """
-Curiosity Model and Engine
+Curiosity Model and Curiosities Manager
 
-The unified model for what the Gestalt wants to understand.
+The unified model for what Darshan wants to understand.
 
 DESIGN PRINCIPLES:
 - One model serves all four exploration modes
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 @dataclass
 class Curiosity:
     """
-    Something the Gestalt wants to understand.
+    Something Darshan wants to understand.
 
     One model serves all four exploration modes:
     - discovery: Open receiving ("Who is this child?")
@@ -45,7 +45,7 @@ class Curiosity:
     """
     focus: str                          # What we're curious about
     type: str                           # "discovery" | "question" | "hypothesis" | "pattern"
-    activation: float                   # How active right now (0-1)
+    pull: float                         # How strongly it draws attention (0-1)
     certainty: float                    # How confident within this type (0-1)
 
     # Type-specific fields (used based on type)
@@ -53,6 +53,10 @@ class Curiosity:
     video_appropriate: bool = False     # For hypothesis: can video test this?
     question: Optional[str] = None      # For question: the specific question
     domains_involved: List[str] = field(default_factory=list)  # For pattern: domains connected
+
+    # Video value fields (LLM-determined)
+    video_value: Optional[str] = None   # calibration | chain | discovery | reframe | relational
+    video_value_reason: Optional[str] = None  # Why video would help
 
     # Common fields
     domain: Optional[str] = None        # Primary developmental domain
@@ -67,35 +71,37 @@ class Curiosity:
         return Curiosity(
             focus=self.focus,
             type=self.type,
-            activation=self.activation,
+            pull=self.pull,
             certainty=self.certainty,
             theory=self.theory,
             video_appropriate=self.video_appropriate,
             question=self.question,
             domains_involved=list(self.domains_involved),
+            video_value=self.video_value,
+            video_value_reason=self.video_value_reason,
             domain=self.domain,
             last_activated=self.last_activated,
             times_explored=self.times_explored,
             cycle_id=self.cycle_id,
         )
 
-    def should_spawn_cycle(self) -> bool:
-        """Should this curiosity spawn an exploration cycle?"""
-        return self.activation > 0.7 and self.times_explored == 0 and self.cycle_id is None
+    def should_spawn_exploration(self) -> bool:
+        """Should this curiosity spawn an exploration?"""
+        return self.pull > 0.7 and self.times_explored == 0 and self.cycle_id is None
 
     def mark_explored(self):
         """Mark this curiosity as explored."""
         self.times_explored += 1
         self.last_activated = datetime.now()
 
-    def boost_activation(self, amount: float = 0.1):
-        """Boost activation (clamped to 1.0)."""
-        self.activation = min(1.0, self.activation + amount)
+    def boost_pull(self, amount: float = 0.1):
+        """Boost pull (clamped to 1.0)."""
+        self.pull = min(1.0, self.pull + amount)
         self.last_activated = datetime.now()
 
-    def dampen_activation(self, amount: float = 0.1):
-        """Dampen activation (clamped to 0.0)."""
-        self.activation = max(0.0, self.activation - amount)
+    def dampen_pull(self, amount: float = 0.1):
+        """Dampen pull (clamped to 0.0)."""
+        self.pull = max(0.0, self.pull - amount)
 
     def update_certainty(self, effect: str):
         """
@@ -113,42 +119,44 @@ class Curiosity:
         self.last_activated = datetime.now()
 
 
-class CuriosityEngine:
+class Curiosities:
     """
-    Manages the Gestalt's curiosities.
+    Manages Darshan's curiosities.
 
     - 5 perpetual curiosities (always present)
     - Dynamic curiosities (spawned from conversation)
-    - Activation rises/falls based on evidence and time
+    - Pull rises/falls based on evidence and time
     """
 
-    # The five perpetual curiosities - always present
+    # Perpetual curiosities - always present
+    # Core understanding (5 original) + Clinical background (3 new)
     PERPETUAL_TEMPLATES = [
+        # === Core Understanding ===
         {
             "focus": "מי הילד הזה?",
             "type": "discovery",
-            "activation": 0.8,
+            "pull": 0.8,
             "certainty": 0.1,
             "domain": "essence",
         },
         {
             "focus": "מה הוא אוהב?",
             "type": "discovery",
-            "activation": 0.6,
+            "pull": 0.6,
             "certainty": 0.1,
             "domain": "strengths",
         },
         {
             "focus": "מה ההקשר שלו?",
             "type": "discovery",
-            "activation": 0.4,
+            "pull": 0.4,
             "certainty": 0.1,
             "domain": "context",
         },
         {
             "focus": "מה הביא אותם לכאן?",
             "type": "question",
-            "activation": 0.5,
+            "pull": 0.5,
             "certainty": 0.1,
             "question": "מה הדאגות שהביאו את המשפחה לחפש עזרה?",
             "domain": "concerns",
@@ -156,13 +164,36 @@ class CuriosityEngine:
         {
             "focus": "אילו דפוסים מתגלים?",
             "type": "pattern",
-            "activation": 0.3,
+            "pull": 0.3,
             "certainty": 0.1,
             "domains_involved": [],
         },
+        # === Clinical Background (for Letters) ===
+        {
+            "focus": "מה היה קודם?",
+            "type": "discovery",
+            "pull": 0.5,
+            "certainty": 0.1,
+            "domain": "birth_history",
+        },
+        {
+            "focus": "איך התפתח עד עכשיו?",
+            "type": "discovery",
+            "pull": 0.4,
+            "certainty": 0.1,
+            "domain": "milestones",
+        },
+        {
+            "focus": "מה קורה בשינה ובאוכל?",
+            "type": "question",
+            "pull": 0.3,
+            "certainty": 0.1,
+            "question": "איך נראים השינה והאכילה?",
+            "domain": "sleep",
+        },
     ]
 
-    # Time decay rate (activation loss per day)
+    # Time decay rate (pull loss per day)
     DECAY_RATE_PER_DAY = 0.02
 
     # Gap boost per missing piece (capped)
@@ -179,7 +210,7 @@ class CuriosityEngine:
             Curiosity(
                 focus=t["focus"],
                 type=t["type"],
-                activation=t["activation"],
+                pull=t["pull"],
                 certainty=t["certainty"],
                 domain=t.get("domain"),
                 question=t.get("question"),
@@ -189,73 +220,91 @@ class CuriosityEngine:
         ]
         self._dynamic: List[Curiosity] = []
 
+        # Baseline video request (for discovery before hypotheses form)
+        # This is stored here but managed by Darshan
+        self._baseline_video_requested: bool = False
+
     def get_active(self, understanding: Optional["Understanding"] = None) -> List[Curiosity]:
         """
-        Get all curiosities sorted by activation.
+        Get all curiosities sorted by pull.
 
-        Returns copies with updated activation values.
+        Returns copies with updated pull values.
         """
         all_curiosities = [c.copy() for c in self._perpetual] + [c.copy() for c in self._dynamic]
 
         for c in all_curiosities:
-            c.activation = self._calculate_activation(c, understanding)
+            c.pull = self._calculate_pull(c, understanding)
 
-        return sorted(all_curiosities, key=lambda c: c.activation, reverse=True)
+        return sorted(all_curiosities, key=lambda c: c.pull, reverse=True)
 
     def get_top(self, n: int = 5, understanding: Optional["Understanding"] = None) -> List[Curiosity]:
-        """Get top N curiosities by activation."""
+        """Get top N curiosities by pull."""
         return self.get_active(understanding)[:n]
 
-    def _calculate_activation(
+    def _calculate_pull(
         self,
         curiosity: Curiosity,
         understanding: Optional["Understanding"] = None
     ) -> float:
         """
-        Calculate activation based on gaps, evidence, time.
+        Calculate pull based on gaps, evidence, time.
 
         Factors:
-        - Base activation
-        - Time decay (loses activation over time without activity)
-        - Gap boost (more gaps in domain = more activation)
-        - High certainty dampening (satisfied curiosities are less active)
+        - Base pull
+        - Time decay (loses pull over time without activity)
+        - Gap boost (more gaps in domain = more pull)
+        - High certainty dampening (satisfied curiosities pull less)
         """
-        base = curiosity.activation
+        base = curiosity.pull
 
         # Time decay (DECAY_RATE_PER_DAY per day without activity)
         days_since = (datetime.now() - curiosity.last_activated).days
         base -= days_since * self.DECAY_RATE_PER_DAY
 
-        # Gap boost (more gaps in this domain = more activation)
+        # Gap boost (more gaps in this domain = more pull)
         if curiosity.domain and understanding:
             gaps = self._count_domain_gaps(curiosity.domain, understanding)
             base += min(gaps * self.GAP_BOOST_PER_ITEM, self.GAP_BOOST_MAX)
 
-        # High certainty dampens activation (we're satisfied)
+        # High certainty dampens pull (we're satisfied)
         if curiosity.certainty > self.HIGH_CERTAINTY_THRESHOLD:
             base -= self.HIGH_CERTAINTY_DAMPEN
 
         return max(0.0, min(1.0, base))
 
+    # Clinical domains that are critical for Letters
+    CLINICAL_DOMAINS = ["birth_history", "milestones", "sleep", "feeding", "play", "medical"]
+
     def _count_domain_gaps(self, domain: str, understanding: "Understanding") -> int:
         """
         Count gaps in a domain.
 
-        This is a heuristic - domains with fewer facts have more gaps.
+        This is a heuristic - domains with fewer observations have more gaps.
+        Clinical domains (for Letters) have higher baseline gaps.
         """
-        if not understanding or not hasattr(understanding, 'facts'):
+        if not understanding or not hasattr(understanding, 'observations'):
             return 3  # Default to moderate gaps
 
-        domain_facts = [f for f in understanding.facts if getattr(f, 'domain', None) == domain]
+        domain_observations = [f for f in understanding.observations if getattr(f, 'domain', None) == domain]
+        observation_count = len(domain_observations)
 
-        # Fewer facts = more gaps (inverse relationship)
-        # 0 facts = 5 gaps, 1-2 facts = 3 gaps, 3-5 facts = 1 gap, 6+ facts = 0 gaps
-        fact_count = len(domain_facts)
-        if fact_count == 0:
+        # Clinical domains are more important when empty - Letters need this info
+        if domain in self.CLINICAL_DOMAINS:
+            # Clinical domains: 0 obs = 5 gaps, 1 obs = 3 gaps, 2+ obs = 1 gap
+            if observation_count == 0:
+                return 5
+            elif observation_count == 1:
+                return 3
+            else:
+                return 1
+
+        # Regular domains: fewer observations = more gaps (inverse relationship)
+        # 0 obs = 5 gaps, 1-2 obs = 3 gaps, 3-5 obs = 1 gap, 6+ obs = 0 gaps
+        if observation_count == 0:
             return 5
-        elif fact_count <= 2:
+        elif observation_count <= 2:
             return 3
-        elif fact_count <= 5:
+        elif observation_count <= 5:
             return 1
         else:
             return 0
@@ -266,7 +315,7 @@ class CuriosityEngine:
         for existing in self._dynamic:
             if existing.focus.lower() == curiosity.focus.lower():
                 # Boost existing instead of adding duplicate
-                existing.boost_activation(0.2)
+                existing.boost_pull(0.2)
                 return
 
         self._dynamic.append(curiosity)
@@ -275,45 +324,45 @@ class CuriosityEngine:
         """Remove a dynamic curiosity by focus."""
         self._dynamic = [c for c in self._dynamic if c.focus != focus]
 
-    def on_fact_learned(self, fact: "TemporalFact"):
-        """Boost activation for related curiosities when a fact is learned."""
-        domain = getattr(fact, 'domain', None)
+    def on_observation_learned(self, observation: "TemporalFact"):
+        """Boost pull for related curiosities when an observation is learned."""
+        domain = getattr(observation, 'domain', None)
         if not domain:
             return
 
         for c in self._dynamic + self._perpetual:
             if c.domain == domain:
-                c.boost_activation(0.1)
+                c.boost_pull(0.1)
 
             # Also check pattern curiosities
             if c.type == "pattern" and domain in c.domains_involved:
-                c.boost_activation(0.15)
+                c.boost_pull(0.15)
 
     def on_evidence_added(self, curiosity_focus: str, effect: str):
         """Update certainty based on evidence."""
         for c in self._dynamic:
             if c.focus == curiosity_focus:
                 c.update_certainty(effect)
-                c.boost_activation(0.05)  # Small activation boost for activity
+                c.boost_pull(0.05)  # Small pull boost for activity
                 break
 
     def on_domain_touched(self, domain: str):
         """Called when conversation touches a domain."""
         for c in self._perpetual + self._dynamic:
             if c.domain == domain:
-                c.boost_activation(0.05)
+                c.boost_pull(0.05)
 
     def get_gaps(self) -> List[str]:
         """
         What do we know we don't know?
 
         Returns questions/focuses from curiosities that are:
-        - Active (activation > 0.5)
+        - Active (pull > 0.5)
         - Uncertain (certainty < 0.5)
         """
         gaps = []
         for c in self._perpetual + self._dynamic:
-            if c.activation > 0.5 and c.certainty < 0.5:
+            if c.pull > 0.5 and c.certainty < 0.5:
                 if c.type == "question" and c.question:
                     gaps.append(c.question)
                 else:
@@ -328,6 +377,52 @@ class CuriosityEngine:
     def get_video_appropriate_hypotheses(self) -> List[Curiosity]:
         """Get hypotheses that can be tested with video."""
         return [c for c in self._dynamic if c.type == "hypothesis" and c.video_appropriate]
+
+    def get_curiosities_with_video_value(self) -> List[Curiosity]:
+        """Get curiosities where video would add value (any type, not just hypothesis)."""
+        return [c for c in self._dynamic if c.video_value is not None]
+
+    def find_curiosity_by_domains(self, domains: List[str]) -> Optional[Curiosity]:
+        """
+        Find an existing pattern curiosity that involves these domains.
+
+        Used to prevent spawning duplicate pattern curiosities when
+        cross-domain stories are captured.
+        """
+        if len(domains) < 2:
+            return None
+
+        domain_set = set(domains)
+        for c in self._dynamic:
+            if c.type == "pattern" and c.domains_involved:
+                # Check if there's significant overlap
+                overlap = domain_set.intersection(set(c.domains_involved))
+                if len(overlap) >= 2:  # At least 2 domains in common
+                    return c
+        return None
+
+    def should_suggest_baseline_video(self, message_count: int) -> bool:
+        """
+        Should we suggest baseline video?
+
+        Simple heuristic:
+        - Not already requested
+        - After some rapport (message 3+)
+        - Before heavy theorizing (message <15)
+        - Few hypotheses formed
+        """
+        if self._baseline_video_requested:
+            return False  # Already suggested
+
+        if message_count < 3 or message_count > 15:
+            return False
+
+        hypothesis_count = len([c for c in self._dynamic if c.type == "hypothesis"])
+        return hypothesis_count < 3
+
+    def mark_baseline_video_requested(self):
+        """Mark that baseline video has been requested."""
+        self._baseline_video_requested = True
 
     def link_to_cycle(self, curiosity_focus: str, cycle_id: str):
         """Link a curiosity to an exploration cycle."""
@@ -344,10 +439,12 @@ class CuriosityEngine:
                 {
                     "focus": c.focus,
                     "type": c.type,
-                    "activation": c.activation,
+                    "pull": c.pull,
                     "certainty": c.certainty,
                     "theory": c.theory,
                     "video_appropriate": c.video_appropriate,
+                    "video_value": c.video_value,
+                    "video_value_reason": c.video_value_reason,
                     "question": c.question,
                     "domains_involved": c.domains_involved,
                     "domain": c.domain,
@@ -356,13 +453,14 @@ class CuriosityEngine:
                     "cycle_id": c.cycle_id,
                 }
                 for c in self._dynamic
-            ]
+            ],
+            "baseline_video_requested": self._baseline_video_requested,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CuriosityEngine":
+    def from_dict(cls, data: dict) -> "Curiosities":
         """Deserialize from persistence."""
-        engine = cls()
+        curiosities = cls()
 
         for c_data in data.get("dynamic", []):
             last_activated = c_data.get("last_activated")
@@ -371,13 +469,18 @@ class CuriosityEngine:
             else:
                 last_activated = datetime.now()
 
+            # Support both old "activation" and new "pull" keys for backwards compatibility
+            pull_value = c_data.get("pull", c_data.get("activation", 0.5))
+
             curiosity = Curiosity(
                 focus=c_data["focus"],
                 type=c_data["type"],
-                activation=c_data.get("activation", 0.5),
+                pull=pull_value,
                 certainty=c_data.get("certainty", 0.3),
                 theory=c_data.get("theory"),
                 video_appropriate=c_data.get("video_appropriate", False),
+                video_value=c_data.get("video_value"),
+                video_value_reason=c_data.get("video_value_reason"),
                 question=c_data.get("question"),
                 domains_involved=c_data.get("domains_involved", []),
                 domain=c_data.get("domain"),
@@ -385,19 +488,22 @@ class CuriosityEngine:
                 times_explored=c_data.get("times_explored", 0),
                 cycle_id=c_data.get("cycle_id"),
             )
-            engine._dynamic.append(curiosity)
+            curiosities._dynamic.append(curiosity)
 
-        return engine
+        # Restore baseline video state
+        curiosities._baseline_video_requested = data.get("baseline_video_requested", False)
+
+        return curiosities
 
 
 # Factory functions for creating curiosities
 
-def create_discovery(focus: str, domain: str, activation: float = 0.6) -> Curiosity:
+def create_discovery(focus: str, domain: str, pull: float = 0.6) -> Curiosity:
     """Create a discovery-type curiosity."""
     return Curiosity(
         focus=focus,
         type="discovery",
-        activation=activation,
+        pull=pull,
         certainty=0.1,
         domain=domain,
     )
@@ -407,13 +513,13 @@ def create_question(
     focus: str,
     question: str,
     domain: Optional[str] = None,
-    activation: float = 0.6
+    pull: float = 0.6
 ) -> Curiosity:
     """Create a question-type curiosity."""
     return Curiosity(
         focus=focus,
         type="question",
-        activation=activation,
+        pull=pull,
         certainty=0.1,
         question=question,
         domain=domain,
@@ -425,17 +531,21 @@ def create_hypothesis(
     theory: str,
     domain: str,
     video_appropriate: bool = True,
-    activation: float = 0.7,
+    video_value: Optional[str] = None,
+    video_value_reason: Optional[str] = None,
+    pull: float = 0.7,
     certainty: float = 0.3,
 ) -> Curiosity:
     """Create a hypothesis-type curiosity."""
     return Curiosity(
         focus=focus,
         type="hypothesis",
-        activation=activation,
+        pull=pull,
         certainty=certainty,
         theory=theory,
         video_appropriate=video_appropriate,
+        video_value=video_value,
+        video_value_reason=video_value_reason,
         domain=domain,
     )
 
@@ -443,14 +553,14 @@ def create_hypothesis(
 def create_pattern(
     focus: str,
     domains_involved: List[str],
-    activation: float = 0.5,
+    pull: float = 0.5,
     certainty: float = 0.2,
 ) -> Curiosity:
     """Create a pattern-type curiosity."""
     return Curiosity(
         focus=focus,
         type="pattern",
-        activation=activation,
+        pull=pull,
         certainty=certainty,
         domains_involved=domains_involved,
     )

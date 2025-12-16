@@ -67,6 +67,11 @@ uploads_dir = Path(__file__).parent.parent / "uploads"
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
+# Serve video files from data/videos
+videos_dir = Path(__file__).parent.parent / "data" / "videos"
+videos_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/data/videos", StaticFiles(directory=str(videos_dir)), name="videos")
+
 # Health check
 @app.get("/health")
 async def health_check():

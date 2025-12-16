@@ -657,10 +657,49 @@ class ChittaAPIClient {
   }
 
   /**
+   * Check if we have enough data to generate a useful summary for a recipient type
+   * Returns readiness status with missing info details
+   */
+  async checkSummaryReadiness(familyId, recipientType) {
+    const response = await fetch(
+      `${API_BASE_URL}/family/${familyId}/child-space/share/readiness/${recipientType}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Start guided collection mode for preparing a summary
+   * Sets session flag that injects gap context into chat responses
+   */
+  async startGuidedCollection(familyId, recipientType) {
+    const response = await fetch(
+      `${API_BASE_URL}/family/${familyId}/child-space/share/guided-collection/start`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ recipient_type: recipientType })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Generate a shareable summary adapted for a specific expert
    * Wu-wei approach: Pass expert info and let model determine style
    */
-  async generateShareableSummary(familyId, { expert, expertDescription, context, crystalInsights, comprehensive }) {
+  async generateShareableSummary(familyId, { expert, expertDescription, context, crystalInsights, comprehensive, missingGaps }) {
     const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space/share/generate`, {
       method: 'POST',
       headers: {
@@ -671,7 +710,8 @@ class ChittaAPIClient {
         expert_description: expertDescription,
         context,
         crystal_insights: crystalInsights,
-        comprehensive: comprehensive || false
+        comprehensive: comprehensive || false,
+        missing_gaps: missingGaps || null
       })
     });
 

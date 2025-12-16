@@ -30,7 +30,7 @@ from app.services.state_derivation import (
     derive_contextual_greeting,
     derive_suggestions
 )
-# Living Gestalt: Card derivation (deprecated module for backward compat)
+# Darshan: Card derivation (deprecated module for backward compat)
 from app.chitta import derive_cards_from_child, handle_card_action
 from app.services.unified_state_service import get_unified_state_service
 # Parent Simulator (Test Mode)
@@ -430,7 +430,7 @@ async def upload_video(
     file: UploadFile = File(...)
 ):
     """
-    🌟 Living Gestalt: Upload video file and update gestalt state
+    🌟 Darshan: Upload video file and update gestalt state
 
     This endpoint:
     1. Saves video file to uploads/{family_id}/{video_id}.{ext}
@@ -459,7 +459,7 @@ async def upload_video(
         logger.error(f"❌ Error saving video file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save video: {str(e)}")
 
-    # 🌟 Living Gestalt: Record video upload in gestalt state
+    # 🌟 Darshan: Record video upload in gestalt state
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
 
@@ -744,45 +744,39 @@ async def get_timeline(family_id: str):
 async def add_journal_entry(request: JournalEntryRequest):
     """
     הוספת רשומה ליומן הילד
-    """
-    session = app_state.get_or_create_session(request.family_id)
 
-    # צור entry ID ייחודי
+    Processes the journal entry into Chitta's understanding:
+    - Extracts facts with ABSOLUTE timestamps (relative expressions converted)
+    - Detects developmental milestones
+    - Boosts related curiosities
+    - Stores in gestalt for persistence
+
+    Temporal data enables future time-based queries and developmental tracking.
+    """
     import uuid
     entry_id = str(uuid.uuid4())
     timestamp = datetime.now().isoformat()
 
-    # יצירת entry
-    entry = {
-        "entry_id": entry_id,
-        "content": request.content,
-        "category": request.category,
-        "timestamp": timestamp
-    }
+    # Process into Chitta's understanding
+    from app.chitta.service import get_chitta_service
+    chitta = get_chitta_service()
 
-    # הוספה ל-session
-    if "journal_entries" not in session:
-        session["journal_entries"] = []
-    session["journal_entries"].append(entry)
+    try:
+        result = await chitta.process_parent_journal_entry(
+            family_id=request.family_id,
+            entry_text=request.content,
+            entry_type=request.category,
+        )
 
-    # שמירה ב-Graphiti
-    await app_state.graphiti.add_episode(
-        name=f"journal_entry_{entry_id}",
-        episode_body={
-            "type": "journal",
-            "category": request.category,
-            "content": request.content,
-            "family_id": request.family_id
-        },
-        group_id=request.family_id,
-        reference_time=datetime.now()
-    )
-
-    return JournalEntryResponse(
-        entry_id=entry_id,
-        timestamp=timestamp,
-        success=True
-    )
+        return JournalEntryResponse(
+            entry_id=entry_id,
+            timestamp=timestamp,
+            success=True
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to process journal entry: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/journal/entries/{family_id}")
 async def get_journal_entries(family_id: str, limit: int = 10):
@@ -1867,7 +1861,7 @@ async def generate_timeline(request: TimelineGenerateRequest):
     Uses Gemini image generation to create a beautiful infographic
     showing key moments and milestones.
 
-    Supports both Living Gestalt data (new) and legacy session data.
+    Supports both Darshan data (new) and legacy session data.
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
@@ -1881,7 +1875,7 @@ async def generate_timeline(request: TimelineGenerateRequest):
         child_name = "הילד/ה"
         events = []
 
-        # Try Living Gestalt data first (data/children/{family_id}.json)
+        # Try Darshan data first (data/children/{family_id}.json)
         gestalt_file = Path("data/children") / f"{request.family_id}.json"
         if gestalt_file.exists():
             try:
@@ -2084,13 +2078,13 @@ async def subscribe_to_state_updates(family_id: str):
 @router.get("/state/{family_id}")
 async def get_family_state(family_id: str):
     """
-    🌟 Living Gestalt: Get complete family state.
-    Cards and curiosity state are derived from Living Gestalt exploration cycles.
+    🌟 Darshan: Get complete family state.
+    Cards and curiosity state are derived from Darshan explorations.
     """
     graphiti = get_mock_graphiti()
     state = graphiti.get_or_create_state(family_id)
 
-    # 🌟 Living Gestalt - use ChittaService for cards and curiosity
+    # 🌟 Darshan - use ChittaService for cards and curiosity
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
     gestalt = await chitta._get_gestalt(family_id)
@@ -2103,7 +2097,7 @@ async def get_family_state(family_id: str):
         cards = chitta._derive_cards(gestalt)
         curiosity_state = await chitta.get_curiosity_state(family_id)
         child_space_data = chitta._derive_child_space(gestalt)
-        logger.info(f"🌟 Living Gestalt cards for {family_id}: {[c['type'] for c in cards]}")
+        logger.info(f"🌟 Darshan cards for {family_id}: {[c['type'] for c in cards]}")
         logger.info(f"🌟 Curiosities: {len(curiosity_state.get('active_curiosities', []))}")
 
     # Derive other UI elements
@@ -2155,6 +2149,184 @@ async def get_child_space_full(family_id: str):
     return chitta.derive_child_space_full(gestalt)
 
 
+# === Summary Readiness & Guided Collection ===
+
+
+@router.get("/family/{family_id}/child-space/share/readiness/{recipient_type}")
+async def check_summary_readiness(family_id: str, recipient_type: str):
+    """
+    Check if we have enough data to generate a useful summary for this recipient type.
+
+    Returns:
+    - status: "ready" | "partial" | "not_ready"
+    - missing_critical: List of critical missing info (parent-friendly descriptions)
+    - missing_important: List of important missing info
+    - can_generate: Whether we can generate anyway
+    - guidance_message: Hebrew message explaining what's missing
+
+    Frontend should:
+    - If status="ready": Allow direct generation
+    - If status="partial": Show warning with options:
+      - "צור סיכום עם מה שיש" (generate anyway)
+      - "הוסף פרטים בשיחה" (start guided collection)
+    """
+    from app.chitta.service import get_chitta_service
+    from app.chitta.clinical_gaps import ClinicalGaps
+
+    chitta = get_chitta_service()
+    gestalt = await chitta._get_gestalt(family_id)
+
+    if not gestalt:
+        raise HTTPException(status_code=404, detail="Family not found")
+
+    # Get child for additional context (history, family info)
+    child = await chitta._child_service.get_or_create_child_async(family_id)
+
+    # Check readiness
+    gap_detector = ClinicalGaps()
+    readiness = gap_detector.check_readiness(
+        recipient_type=recipient_type,
+        understanding=gestalt.understanding,
+        child=child,
+    )
+
+    return {
+        "status": readiness.status,
+        "missing_critical": [
+            {
+                "field": g.field,
+                "description": g.parent_description,  # For UI display
+                "clinical_term": g.clinical_term,  # For professional summary
+            }
+            for g in readiness.missing_critical
+        ],
+        "missing_important": [
+            {
+                "field": g.field,
+                "description": g.parent_description,  # For UI display
+                "clinical_term": g.clinical_term,  # For professional summary
+            }
+            for g in readiness.missing_important
+        ],
+        "can_generate": readiness.can_generate,
+        "guidance_message": readiness.guidance_message,
+    }
+
+
+class StartGuidedCollectionRequest(BaseModel):
+    """Request to start guided collection mode."""
+    recipient_type: str  # "neurologist", "speech_therapist", "ot", etc.
+
+
+@router.post("/family/{family_id}/child-space/share/guided-collection/start")
+async def start_guided_collection(family_id: str, request: StartGuidedCollectionRequest):
+    """
+    Start guided collection mode for preparing a summary.
+
+    This sets a session flag that injects gap context into chat responses.
+    The LLM will naturally guide conversation toward collecting missing info.
+
+    Returns the missing gaps so frontend can show what will be collected.
+    """
+    from app.chitta.service import get_chitta_service
+    from app.chitta.clinical_gaps import ClinicalGaps
+
+    chitta = get_chitta_service()
+    gestalt = await chitta._get_gestalt(family_id)
+
+    if not gestalt:
+        raise HTTPException(status_code=404, detail="Family not found")
+
+    # Get child for additional context (history, family info)
+    child = await chitta._child_service.get_or_create_child_async(family_id)
+
+    # Check what's missing
+    gap_detector = ClinicalGaps()
+    readiness = gap_detector.check_readiness(
+        recipient_type=request.recipient_type,
+        understanding=gestalt.understanding,
+        child=child,
+    )
+
+    # Set session flag for guided collection mode
+    # This will be picked up by gestalt._build_response_prompt()
+    gaps_list = [
+        {"field": g.field, "description": g.parent_description, "question": g.parent_question}
+        for g in readiness.missing_critical + readiness.missing_important
+    ]
+    gestalt.session_flags["preparing_summary_for"] = request.recipient_type
+    gestalt.session_flags["guided_collection_gaps"] = gaps_list
+
+    # Persist session flags so guided collection survives page reload
+    await chitta._persist_gestalt(family_id, gestalt)
+
+    # Generate natural greeting - NOT interview-style
+    # The greeting starts a conversation, not a checklist
+    first_gap = gaps_list[0] if gaps_list else None
+    if first_gap:
+        field = first_gap.get("field", "")
+        # Custom warm greetings per gap type
+        if field == "birth_history":
+            greeting = "הי! לפני שנכין את הסיכום, ספרי לי קצת על הלידה - איך היא הייתה?"
+        elif field == "milestones":
+            greeting = "הי! בואי נדבר רגע על ההתחלות שלו - זוכרת מתי התחיל ללכת? ומה עם מילים ראשונות?"
+        elif field == "family_developmental_history":
+            greeting = "הי! יש משהו שהייתי רוצה לשאול - יש במשפחה עוד מישהו שהוא קצת דומה לו?"
+        else:
+            # Generic warm greeting for other gaps
+            question = first_gap.get("question", "")
+            greeting = f"הי! רציתי לשאול משהו לפני שנכין את הסיכום. {question}"
+    else:
+        greeting = "הי! יש משהו שתרצי לספר לי לפני שנכין את הסיכום?"
+
+    return {
+        "status": "guided_collection_started",
+        "recipient_type": request.recipient_type,
+        "gaps_to_collect": [
+            {"field": g.field, "description": g.parent_description}
+            for g in readiness.missing_critical + readiness.missing_important
+        ],
+        "greeting": greeting,  # Proactive message for Chitta to say
+    }
+
+
+@router.post("/family/{family_id}/child-space/share/guided-collection/end")
+async def end_guided_collection(family_id: str):
+    """
+    End guided collection mode.
+
+    Call this when user returns to Share tab or wants to cancel collection.
+    """
+    from app.chitta.service import get_chitta_service
+
+    chitta = get_chitta_service()
+    gestalt = await chitta._get_gestalt(family_id)
+
+    if not gestalt:
+        raise HTTPException(status_code=404, detail="Family not found")
+
+    # Clear session flags
+    gestalt.session_flags.pop("preparing_summary_for", None)
+    gestalt.session_flags.pop("guided_collection_gaps", None)
+
+    # Persist so guided collection is properly ended
+    await chitta._persist_gestalt(family_id, gestalt)
+
+    return {"status": "guided_collection_ended"}
+
+
+def _recipient_hebrew(recipient_type: str) -> str:
+    """Get Hebrew name for recipient type."""
+    return {
+        "neurologist": "נוירולוג",
+        "speech_therapist": "קלינאית תקשורת",
+        "ot": "מרפאה בעיסוק",
+        "pediatrician": "רופא ילדים",
+        "psychologist": "פסיכולוג",
+        "psychiatrist": "פסיכיאטר",
+    }.get(recipient_type, "איש מקצוע")
+
+
 class GenerateSummaryRequest(BaseModel):
     """Request to generate shareable summary - wu-wei approach"""
     # Expert info - can be a crystal recommendation or custom
@@ -2163,6 +2335,9 @@ class GenerateSummaryRequest(BaseModel):
     context: Optional[str] = None  # Additional context from parent
     crystal_insights: Optional[Dict[str, Any]] = None  # Insights from crystal for this expert
     comprehensive: bool = False  # Whether to generate comprehensive summary
+
+    # Clinical gap info - if user chose "generate anyway" despite missing data
+    missing_gaps: Optional[List[Dict[str, Any]]] = None  # List of missing clinical data
 
     # Legacy fields for backward compatibility
     recipient_type: Optional[str] = None
@@ -2191,6 +2366,7 @@ async def generate_shareable_summary(
         crystal_insights=request.crystal_insights,
         additional_context=request.context,
         comprehensive=request.comprehensive,
+        missing_gaps=request.missing_gaps,
     )
 
     if result.get("error") and not result.get("content"):
@@ -2407,7 +2583,7 @@ async def export_artifacts(family_id: str):
     }
 
 
-# === Living Gestalt: Cycle-based cards ===
+# === Darshan: Cycle-based cards ===
 
 class GestaltCardsResponse(BaseModel):
     """Response model for gestalt-derived cards"""
@@ -2420,7 +2596,7 @@ class GestaltCardsResponse(BaseModel):
 @router.get("/gestalt/{family_id}/cards", response_model=GestaltCardsResponse)
 async def get_gestalt_cards(family_id: str, language: str = "he"):
     """
-    Get cards derived from exploration cycles and understanding.
+    Get cards derived from explorations and understanding.
 
     These cards show:
     - Video guidelines status
@@ -2467,7 +2643,7 @@ async def execute_card_action(request: CardActionRequest):
     """
     Execute an action from a card.
 
-    Living Gestalt actions:
+    Darshan actions:
     - accept_video: Parent accepts video suggestion, triggers guidelines generation
     - decline_video: Parent declines video suggestion
     - view_guidelines: Navigate to guidelines view
@@ -2511,7 +2687,46 @@ async def execute_card_action(request: CardActionRequest):
             result = {"action": "navigate", "target": "insights_view", "cycle_id": cycle_id}
 
         elif action == "dismiss":
-            result = {"status": "dismissed"}
+            # Dismiss a card - for video_analyzed, mark scenarios as acknowledged
+            card_type = params.get("card_type")
+            scenario_ids = params.get("scenario_ids", [])
+
+            if card_type == "video_analyzed" and scenario_ids:
+                result = await chitta.acknowledge_video_insights(family_id, scenario_ids)
+            else:
+                result = {"status": "dismissed"}
+
+        elif action == "confirm_video":
+            # Parent confirms video is correct despite validation concerns
+            scenario_id = params.get("scenario_id")
+            if not scenario_id:
+                return CardActionResponse(success=False, result={"error": "scenario_id required"})
+            result = await chitta.confirm_video(family_id, scenario_id)
+
+        elif action == "reject_video":
+            # Parent rejects video that was flagged for confirmation
+            scenario_id = params.get("scenario_id")
+            if not scenario_id:
+                return CardActionResponse(success=False, result={"error": "scenario_id required"})
+            result = await chitta.reject_confirmed_video(family_id, scenario_id)
+
+        elif action == "dismiss_reminder":
+            # Dismiss the reminder card but keep guidelines accessible in ChildSpace
+            scenario_ids = params.get("scenario_ids", [])
+            if not scenario_ids:
+                return CardActionResponse(success=False, result={"error": "scenario_ids required"})
+            result = await chitta.dismiss_scenario_reminders(family_id, scenario_ids)
+
+        elif action == "reject_guidelines":
+            # Parent decided not to film - reject these guidelines entirely
+            scenario_ids = params.get("scenario_ids", [])
+            if not scenario_ids:
+                return CardActionResponse(success=False, result={"error": "scenario_ids required"})
+            result = await chitta.reject_scenarios(family_id, scenario_ids)
+
+        elif action == "accept_baseline_video":
+            # Parent accepted baseline video suggestion (early discovery video)
+            result = await chitta.accept_baseline_video(family_id)
 
         else:
             result = {"error": f"Unknown action: {action}"}
@@ -2623,7 +2838,7 @@ class VideoInsightsResponse(BaseModel):
 @router.get("/gestalt/{family_id}/insights/{cycle_id}", response_model=VideoInsightsResponse)
 async def get_video_insights(family_id: str, cycle_id: str):
     """
-    Get video analysis insights for a specific exploration cycle.
+    Get video analysis insights for a specific exploration.
 
     Returns parent-appropriate insights:
     - insights_for_parent: Warm, concrete observations
@@ -2644,7 +2859,7 @@ async def get_video_insights(family_id: str, cycle_id: str):
 
         # Find the cycle
         cycle = None
-        for c in gestalt.exploration_cycles:
+        for c in gestalt.explorations:
             if c.id == cycle_id:
                 cycle = c
                 break
@@ -2768,7 +2983,7 @@ async def get_child_gestalt(family_id: str):
     """
     Get complete child gestalt data for X-Ray testing.
 
-    Returns the full Living Gestalt structure including:
+    Returns the full Darshan structure including:
     - identity: name, birth_date, gender
     - essence: temperament, energy, core qualities
     - strengths: abilities, interests, what lights them up
@@ -2800,7 +3015,7 @@ async def get_child_gestalt(family_id: str):
             # Core identity
             "identity": safe_dump(child.identity),
 
-            # The Living Gestalt
+            # The Darshan
             "essence": safe_dump(child.essence),
             "strengths": safe_dump(child.strengths),
             "concerns": safe_dump(child.concerns),
@@ -2835,7 +3050,7 @@ async def get_child_gestalt(family_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# === V2 Chat API: Using ChittaService with Living Gestalt ===
+# === V2 Chat API: Using ChittaService with Darshan ===
 
 class ChatV2InitResponse(BaseModel):
     """Response model for v2 chat init - Chitta's first message"""
@@ -3029,13 +3244,13 @@ async def request_synthesis_v2(family_id: str):
 @router.post("/chat/v2/send", response_model=SendMessageV2Response)
 async def send_message_v2(request: SendMessageV2Request):
     """
-    V2 Chat Endpoint - Uses ChittaService with Living Gestalt
+    V2 Chat Endpoint - Uses ChittaService with Darshan
 
-    This endpoint uses the new Living Gestalt architecture:
+    This endpoint uses the Darshan architecture:
     - Two-phase LLM: extraction (with tools) + response (without tools)
     - Curiosity-driven exploration (not completeness checklists)
     - Returns curiosity_state instead of completeness percentage
-    - Cards derived from active exploration cycles
+    - Cards derived from active explorations
 
     Response includes:
     - response: Hebrew text from Chitta
@@ -3046,12 +3261,12 @@ async def send_message_v2(request: SendMessageV2Request):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     try:
-        # Get the NEW ChittaService (Living Gestalt architecture)
+        # Get the NEW ChittaService (Darshan architecture)
         from app.chitta import get_chitta_service
 
         chitta = get_chitta_service()
 
-        # Process message through Living Gestalt
+        # Process message through Darshan
         # Returns: {response, curiosity_state, cards}
         result = await chitta.process_message(
             family_id=request.family_id,
@@ -3300,7 +3515,7 @@ async def analyze_videos(family_id: str, cycle_id: str):
     Uses video analysis service to:
     1. Analyze each uploaded video against focus_points
     2. Extract observations
-    3. Create evidence for the exploration cycle
+    3. Create evidence for the exploration
     4. Update hypothesis confidence
 
     Returns analysis results and updated curiosity state.

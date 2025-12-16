@@ -24,16 +24,17 @@ from .models import (
     SynthesisReport,
     ConversationMemory,
     Story,
-    ExplorationCycle,
+    Exploration,
     Crystal,
     InterventionPathway,
     ExpertRecommendation,
     ProfessionalSummary,
     TemporalFact,
     PortraitSection,
+    DevelopmentalMilestone,
 )
 from .portrait_schema import PortraitOutput
-from .curiosity import CuriosityEngine
+from .curiosity import Curiosities
 
 # Import LLM abstraction layer
 from app.services.llm.factory import create_llm_provider
@@ -85,9 +86,9 @@ class SynthesisService:
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
     ) -> SynthesisReport:
         """
         Create synthesis report with pattern detection.
@@ -96,15 +97,15 @@ class SynthesisService:
 
         Called:
         - When user requests a report
-        - When exploration cycles complete
+        - When explorations complete
         - When conditions suggest crystallization is ready
         """
         prompt = self._build_synthesis_prompt(
             child_name,
             understanding,
-            exploration_cycles,
+            explorations,
             stories,
-            curiosity_engine,
+            curiosities,
         )
 
         try:
@@ -119,11 +120,11 @@ class SynthesisService:
                 max_tokens=4000,
             )
 
-            return self._parse_synthesis_response(response.content, understanding, curiosity_engine)
+            return self._parse_synthesis_response(response.content, understanding, curiosities)
 
         except Exception as e:
             logger.error(f"Synthesis error: {e}")
-            return self._create_fallback_synthesis(understanding, curiosity_engine)
+            return self._create_fallback_synthesis(understanding, curiosities)
 
     async def distill_memory_on_transition(
         self,
@@ -174,13 +175,13 @@ class SynthesisService:
 
     def should_synthesize(
         self,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
         understanding: Understanding,
         last_synthesis: Optional[datetime] = None,
     ) -> bool:
         """Check if conditions suggest synthesis is ready."""
-        completed_cycles = [c for c in exploration_cycles if c.status == "complete"]
+        completed_cycles = [c for c in explorations if c.status == "complete"]
 
         # Conditions for synthesis readiness:
         # - Multiple cycles have completed
@@ -195,7 +196,7 @@ class SynthesisService:
         if len(stories) >= 5:
             conditions_met += 1
 
-        if len(understanding.facts) >= 10:
+        if len(understanding.observations) >= 10:
             conditions_met += 1
 
         if last_synthesis:
@@ -213,9 +214,9 @@ class SynthesisService:
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
     ) -> str:
         """Build prompt for synthesis."""
         name = child_name or "this child"
@@ -223,14 +224,14 @@ class SynthesisService:
         # Format facts
         facts_text = "\n".join([
             f"- [{f.domain or 'general'}] {f.content}"
-            for f in understanding.facts[:20]
+            for f in understanding.observations[:20]
         ]) or "No facts recorded yet."
 
-        # Format exploration cycles
+        # Format explorations
         cycles_text = "\n".join([
             f"- [{c.curiosity_type}] {c.focus}: {c.status}"
             + (f" (confidence: {c.confidence})" if c.confidence else "")
-            for c in exploration_cycles[:10]
+            for c in explorations[:10]
         ]) or "No explorations yet."
 
         # Format stories
@@ -240,7 +241,7 @@ class SynthesisService:
         ]) or "No stories captured yet."
 
         # Format open questions
-        gaps = curiosity_engine.get_gaps()
+        gaps = curiosities.get_gaps()
         gaps_text = "\n".join([f"- {g}" for g in gaps]) or "No open questions."
 
         return f"""
@@ -350,7 +351,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         response_text: str,
         understanding: Understanding,
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
     ) -> SynthesisReport:
         """Parse synthesis response from LLM."""
         # Extract sections from response
@@ -360,7 +361,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         open_questions = []
 
         if not response_text:
-            return self._create_fallback_synthesis(understanding, curiosity_engine)
+            return self._create_fallback_synthesis(understanding, curiosities)
 
         lines = response_text.split("\n")
         current_section = None
@@ -414,7 +415,7 @@ Keep it to 2-3 sentences focusing on what matters most.
 
         # Fall back to curiosity engine gaps if no questions parsed
         if not open_questions:
-            open_questions = curiosity_engine.get_gaps()
+            open_questions = curiosities.get_gaps()
 
         return SynthesisReport(
             essence_narrative=essence_narrative,
@@ -426,7 +427,7 @@ Keep it to 2-3 sentences focusing on what matters most.
     def _create_fallback_synthesis(
         self,
         understanding: Understanding,
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
     ) -> SynthesisReport:
         """Create fallback synthesis without LLM."""
         # Extract existing patterns
@@ -434,14 +435,14 @@ Keep it to 2-3 sentences focusing on what matters most.
 
         # Calculate confidence by domain from facts
         confidence_by_domain: Dict[str, float] = {}
-        for fact in understanding.facts:
+        for fact in understanding.observations:
             domain = fact.domain or "general"
             if domain not in confidence_by_domain:
                 confidence_by_domain[domain] = 0.0
             confidence_by_domain[domain] = min(1.0, confidence_by_domain[domain] + 0.1)
 
         # Get open questions from curiosity engine
-        open_questions = curiosity_engine.get_gaps()
+        open_questions = curiosities.get_gaps()
 
         # Use existing essence if available
         essence_narrative = None
@@ -463,9 +464,9 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
         latest_observation_at: datetime,
         existing_crystal: Optional[Crystal] = None,
     ) -> Crystal:
@@ -481,9 +482,9 @@ Keep it to 2-3 sentences focusing on what matters most.
         Args:
             child_name: Name of the child
             understanding: Current understanding (facts, patterns)
-            exploration_cycles: Active and completed exploration cycles
+            explorations: Active and completed explorations
             stories: Captured stories
-            curiosity_engine: The curiosity engine for open questions
+            curiosities: The curiosity engine for open questions
             latest_observation_at: Timestamp of most recent observation
             existing_crystal: Previous crystal if available (for incremental update)
 
@@ -500,9 +501,9 @@ Keep it to 2-3 sentences focusing on what matters most.
             return await self._incremental_crystallize(
                 child_name=child_name,
                 understanding=understanding,
-                exploration_cycles=exploration_cycles,
+                explorations=explorations,
                 stories=stories,
-                curiosity_engine=curiosity_engine,
+                curiosities=curiosities,
                 latest_observation_at=latest_observation_at,
                 existing_crystal=existing_crystal,
             )
@@ -510,9 +511,9 @@ Keep it to 2-3 sentences focusing on what matters most.
             return await self._fresh_crystallize(
                 child_name=child_name,
                 understanding=understanding,
-                exploration_cycles=exploration_cycles,
+                explorations=explorations,
                 stories=stories,
-                curiosity_engine=curiosity_engine,
+                curiosities=curiosities,
                 latest_observation_at=latest_observation_at,
             )
 
@@ -520,18 +521,18 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
         latest_observation_at: datetime,
     ) -> Crystal:
         """Create a fresh crystal from all observations using structured output."""
         prompt = self._build_crystallization_prompt(
             child_name=child_name,
             understanding=understanding,
-            exploration_cycles=exploration_cycles,
+            explorations=explorations,
             stories=stories,
-            curiosity_engine=curiosity_engine,
+            curiosities=curiosities,
             is_incremental=False,
             previous_crystal=None,
             new_observations=None,
@@ -563,7 +564,7 @@ Keep it to 2-3 sentences focusing on what matters most.
             logger.error(f"Fresh crystallization error: {e}")
             return self._create_fallback_crystal(
                 understanding=understanding,
-                curiosity_engine=curiosity_engine,
+                curiosities=curiosities,
                 latest_observation_at=latest_observation_at,
             )
 
@@ -571,23 +572,25 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
         latest_observation_at: datetime,
         existing_crystal: Crystal,
     ) -> Crystal:
         """
-        Update an existing crystal with new observations.
+        Update an existing crystal with new observations using structured output.
 
         This is more efficient than fresh crystallization because:
         1. We send the previous crystal as context
         2. We only include observations since the last crystallization
         3. The LLM updates rather than regenerates
+
+        Uses structured output (same as fresh crystallization) for reliable parsing.
         """
         # Get only new observations since last crystal
         new_facts = [
-            f for f in understanding.facts
+            f for f in understanding.observations
             if hasattr(f, 't_created') and f.t_created and f.t_created > existing_crystal.based_on_observations_through
         ]
         new_stories = [
@@ -605,9 +608,9 @@ Keep it to 2-3 sentences focusing on what matters most.
         prompt = self._build_crystallization_prompt(
             child_name=child_name,
             understanding=understanding,
-            exploration_cycles=exploration_cycles,
+            explorations=explorations,
             stories=stories,
-            curiosity_engine=curiosity_engine,
+            curiosities=curiosities,
             is_incremental=True,
             previous_crystal=existing_crystal,
             new_observations=new_observations,
@@ -615,18 +618,21 @@ Keep it to 2-3 sentences focusing on what matters most.
 
         try:
             llm = self._get_strongest_llm()
-            response = await llm.chat(
+
+            # Use structured output with Pydantic schema (same as fresh crystallization)
+            response_data = await llm.chat_with_structured_output(
                 messages=[
                     LLMMessage(role="system", content=prompt),
-                    LLMMessage(role="user", content="Please update the crystal with the new observations."),
+                    LLMMessage(role="user", content="Update the portrait with the new observations."),
                 ],
-                functions=None,
-                temperature=0.3,
-                max_tokens=6000,
+                response_schema=PortraitOutput.model_json_schema(),
+                temperature=0.7,  # Balanced creativity with structured output
             )
 
-            crystal = self._parse_crystal_response(
-                response_text=response.content,
+            # Validate and convert to Crystal
+            portrait = PortraitOutput.model_validate(response_data)
+            crystal = self._portrait_to_crystal(
+                portrait=portrait,
                 latest_observation_at=latest_observation_at,
                 version=existing_crystal.version + 1,
                 previous_version_summary=f"Updated with {len(new_facts)} new facts, {len(new_stories)} new stories",
@@ -642,9 +648,9 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
         is_incremental: bool,
         previous_crystal: Optional[Crystal],
         new_observations: Optional[Dict[str, Any]],
@@ -655,7 +661,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         # Format all facts
         facts_text = "\n".join([
             f"- [{f.domain or 'general'}] {f.content}"
-            for f in understanding.facts[:30]
+            for f in understanding.observations[:30]
         ]) or "No facts recorded yet."
 
         # Format stories
@@ -665,7 +671,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         ]) or "No stories captured yet."
 
         # Format active explorations
-        active_cycles = [c for c in exploration_cycles if c.status == "active"]
+        active_cycles = [c for c in explorations if c.status == "active"]
         cycles_text = "\n".join([
             f"- [{c.curiosity_type}] {c.focus}"
             + (f" (theory: {c.theory})" if c.theory else "")
@@ -674,21 +680,49 @@ Keep it to 2-3 sentences focusing on what matters most.
         ]) or "No active explorations."
 
         # Format strengths and interests
-        strengths = [f.content for f in understanding.facts if f.domain == "strengths"]
-        interests = [f.content for f in understanding.facts if f.domain == "interests"]
+        strengths = [f.content for f in understanding.observations if f.domain == "strengths"]
+        interests = [f.content for f in understanding.observations if f.domain == "interests"]
         strengths_text = ", ".join(strengths[:5]) if strengths else "Not yet known"
         interests_text = ", ".join(interests[:5]) if interests else "Not yet known"
 
-        # Format concerns from exploration cycles
+        # Format concerns from explorations
         concerns = [c.focus for c in active_cycles if c.curiosity_type in ("hypothesis", "question")]
         concerns_text = ", ".join(concerns[:5]) if concerns else "None defined"
 
         # Open questions
-        gaps = curiosity_engine.get_gaps()
+        gaps = curiosities.get_gaps()
         gaps_text = "\n".join([f"- {g}" for g in gaps]) or "No open questions."
 
+        # Format developmental milestones (sorted by age)
+        def format_milestone(m: DevelopmentalMilestone) -> str:
+            age_str = ""
+            if m.age_months:
+                years = m.age_months // 12
+                months = m.age_months % 12
+                if years > 0:
+                    age_str = f"בגיל {years}" + (f".{months}" if months else "") + " שנים"
+                else:
+                    age_str = f"בגיל {months} חודשים"
+            elif m.age_description:
+                age_str = m.age_description
+            type_marker = {"achievement": "✓", "concern": "⚠", "regression": "↓", "intervention": "→", "birth": "◯"}.get(m.milestone_type, "·")
+            return f"{type_marker} [{m.domain}] {m.description}" + (f" ({age_str})" if age_str else "")
+
+        milestones_sorted = sorted(
+            understanding.milestones,
+            key=lambda m: (m.age_months or 999, m.recorded_at),
+        )
+        milestones_text = "\n".join([format_milestone(m) for m in milestones_sorted[:20]]) or "No milestones recorded yet."
+
+        # Identify what we DON'T know (gap detection)
+        known_domains = {f.domain for f in understanding.observations if f.domain}
+        known_domains.update({m.domain for m in understanding.milestones})
+        all_important_domains = {"motor", "language", "social", "emotional", "cognitive", "sensory", "regulation", "birth_history", "medical"}
+        missing_domains = all_important_domains - known_domains
+        missing_info_text = "\n".join([f"- {d}" for d in sorted(missing_domains)]) or "All major domains covered."
+
         if is_incremental and previous_crystal:
-            # Incremental update prompt
+            # Incremental update prompt - uses same structured output as fresh crystallization
             new_facts_text = "\n".join([
                 f"- [{f.domain or 'general'}] {f.content}"
                 for f in new_observations.get("facts", [])
@@ -709,32 +743,74 @@ Keep it to 2-3 sentences focusing on what matters most.
                 for ip in previous_crystal.intervention_pathways
             ]) or "No intervention pathways identified previously."
 
+            # Format previous portrait sections
+            previous_sections = "\n".join([
+                f"- {s.icon} {s.title}: {s.content[:100]}..."
+                for s in (previous_crystal.portrait_sections or [])
+            ]) or "No portrait sections yet."
+
+            # Format previous expert recommendations
+            previous_experts = "\n".join([
+                f"- {e.profession} ({e.specialization}): {e.why_this_match[:80]}..."
+                for e in (previous_crystal.expert_recommendations or [])
+            ]) or "No expert recommendations yet."
+
             return f"""
-# Crystal Update - Child: {name}
+# Portrait Update - Child: {name}
 
-You are updating an existing understanding with new information.
+You are UPDATING an existing portrait with new information.
+The parents should finish reading and feel: "כן. זה הילד שלי. אני רואה אותו עכשיו יותר ברור."
 
-## CRITICAL: Parent-Friendly Language
+---
 
-You are writing for PARENTS, not clinicians. Avoid clinical jargon.
+## REMEMBER: This is a PORTRAIT Update, not a Report
 
-❌ NEVER USE:
-- עיבוד רגשי (emotional processing)
-- רגישות חושית (sensory sensitivity)
-- גמישות קוגניטיבית (cognitive flexibility)
-- ויסות עצמי (self-regulation)
-- מעברים (transitions - use concrete examples)
+**The Two Gifts (keep these in mind):**
+1. RECOGNITION - "כן! זה בדיוק הוא!" (parents feel seen)
+2. CLINICAL INSIGHT - "לא ראיתי את זה ככה קודם" (connecting dots they couldn't)
 
-✅ ALWAYS USE:
-- Simple, concrete everyday language
-- Situations parents see at home: "כשצריך לעבור ממשחק לאוכל"
-- Feelings parents recognize: "להרגיע את הלב"
-- Objects and activities from their world
+Clinical knowledge is your lens, not your voice. See with precision, speak with warmth.
 
-## Previous Crystal (version {previous_crystal.version})
+---
 
-### Who is this child
+## Language Principles (CRITICAL)
+
+### The Grandma Test
+Would a parent read this sentence aloud to grandma? If it sounds clinical, rewrite it.
+
+### Describe How They Move Through the World
+Use words parents would say to a friend, not words a clinician would write in a file:
+
+| ❌ Avoid | ✅ Prefer |
+|---|---|
+| רגישות שמיעתית | רעש והמולה קשים לו |
+| מראה סימנים של... | כש... הוא נוטה ל... |
+| קושי בוויסות חושי | הוא זקוק לשקט כדי להרגיש בטוח |
+
+### Forbidden Terms (NEVER use):
+- "מראה סימנים ברורים של...", "נובע מ...", "מאופיין ב..."
+- "תפקוד" / "עיבוד" / "ויסות" (as nouns)
+- Clinical compounds: עיבוד חושי, ויסות רגשי, גמישות קוגניטיבית
+- Any English in parentheses
+
+### Framing Challenges
+Never frame challenges as something wrong with the child:
+- ❌ "לדניאל יש קושי במעברים" → ✅ "מעברים הם רגעים רגישים עבורו"
+- ❌ "הוא מתקשה להסתגל" → ✅ "הוא זקוק לזמן כדי להתכונן לדבר הבא"
+
+### Hypotheses - Never State Mechanisms as Facts
+- ❌ "הקושי במעברים נובע מרגישות חושית"
+- ✅ "יכול להיות שהקושי במעברים קשור לכך שהסביבה החדשה מרגישה עמוסה עבורו"
+
+---
+
+## Previous Portrait (version {previous_crystal.version})
+
+### Narrative (Who this child is)
 {previous_crystal.essence_narrative or "Still forming"}
+
+### Portrait Sections
+{previous_sections}
 
 ### Temperament
 {', '.join(previous_crystal.temperament) if previous_crystal.temperament else "Not defined"}
@@ -748,12 +824,15 @@ You are writing for PARENTS, not clinicians. Avoid clinical jargon.
 ### Intervention Pathways
 {previous_pathways}
 
+### Expert Recommendations
+{previous_experts}
+
 ### Open Questions
 {chr(10).join(['- ' + q for q in previous_crystal.open_questions]) if previous_crystal.open_questions else "None"}
 
 ---
 
-## New Information Since Last Crystallization
+## New Information Since Last Update
 
 ### New Facts
 {new_facts_text}
@@ -761,63 +840,80 @@ You are writing for PARENTS, not clinicians. Avoid clinical jargon.
 ### New Stories
 {new_stories_text}
 
+### Full Developmental History (All Milestones)
+{milestones_text}
+
+### What We Still DON'T Know (Gap Detection)
+The following developmental domains have NOT been discussed:
+{missing_info_text}
+
 ---
 
 ## Your Task
 
-Update the crystal based on the new information:
-1. Does the new information strengthen/contradict/refine existing understanding?
+Update the portrait based on the new information. Consider:
+1. Does the new information strengthen, contradict, or refine existing understanding?
 2. Are there new patterns visible now?
 3. Are there new intervention pathways?
 4. Should the essence narrative be updated?
+5. Do portrait sections need updating or adding?
+6. Are there new expert recommendations warranted?
 
-## Response Format
+The schema enforces the output structure. Focus on:
+- portrait_sections: 3-5 thematic cards with meaningful titles
+- narrative: 2-3 sentences about who this child IS
+- temperament: everyday descriptions (רגיש לרעשים, not רגישות חושית)
+- patterns: cross-domain insights with domains tagged
+- intervention_pathways: connect what they love to what's hard
+- open_questions: genuine questions in parent language (למה...? מה קורה כש...?)
+- expert_recommendations: ONLY if genuinely helpful, match by strengths
 
-ESSENCE:
-[Updated essence narrative - 2-3 sentences about who this child is. Write in warm Hebrew, no clinical terms.]
+For expert_recommendations, include professional_summaries for each recipient type.
 
-TEMPERAMENT:
-[Comma-separated list in everyday Hebrew. NOT: רגיש חושית. YES: רגיש לרעשים, זהיר עם דברים חדשים]
+### professional_summaries - PREPARING THE GROUND (CRITICAL)
 
-CORE_QUALITIES:
-[Comma-separated list in everyday Hebrew. e.g.: סקרן, מתאמץ, יצירתי]
+**AUTHORSHIP: The summary is written by CHITTA - not the parents.**
+Chitta gathered information from conversations with parents AND video observations.
+The insights and hypotheses are CHITTA's - parents shared raw observations, Chitta connected the dots.
 
-PATTERNS:
-- [What we noticed in EVERYDAY language]: [areas involved]
-- [Another observation]: [areas]
+**Your role: You are NOT the one who names. You are the one who PREPARES THE GROUND.**
 
-INTERVENTION_PATHWAYS:
-- [What he loves] -> [Challenge in parent words]: [Concrete tip with example]
+The summary should make the clinician think:
+"This helps me know where to look. Now let me see for myself."
 
-OPEN_QUESTIONS:
-- [Question in parent words]
-- [Another question]
+**The Three Threads (KEEP CLEARLY SEPARATED):**
 
-EXPERT_RECOMMENDATIONS:
-Update existing recommendations or add new ones based on new information.
-Only include if professional help would genuinely benefit this child.
+1. **what_parents_shared** - What PARENTS told us
+   - "ההורים סיפרו לנו ש...", "האמא שיתפה ש..."
+   - Their raw observations - not our interpretations
 
-IMPORTANT: Match based on WHAT THE CHILD LOVES, not what they struggle with.
-Ask: "What professional would USE this child's interests as a bridge?"
+2. **what_we_noticed** - What CHITTA noticed (OUR hypotheses)
+   - "שמנו לב ש...", "תהינו אם יש קשר...", "ייתכן ש..."
+   - Patterns WE found from conversations and videos - not parent insights
 
-⚠️ HEBREW ONLY: Write everything in Hebrew. Do NOT add English translations in parentheses.
-❌ NOT: ריפוי בעיסוק (Occupational Therapy)
-✅ YES: ריפוי בעיסוק
+3. **what_remains_open** - Questions WE (Chitta) are curious about
+   - "שווה לבדוק אם...", "אנחנו סקרנים לגבי..."
+   - What Chitta couldn't determine - invite the professional to investigate
 
-Format for each recommendation:
----EXPERT---
-PROFESSION: [profession in Hebrew]
-SPECIALIZATION: [A REAL specialization that RESONATES with this child's strengths. Be creative! e.g., "טיפול באומנות", "מוזיקה טיפולית", "טיפול בעזרת בעלי חיים", "טיפול בתנועה"]
-WHY_THIS_MATCH: [Connect child's strength to why this professional type would reach them]
-RECOMMENDED_APPROACH: [What approach would work]
-WHY_THIS_APPROACH: [Based on how THIS child opens up]
-WHAT_TO_LOOK_FOR: [2-3 things, comma-separated]
-SUMMARY_FOR_PROFESSIONAL: [A gift to the clinician - show three threads: (1) What parents shared, (2) What we noticed - patterns/behaviors, (3) What remains open to explore. Frame as offerings, invite exploration, leave room for clinician to discover.]
-PRIORITY: [when_ready | soon | important]
----END_EXPERT---
+**Recipient Types:**
+- specialist: Investigation questions, areas to explore, "worth checking if..."
+- teacher: Practical strategies, what works at home
+- medical: Observable patterns, timeline, no interpretations
 
-WHAT_CHANGED:
-[Brief note on what changed in this update]
+**Test: Does the summary OPEN doors or CLOSE them?**
+
+| ❌ Closes Doors | ✅ Opens Doors |
+|---|---|
+| "יש לו רגישות חושית" | "ההורים סיפרו שכשיש רעש חזק הוא מכסה את האוזניים" |
+| "מזהים דפוס של קושי בוויסות" | "שמנו לב שכשהוא שקוע במשחק וצריך להפסיק, קשה לו מאוד" |
+| "נובע מקושי חושי" | "תהינו אם יש קשר - שווה לבדוק" |
+
+**Language by Recipient:**
+- teacher: Everyday Hebrew, practical terms ("כשיש רעש חזק הוא מכסה את האוזניים")
+- specialist: Can use clinical terms they understand ("רגישות אודיטורית", "ויסות חושי")
+- medical: Clinical precision expected ("היסטוריה התפתחותית", "אבני דרך מוטוריות")
+
+The THREE THREADS principle applies to ALL recipients - separation of observations matters regardless of language register.
 """
 
         else:
@@ -826,6 +922,7 @@ WHAT_CHANGED:
 # Portrait Creation for {name}
 
 You are creating a PORTRAIT - a living image of who this child is - not a report.
+The parents should finish reading and feel: "כן. זה הילד שלי. אני רואה אותו עכשיו יותר ברור."
 
 ---
 
@@ -847,9 +944,12 @@ Recognition is therapeutic in itself.
 A parent reads and thinks: "לא ראיתי את זה ככה קודם"
 Parents know their child's raw data better than anyone.
 What they often lack is the FRAMEWORK to connect the dots:
-- "The humming during meals AND the need for routine before bed - same pattern"
+- "The humming during meals AND the need for routine before bed - same regulatory pattern"
 - "His interest in organizing things AND his difficulty with transitions - related"
-- "This isn't bad behavior - this is age-appropriate given his profile"
+- "This isn't bad behavior - this is age-appropriate given his sensory profile"
+
+You have deep clinical knowledge. Use it fully to see patterns, understand mechanisms, connect dots.
+But remember: your knowing is in service of RECOGNITION - helping parents see what they've already felt but couldn't quite name.
 
 **Recognition is the foundation, insight is the gift. The best portrait does BOTH.**
 
@@ -862,17 +962,29 @@ Your knowledge is the lens through which you understand - not the voice through 
 ## 2. LANGUAGE PRINCIPLES
 
 ### The Grandma Test
-Would a grandmother understand every word? If not, rewrite.
+Would a parent read this sentence aloud to grandma? If it sounds clinical, rewrite it.
 
-### Situational Language
-Describe HOW the child moves through the world, not what they "have":
-- ❌ "יש לו רגישות חושית" (clinical label)
-- ✅ "כשיש רעש חזק הוא מכסה את האוזניים ומחפש פינה שקטה" (situation)
+### Describe How They Move Through the World
+Use words parents would say to a friend, not words a clinician would write in a file:
 
-### Forbidden Terms (NEVER use these):
-- עיבוד רגשי, רגישות חושית, גמישות קוגניטיבית
-- ויסות עצמי, מעברים (use concrete examples instead)
+| ❌ Avoid (diagnostic) | ✅ Prefer (descriptive) |
+|---|---|
+| רגישות שמיעתית | רעש והמולה קשים לו |
+| מראה סימנים של... | כש... הוא נוטה ל... |
+| קושי בוויסות חושי | הוא זקוק לשקט כדי להרגיש בטוח |
+
+### Forbidden Terms (NEVER use):
+- "מראה סימנים ברורים של..."
+- "נובע מ..." (asserting causation)
+- "מאופיין ב..."
+- "תפקוד" / "עיבוד" / "ויסות" (as nouns)
+- Clinical compound terms: עיבוד חושי, ויסות רגשי, גמישות קוגניטיבית
 - Any English in parentheses
+
+### Preferred Framings:
+- "כש... הוא נוטה ל..." (pattern, not trait)
+- "נראה שעוזר לו כש..." (observation, not prescription)
+- "לארגן את הלב" / "להרגיש מוכן" / "לשמור על רוגע" (felt experience)
 
 ### Evidence Visibility
 Parents should see WHERE you saw something:
@@ -894,7 +1006,7 @@ NOT just "he does X" - but "when A happens, B follows, which connects to C".
 ### Pattern Examples:
 - GOOD: "כשיש רעש פתאומי, הוא מתכווץ ומתקשה להמשיך במה שעשה"
   (Connects sensory → physical → cognitive)
-- BAD: "הוא רגיש לרעשים" (Single observation, no chain)
+- BAD: "הוא רגיש לרעשים" (Single observation, no chain, no insight beyond the obvious)
 
 ---
 
@@ -917,73 +1029,155 @@ Ask yourself:
 ### The when_to_consider Field
 Use parent-centered language like "כשתרגישו מוכנים" not clinical urgency like "soon".
 
-### professional_summaries - HOLISTIC-FIRST SUMMARIES (CRITICAL)
+### professional_summaries - PREPARING THE GROUND (CRITICAL)
 
 Each expert_recommendation needs summaries for THREE recipient types.
 Every recipient gets the WHOLE child - holistic understanding is Chitta's core value.
-The lens (emphasis) changes based on who's receiving.
 
-**Your role: Help the professional know WHERE TO LOOK**
-You are not the one who names. You are the one who prepares the ground.
-The summary should make them think: "This helps me know where to look. Now let me see for myself."
+**AUTHORSHIP: The summary is written by CHITTA - not the parents.**
+Chitta gathered information from conversations with parents AND video observations.
+The insights and hypotheses are CHITTA's - parents shared raw observations, Chitta connected the dots.
 
-**The Three Threads (present in ALL summaries):**
-1. **who_this_child_is** - 2-3 sentences about who this child IS as a whole person
-2. **strengths_and_interests** - what opens them up, what they love (the bridge for any professional)
-3. **what_parents_shared** - parent observations in THEIR words
-4. **what_we_noticed** - patterns, connections (framed as offerings, not findings)
-5. **what_remains_open** - questions worth exploring
+**Your role: You are NOT the one who names. You are the one who PREPARES THE GROUND.**
+
+You have deep clinical knowledge - use it fully to observe, hypothesize, gather evidence, see patterns.
+This intelligence is your gift to the child and family. Don't diminish it.
+
+But remember what your knowing is FOR:
+- To help parents see their child more clearly
+- To make expert encounters more productive
+- You are building UNDERSTANDING, not delivering CONCLUSIONS
+
+The summary should make the clinician think:
+"This helps me know where to look. Now let me see for myself."
+
+**The Three Threads (KEEP THESE CLEARLY SEPARATED):**
+
+1. **what_parents_shared** - What PARENTS told us
+   - Report what they shared: "ההורים סיפרו לנו ש...", "האמא שיתפה ש..."
+   - Their observations, their words - not our interpretations
+   - This is RAW DATA from parents
+
+2. **what_we_noticed** - What CHITTA noticed
+   - Patterns and connections WE (Chitta) observed from conversations and videos
+   - Framed as OFFERINGS: "שמנו לב ש..." / "תהינו אם יש קשר..." / "ייתכן ש..."
+   - These are OUR hypotheses based on our clinical lens - not parent insights
+
+3. **what_remains_open** - Questions WE are curious about
+   - "שווה לבדוק אם...", "אנחנו סקרנים לגבי..."
+   - What Chitta couldn't determine - invite the professional to investigate
+
+**WHY SEPARATION MATTERS:**
+When threads are clearly separated, the professional can:
+- See exactly what parents observed vs what we inferred
+- Evaluate our hypotheses independently
+- Form their own clinical impression
+
+When threads blend ("אנו מזהים דפוס...") the professional can't tell whose observation it is.
 
 **The Three Recipient Types:**
 
-**1. teacher** - Getting the summary to help with daily functioning
-- role_specific_section: Practical strategies, what works at home, daily tips
-- invitation: "We hope you can help us understand how he is in the classroom setting"
-- Focus: Concrete, actionable, "here's what helps"
-
-**2. specialist** - Getting the summary to guide assessment
+**1. specialist** (OT, speech therapist, etc.) - Guiding assessment
 - role_specific_section: Investigation questions, "worth checking if...", areas to explore
-- invitation: "We'd value your professional perspective on these patterns"
-- Focus: Opens doors for clinical investigation, doesn't close them
+- invitation: "נשמח שתעזרו לנו להבין טוב יותר את..."
+- Focus: Opens doors for clinical investigation, doesn't pre-diagnose
 
-**3. medical** - Getting the summary for developmental context
-- role_specific_section: Observable patterns, developmental markers, timeline
-- invitation: "This background might be helpful context for your evaluation"
-- Focus: Factual observations, developmental history, no interpretations
+**2. teacher** - Helping with daily functioning
+- role_specific_section: Practical strategies, what works at home, daily tips
+- invitation: "נשמח לשמוע איך זה נראה מהצד שלכם"
+- Focus: Concrete, actionable, collaborative
 
-**Framing principles:**
-- Hypotheses are OFFERINGS, not findings ("שמנו לב ש..." not "יש לו...")
-- Pattern recognition OPENS questions, not closes them
-- Invite them in - leave room to discover, confirm, refine, or disagree
-- Say "here is what's worth understanding" not "here is what's wrong"
+**3. medical** - Developmental context
+- role_specific_section: Observable patterns, developmental milestones, timeline
+- invitation: "המידע הזה יכול לעזור כרקע להערכה שלכם"
+- Focus: Factual observations, history, no interpretations
 
-**The Test:** Does this summary OPEN doors or CLOSE them?
+**The Core Principle: Hypotheses are OFFERINGS, not FINDINGS**
 
-**WRONG (closes doors):**
-"בן 3.5, מציג דפוס של רגישות חושית שמשפיעה על ההשתתפות החברתית. זקוק לכלים לוויסות."
+| ❌ Closes Doors (Finding) | ✅ Opens Doors (Offering) |
+|---|---|
+| "יש לו רגישות חושית" | "ההורים סיפרו שכשיש רעש חזק הוא מכסה את האוזניים" |
+| "מזהים דפוס של קושי בוויסות" | "שמנו לב שכשהוא שקוע במשחק וצריך להפסיק, קשה לו מאוד" |
+| "התגובות נובעות מקושי חושי" | "תהינו אם יש קשר בין הרגישות לרעשים לבין הקושי במעברים - שווה לבדוק" |
+| "זקוק לכלים לוויסות" | "מה שעוזר לו לפי ההורים: מוזיקה, הסחת דעת" |
 
-**RIGHT (opens doors):**
-"בן 3.5, מוזיקלי ויצירתי מאוד - בונה לגו במשך שעות.
-ההורים שיתפו שכשיש רעש חזק הוא מכסה את האוזניים. בגן קשה לו להישאר בפעילות קבוצתית כשיש המולה.
-שמנו לב לקשר אפשרי - שווה לבדוק."
+**Full Example - Structure That Opens Doors:**
+
+```
+מי הילד:
+ילד בן 3.5, יצירתי מאוד - בונה בקוביות ולגו במשך שעות.
+מחובר מאוד למוזיקה, זוכר שירים שלמים. זה גם מה שמרגיע אותו.
+
+מה ההורים שיתפו:
+- כשיש לכלוך על הידיים, הוא רוצה לנקות מיד
+- חול מפריע לו מאוד לגעת בו
+- כשיש רעש חזק הוא נרתע
+- כשהוא באמצע משחק וצריך להפסיק - קשה מאוד. תיארו בכי של 10-15 דקות
+- מה שעוזר: לשיר שיר מיוחד כשצריך לעבור. פחות עוזר: הסברים מילוליים
+
+מה שמנו לב (השערות שלנו):
+- שמנו לב שהרגעים הכי קשים הם כשצריך לעבור ממשהו אהוב למשהו אחר
+- תהינו אם יש קשר בין הרגישות למגע/לרעשים לבין הקושי במעברים
+- זו השערה - לא ראינו את זה ישירות
+
+מה נשאר פתוח:
+- האם יש דפוס דומה בגן?
+- האם הרגישויות והקושי במעברים באמת קשורים?
+- מה קורה כשהמעבר הוא למשהו שהוא רוצה?
+
+נשמח שתעזרו לנו להבין טוב יותר מה קורה.
+```
+
+**The Test Questions:**
+1. Does this summary OPEN doors or CLOSE them?
+2. Does it say "this is what's wrong" or "here is what's worth understanding"?
+3. Can the professional see WHERE each piece of information came from?
+4. Is there room for them to discover, confirm, refine, or disagree?
+
+**Language by Recipient (IMPORTANT):**
+The THREE THREADS principle applies to ALL recipients - separation matters regardless of language register.
+But the language itself should match the audience:
+
+- **teacher**: Everyday Hebrew, practical terms ("כשיש רעש חזק הוא מכסה את האוזניים")
+- **specialist**: Can use clinical terms they understand ("רגישות אודיטורית", "ויסות חושי", "דפוס התנהגותי")
+- **medical**: Clinical precision expected ("היסטוריה התפתחותית", "אבני דרך מוטוריות", "רגרסיה בתחום השפה")
 
 ---
 
 ## 5. FRAMING CHALLENGES
 
-Challenges are not "something wrong with this child" but "a situation that's hard FOR him".
-The child is whole. The environment/situation creates difficulty.
+**Never frame a challenge as something wrong with the child.**
+Frame it as something the child needs support with, or as a situation that's hard FOR him.
+The child is not broken. The child is navigating a world that doesn't always fit him.
 
-- ❌ "הוא מתקשה בויסות" (deficit framing)
-- ✅ "יש מצבים שמציפים אותו" (situational framing)
+| ❌ Avoid | ✅ Prefer |
+|---|---|
+| לדניאל יש קושי במעברים | מעברים הם רגעים רגישים עבורו |
+| הוא מתקשה להסתגל | הוא זקוק לזמן כדי להתכונן לדבר הבא |
+| הוא נמנע מפעילות חברתית | הוא בוחר להתרחק כשהסביבה עמוסה |
+| הוא מתקשה בויסות | יש מצבים שמציפים אותו |
 
 ---
 
 ## 6. HYPOTHESES AND CONFIDENCE
 
-Never state mechanisms as facts. Show uncertainty:
-- ❌ "זה בגלל רגישות חושית" (stating mechanism as fact)
-- ✅ "ייתכן שזה קשור לאיך שהוא קולט רעשים" (hypothesis)
+**Show your uncertainty.** When you identify a pattern or suggest a mechanism, be clear about:
+- What you observed (evidence)
+- What you think it might mean (hypothesis)
+- How confident you are (and why)
+
+**Never state mechanisms as facts:**
+
+| ❌ Avoid | ✅ Prefer |
+|---|---|
+| הקושי במעברים נובע מרגישות חושית | יכול להיות שהקושי במעברים קשור לכך שהסביבה החדשה מרגישה עמוסה עבורו |
+| השינוי מציף את המערכת החושית | נראה ששינויים מרגישים לו גדולים ומאיימים |
+| זה בגלל רגישות חושית | ייתכן שזה קשור לאיך שהוא קולט רעשים |
+
+**Match language to confidence level:**
+- Low confidence (30-50%): "אנחנו עדיין מנסים להבין...", "יכול להיות ש..."
+- Medium confidence (50-70%): "נראה ש...", "שמנו לב לדפוס..."
+- High confidence (70%+): "שמנו לב שבאופן עקבי...", "כשזה קורה, בדרך כלל..."
 
 ---
 
@@ -1005,11 +1199,21 @@ Open questions are what we're still curious about - framed as CURIOSITY, not as 
 
 ## THE 5-QUESTION TEST (Check your portrait against these)
 
-1. **Gift or Verdict?** Does this feel like a gift to the parent or a verdict on their child?
-2. **Child or Patient?** Does this describe a child or a patient?
-3. **Share or Hide?** Would a parent want to share this with grandma, or hide it?
-4. **Open or Close?** Does this open doors for the child or close them?
-5. **Evidence Visible?** Can parents see WHERE you saw what you're describing?
+Before finalizing the portrait, ask yourself:
+
+1. **Gift or Verdict?** Does it feel like a gift to the parent - or a verdict on their child?
+2. **Child or Patient?** Does the child remain a child - curious, growing, whole - or become a patient?
+3. **Share or Hide?** Would parents want to share this with grandma, or hide it?
+4. **Open or Close?** Does it open doors for exploration, or close them with conclusions?
+5. **Evidence Visible?** Can parents (and professionals) see HOW you arrived at your understanding?
+
+---
+
+## ONE FINAL PRINCIPLE
+
+**Clinical knowledge is your lens, not your voice.**
+
+See with precision. Speak with warmth.
 
 ---
 
@@ -1017,6 +1221,9 @@ Open questions are what we're still curious about - framed as CURIOSITY, not as 
 
 ### Facts
 {facts_text}
+
+### Developmental History (Milestones)
+{milestones_text}
 
 ### Stories
 {stories_text}
@@ -1035,6 +1242,12 @@ Open questions are what we're still curious about - framed as CURIOSITY, not as 
 
 ### Open Questions
 {gaps_text}
+
+### What We DON'T Know Yet (Gap Detection)
+The following developmental domains have NOT been discussed:
+{missing_info_text}
+
+**Important for Professional Summaries:** When creating summaries for specialists (especially medical/neurological), explicitly note what information is MISSING. Professionals need to know what wasn't discussed to guide their evaluation.
 
 ---
 
@@ -1266,7 +1479,7 @@ Remember:
     def _create_fallback_crystal(
         self,
         understanding: Understanding,
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
         latest_observation_at: datetime,
     ) -> Crystal:
         """Create a fallback crystal without LLM when errors occur."""
@@ -1274,7 +1487,7 @@ Remember:
         patterns = list(understanding.patterns) if understanding.patterns else []
 
         # Get open questions
-        open_questions = curiosity_engine.get_gaps()
+        open_questions = curiosities.get_gaps()
 
         # Get existing essence if any
         essence_narrative = None

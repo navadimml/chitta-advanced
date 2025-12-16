@@ -1,16 +1,16 @@
 """
 Chitta Service - Thin Orchestration Layer
 
-Orchestrates conversation through the Living Gestalt.
+Orchestrates conversation through Darshan.
 
 KEY RESPONSIBILITIES:
-- Get/create Gestalt for family
+- Get/create Darshan for family
 - Detect session transitions (>4 hour gap)
 - Trigger memory distillation on transition
 - Persist state after each message
 - Derive action cards
 
-This is a THIN layer - the intelligence lives in the Gestalt.
+This is a THIN layer - the intelligence lives in Darshan.
 """
 
 import logging
@@ -18,7 +18,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
-from .gestalt import LivingGestalt
+from .gestalt import Darshan
 from .curiosity import Curiosity
 from .models import SynthesisReport, ConversationMemory, Crystal
 from .synthesis import get_synthesis_service
@@ -33,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 class ChittaService:
     """
-    Orchestrates conversation through the Living Gestalt.
+    Orchestrates conversation through Darshan.
 
     KEY RESPONSIBILITIES:
-    - Get/create Gestalt for family
+    - Get/create Darshan for family
     - Detect session transitions (>4 hour gap)
     - Trigger memory distillation on transition
     - Persist state after each message
@@ -58,7 +58,7 @@ class ChittaService:
         """
         self._child_service = child_service or ChildService()
         self._session_service = session_service or SessionService()
-        self._gestalts: Dict[str, LivingGestalt] = {}
+        self._gestalts: Dict[str, Darshan] = {}
 
     async def process_message(self, family_id: str, user_message: str) -> Dict[str, Any]:
         """
@@ -145,24 +145,39 @@ class ChittaService:
         """Get current curiosity state for a family."""
         gestalt = await self._get_gestalt(family_id)
         if not gestalt:
-            return {"active_curiosities": [], "open_questions": []}
+            return {"active_curiosities": [], "open_questions": [], "suggest_baseline_video": False}
 
         curiosities = gestalt.get_active_curiosities()
+
+        # Check if we should suggest baseline video
+        # This is early in conversation when seeing the child would help
+        message_count = len(gestalt.session_history)
+        has_any_video = any(
+            scenario.video_path
+            for exploration in gestalt.explorations
+            for scenario in exploration.video_scenarios
+        )
+        suggest_baseline_video = (
+            not has_any_video and
+            gestalt._curiosities.should_suggest_baseline_video(message_count)
+        )
+
         return {
             "active_curiosities": [
                 self._curiosity_to_dict(c)
                 for c in curiosities[:5]
             ],
-            "open_questions": gestalt._curiosity_engine.get_gaps(),
+            "open_questions": gestalt._curiosities.get_gaps(),
+            "suggest_baseline_video": suggest_baseline_video,
         }
 
     # ========================================
-    # GESTALT MANAGEMENT
+    # DARSHAN MANAGEMENT
     # ========================================
 
-    async def _get_gestalt_with_transition_check(self, family_id: str) -> LivingGestalt:
+    async def _get_gestalt_with_transition_check(self, family_id: str) -> Darshan:
         """
-        Get Gestalt, handling session transition if needed.
+        Get Darshan, handling session transition if needed.
 
         Session transition occurs when:
         - Previous session exists AND
@@ -196,17 +211,26 @@ class ChittaService:
                 for m in session.history
             ] if session.history else []
 
-        gestalt = LivingGestalt.from_child_data(
+        # Get child's birth date for temporal calculations
+        child_birth_date = None
+        if hasattr(child, 'identity') and child.identity and child.identity.birth_date:
+            child_birth_date = child.identity.birth_date
+
+        gestalt = Darshan.from_child_data(
             child_id=family_id,
             child_name=child.name or child_data.get("name"),
             understanding_data=child_data.get("understanding"),
-            exploration_cycles_data=child_data.get("exploration_cycles"),
+            # Read from old key for backwards compatibility with data files
+            explorations_data=child_data.get("exploration_cycles") or child_data.get("explorations"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
-            curiosity_data=child_data.get("curiosity_engine"),
+            # Read from old key for backwards compatibility with data files
+            curiosities_data=child_data.get("curiosity_engine") or child_data.get("curiosities"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
             shared_summaries_data=child_data.get("shared_summaries"),
+            child_birth_date=child_birth_date,
+            session_flags_data=child_data.get("session_flags"),
         )
 
         # Cache it
@@ -214,8 +238,8 @@ class ChittaService:
 
         return gestalt
 
-    async def _get_gestalt(self, family_id: str) -> Optional[LivingGestalt]:
-        """Get Gestalt without transition check."""
+    async def _get_gestalt(self, family_id: str) -> Optional[Darshan]:
+        """Get Darshan without transition check."""
         if family_id in self._gestalts:
             return self._gestalts[family_id]
 
@@ -236,17 +260,26 @@ class ChittaService:
                 for m in session.history
             ] if session.history else []
 
-        gestalt = LivingGestalt.from_child_data(
+        # Get child's birth date for temporal calculations
+        child_birth_date = None
+        if hasattr(child, 'identity') and child.identity and child.identity.birth_date:
+            child_birth_date = child.identity.birth_date
+
+        gestalt = Darshan.from_child_data(
             child_id=family_id,
             child_name=child.name or child_data.get("name"),
             understanding_data=child_data.get("understanding"),
-            exploration_cycles_data=child_data.get("exploration_cycles"),
+            # Read from old key for backwards compatibility with data files
+            explorations_data=child_data.get("exploration_cycles") or child_data.get("explorations"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
-            curiosity_data=child_data.get("curiosity_engine"),
+            # Read from old key for backwards compatibility with data files
+            curiosities_data=child_data.get("curiosity_engine") or child_data.get("curiosities"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
             shared_summaries_data=child_data.get("shared_summaries"),
+            child_birth_date=child_birth_date,
+            session_flags_data=child_data.get("session_flags"),
         )
 
         # Cache it
@@ -254,7 +287,7 @@ class ChittaService:
         return gestalt
 
     def _extract_child_data_for_gestalt(self, child, family_id: str = None) -> Dict[str, Any]:
-        """Extract data from Child model or file in format expected by LivingGestalt.
+        """Extract data from Child model or file in format expected by Darshan.
 
         Args:
             child: Child model (may be empty if gestalt file format differs)
@@ -284,16 +317,16 @@ class ChittaService:
         return self._empty_gestalt_data()
 
     def _empty_gestalt_data(self) -> Dict[str, Any]:
-        """Return empty gestalt state for new conversations."""
+        """Return empty Darshan state for new conversations."""
         return {
             "understanding": None,
-            "exploration_cycles": [],
+            "explorations": [],
             "stories": [],
             "journal": [],
-            "curiosity_engine": None,
+            "curiosities": None,
         }
 
-    def _is_session_transition(self, gestalt: LivingGestalt) -> bool:
+    def _is_session_transition(self, gestalt: Darshan) -> bool:
         """Check if enough time has passed to consider this a new session."""
         if not gestalt.session_history:
             return False
@@ -337,7 +370,7 @@ class ChittaService:
             turn_count=turn_count,
         )
 
-    async def _persist_gestalt(self, family_id: str, gestalt: LivingGestalt):
+    async def _persist_gestalt(self, family_id: str, gestalt: Darshan):
         """Persist child and session state."""
         # Get state for persistence
         gestalt_state = gestalt.get_state_for_persistence()
@@ -347,17 +380,31 @@ class ChittaService:
             "id": family_id,
             "name": gestalt.child_name,
             "understanding": {
-                "facts": [
+                "observations": [
                     {
                         "content": f.content,
                         "domain": f.domain,
                         "source": f.source,
                         "confidence": f.confidence,
                     }
-                    for f in gestalt.understanding.facts
+                    for f in gestalt.understanding.observations
+                ],
+                "milestones": [
+                    {
+                        "id": m.id,
+                        "description": m.description,
+                        "age_months": m.age_months,
+                        "age_description": m.age_description,
+                        "domain": m.domain,
+                        "milestone_type": m.milestone_type,
+                        "source": m.source,
+                        "recorded_at": m.recorded_at.isoformat() if m.recorded_at else None,
+                        "notes": m.notes,
+                    }
+                    for m in gestalt.understanding.milestones
                 ],
             },
-            "exploration_cycles": [
+            "explorations": [
                 {
                     "id": c.id,
                     "curiosity_type": c.curiosity_type,
@@ -406,7 +453,7 @@ class ChittaService:
                         for e in c.evidence
                     ],
                 }
-                for c in gestalt.exploration_cycles
+                for c in gestalt.explorations
             ],
             "stories": [
                 {
@@ -424,10 +471,11 @@ class ChittaService:
                     "summary": e.summary,
                     "learned": e.learned,
                     "significance": e.significance,
+                    "entry_type": e.entry_type,
                 }
                 for e in gestalt.journal
             ],
-            "curiosity_engine": gestalt_state["curiosity_engine"],
+            "curiosities": gestalt_state["curiosities"],
         }
 
         # Include crystal if present
@@ -437,6 +485,10 @@ class ChittaService:
         # Include shared summaries
         if "shared_summaries" in gestalt_state:
             child_data["shared_summaries"] = gestalt_state["shared_summaries"]
+
+        # Include session flags (guided collection mode, etc.)
+        if "session_flags" in gestalt_state:
+            child_data["session_flags"] = gestalt_state["session_flags"]
 
         # Persist to our own file (Gestalt's state)
         # SessionService persists sessions automatically
@@ -485,15 +537,33 @@ class ChittaService:
         synthesis_service = get_synthesis_service()
         latest_observation_at = gestalt.get_latest_observation_timestamp()
 
+        # Get existing pattern descriptions to detect new ones
+        existing_pattern_descriptions = set()
+        if gestalt.crystal and gestalt.crystal.patterns:
+            existing_pattern_descriptions = {p.description for p in gestalt.crystal.patterns}
+
         crystal = await synthesis_service.crystallize(
             child_name=gestalt.child_name,
             understanding=gestalt.understanding,
-            exploration_cycles=gestalt.exploration_cycles,
+            explorations=gestalt.explorations,
             stories=gestalt.stories,
-            curiosity_engine=gestalt._curiosity_engine,
+            curiosities=gestalt._curiosities,
             latest_observation_at=latest_observation_at,
             existing_crystal=gestalt.crystal,
         )
+
+        # Add journal entries for NEW patterns found
+        if crystal.patterns:
+            for pattern in crystal.patterns:
+                if pattern.description not in existing_pattern_descriptions:
+                    from .models import JournalEntry
+                    gestalt.journal.append(JournalEntry.create(
+                        summary=pattern.description,
+                        learned=[f"תחומים: {', '.join(pattern.domains_involved)}"] if pattern.domains_involved else [],
+                        significance="notable",
+                        entry_type="pattern_found",
+                    ))
+                    logger.info(f"🔮 New pattern journaled: {pattern.description[:50]}...")
 
         # Update gestalt with new crystal
         gestalt.crystal = crystal
@@ -518,7 +588,7 @@ class ChittaService:
             raise ValueError(f"No gestalt found for family_id: {family_id}")
 
         # If no observations yet, return empty crystal
-        if not gestalt.understanding.facts and not gestalt.stories:
+        if not gestalt.understanding.observations and not gestalt.stories:
             return Crystal.create_empty()
 
         # If crystal is fresh, return it
@@ -532,7 +602,7 @@ class ChittaService:
     # CARD DERIVATION
     # ========================================
 
-    def _derive_cards(self, gestalt: LivingGestalt) -> List[Dict]:
+    def _derive_cards(self, gestalt: Darshan) -> List[Dict]:
         """
         Derive context cards from current gestalt state.
 
@@ -540,7 +610,7 @@ class ChittaService:
         =============================================
 
         1. CYCLE-BOUND ARTIFACTS → Context Cards
-           - Emerge from a specific exploration cycle (hypothesis, question)
+           - Emerge from a specific exploration (hypothesis, question)
            - Require timely action from the parent
            - Part of an active investigation flow
            - The gestalt reaching out: "I need something from you to continue"
@@ -570,7 +640,7 @@ class ChittaService:
         """
         cards = []
 
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             if cycle.status != "active":
                 continue
 
@@ -631,6 +701,28 @@ class ChittaService:
                 })
                 break
 
+            # Stage 2.1: Video needs confirmation (has concerns, parent should verify)
+            needs_confirmation = [s for s in cycle.video_scenarios if s.status == "needs_confirmation"]
+            if needs_confirmation:
+                scenario = needs_confirmation[0]
+                confirmation_reasons = scenario.analysis_result.get("_confirmation_reasons", []) if scenario.analysis_result else []
+                reason_text = confirmation_reasons[0] if confirmation_reasons else "רוצים לוודא שזה הסרטון הנכון"
+                cards.append({
+                    "type": "video_needs_confirmation",
+                    "title": "האם זה הסרטון הנכון?",
+                    "description": reason_text,
+                    "dismissible": False,
+                    "actions": [
+                        {"label": "כן, זה נכון", "action": "confirm_video", "primary": True},
+                        {"label": "לא, אעלה אחר", "action": "reject_video"}
+                    ],
+                    "cycle_id": cycle.id,
+                    "scenario_id": scenario.id,
+                    "confirmation_reasons": confirmation_reasons,
+                    "priority": "high",
+                })
+                break
+
             # Stage 2.5: Guidelines ready (parent accepted, guidelines generated, no uploads yet)
             # Only show if at least one scenario hasn't been dismissed or rejected
             pending_scenarios = [
@@ -680,8 +772,8 @@ class ChittaService:
             if analyzed_scenarios:
                 cards.append({
                     "type": "video_analyzed",
-                    "title": "ניתחתי את הסרטון",
-                    "description": "התובנות משולבות בהבנה שלי. נוכל לדבר על מה שראיתי בשיחה.",
+                    "title": "ראיתי את הסרטון",
+                    "description": "יש לי כמה תובנות — נוכל לדבר עליהן בשיחה.",
                     "dismissible": True,
                     "feedback_card": True,  # Marks this as feedback, not action
                     "actions": [
@@ -698,9 +790,32 @@ class ChittaService:
         # not pushed via context cards. Context cards are for CYCLE-BOUND artifacts
         # that need timely parent action.
 
+        # === BASELINE VIDEO SUGGESTION ===
+        # Early in conversation, before hypotheses form, suggest baseline video
+        # This is a "discovery" video - helps us see the child naturally
+        if not cards:  # Only if no other cards pending
+            message_count = len(gestalt.session_history)
+            has_any_video = any(
+                scenario.video_path
+                for cycle in gestalt.explorations
+                for scenario in cycle.video_scenarios
+            )
+            if not has_any_video and gestalt._curiosities.should_suggest_baseline_video(message_count):
+                cards.append({
+                    "type": "baseline_video_suggestion",
+                    "title": "אשמח לראות את הילד/ה",
+                    "description": "סרטון קצר של רגע יומיומי יעזור לי להכיר אותו/ה טוב יותר.",
+                    "dismissible": True,
+                    "actions": [
+                        {"label": "כן, אכין סרטון", "action": "accept_baseline_video", "primary": True},
+                        {"label": "אולי מאוחר יותר", "action": "dismiss", "primary": False},
+                    ],
+                    "priority": "low",  # Softer suggestion than hypothesis-driven
+                })
+
         return cards
 
-    def _derive_child_space(self, gestalt: LivingGestalt) -> Dict[str, Any]:
+    def _derive_child_space(self, gestalt: Darshan) -> Dict[str, Any]:
         """
         Derive child space data for header.
 
@@ -747,13 +862,13 @@ class ChittaService:
 
         # Find the cycle
         cycle = None
-        for c in gestalt.exploration_cycles:
+        for c in gestalt.explorations:
             if c.id == cycle_id:
                 cycle = c
                 break
 
         if not cycle:
-            return {"error": "Exploration cycle not found"}
+            return {"error": "Exploration not found"}
 
         if not cycle.video_appropriate:
             return {"error": "Video not appropriate for this exploration"}
@@ -805,7 +920,7 @@ class ChittaService:
                 return
 
             cycle = None
-            for c in gestalt.exploration_cycles:
+            for c in gestalt.explorations:
                 if c.id == cycle_id:
                     cycle = c
                     break
@@ -848,7 +963,7 @@ class ChittaService:
         if not gestalt:
             return {"error": "Family not found"}
 
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             if cycle.id == cycle_id:
                 cycle.decline_video()
                 await self._persist_gestalt(family_id, gestalt)
@@ -858,7 +973,77 @@ class ChittaService:
                     "message": "בסדר גמור! נמשיך להכיר דרך השיחה שלנו.",
                 }
 
-        return {"error": "Exploration cycle not found"}
+        return {"error": "Exploration not found"}
+
+    async def accept_baseline_video(
+        self,
+        family_id: str,
+        generate_async: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Parent accepted baseline video suggestion.
+
+        Creates a "discovery" exploration - not tied to a hypothesis,
+        just curiosity about who this child is.
+
+        Guidelines are simple: "film any everyday moment."
+        """
+        gestalt = await self._get_gestalt(family_id)
+        if not gestalt:
+            return {"error": "Family not found"}
+
+        # Mark baseline video as requested (prevents re-suggestion)
+        gestalt._curiosities.mark_baseline_video_requested()
+
+        # Create a discovery exploration
+        from .models import Exploration, VideoScenario
+        child_name = gestalt.child_name or "הילד/ה"
+
+        exploration = Exploration.create_discovery(
+            focus=f"להכיר את {child_name}",
+            aspect="essence",
+            domain="essence",
+        )
+        exploration.video_appropriate = True
+        exploration.video_value = "discovery"
+        exploration.video_value_reason = "baseline observation to see the child naturally"
+        exploration.accept_video()
+
+        # Create a simple baseline scenario (no LLM needed)
+        scenario = VideoScenario.create(
+            title="רגע יומיומי טבעי",
+            what_to_film=f"צלמו סרטון קצר (3-5 דקות) של {child_name} ברגע יומיומי רגיל - משחק, ארוחה, או כל פעילות טבעית אחרת.",
+            rationale_for_parent="זה יעזור לי להכיר אותו/ה בסביבה הטבעית שלו/ה, לראות את האופי, הסגנון, והאנרגיה. לא צריך להכין שום דבר מיוחד - ככל שהמצב יותר רגיל, יותר טוב!",
+            target_hypothesis_id=exploration.id,
+            what_we_hope_to_learn="Baseline observation of the child's natural behavior, temperament, regulation, and interaction style.",
+            focus_points=[
+                "General demeanor and mood",
+                "Play style and interests",
+                "Communication patterns",
+                "Regulation and transitions",
+                "Natural parent-child interaction",
+            ],
+            category="baseline",
+        )
+        exploration.video_scenarios = [scenario]
+
+        gestalt.explorations.append(exploration)
+        await self._persist_gestalt(family_id, gestalt)
+
+        return {
+            "status": "accepted",
+            "exploration_id": exploration.id,
+            "scenarios": [
+                {
+                    "id": scenario.id,
+                    "title": scenario.title,
+                    "what_to_film": scenario.what_to_film,
+                    "rationale": scenario.rationale_for_parent,
+                    "duration": scenario.duration_suggestion,
+                }
+            ],
+            "message": f"נהדר! אשמח לראות את {child_name}. הנחיות פשוטות מוכנות.",
+        }
 
     async def get_video_guidelines(self, family_id: str, cycle_id: str) -> Dict[str, Any]:
         """Get video guidelines for a cycle (parent-facing format only)."""
@@ -866,7 +1051,7 @@ class ChittaService:
         if not gestalt:
             return {"error": "Family not found"}
 
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             if cycle.id == cycle_id and cycle.video_scenarios:
                 return self._build_guidelines_response(gestalt, cycle.video_scenarios)
 
@@ -886,7 +1071,7 @@ class ChittaService:
             return {"error": "Family not found"}
 
         dismissed_count = 0
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             for scenario in cycle.video_scenarios:
                 if scenario.id in scenario_ids:
                     scenario.dismiss_reminder()
@@ -916,7 +1101,7 @@ class ChittaService:
             return {"error": "Family not found"}
 
         rejected_count = 0
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             for scenario in cycle.video_scenarios:
                 if scenario.id in scenario_ids:
                     scenario.reject()
@@ -931,6 +1116,106 @@ class ChittaService:
             }
 
         return {"error": "No matching scenarios found"}
+
+    async def acknowledge_video_insights(
+        self, family_id: str, scenario_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Acknowledge video insights - parent saw the 'video analyzed' feedback.
+
+        This dismisses the video_analyzed card by marking scenarios as acknowledged.
+        The insights are already woven into the understanding.
+        """
+        darshan = await self._get_gestalt(family_id)
+        if not darshan:
+            return {"error": "Family not found"}
+
+        acknowledged_count = 0
+        for cycle in darshan.explorations:
+            for scenario in cycle.video_scenarios:
+                if scenario.id in scenario_ids and scenario.status == "analyzed":
+                    scenario.status = "acknowledged"
+                    acknowledged_count += 1
+
+        if acknowledged_count > 0:
+            await self._persist_gestalt(family_id, darshan)
+            return {
+                "status": "acknowledged",
+                "count": acknowledged_count,
+            }
+
+        return {"error": "No matching scenarios found"}
+
+    async def confirm_video(
+        self, family_id: str, scenario_id: str
+    ) -> Dict[str, Any]:
+        """
+        Parent confirms the video is correct despite validation concerns.
+
+        Proceeds with analysis - marks as analyzed and processes the evidence.
+        """
+        darshan = await self._get_gestalt(family_id)
+        if not darshan:
+            return {"error": "Family not found"}
+
+        for cycle in darshan.explorations:
+            for scenario in cycle.video_scenarios:
+                if scenario.id == scenario_id and scenario.status == "needs_confirmation":
+                    # Parent confirmed - proceed with the analysis result we already have
+                    analysis_result = scenario.analysis_result
+                    if analysis_result:
+                        # Remove the confirmation flag and mark as analyzed
+                        analysis_result.pop("_needs_confirmation", None)
+                        analysis_result.pop("_confirmation_reasons", None)
+                        scenario.mark_analyzed(analysis_result)
+
+                        # Process evidence from the analysis
+                        for observation in analysis_result.get("observations", []):
+                            evidence = Evidence.create(
+                                content=observation.get("content", ""),
+                                effect=observation.get("effect", "supports"),
+                                source="video",
+                            )
+                            cycle.add_evidence(evidence)
+
+                        await self._persist_gestalt(family_id, darshan)
+                        return {
+                            "status": "confirmed",
+                            "scenario_id": scenario_id,
+                            "message": "תודה על האישור! ניתחתי את הסרטון.",
+                        }
+
+        return {"error": "Scenario not found or not awaiting confirmation"}
+
+    async def reject_confirmed_video(
+        self, family_id: str, scenario_id: str
+    ) -> Dict[str, Any]:
+        """
+        Parent rejects the video that was flagged for confirmation.
+
+        Resets the scenario to pending so parent can upload a different video.
+        """
+        darshan = await self._get_gestalt(family_id)
+        if not darshan:
+            return {"error": "Family not found"}
+
+        for cycle in darshan.explorations:
+            for scenario in cycle.video_scenarios:
+                if scenario.id == scenario_id and scenario.status == "needs_confirmation":
+                    # Reset to pending - parent will upload a new video
+                    scenario.status = "pending"
+                    scenario.video_path = None
+                    scenario.uploaded_at = None
+                    scenario.analysis_result = None
+
+                    await self._persist_gestalt(family_id, darshan)
+                    return {
+                        "status": "rejected",
+                        "scenario_id": scenario_id,
+                        "message": "בסדר, אפשר להעלות סרטון אחר.",
+                    }
+
+        return {"error": "Scenario not found or not awaiting confirmation"}
 
     async def record_video_upload(
         self,
@@ -954,7 +1239,7 @@ class ChittaService:
             return {"error": "Family not found"}
 
         # Find the scenario across all cycles (by ID or title)
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             for scenario in cycle.video_scenarios:
                 # Match by ID or title
                 if scenario.id == scenario_id or scenario.title == scenario_id:
@@ -974,10 +1259,10 @@ class ChittaService:
                     }
 
         logger.warning(f"⚠️ Scenario not found: '{scenario_id}' in family {family_id}")
-        logger.warning(f"   Available scenarios: {[(s.id, s.title) for c in gestalt.exploration_cycles for s in c.video_scenarios]}")
+        logger.warning(f"   Available scenarios: {[(s.id, s.title) for c in gestalt.explorations for s in c.video_scenarios]}")
         return {"error": f"Scenario '{scenario_id}' not found"}
 
-    def _build_guidelines_response(self, gestalt: LivingGestalt, scenarios: List) -> Dict[str, Any]:
+    def _build_guidelines_response(self, gestalt: Darshan, scenarios: List) -> Dict[str, Any]:
         """Build parent-facing guidelines response."""
         child_name = gestalt.child_name or "הילד/ה"
         return {
@@ -994,8 +1279,8 @@ class ChittaService:
 
     async def _generate_personalized_video_guidelines(
         self,
-        gestalt: LivingGestalt,
-        cycle: "ExplorationCycle",
+        gestalt: Darshan,
+        cycle: "Exploration",
     ) -> List["VideoScenario"]:
         """
         Generate PERSONALIZED video guidelines using LLM.
@@ -1022,7 +1307,7 @@ class ChittaService:
 
         # Build rich context from stories and facts
         stories_context = self._format_stories_for_llm(gestalt.stories)
-        facts_context = self._format_facts_for_llm(gestalt.understanding.facts)
+        observations_context = self._format_observations_for_llm(gestalt.understanding.observations)
         strengths_context = self._extract_strengths(gestalt)
 
         # Build the prompt
@@ -1046,7 +1331,7 @@ Extract from the stories and facts:
 {stories_context}
 
 ## Facts We Know
-{facts_context}
+{observations_context}
 
 ## Strengths & Interests
 {strengths_context}
@@ -1056,6 +1341,11 @@ Extract from the stories and facts:
 **Domain:** {cycle.focus_domain}
 **Theory (if hypothesis):** {cycle.theory or "N/A"}
 **Question (if question):** {cycle.question or "N/A"}
+**Video Value Type:** {cycle.video_value or "general"}
+**Why Video Helps:** {cycle.video_value_reason or "N/A"}
+
+## VIDEO VALUE FRAMING (Use this to shape your approach!)
+{self._get_video_value_framing(cycle.video_value)}
 
 ## Generate ONE Video Scenario
 
@@ -1129,6 +1419,57 @@ Generate the scenario JSON now:
             # Fallback to simple scenario
             return [self._create_fallback_scenario(gestalt, cycle)]
 
+    def _get_video_value_framing(self, video_value: Optional[str]) -> str:
+        """
+        Get specific framing instructions based on video_value type.
+
+        This shapes how we ask parents to film and what we emphasize.
+        """
+        framings = {
+            "calibration": """
+**CALIBRATION VIDEO** - Parent used absolutes ("never", "always") about significant behavior.
+- Frame as: "I'd love to see a regular moment so I can understand the full picture"
+- Goal: See the actual reality vs parent's perception
+- Reassure: "Every child has good and tough moments - I want to see both"
+- DON'T make it sound like you're testing their claim
+""",
+            "chain": """
+**CHAIN VIDEO** - Multiple domains seem connected, we want to see the sequence.
+- Frame as: "I'm curious how things unfold - film the whole flow"
+- Goal: See the chain of events (trigger → response → result)
+- Ask for: Full moment, not just the "problem" part
+- Emphasize: "Don't cut the video short - the before and after matter"
+""",
+            "discovery": """
+**DISCOVERY VIDEO** - Baseline observation to see this child for the first time.
+- Frame as: "I'd love to see [name] being [name] - just a regular moment"
+- Goal: See who this child IS in their natural environment
+- Keep it open: Don't specify what to look for
+- Warmest tone: "This helps me get to know them beyond our conversations"
+""",
+            "reframe": """
+**REFRAME VIDEO** - Parent describes concern that might be a strength in context.
+- Frame as: "Let me see this in their natural setting"
+- Goal: See if what parent calls "problem" is actually adaptive/positive
+- Careful: Don't reveal you think it might be reframed
+- Look for: Context, what triggers it, what follows
+""",
+            "relational": """
+**RELATIONAL VIDEO** - The parent-child interaction pattern is the question.
+- Frame as: "Film a moment together with [name]"
+- Goal: See the dance between parent and child
+- Sensitive: This is about their relationship, be extra warm
+- Ask for: Natural interaction, play, daily routine moment together
+""",
+        }
+
+        return framings.get(video_value, """
+**GENERAL VIDEO** - Exploration without specific video value type.
+- Frame as helpful observation for understanding
+- Keep instructions concrete and warm
+- Focus on natural, everyday moments
+""")
+
     def _format_stories_for_llm(self, stories: List) -> str:
         """Format stories for LLM context - preserve the richness."""
         if not stories:
@@ -1141,7 +1482,7 @@ Generate the scenario JSON now:
                 lines.append(f"  (Reveals: {', '.join(story.reveals[:3])})")
         return "\n".join(lines)
 
-    def _format_facts_for_llm(self, facts: List) -> str:
+    def _format_observations_for_llm(self, facts: List) -> str:
         """Format facts for LLM context."""
         if not facts:
             return "Still getting to know this child."
@@ -1159,17 +1500,17 @@ Generate the scenario JSON now:
             lines.append(f"**{domain}:** {'; '.join(contents[:3])}")
         return "\n".join(lines)
 
-    def _extract_strengths(self, gestalt: LivingGestalt) -> str:
+    def _extract_strengths(self, gestalt: Darshan) -> str:
         """Extract strengths from facts and stories."""
         strength_facts = [
-            f.content for f in gestalt.understanding.facts
+            f.content for f in gestalt.understanding.observations
             if f.domain in ["strengths", "essence", "interests"]
         ]
         if strength_facts:
             return "\n".join(f"- {s}" for s in strength_facts[:5])
         return "Not yet identified - explore through video."
 
-    def _create_fallback_scenario(self, gestalt: LivingGestalt, cycle) -> "VideoScenario":
+    def _create_fallback_scenario(self, gestalt: Darshan, cycle) -> "VideoScenario":
         """Create a simple fallback scenario if LLM fails."""
         from .models import VideoScenario
         child_name = gestalt.child_name or "הילד/ה"
@@ -1206,7 +1547,7 @@ Generate the scenario JSON now:
         if not gestalt:
             return {"error": "Family not found"}
 
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             if cycle.id == cycle_id:
                 scenario = cycle.get_scenario(scenario_id)
                 if not scenario:
@@ -1221,7 +1562,7 @@ Generate the scenario JSON now:
                     "video_path": video_path,
                 }
 
-        return {"error": "Exploration cycle not found"}
+        return {"error": "Exploration not found"}
 
     async def analyze_cycle_videos(
         self,
@@ -1247,13 +1588,13 @@ Generate the scenario JSON now:
             return {"error": "Family not found"}
 
         cycle = None
-        for c in gestalt.exploration_cycles:
+        for c in gestalt.explorations:
             if c.id == cycle_id:
                 cycle = c
                 break
 
         if not cycle:
-            return {"error": "Exploration cycle not found"}
+            return {"error": "Exploration not found"}
 
         # Get uploaded (not yet analyzed) videos
         pending_scenarios = [s for s in cycle.video_scenarios if s.status == "uploaded"]
@@ -1289,6 +1630,14 @@ Generate the scenario JSON now:
                         f"אפשר להעלות סרטון חדש."
                     )
                     continue  # Skip evidence processing for this scenario
+
+                # Check if video needs parent confirmation (has concerns but not failed)
+                if analysis_result.get("_needs_confirmation"):
+                    scenario.status = "needs_confirmation"
+                    scenario.analysis_result = analysis_result
+                    logger.warning(f"⚠️ Video needs confirmation for scenario {scenario.id}")
+                    logger.warning(f"   Reasons: {analysis_result.get('_confirmation_reasons', [])}")
+                    continue  # Wait for parent confirmation before processing
 
                 # Mark scenario as analyzed with full result
                 scenario.mark_analyzed(analysis_result)
@@ -1327,6 +1676,7 @@ Generate the scenario JSON now:
                         # Equal: no change
 
                 # Capture strengths as facts (strengths are GOLD)
+                # AND connect to curiosity engine so video learnings boost curiosities
                 for strength in analysis_result.get("strengths_observed", []):
                     strength_fact = TemporalFact.from_observation(
                         content=strength.get("strength", ""),
@@ -1334,20 +1684,55 @@ Generate the scenario JSON now:
                         confidence=0.8,  # High confidence from direct observation
                     )
                     gestalt.understanding.add_fact(strength_fact)
+                    # NEW: Connect video learnings to curiosity engine
+                    gestalt._curiosities.on_observation_learned(strength_fact)
                     strengths_found.append(strength.get("strength", ""))
+
+                # Also capture general observations as facts for understanding
+                for observation in analysis_result.get("observations", []):
+                    obs_domain = observation.get("domain", cycle.focus_domain or "general")
+                    obs_fact = TemporalFact.from_observation(
+                        content=observation.get("content", ""),
+                        domain=obs_domain,
+                        confidence=0.75,  # Good confidence from video observation
+                    )
+                    gestalt.understanding.add_fact(obs_fact)
+                    # Connect to curiosity engine
+                    gestalt._curiosities.on_observation_learned(obs_fact)
 
                 # Add insights (parent-facing, no hypothesis)
                 insights.extend(analysis_result.get("insights", []))
 
-                # Log capacity revealed (valuable for understanding)
+                # Capture capacity revealed and add to essence
                 capacity = hypothesis_evidence.get("capacity_revealed", {})
                 if capacity.get("description"):
                     logger.info(f"💪 Capacity revealed: {capacity.get('description')}")
+                    # NEW: Add capacity as a strength fact
+                    capacity_fact = TemporalFact.from_observation(
+                        content=f"כוח שנצפה: {capacity.get('description')}",
+                        domain="strengths",
+                        confidence=0.85,
+                    )
+                    gestalt.understanding.add_fact(capacity_fact)
+                    gestalt._curiosities.on_observation_learned(capacity_fact)
+                    # Also add to essence core_qualities if essence exists
+                    if gestalt.understanding.essence:
+                        if capacity.get('description') not in gestalt.understanding.essence.core_qualities:
+                            gestalt.understanding.essence.core_qualities.append(capacity.get('description'))
 
-                # Capture new questions for future exploration
+                # NEW: Create curiosities from new questions raised by video
+                # This makes video discoveries actionable for future exploration
+                from .curiosity import create_question
                 new_questions = hypothesis_evidence.get("new_questions_raised", [])
-                for question in new_questions:
-                    logger.info(f"❓ New question from video: {question}")
+                for question in new_questions[:3]:  # Limit to top 3 to avoid overwhelm
+                    logger.info(f"🔮 New curiosity from video: {question}")
+                    new_curiosity = create_question(
+                        focus=question,
+                        question=question,
+                        domain=cycle.focus_domain,  # Inherit domain from parent cycle
+                        activation=0.6,  # Start moderately active
+                    )
+                    gestalt._curiosities.add_curiosity(new_curiosity)
 
         # Persist changes
         await self._persist_gestalt(family_id, gestalt)
@@ -1376,7 +1761,7 @@ Generate the scenario JSON now:
 
     async def _analyze_video(
         self,
-        gestalt: LivingGestalt,
+        gestalt: Darshan,
         cycle,
         scenario,
     ) -> Optional[Dict[str, Any]]:
@@ -1404,7 +1789,7 @@ Generate the scenario JSON now:
 
         # Build context from gestalt
         stories_context = self._format_stories_for_llm(gestalt.stories)
-        facts_context = self._format_facts_for_llm(gestalt.understanding.facts)
+        observations_context = self._format_observations_for_llm(gestalt.understanding.observations)
         strengths_context = self._extract_strengths(gestalt)
 
         # Extract vocabulary from stories (parent's words)
@@ -1464,7 +1849,7 @@ Examples of FAILED scenario match:
 
 **Child Profile:**
 - Name: **{child_name}**
-- Known facts: {facts_context}
+- Known facts: {observations_context}
 
 **Child's Strengths (IMPORTANT - document when you see these!):**
 {strengths_context}
@@ -1834,7 +2219,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         result = {
             "focus": curiosity.focus,
             "type": curiosity.type,
-            "activation": curiosity.activation,
+            "pull": curiosity.pull,
             "certainty": curiosity.certainty,
         }
 
@@ -1854,7 +2239,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
     # CHILD SPACE - FULL DATA FOR NEW UI
     # ========================================
 
-    def derive_child_space_full(self, gestalt: LivingGestalt) -> Dict[str, Any]:
+    def derive_child_space_full(self, gestalt: Darshan) -> Dict[str, Any]:
         """
         Derive complete ChildSpace data for the Living Portrait UI.
 
@@ -1872,7 +2257,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             "share": self._derive_share_options(gestalt),
         }
 
-    def _derive_essence(self, gestalt: LivingGestalt) -> Dict[str, Any]:
+    def _derive_essence(self, gestalt: Darshan) -> Dict[str, Any]:
         """
         Derive the Essence tab - the living portrait.
 
@@ -1916,7 +2301,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         strengths = []
         interests = []
 
-        for fact in gestalt.understanding.facts:
+        for fact in gestalt.understanding.observations:
             if fact.domain == "strengths":
                 strengths.append({
                     "domain": self._infer_strength_domain(fact.content),
@@ -1931,7 +2316,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                 })
 
         # Add strengths from video observations
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             for scenario in cycle.video_scenarios:
                 if scenario.analysis_result and scenario.status == "analyzed":
                     for strength in scenario.analysis_result.get("strengths_observed", []):
@@ -1960,7 +2345,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         # === 5. ACTIVE EXPLORATIONS ===
         # Always derive from exploration_cycles (live data)
         active_explorations = []
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             if cycle.status == "active":
                 evidence_list = [
                     {"content": ev.content, "effect": ev.effect, "source": ev.source}
@@ -1986,7 +2371,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
         # === 6. FACTS BY DOMAIN (secondary - parent knows these) ===
         facts_by_domain = {}
-        for fact in gestalt.understanding.facts:
+        for fact in gestalt.understanding.observations:
             domain = fact.domain or "general"
             # Skip strengths and interests - already shown prominently
             if domain in ("strengths", "interests"):
@@ -2089,7 +2474,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
     def _derive_intervention_pathways(
         self,
-        gestalt: LivingGestalt,
+        gestalt: Darshan,
         strengths: List[Dict],
         interests: List[Dict],
         patterns: List[Dict],
@@ -2102,9 +2487,9 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         """
         pathways = []
 
-        # Get concerns from exploration cycles
+        # Get concerns from explorations
         concerns = []
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             if cycle.status == "active" and cycle.curiosity_type in ("hypothesis", "question"):
                 concerns.append({
                     "focus": cycle.focus,
@@ -2154,17 +2539,68 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
         return unique_pathways[:5]  # Limit to top 5
 
-    def _derive_discoveries(self, gestalt: LivingGestalt) -> Dict[str, Any]:
+    def _derive_discoveries(self, gestalt: Darshan) -> Dict[str, Any]:
         """Derive the Discoveries tab - journey timeline."""
         milestones = []
 
-        # Add journal entries as milestones
+        # === 1. DEVELOPMENTAL MILESTONES (the real timeline) ===
+        # These are actual developmental events: first words, walking, regressions, etc.
+        milestone_type_icons = {
+            "achievement": "✓",
+            "concern": "⚠",
+            "regression": "↓",
+            "intervention": "→",
+            "birth": "◯",
+        }
+
+        for dev_milestone in gestalt.understanding.milestones:
+            # Use occurred_at if available, otherwise fall back to recorded_at
+            timestamp = dev_milestone.occurred_at or dev_milestone.recorded_at
+            age_str = ""
+            if dev_milestone.age_months is not None:
+                if dev_milestone.age_months < 0:
+                    age_str = "בהריון"  # Pregnancy event
+                elif dev_milestone.age_months == 0:
+                    age_str = "בלידה"  # Birth moment
+                else:
+                    years = dev_milestone.age_months // 12
+                    months = dev_milestone.age_months % 12
+                    if years > 0 and months > 0:
+                        age_str = f"גיל {years} שנים ו-{months} חודשים"
+                    elif years > 0:
+                        age_str = f"גיל {years} שנים" if years > 1 else "גיל שנה"
+                    else:
+                        age_str = f"גיל {months} חודשים"
+            elif dev_milestone.age_description:
+                age_str = dev_milestone.age_description
+
+            icon = milestone_type_icons.get(dev_milestone.milestone_type, "·")
+            milestones.append({
+                "id": f"dev_{dev_milestone.id}",
+                "timestamp": timestamp.isoformat() if timestamp else None,
+                "type": "developmental",
+                "title_he": f"{icon} {dev_milestone.description}",
+                "description_he": age_str,
+                "domain": dev_milestone.domain,
+                "milestone_type": dev_milestone.milestone_type,
+                "significance": "major" if dev_milestone.milestone_type in ["concern", "regression"] else "normal",
+                "age_months": dev_milestone.age_months,
+            })
+
+        # === 2. JOURNAL ENTRIES (conversation insights) ===
+        # Map entry_type to frontend milestone type
+        entry_type_mapping = {
+            "session_started": "started",
+            "exploration_started": "exploration_began",
+            "story_captured": "insight",
+            "milestone_recorded": "insight",  # Dev milestones shown in timeline, journal entry as insight
+            "pattern_found": "pattern",
+            "insight": "insight",
+        }
+
         for entry in gestalt.journal:
-            milestone_type = "insight"
-            if "התחלנו" in entry.summary or "הכרנו" in entry.summary:
-                milestone_type = "started"
-            elif "חקרנו" in entry.summary or "בדקנו" in entry.summary:
-                milestone_type = "exploration_began"
+            # Use explicit entry_type, defaulting to 'insight' for old data
+            milestone_type = entry_type_mapping.get(entry.entry_type, "insight")
 
             milestones.append({
                 "id": f"journal_{entry.timestamp.isoformat()}",
@@ -2176,7 +2612,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             })
 
         # Add video analyses as milestones
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             for scenario in cycle.video_scenarios:
                 if scenario.status == "analyzed" and scenario.analyzed_at:
                     # Find key insight from analysis
@@ -2207,11 +2643,11 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
         total_videos = sum(
             len([s for s in c.video_scenarios if s.video_path])
-            for c in gestalt.exploration_cycles
+            for c in gestalt.explorations
         )
 
         insights_count = len([
-            s for c in gestalt.exploration_cycles
+            s for c in gestalt.explorations
             for s in c.video_scenarios
             if s.status == "analyzed"
         ])
@@ -2224,12 +2660,12 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             "insights_discovered": insights_count,
         }
 
-    def _derive_observations(self, gestalt: LivingGestalt) -> Dict[str, Any]:
+    def _derive_observations(self, gestalt: Darshan) -> Dict[str, Any]:
         """Derive the Observations tab - video gallery and pending scenarios."""
         videos = []
         pending_scenarios = []
 
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             for scenario in cycle.video_scenarios:
                 if scenario.video_path:  # Has uploaded video
                     observations = []
@@ -2319,7 +2755,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             "pending_count": pending,
         }
 
-    def _derive_share_options(self, gestalt: LivingGestalt) -> Dict[str, Any]:
+    def _derive_share_options(self, gestalt: Darshan) -> Dict[str, Any]:
         """
         Derive the Share tab options.
 
@@ -2328,16 +2764,16 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         The user flows naturally from "who should see this child" → "let's share with them".
         """
         # Check if we have enough understanding to share
-        has_facts = len(gestalt.understanding.facts) >= 3
-        has_exploration = len(gestalt.exploration_cycles) > 0
+        has_observations = len(gestalt.understanding.observations) >= 3
+        has_exploration = len(gestalt.explorations) > 0
 
         # Can generate if we have facts AND exploration
         # (Crystal is a result of exploration, so if we have crystal we should have exploration too)
-        can_generate = has_facts and has_exploration
+        can_generate = has_observations and has_exploration
 
         not_ready_reason = None
         if not can_generate:
-            if not has_facts:
+            if not has_observations:
                 not_ready_reason = "עדיין לא צברנו מספיק מידע. המשיכו לשוחח איתנו."
             else:
                 not_ready_reason = "נשמח להכיר את הילד קצת יותר לפני שנוכל לשתף."
@@ -2430,197 +2866,233 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         crystal_insights: Optional[Dict[str, Any]] = None,
         additional_context: Optional[str] = None,
         comprehensive: bool = False,
+        missing_gaps: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
-        Generate a shareable summary adapted for the recipient.
+        Generate a shareable summary using STRUCTURED OUTPUT.
 
-        WU-WEI APPROACH:
-        Instead of rigid rules and voice profiles, we explain clearly what we need
-        and leverage the model's intelligence to determine appropriate:
-        - Writing style and tone
-        - Level of technical language
-        - Depth and detail
-        - What to emphasize based on the expert's likely priorities
-
-        The model should consider:
-        - Who is this expert and what do they care about?
-        - How busy are they? What format would they prefer?
-        - What would be genuinely useful for them to know?
+        Returns structured JSON that the frontend renders professionally.
+        This gives us full control over presentation and ensures consistency.
         """
-        gestalt = await self._get_gestalt(family_id)
-        if not gestalt:
+        from .summary_schema import ProfessionalSummary, get_summary_schema
+
+        darshan = await self._get_gestalt(family_id)
+        if not darshan:
             return {"error": "Family not found", "content": ""}
 
-        child_name = gestalt.child_name or "הילד/ה"
+        child_name = darshan.child_name or "הילד/ה"
+        now = datetime.now()
 
         # Build the expert description from various sources
         expert_info = self._build_expert_description(expert, expert_description)
 
         # Collect all relevant child information
-        child_summary = self._build_child_summary_for_sharing(gestalt)
+        child_summary = self._build_child_summary_for_sharing(darshan)
 
         # Build crystal insights section if available
-        crystal_section = ""
+        crystal_context = ""
         if crystal_insights:
-            crystal_section = f"""
-## תובנות מהקריסטל (מה שכבר זיהינו כרלוונטי למומחה הזה)
-- **למה המומחה הזה מתאים:** {crystal_insights.get('why_this_match', 'לא צוין')}
-- **גישה מומלצת:** {crystal_insights.get('recommended_approach', 'לא צוין')}
-- **סיכום מקצועי:** {crystal_insights.get('summary_for_professional', 'לא צוין')}
+            crystal_context = f"""
+Crystal Insights (what we already identified as relevant for this professional):
+- Why this professional is a match: {crystal_insights.get('why_this_match', 'not specified')}
+- Recommended approach: {crystal_insights.get('recommended_approach', 'not specified')}
+- Professional summary: {crystal_insights.get('summary_for_professional', 'not specified')}
 """
 
-        # Depth instruction based on comprehensive flag
-        depth_instruction = ""
-        if comprehensive:
-            depth_instruction = """
-## רמת פירוט: מקיף
-ההורה ביקש סיכום מקיף ומפורט. זה מתאים לפגישה ראשונה או להערכה מעמיקה.
-כתוב סיכום ארוך ומפורט יותר מהרגיל, עם:
-- רקע נרחב יותר על הילד
-- פירוט של כל הדפוסים והקשרים
-- דוגמאות קונקרטיות
-- המלצות מפורטות
-"""
-        else:
-            depth_instruction = """
-## רמת פירוט: סטנדרטית
-התאם את האורך למומחה - רופאים עסוקים צריכים תמציתי, מטפלים יכולים לקבל יותר.
-"""
+        # Get expert name
+        expert_name = "מומחה"
+        if expert:
+            expert_name = expert.get("profession") or expert.get("customDescription") or "מומחה"
 
-        # The wu-wei prompt - explain clearly, let model do the thinking
-        prompt = f"""# משימה: כתיבת סיכום לשיתוף עם מומחה
+        # Build missing data list for the schema
+        missing_data_items = []
+        if missing_gaps:
+            for gap in missing_gaps:
+                clinical_term = gap.get("clinical_term") or gap.get("parent_description") or gap.get("description", "")
+                if clinical_term:
+                    missing_data_items.append(clinical_term)
 
-## מי אתה
-את/ה עוזר/ת להורה לכתוב סיכום על הילד שלו לשיתוף עם מומחה.
-המטרה: לעזור למומחה להבין מהר מי הילד ואיך הוא יכול לעזור.
+        # Build the structured output prompt
+        prompt = f"""# Task: Generate a STRUCTURED Professional Summary
 
-## על המומחה שאליו פונים
+You are Chitta - a child understanding system. Generate a professional summary for a specialist.
+
+## PHILOSOPHY
+- Prepare the ground, don't deliver findings
+- Open doors for investigation, don't close them with conclusions
+- Frame patterns as hypotheses, not facts
+
+## About the Professional
 {expert_info}
-{depth_instruction}
-{crystal_section}
+{crystal_context}
 
-{f"## הקשר נוסף מההורה" + chr(10) + additional_context if additional_context else ""}
-
-## מה שאנחנו יודעים על הילד
-
-**שם:** {child_name}
+## What We Know About the Child
+Name: {child_name}
 
 {child_summary}
 
----
+{f"Additional context from parent: " + additional_context if additional_context else ""}
 
-## מה אני צריך ממך
+## Missing Information We Don't Have Yet
+{', '.join(missing_data_items) if missing_data_items else 'None identified'}
 
-**כתוב סיכום שההורה יוכל לשלוח למומחה הזה.**
+## Instructions for Each Field
 
-**חשוב מאוד:** התחל ישירות בסיכום עצמו. אל תכתוב הקדמה או הסבר להורה על איך כתבת את הסיכום או למה בחרת בסגנון הזה. ההורה רוצה להעתיק את הטקסט ולשלוח אותו ישירות למומחה.
+**essence_paragraph**: 2-3 warm sentences about who this child IS - their personality, nature, what makes them unique. NOT their problems.
 
-### עקרונות מנחים:
+**strengths**: List strengths that can serve as BRIDGES for therapy/education. Format: strength + how it can be used.
 
-1. **התאם את הסגנון למומחה** - חשוב:
-   - כמה עסוק המומחה הזה בדרך כלל? רופא במרפאה עסוקה צריך תמציתי. פסיכולוג פרטי יכול לקבל יותר פירוט.
-   - מה רמת הידע המקצועי שלו? נוירולוג מבין מונחים קליניים. גננת צריכה שפה פשוטה.
-   - מה הוא באמת צריך לדעת? מטפלת בעיסוק תרצה לדעת על קשיים חושיים ומוטוריים. פסיכולוג ירצה לדעת על רגש והתנהגות.
+**parent_observations**: What parents TOLD us - factual, their words. Mark source as "parent".
 
-2. **התחל עם מי הילד, לא עם הבעיה** - זה לא רשימת סימפטומים. זה ילד שלם.
+**scenes**: 1-3 CONCRETE examples - what happens, intensity, duration, what helps/doesn't help.
 
-3. **הדגש חוזקות כמנופי עבודה** - לא רק "הוא אוהב מוזיקה" אלא "מוזיקה יכולה לשמש ככלי ויסות ולגשר על קשיים"
+**patterns**: What WE (Chitta) noticed - frame TENTATIVELY: "נראה ש...", "יכול להיות ש...", "שמנו לב ש..."
 
-4. **תן דוגמאות קונקרטיות (סצנות)** - זה קריטי! במקום "מתקשה במעברים", תן סצנה אחת מפורטת שהמומחה יוכל לדמיין:
-   - מה קורה בפועל (בכי עז, שכיבה על הרצפה, סירוב לזוז)
-   - עוצמה ומשך (10-15 דקות, לא 2 דקות ולא שעה)
-   - מה עובד ומה לא עובד (התראה מראש לא תמיד מספיקה, הסחה כן עוזרת)
-   - וריאביליות (לפעמים קל יותר, לפעמים קשה יותר)
+**developmental_notes**: Key milestones and timeline - when things started, changes over time.
 
-   דוגמה טובה: "כשמגיע הזמן לסיים משחק ולצאת לגן, גם אם נתנו התראה של 5 דקות מראש, הוא עלול להגיב בבכי עז, לשכב על הרצפה, ולסרב לזוז. המצב יכול להימשך 10-15 דקות, ולעיתים רק הסחה (כמו שיר או הצעה לקחת משהו איתו) עוזרת."
+**open_questions**: Questions for THIS professional to investigate. Frame as invitations.
 
-5. **אל תחזור על מה שההורה כבר יודע** - ההורה סיפר לנו את הסיפור. מה שהוא צריך זה סינתזה, חיבורים, כיוונים.
+**missing_info**: Be honest about what we don't know yet.
 
-6. **שלב מידע התפתחותי/טמפורלי** - למטפלים רבים חשוב להבין:
-   - כמה זמן זה קורה? (לאחרונה? מאז תמיד? התחיל בגיל מסוים?)
-   - האם יש שיפור/החמרה/יציבות לאורך זמן?
-   - מה כבר ניסו ומה עבד/לא עבד?
-   - האם יש דפוס עקבי או שהמצב משתנה?
-   דוגמה: "הקושי במעברים קיים מגיל שנתיים, עם החמרה מסוימת מאז הכניסה לגן. ניסינו טיימרים ויזואליים - עזר חלקית."
+## Language
+- Write ALL content in Hebrew
+- For {expert_name}: use appropriate professional level (clinical terms for doctors, everyday language for teachers)
+- Date format: {now.strftime("%d/%m/%Y")}
 
-7. **כתוב בעברית טבעית וחמה** - לא רובוטית, לא פורמלית מדי
-
-### פורמט מומלץ (התאם לפי המומחה):
-
-לרופאים עסוקים: פסקת פתיחה קצרה + נקודות תמציתיות + דוגמה אחת קונקרטית + ציר זמן קצר
-לפסיכולוגים/מטפלים: יותר נרטיבי, עם עומק רגשי + כמה סצנות מפורטות + היסטוריה התפתחותית
-לגננות/מורים: מעשי, מה עובד ומה לא, טיפים קונקרטיים + דוגמאות מהשטח
-למטפלים בעיסוק/קלינאיות תקשורת: רקע התפתחותי + התקדמות לאורך זמן + מה כבר נוסה
-
----
-
-כתוב את הסיכום עכשיו (התחל ישר בסיכום, בלי הקדמה):
+Generate the structured summary now:
 """
 
         try:
             from app.services.llm.base import Message as LLMMessage
             from .models import SharedSummary
 
-            llm = gestalt._get_strong_llm()
-            response = await llm.chat(
+            llm = darshan._get_strong_llm()
+
+            # Use structured output
+            response_data = await llm.chat_with_structured_output(
                 messages=[LLMMessage(role="user", content=prompt)],
-                functions=None,
-                temperature=1.0,  # Higher temp for more natural, creative writing
-                max_tokens=6000,  # Hebrew summaries need more tokens
+                response_schema=get_summary_schema(),
+                temperature=0.8,
             )
 
-            content = response.content or ""
+            # Validate with Pydantic
+            summary_obj = ProfessionalSummary.model_validate(response_data)
 
-            # Get expert name for response
-            expert_name = "מומחה"
-            if expert:
-                expert_name = expert.get("profession") or expert.get("customDescription") or "מומחה"
+            # Convert to dict for JSON response
+            structured_summary = summary_obj.model_dump()
 
-            # Add timestamp to the content for context
-            now = datetime.now()
-            date_str = now.strftime("%d/%m/%Y")
-            content_with_date = f"[סיכום זה נוצר ב-{date_str}]\n\n{content}"
+            # Ensure metadata is correct
+            structured_summary["child_first_name"] = child_name
+            structured_summary["summary_date"] = now.strftime("%d/%m/%Y")
+            structured_summary["recipient_type"] = expert_name
+            structured_summary["recipient_title"] = expert_name
 
-            # Determine recipient type
-            recipient_type = "professional"
+            # Create legacy content for backwards compatibility (plain text version)
+            legacy_content = self._structured_summary_to_text(structured_summary)
+
+            # Determine recipient type for storage
+            recipient_type_str = "professional"
             if expert and expert.get("customDescription"):
-                recipient_type = "custom"
+                recipient_type_str = "custom"
 
-            # Create and save the summary
+            # Create and save the summary (store structured data as JSON string)
+            import json
             shared_summary = SharedSummary.create(
                 recipient_description=expert_name,
-                content=content_with_date,
-                recipient_type=recipient_type,
+                content=json.dumps(structured_summary, ensure_ascii=False),
+                recipient_type=recipient_type_str,
                 comprehensive=comprehensive,
             )
 
-            # Add to gestalt and persist
-            gestalt.shared_summaries.append(shared_summary)
-            await self._persist_gestalt(family_id, gestalt)
+            # Add to darshan and persist
+            darshan.shared_summaries.append(shared_summary)
+            await self._persist_gestalt(family_id, darshan)
 
-            logger.info(f"Saved shared summary for {family_id} to {expert_name}")
+            logger.info(f"Saved structured summary for {family_id} to {expert_name}")
 
             return {
-                "content": content_with_date,
+                "structured": structured_summary,  # New structured format
+                "content": legacy_content,  # Legacy text format for backwards compatibility
                 "expert": expert_name,
                 "generated_at": now.isoformat(),
                 "summary_id": shared_summary.id,
-                # Include the saved summary for immediate UI update
                 "saved_summary": {
                     "id": shared_summary.id,
                     "recipient": shared_summary.recipient_description,
                     "created_at": shared_summary.created_at.isoformat(),
                     "comprehensive": shared_summary.comprehensive,
-                    "preview": (content_with_date[:100] + "...") if len(content_with_date) > 100 else content_with_date,
+                    "preview": (legacy_content[:100] + "...") if len(legacy_content) > 100 else legacy_content,
                 },
             }
 
         except Exception as e:
-            logger.error(f"Error generating shareable summary: {e}")
+            logger.error(f"Error generating structured summary: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "error": str(e),
                 "content": f"לצערנו לא הצלחנו ליצור סיכום. נסו שוב מאוחר יותר.",
             }
+
+    def _structured_summary_to_text(self, summary: Dict[str, Any]) -> str:
+        """Convert structured summary to plain text for legacy compatibility."""
+        lines = []
+
+        lines.append(f"[סיכום זה נוצר ב-{summary.get('summary_date', '')}]")
+        lines.append("")
+
+        if summary.get("essence_paragraph"):
+            lines.append(summary["essence_paragraph"])
+            lines.append("")
+
+        if summary.get("strengths"):
+            lines.append("חוזקות:")
+            for s in summary["strengths"]:
+                lines.append(f"- {s.get('strength', '')}: {s.get('how_to_use', '')}")
+            lines.append("")
+
+        if summary.get("parent_observations"):
+            lines.append("מה ההורים סיפרו:")
+            for obs in summary["parent_observations"]:
+                lines.append(f"- {obs.get('text', '')}")
+            lines.append("")
+
+        if summary.get("scenes"):
+            lines.append("דוגמאות קונקרטיות:")
+            for scene in summary["scenes"]:
+                lines.append(f"- {scene.get('title', '')}: {scene.get('description', '')}")
+                if scene.get("what_helps"):
+                    lines.append(f"  מה עוזר: {scene['what_helps']}")
+            lines.append("")
+
+        if summary.get("patterns"):
+            lines.append("מה שמנו לב:")
+            for p in summary["patterns"]:
+                lines.append(f"- {p.get('observation', '')}")
+            lines.append("")
+
+        if summary.get("developmental_notes"):
+            lines.append("ציר זמן התפתחותי:")
+            for note in summary["developmental_notes"]:
+                lines.append(f"- {note.get('timing', '')}: {note.get('event', '')}")
+            lines.append("")
+
+        if summary.get("open_questions"):
+            lines.append("שאלות פתוחות:")
+            for q in summary["open_questions"]:
+                lines.append(f"- {q.get('question', '')}")
+            lines.append("")
+
+        if summary.get("missing_info"):
+            lines.append("מידע שעדיין לא נאסף:")
+            for m in summary["missing_info"]:
+                lines.append(f"- {m.get('item', '')}")
+            lines.append("")
+
+        if summary.get("closing_note"):
+            lines.append(summary["closing_note"])
+
+        return "\n".join(lines)
 
     def _build_expert_description(
         self,
@@ -2647,18 +3119,71 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
         return chr(10).join(parts)
 
-    def _build_child_summary_for_sharing(self, gestalt: "LivingGestalt") -> str:
+    def _build_child_summary_for_sharing(self, darshan: "Darshan") -> str:
         """Build a comprehensive child summary for sharing prompt."""
         sections = []
 
+        # Debug: log available milestones
+        logger.info(f"📝 Building summary - milestones count: {len(darshan.understanding.milestones)}")
+        for m in darshan.understanding.milestones:
+            logger.info(f"  📌 Milestone: {m.description} (domain={m.domain}, type={m.milestone_type})")
+
         # Essence narrative
-        if gestalt.understanding.essence and gestalt.understanding.essence.narrative:
-            sections.append(f"**מי הוא (תמצית):**\n{gestalt.understanding.essence.narrative}")
+        if darshan.understanding.essence and darshan.understanding.essence.narrative:
+            sections.append(f"**מי הוא (תמצית):**\n{darshan.understanding.essence.narrative}")
+
+        # === BIRTH HISTORY (from milestones) ===
+        birth_milestones = []
+        if darshan.understanding.milestones:
+            birth_milestones = [
+                m for m in darshan.understanding.milestones
+                if getattr(m, 'milestone_type', None) == 'birth'
+                or getattr(m, 'domain', None) in ('birth_history', 'medical')
+            ]
+        # Also check observations for birth_history domain
+        birth_observations = [
+            f for f in darshan.understanding.observations
+            if f.domain in ('birth_history', 'medical')
+        ]
+        if birth_milestones or birth_observations:
+            birth_items = []
+            for m in birth_milestones:
+                birth_items.append(f"- {m.description}")
+            for f in birth_observations:
+                birth_items.append(f"- {f.content}")
+            sections.append(f"**היסטוריית לידה:**\n" + chr(10).join(birth_items))
+
+        # === DEVELOPMENTAL MILESTONES (from milestones) ===
+        dev_milestones = []
+        if darshan.understanding.milestones:
+            dev_milestones = [
+                m for m in darshan.understanding.milestones
+                if getattr(m, 'milestone_type', None) != 'birth'
+                and getattr(m, 'domain', None) not in ('birth_history', 'medical')
+            ]
+        if dev_milestones:
+            milestone_items = []
+            for m in dev_milestones:
+                age_text = ""
+                if m.age_months:
+                    if m.age_months >= 12:
+                        years = m.age_months // 12
+                        months = m.age_months % 12
+                        if months:
+                            age_text = f" (בגיל {years} שנים ו-{months} חודשים)"
+                        else:
+                            age_text = f" (בגיל {years} שנים)" if years > 1 else " (בגיל שנה)"
+                    else:
+                        age_text = f" (בגיל {m.age_months} חודשים)"
+                elif m.age_description:
+                    age_text = f" ({m.age_description})"
+                milestone_items.append(f"- {m.description}{age_text}")
+            sections.append(f"**אבני דרך התפתחותיות:**\n" + chr(10).join(milestone_items))
 
         # Strengths and interests
         strengths = []
         interests = []
-        for fact in gestalt.understanding.facts:
+        for fact in darshan.understanding.observations:
             if fact.domain == "strengths":
                 strengths.append(fact.content)
             elif fact.domain == "interests":
@@ -2673,16 +3198,16 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             sections.append(s)
 
         # Patterns
-        if gestalt.understanding.patterns:
+        if darshan.understanding.patterns:
             patterns_text = []
-            for pattern in gestalt.understanding.patterns:
+            for pattern in darshan.understanding.patterns:
                 domains = ", ".join(pattern.domains_involved) if pattern.domains_involved else ""
                 patterns_text.append(f"- {pattern.description} (מתחברים: {domains})")
             sections.append(f"**דפוסים שזיהינו:**\n" + chr(10).join(patterns_text))
 
         # Active explorations/concerns with temporal context
         concerns = []
-        for cycle in gestalt.exploration_cycles:
+        for cycle in darshan.explorations:
             if cycle.status == "active":
                 theory_text = f": {cycle.theory}" if cycle.theory else ""
                 confidence_text = ""
@@ -2695,22 +3220,22 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         if concerns:
             sections.append(f"**תחומים שאנחנו חוקרים:**\n" + chr(10).join(concerns))
 
-        # Temporal/developmental information from exploration cycles
-        temporal_insights = self._extract_temporal_insights(gestalt)
+        # Temporal/developmental information from explorations
+        temporal_insights = self._extract_temporal_insights(darshan)
         if temporal_insights:
             sections.append(f"**התפתחות לאורך זמן:**\n{temporal_insights}")
 
-        # Core facts (limited)
-        other_facts = [f.content for f in gestalt.understanding.facts[:8]
-                       if f.domain not in ("strengths", "interests")]
+        # Core facts (limited) - exclude birth_history/medical since already included above
+        other_facts = [f.content for f in darshan.understanding.observations[:8]
+                       if f.domain not in ("strengths", "interests", "birth_history", "medical")]
         if other_facts:
             sections.append(f"**עובדות נוספות:**\n" + chr(10).join([f"- {f}" for f in other_facts]))
 
         return chr(10) + chr(10).join(sections) if sections else "אין מספיק מידע עדיין"
 
-    def _extract_temporal_insights(self, gestalt: "LivingGestalt") -> str:
+    def _extract_temporal_insights(self, gestalt: "Darshan") -> str:
         """
-        Extract temporal/developmental insights from facts and exploration cycles.
+        Extract temporal/developmental insights from facts and explorations.
 
         This is critical for professionals who need to understand:
         - How long has this been going on?
@@ -2721,7 +3246,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
         insights = []
 
         # === FACT TIMESTAMP ANALYSIS ===
-        facts = gestalt.understanding.facts
+        facts = gestalt.understanding.observations
         if facts:
             # Get facts with timestamps
             dated_facts = [(f, f.t_created) for f in facts if f.t_created]
@@ -2774,7 +3299,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                         insights.append(f"- לאחרונה התחלנו לבחון גם: {', '.join(new_domains)}")
 
         # === EXPLORATION CYCLE ANALYSIS ===
-        for cycle in gestalt.exploration_cycles:
+        for cycle in gestalt.explorations:
             # Check for evidence with temporal information
             if not cycle.evidence:
                 continue
@@ -2805,7 +3330,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                 insights.append(f"- {cycle.focus}: הבנה מגובשת לאחר תקופת מעקב")
 
         # Check for completed cycles that might indicate progress
-        completed_cycles = [c for c in gestalt.exploration_cycles if c.status == "complete"]
+        completed_cycles = [c for c in gestalt.explorations if c.status == "complete"]
         if completed_cycles:
             insights.append(f"- סיימנו לבחון {len(completed_cycles)} תחומים והגענו למסקנות")
 
@@ -2860,6 +3385,263 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                     break
 
         return "\n".join(hints[:5]) if hints else ""
+
+    # =========================================================================
+    # PARENT JOURNAL INTEGRATION
+    # =========================================================================
+
+    async def process_parent_journal_entry(
+        self,
+        family_id: str,
+        entry_text: str,
+        entry_type: str,  # "התקדמות" | "תצפית" | "אתגר"
+    ) -> Dict[str, Any]:
+        """
+        Process a parent journal entry and feed it into understanding.
+
+        Parent journal entries are GOLD - direct observations from daily life.
+        We extract facts from them just like conversation messages.
+
+        This connects the parent journal to the living system:
+        - Facts extracted and added to Understanding (with ABSOLUTE timestamps)
+        - Curiosity engine notified of new learnings
+        - Milestones detected and recorded
+
+        IMPORTANT: Relative temporal expressions ("היום", "אתמול") are converted
+        to absolute timestamps at creation time so they retain meaning later.
+        """
+        entry_timestamp = datetime.now()  # When the journal entry was created
+
+        gestalt = await self._load_gestalt(family_id)
+
+        # Map entry type to significance and domain hint
+        type_mapping = {
+            "התקדמות": {"significance": "notable", "domain_hint": "strengths"},
+            "תצפית": {"significance": "routine", "domain_hint": None},
+            "אתגר": {"significance": "notable", "domain_hint": "concerns"},
+        }
+        mapping = type_mapping.get(entry_type, {"significance": "routine", "domain_hint": None})
+
+        # Use LLM to extract facts from journal entry (lightweight extraction)
+        extracted = await self._extract_from_journal_entry(
+            entry_text,
+            gestalt.child_name,
+            mapping["domain_hint"]
+        )
+
+        facts_added = 0
+        milestone_detected = False
+
+        # Add facts to understanding AND connect to curiosity engine
+        for fact_data in extracted.get("facts", []):
+            # Convert relative temporal expression to ABSOLUTE timestamp
+            when_str = fact_data.get("when")
+            t_valid = self._parse_relative_temporal(when_str, entry_timestamp)
+
+            fact = TemporalFact(
+                content=fact_data["content"],
+                domain=fact_data.get("domain", "general"),
+                source="parent_journal",
+                t_valid=t_valid,  # ABSOLUTE timestamp (when behavior happened)
+                t_created=entry_timestamp,  # When we learned about it
+                confidence=0.8,  # High confidence - parent's direct observation
+            )
+            gestalt.understanding.add_fact(fact)
+            # Connect to curiosity engine - this makes journal entries boost curiosities
+            gestalt._curiosities.on_observation_learned(fact)
+            facts_added += 1
+
+        # Add milestone if detected
+        if extracted.get("milestone"):
+            from .models import DevelopmentalMilestone
+            milestone = DevelopmentalMilestone.create(
+                description=extracted["milestone"]["description"],
+                domain=extracted["milestone"].get("domain", "general"),
+                milestone_type=extracted["milestone"].get("type", "observation"),
+                age_months=extracted["milestone"].get("age_months"),
+                age_description=extracted["milestone"].get("age_description"),
+                source="parent_journal",
+            )
+            gestalt.understanding.add_milestone(milestone)
+            milestone_detected = True
+            logger.info(f"📌 Milestone from journal: {milestone.description}")
+
+        # Create system journal entry to track this
+        from .models import JournalEntry
+        entry = JournalEntry.create(
+            summary=entry_text[:100] + "..." if len(entry_text) > 100 else entry_text,
+            learned=[f["content"] for f in extracted.get("facts", [])],
+            significance=mapping["significance"],
+        )
+        gestalt.journal.append(entry)
+
+        # Persist changes
+        await self._persist_gestalt(family_id, gestalt)
+
+        logger.info(f"📝 Journal entry processed: {facts_added} facts, milestone={milestone_detected}")
+
+        return {
+            "status": "processed",
+            "facts_extracted": facts_added,
+            "milestone_detected": milestone_detected,
+            "extracted": extracted,  # For debugging/transparency
+        }
+
+    def _parse_relative_temporal(
+        self,
+        when_str: Optional[str],
+        reference_time: datetime
+    ) -> datetime:
+        """
+        Parse relative temporal expression into ABSOLUTE timestamp.
+
+        Uses reference_time (entry creation) as the anchor point.
+        "היום" at 3pm on June 15 → June 15, 3pm
+        "אתמול" at 3pm on June 15 → June 14, 3pm
+        "לפני שבוע" at 3pm on June 15 → June 8, 3pm
+
+        This ensures temporal meaning is preserved even when read later.
+        """
+        if not when_str:
+            return reference_time
+
+        when_lower = when_str.lower().strip()
+
+        # Today / Now
+        if when_lower in ["היום", "עכשיו", "now", "today"]:
+            return reference_time
+
+        # Yesterday
+        if when_lower in ["אתמול", "yesterday"]:
+            return reference_time - timedelta(days=1)
+
+        # Day before yesterday
+        if when_lower in ["שלשום"]:
+            return reference_time - timedelta(days=2)
+
+        # Weeks ago
+        if "שבוע" in when_lower:
+            if "לפני" in when_lower:
+                if "שבועיים" in when_lower:
+                    return reference_time - timedelta(weeks=2)
+                # Check for number
+                import re
+                match = re.search(r'(\d+)', when_lower)
+                if match:
+                    weeks = int(match.group(1))
+                    return reference_time - timedelta(weeks=weeks)
+                return reference_time - timedelta(weeks=1)
+
+        # Months ago
+        if "חודש" in when_lower or "חודשים" in when_lower:
+            if "לפני" in when_lower:
+                import re
+                match = re.search(r'(\d+)', when_lower)
+                if match:
+                    months = int(match.group(1))
+                    return reference_time - timedelta(days=months * 30)
+                if "חודשיים" in when_lower:
+                    return reference_time - timedelta(days=60)
+                return reference_time - timedelta(days=30)
+
+        # "Usually" / habitual - treat as ongoing, use reference time
+        if when_lower in ["בדרך כלל", "תמיד", "usually", "always"]:
+            return reference_time
+
+        # Age-based expressions - these are about child's age, not calendar time
+        # We can't convert to absolute date without knowing child's birthdate
+        # So we use reference_time but this should really trigger milestone recording
+        if "בגיל" in when_lower or "גיל" in when_lower:
+            return reference_time  # Can't determine absolute time without birthdate
+
+        # Default: use reference time
+        return reference_time
+
+    async def _extract_from_journal_entry(
+        self,
+        entry_text: str,
+        child_name: Optional[str],
+        domain_hint: Optional[str],
+    ) -> Dict[str, Any]:
+        """
+        Lightweight LLM extraction from parent journal entry.
+
+        Returns facts (with temporal expressions) and potential milestones.
+        """
+        prompt = f"""Extract developmental observations from this parent journal entry.
+
+Child: {child_name or "the child"}
+Entry: "{entry_text}"
+{f"Context: This was marked as '{domain_hint}' by the parent" if domain_hint else ""}
+
+Return JSON with:
+1. "facts": Array of observations. Each has:
+   - "content": The observation in Hebrew (concise)
+   - "domain": One of: motor, social, emotional, cognitive, language, sensory, regulation, strengths, concerns, sleep, feeding, play
+   - "when": Extract the EXACT temporal expression from the text:
+     * "היום" if they say today
+     * "אתמול" if yesterday
+     * "לפני שבוע" / "לפני שבועיים" for weeks
+     * "לפני חודש" for month
+     * "בגיל X חודשים" for age-based (also triggers milestone)
+     * null if no timing mentioned
+
+2. "milestone": null OR an object if this describes a developmental milestone:
+   - "description": What happened (Hebrew)
+   - "domain": motor, language, social, cognitive, regulation
+   - "type": "achievement" (positive), "concern" (worry), "regression" (lost skill)
+   - "age_months": Age in months if mentioned (12=שנה, 18=שנה וחצי, 24=שנתיים)
+   - "age_description": Original age text (e.g., "בגיל שנה וחצי")
+
+Guidelines:
+- Extract 1-3 key observations
+- A milestone is something that marks development: first word, walking, lost a skill
+- Extract "when" EXACTLY as written - we will convert to timestamp
+- Be concise
+
+Example input: "אתמול דני אמר 'אמא' בפעם הראשונה!"
+Example output:
+{{
+  "facts": [
+    {{"content": "אמר 'אמא' בפעם הראשונה", "domain": "language", "when": "אתמול"}}
+  ],
+  "milestone": {{
+    "description": "אמר 'אמא' - מילה ראשונה",
+    "domain": "language",
+    "type": "achievement",
+    "age_months": null,
+    "age_description": null
+  }}
+}}
+
+Return ONLY valid JSON, no other text."""
+
+        try:
+            llm = self._get_llm()
+            response = await llm.chat(
+                messages=[LLMMessage(role="user", content=prompt)],
+                temperature=0.2,  # Low temperature for structured extraction
+                max_tokens=800,
+            )
+
+            # Parse JSON response
+            import json
+            import re
+
+            content = response.content.strip()
+            # Try to extract JSON from response (handle markdown code blocks)
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                return json.loads(json_match.group())
+            return {"facts": [], "milestone": None}
+
+        except Exception as e:
+            logger.error(f"Error extracting from journal entry: {e}")
+            # Fallback: create a simple fact from the entry
+            return {
+                "facts": [{"content": entry_text[:100], "domain": domain_hint or "general", "when": None}],
+                "milestone": None
+            }
 
 
 # Singleton instance for easy access

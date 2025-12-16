@@ -1,8 +1,8 @@
 """
-The Living Gestalt - The Observing Intelligence
+Darshan - The Observing Intelligence
 
-The Gestalt HOLDS, NOTICES, and ACTS.
-Child and Session are its memory. The Gestalt is the mind.
+Darshan HOLDS, NOTICES, and ACTS.
+Child and Session are its memory. Darshan is the mind.
 
 THREE PUBLIC METHODS:
 1. process_message(message) -> Response
@@ -10,7 +10,7 @@ THREE PUBLIC METHODS:
 3. synthesize() -> Optional[SynthesisReport]
 
 CRITICAL: Two-phase LLM architecture required.
-- Phase 1: Extraction with tools (LLM understands message, extracts data)
+- Phase 1: Perception with tools (LLM perceives message, extracts data)
 - Phase 2: Response without tools (LLM generates natural response)
 
 Tool calls and text response CANNOT be reliably combined.
@@ -18,12 +18,12 @@ Tool calls and text response CANNOT be reliably combined.
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 
 from .curiosity import (
     Curiosity,
-    CuriosityEngine,
+    Curiosities,
     create_hypothesis,
     create_question,
     create_pattern,
@@ -34,30 +34,34 @@ from .models import (
     TemporalFact,
     Evidence,
     Story,
-    ExplorationCycle,
+    Exploration,
     JournalEntry,
     Pattern,
     ToolCall,
-    ExtractionResult,
+    PerceptionResult,
     TurnContext,
     Response,
     SynthesisReport,
     Message,
     Crystal,
+    SharedSummary,
+    DevelopmentalMilestone,
     parse_temporal,
+    generate_id,
 )
 from .formatting import (
     format_understanding,
     format_curiosities,
-    format_cycles,
-    format_extraction_summary,
+    format_explorations,
+    format_perception_summary,
     format_turn_guidance,
     format_crystal,
     build_identity_section,
-    build_extraction_tools_description,
+    build_perception_tools_description,
     build_response_language_instruction,
 )
-from .tools import get_extraction_tools
+from .tools import get_perception_tools
+from .clinical_gaps import ClinicalGaps, ClinicalGap
 
 # Import LLM abstraction layer
 from app.services.llm.factory import create_llm_provider
@@ -67,15 +71,15 @@ from app.services.llm.base import Message as LLMMessage, LLMResponse
 logger = logging.getLogger(__name__)
 
 
-class LivingGestalt:
+class Darshan:
     """
     The observing intelligence - an expert developmental psychologist.
 
-    The Gestalt HOLDS, NOTICES, and ACTS.
-    Child and Session are its memory. The Gestalt is the mind.
+    Darshan HOLDS, NOTICES, and ACTS.
+    Child and Session are its memory. Darshan is the mind.
 
     CRITICAL: Two-phase architecture required.
-    - Phase 1: Extraction with tools (LLM understands message, extracts data)
+    - Phase 1: Perception with tools (LLM perceives message, extracts data)
     - Phase 2: Response without tools (LLM generates natural response)
 
     Tool calls and text response CANNOT be reliably combined.
@@ -86,36 +90,46 @@ class LivingGestalt:
         child_id: str,
         child_name: Optional[str],
         understanding: Understanding,
-        exploration_cycles: List[ExplorationCycle],
+        explorations: List[Exploration],
         stories: List[Story],
         journal: List[JournalEntry],
-        curiosity_engine: CuriosityEngine,
+        curiosities: Curiosities,
         session_history: List[Message],
         crystal: Optional[Crystal] = None,
+        shared_summaries: Optional[List[SharedSummary]] = None,
+        child_birth_date: Optional["date"] = None,
     ):
         """
-        Initialize the Living Gestalt.
+        Initialize Darshan.
 
         Args:
             child_id: Unique identifier for the child
             child_name: Child's name (if known)
             understanding: Current understanding of the child
-            exploration_cycles: Active and past exploration cycles
+            explorations: Active and past explorations
             stories: Captured stories
             journal: Journal entries
-            curiosity_engine: The curiosity engine
+            curiosities: The curiosities manager
             session_history: Recent conversation history
             crystal: Cached synthesis (patterns, essence, pathways)
+            shared_summaries: Previously generated Letters for sharing
+            child_birth_date: Child's birth date for age-based temporal calculations
         """
         self.child_id = child_id
         self.child_name = child_name
         self.understanding = understanding
-        self.exploration_cycles = exploration_cycles
+        self.explorations = explorations
         self.stories = stories
         self.journal = journal
-        self._curiosity_engine = curiosity_engine
+        self._curiosities = curiosities
         self.session_history = session_history
         self.crystal = crystal
+        self.shared_summaries = shared_summaries or []
+        self.child_birth_date = child_birth_date
+
+        # Session-level flags (persisted to survive page reload)
+        # Used for guided collection mode and other temporary states
+        self.session_flags: Dict[str, Any] = {}
 
         # Lazy-loaded LLM providers
         self._llm = None
@@ -153,27 +167,27 @@ class LivingGestalt:
         """
         Process a parent message with TWO-PHASE architecture.
 
-        Phase 1: Perception + Extraction (with tools)
-          - LLM understands intent, context, significance
+        Phase 1: Perception (with tools)
+          - LLM perceives intent, context, significance
           - LLM extracts data via tool calls
           - Returns: tool calls only
 
         Phase 2: Response Generation (without tools)
-          - LLM has extraction context
+          - LLM has perception context
           - LLM generates natural Hebrew response
           - Returns: text only
         """
         # Build context for this turn
         turn_context = self._build_turn_context(message)
 
-        # PHASE 1: Extraction with tools
-        extraction_result = await self._phase1_extract(turn_context)
+        # PHASE 1: Perception with tools
+        perception_result = await self._phase1_perceive(turn_context)
 
         # Apply learnings from tool calls
-        self._apply_learnings(extraction_result.tool_calls)
+        self._apply_learnings(perception_result.tool_calls)
 
         # PHASE 2: Response without tools
-        response_text = await self._phase2_respond(turn_context, extraction_result)
+        response_text = await self._phase2_respond(turn_context, perception_result)
 
         # Update session history
         self.session_history.append(Message(role="user", content=message))
@@ -184,12 +198,12 @@ class LivingGestalt:
             self.session_history = self.session_history[-20:]
 
         # Determine if crystallization should be triggered
-        should_crystallize = self._should_trigger_crystallization(extraction_result.tool_calls)
+        should_crystallize = self._should_trigger_crystallization(perception_result.tool_calls)
 
         return Response(
             text=response_text,
             curiosities=self.get_active_curiosities(),
-            open_questions=self._curiosity_engine.get_gaps(),
+            open_questions=self._curiosities.get_gaps(),
             should_crystallize=should_crystallize,
         )
 
@@ -226,7 +240,7 @@ class LivingGestalt:
 
     def get_active_curiosities(self) -> List[Curiosity]:
         """What am I curious about right now?"""
-        return self._curiosity_engine.get_active(self.understanding)
+        return self._curiosities.get_active(self.understanding)
 
     def synthesize(self) -> Optional[SynthesisReport]:
         """
@@ -242,20 +256,20 @@ class LivingGestalt:
     # TWO-PHASE ARCHITECTURE
     # ========================================
 
-    async def _phase1_extract(self, context: TurnContext) -> ExtractionResult:
+    async def _phase1_perceive(self, context: TurnContext) -> PerceptionResult:
         """
-        Phase 1: Extraction with tools.
+        Phase 1: Perception with tools.
 
-        The LLM perceives the message and extracts data.
+        Darshan perceives the message and extracts data.
         Intent detection, story analysis, significance assessment
         all happen INSIDE the LLM - not with keyword matching.
 
         Configuration:
-        - temperature=0.0 (reliable extraction)
+        - temperature=0.0 (reliable perception)
         - functions=tools (enables function calling)
         """
-        system_prompt = self._build_extraction_prompt(context)
-        tools = get_extraction_tools()
+        system_prompt = self._build_perception_prompt(context)
+        tools = get_perception_tools()
 
         # Build messages for LLM
         messages = [
@@ -268,7 +282,7 @@ class LivingGestalt:
             llm_response: LLMResponse = await llm.chat(
                 messages=messages,
                 functions=tools,  # Enable function calling
-                temperature=0.0,  # Low temp for reliable extraction
+                temperature=0.0,  # Low temp for reliable perception
                 max_tokens=2000,
             )
 
@@ -278,27 +292,27 @@ class LivingGestalt:
                 for fc in llm_response.function_calls
             ]
 
-            return ExtractionResult(
+            return PerceptionResult(
                 tool_calls=tool_calls,
                 perceived_intent=self._infer_intent_from_calls(tool_calls),
             )
 
         except Exception as e:
-            logger.error(f"Phase 1 extraction error: {e}")
-            return ExtractionResult(tool_calls=[], perceived_intent="conversational")
+            logger.error(f"Phase 1 perception error: {e}")
+            return PerceptionResult(tool_calls=[], perceived_intent="conversational")
 
-    async def _phase2_respond(self, context: TurnContext, extraction: ExtractionResult) -> str:
+    async def _phase2_respond(self, context: TurnContext, perception: PerceptionResult) -> str:
         """
         Phase 2: Response without tools.
 
         The LLM generates a natural Hebrew response.
-        Has full context including what was just extracted.
+        Has full context including what was just perceived.
 
         Configuration:
         - temperature=0.7 (natural conversation)
         - functions=None (forces text response)
         """
-        system_prompt = self._build_response_prompt(context, extraction)
+        system_prompt = self._build_response_prompt(context, perception)
 
         # Build messages with history
         messages = [LLMMessage(role="system", content=system_prompt)]
@@ -338,11 +352,11 @@ class LivingGestalt:
             this_message=message,
         )
 
-    def _build_extraction_prompt(self, context: TurnContext) -> str:
+    def _build_perception_prompt(self, context: TurnContext) -> str:
         """
-        Build prompt for Phase 1 (extraction).
+        Build prompt for Phase 1 (perception).
 
-        The LLM is asked to:
+        Darshan is asked to:
         1. Perceive what the parent is sharing (intent emerges from understanding)
         2. Extract relevant data via tool calls
         3. Assess significance if a story is shared
@@ -361,12 +375,45 @@ class LivingGestalt:
 {format_crystal(self.crystal)}
 """
 
+        # Check for guided collection mode - add extraction hints
+        guided_extraction_section = ""
+        if self.session_flags.get("preparing_summary_for"):
+            gaps = self.session_flags.get("guided_collection_gaps", [])
+            if gaps:
+                gap_hints = []
+                for g in gaps[:3]:
+                    field = g.get("field", "") if isinstance(g, dict) else getattr(g, "field", "")
+                    if field == "birth_history":
+                        gap_hints.append("birth/pregnancy info → record_milestone(domain='birth_history', milestone_type='birth' for birth moment, 'concern' for pregnancy events)")
+                    elif field == "milestones":
+                        gap_hints.append("milestone timing (first words, walking, etc.) → record_milestone(domain=..., milestone_type='achievement')")
+                    elif field == "family_developmental_history":
+                        gap_hints.append("family history → notice(domain='context')")
+                    elif field == "sleep":
+                        gap_hints.append("sleep info → notice(domain='sleep')")
+                    elif field == "regression":
+                        gap_hints.append("lost skills → record_milestone(domain=..., milestone_type='regression')")
+                    elif field == "sensory_patterns":
+                        gap_hints.append("sensory info → notice(domain='sensory')")
+                if gap_hints:
+                    guided_extraction_section = f"""
+## CRITICAL: EXTRACTION PRIORITY
+
+**Record any info about:**
+{chr(10).join(f'- {h}' for h in gap_hints)}
+
+Example: If parent says "הלידה הייתה קשה עם וואקום":
+→ Call record_milestone(description="לידה קשה עם וואקום", domain="birth_history", milestone_type="birth")
+
+**Use the correct tool - notice() for general observations, record_milestone() for developmental events with timing!**
+"""
+
         return f"""
-# CHITTA - Extraction Phase
+# CHITTA - Perception Phase
 
 You are Chitta, an expert developmental psychologist (0.5-18 years).
 You are perceiving what a parent shared and extracting relevant information.
-{crystal_section}
+{crystal_section}{guided_extraction_section}
 ## WHAT I KNOW ABOUT {child_name}
 
 {format_understanding(context.understanding)}
@@ -377,7 +424,7 @@ You are perceiving what a parent shared and extracting relevant information.
 
 ## ACTIVE EXPLORATIONS
 
-{format_cycles(self.exploration_cycles)}
+{format_explorations(self.explorations)}
 
 ## YOUR TASK
 
@@ -395,15 +442,16 @@ Read the parent's message and extract what's relevant:
 
 5. **If evidence relates to active exploration** - Use add_evidence.
 
-{build_extraction_tools_description()}
+{build_perception_tools_description()}
 """
 
-    def _build_response_prompt(self, context: TurnContext, extraction: ExtractionResult) -> str:
+    def _build_response_prompt(self, context: TurnContext, perception: PerceptionResult) -> str:
         """
         Build prompt for Phase 2 (response).
 
-        Turn-specific guidance is computed based on what was extracted.
+        Turn-specific guidance is computed based on what was perceived.
         Crystal provides holistic context for more insightful responses.
+        Guided collection mode injects gap context for Letter preparation.
         """
         child_name = self.child_name or "THIS CHILD"
 
@@ -416,16 +464,45 @@ Read the parent's message and extract what's relevant:
 {format_crystal(self.crystal)}
 """
 
-        # Compute guidance from extraction
-        captured_story = any(tc.name == "capture_story" for tc in extraction.tool_calls)
-        spawned_curiosity = any(tc.name == "wonder" for tc in extraction.tool_calls)
-        added_evidence = any(tc.name == "add_evidence" for tc in extraction.tool_calls)
+        # Check for guided collection mode
+        guided_collection_section = ""
+        if self.session_flags.get("preparing_summary_for"):
+            recipient_type = self.session_flags["preparing_summary_for"]
+            gaps = self.session_flags.get("guided_collection_gaps", [])
+            if gaps:
+                clinical_gaps_checker = ClinicalGaps()
+                guided_collection_section = clinical_gaps_checker.get_collection_context(
+                    recipient_type, gaps
+                )
+
+        # Compute guidance from perception
+        captured_story = any(tc.name == "capture_story" for tc in perception.tool_calls)
+        spawned_curiosity = any(tc.name == "wonder" for tc in perception.tool_calls)
+        added_evidence = any(tc.name == "add_evidence" for tc in perception.tool_calls)
+
+        # Detect general clinical gaps for soft guidance
+        # These are NOT agenda items - just hints for natural weaving
+        clinical_gaps = []
+        if not self.session_flags.get("preparing_summary_for"):
+            # Only add gap hints when NOT in guided collection mode
+            # (Guided collection has its own explicit gap prompts)
+            clinical_gaps_checker = ClinicalGaps()
+            # Check gaps that would be universally useful (pediatrician as baseline)
+            readiness = clinical_gaps_checker.check_readiness(
+                "pediatrician",
+                self.understanding,
+            )
+            # Combine critical and important gaps
+            all_gaps = readiness.missing_critical + readiness.missing_important
+            if all_gaps:
+                clinical_gaps = all_gaps[:5]  # Limit to top 5
 
         guidance = format_turn_guidance(
             captured_story=captured_story,
             spawned_curiosity=spawned_curiosity,
             added_evidence=added_evidence,
-            perceived_intent=extraction.perceived_intent,
+            perceived_intent=perception.perceived_intent,
+            clinical_gaps=clinical_gaps,
         )
 
         return f"""
@@ -436,13 +513,14 @@ You are responding to what the parent shared.
 
 {build_identity_section()}
 {crystal_section}
+{guided_collection_section}
 ## WHAT I KNOW ABOUT {child_name}
 
 {format_understanding(context.understanding)}
 
-## WHAT WE JUST LEARNED
+## WHAT WE JUST PERCEIVED
 
-{format_extraction_summary(extraction)}
+{format_perception_summary(perception)}
 
 {guidance}
 
@@ -481,6 +559,11 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
     def _apply_learnings(self, tool_calls: List[ToolCall]):
         """Apply what LLM learned to child state."""
+        # Debug: Log what tool calls we received from Phase 1
+        logger.info(f"📊 Phase 1 returned {len(tool_calls)} tool calls")
+        for call in tool_calls:
+            logger.info(f"  🔧 Tool: {call.name}, args: {call.args}")
+
         for call in tool_calls:
             try:
                 if call.name == "notice":
@@ -493,21 +576,28 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     self._handle_add_evidence(call.args)
                 elif call.name == "spawn_exploration":
                     self._handle_spawn_exploration(call.args)
+                elif call.name == "record_milestone":
+                    self._handle_record_milestone(call.args)
             except Exception as e:
                 logger.error(f"Error handling tool call {call.name}: {e}")
 
     def _handle_notice(self, args: Dict[str, Any]):
         """Notice an observation about the child."""
-        fact = TemporalFact(
+        observation = TemporalFact(
             content=args["observation"],
             domain=args.get("domain", "general"),
             source="conversation",
-            t_valid=parse_temporal(args.get("when")),
+            t_valid=parse_temporal(
+                when_type=args.get("when_type"),
+                when_value=args.get("when_value"),
+                reference_time=datetime.now(),
+                child_birth_date=self.child_birth_date,
+            ),
             t_created=datetime.now(),
             confidence=args.get("confidence", 0.7),
         )
-        self.understanding.add_fact(fact)
-        self._curiosity_engine.on_fact_learned(fact)
+        self.understanding.add_observation(observation)
+        self._curiosities.on_observation_learned(observation)
 
     def _handle_wonder(self, args: Dict[str, Any]):
         """Spawn a new curiosity."""
@@ -519,6 +609,8 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 theory=args.get("theory", args["about"]),
                 domain=args.get("domain", "general"),
                 video_appropriate=args.get("video_appropriate", True),
+                video_value=args.get("video_value"),
+                video_value_reason=args.get("video_value_reason"),
                 certainty=args.get("certainty", 0.3),
             )
         elif curiosity_type == "question":
@@ -539,7 +631,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 domain=args.get("domain", "essence"),
             )
 
-        self._curiosity_engine.add_curiosity(curiosity)
+        self._curiosities.add_curiosity(curiosity)
 
     def _handle_capture_story(self, args: Dict[str, Any]):
         """Capture a story and its developmental signals."""
@@ -551,26 +643,46 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         )
         self.stories.append(story)
 
-        # Touch domains in curiosity engine
+        # Touch domains in curiosities
         for domain in story.domains:
-            self._curiosity_engine.on_domain_touched(domain)
+            self._curiosities.on_domain_touched(domain)
+
+        # Cross-domain stories are GOLD for pattern detection
+        # Spawn pattern curiosity when story reveals connections across 2+ domains
+        if len(story.domains) >= 2 and story.significance >= 0.5:
+            # Check if we already have a pattern curiosity for these domains
+            existing_pattern = self._curiosities.find_curiosity_by_domains(
+                story.domains
+            )
+            if not existing_pattern:
+                # Create a pattern curiosity connecting these domains
+                pattern_focus = f"קשר בין {' ל'.join(story.domains[:3])}"
+                pattern_curiosity = create_pattern(
+                    focus=pattern_focus,
+                    domains_involved=story.domains,
+                    certainty=0.3,  # Start tentative
+                    pull=0.5 + (story.significance * 0.3),  # Higher pull for significant stories
+                )
+                self._curiosities.add_curiosity(pattern_curiosity)
+                logger.info(f"Story spawned pattern curiosity: {pattern_focus}")
 
         # Add journal entry
         entry = JournalEntry.create(
-            summary=f"Story captured: {story.summary}",
+            summary=story.summary,
             learned=story.reveals,
             significance="notable" if story.significance > 0.7 else "routine",
+            entry_type="story_captured",
         )
         self.journal.append(entry)
 
     def _handle_add_evidence(self, args: Dict[str, Any]):
-        """Add evidence to an active exploration cycle."""
-        cycle_id = args.get("cycle_id")
-        if not cycle_id:
+        """Add evidence to an active exploration."""
+        exploration_id = args.get("cycle_id")  # Keep "cycle_id" in args for backwards compatibility
+        if not exploration_id:
             return
 
-        cycle = self._get_cycle(cycle_id)
-        if not cycle or cycle.status != "active":
+        exploration = self._get_exploration(exploration_id)
+        if not exploration or exploration.status != "active":
             return
 
         evidence = Evidence.create(
@@ -578,51 +690,97 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             effect=args.get("effect", "supports"),
             source="conversation",
         )
-        cycle.add_evidence(evidence)
+        exploration.add_evidence(evidence)
 
         # Update curiosity certainty
-        self._curiosity_engine.on_evidence_added(cycle.focus, evidence.effect)
+        self._curiosities.on_evidence_added(exploration.focus, evidence.effect)
 
     def _handle_spawn_exploration(self, args: Dict[str, Any]):
-        """Spawn a new exploration cycle."""
+        """Spawn a new exploration."""
         exploration_type = args.get("type", "question")
 
         if exploration_type == "hypothesis":
-            cycle = ExplorationCycle.create_for_hypothesis(
+            exploration = Exploration.create_for_hypothesis(
                 focus=args["focus"],
                 theory=args.get("theory", args["focus"]),
                 domain=args.get("domain", "general"),
                 video_appropriate=args.get("video_appropriate", True),
             )
         elif exploration_type == "question":
-            cycle = ExplorationCycle.create_for_question(
+            exploration = Exploration.create_for_question(
                 focus=args["focus"],
                 question=args.get("question", args["focus"]),
                 domain=args.get("domain", "general"),
             )
         elif exploration_type == "pattern":
-            cycle = ExplorationCycle.create_for_pattern(
+            exploration = Exploration.create_for_pattern(
                 focus=args["focus"],
                 observation=args.get("observation", ""),
                 domains=[args.get("domain", "general")],
             )
         else:  # discovery
-            cycle = ExplorationCycle.create_for_discovery(
+            exploration = Exploration.create_for_discovery(
                 focus=args["focus"],
                 aspect=args.get("aspect", "essence"),
                 domain=args.get("domain", "general"),
             )
 
-        self.exploration_cycles.append(cycle)
+        self.explorations.append(exploration)
 
-        # Link curiosity to cycle
-        self._curiosity_engine.link_to_cycle(args["focus"], cycle.id)
+        # Link curiosity to exploration
+        self._curiosities.link_to_cycle(args["focus"], exploration.id)
 
-    def _get_cycle(self, cycle_id: str) -> Optional[ExplorationCycle]:
-        """Get exploration cycle by ID."""
-        for cycle in self.exploration_cycles:
-            if cycle.id == cycle_id:
-                return cycle
+        # Add journal entry for exploration start
+        entry = JournalEntry.create(
+            summary=args["focus"],
+            learned=[f"התחלנו לחקור: {args['focus']}"],
+            significance="notable",
+            entry_type="exploration_started",
+        )
+        self.journal.append(entry)
+        logger.info(f"🔍 Exploration spawned: {args['focus']} (type={exploration_type})")
+
+    def _handle_record_milestone(self, args: Dict[str, Any]):
+        """Record a developmental milestone."""
+        domain = args.get("domain", "general")
+        milestone_type = args.get("milestone_type", "achievement")
+        age_months = args.get("age_months")
+
+        # Handle birth/pregnancy timeline placement when age_months not specified:
+        # - milestone_type='birth' → the birth moment → age_months=0
+        # - domain='birth_history' (pregnancy events) → before birth → age_months=-1
+        if age_months is None:
+            if milestone_type == "birth":
+                age_months = 0  # Birth moment
+            elif domain == "birth_history":
+                age_months = -1  # Pregnancy events appear before birth
+
+        milestone = DevelopmentalMilestone.create(
+            description=args["description"],
+            domain=domain,
+            milestone_type=milestone_type,
+            age_months=age_months,
+            age_description=args.get("age_description"),
+            source="conversation",
+            child_birth_date=self.child_birth_date,
+        )
+        self.understanding.add_milestone(milestone)
+        logger.info(f"📌 Milestone recorded: {milestone.description} (domain={milestone.domain}, type={milestone.milestone_type})")
+
+        # Add journal entry for milestones
+        entry = JournalEntry.create(
+            summary=milestone.description,
+            learned=[f"{milestone.domain}: {milestone.description}"],
+            significance="notable" if milestone.milestone_type in ["concern", "regression"] else "routine",
+            entry_type="milestone_recorded",
+        )
+        self.journal.append(entry)
+
+    def _get_exploration(self, exploration_id: str) -> Optional[Exploration]:
+        """Get exploration by ID."""
+        for exploration in self.explorations:
+            if exploration.id == exploration_id:
+                return exploration
         return None
 
     # ========================================
@@ -631,16 +789,16 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
     def _should_synthesize(self) -> bool:
         """Check if conditions suggest synthesis is ready."""
-        completed_cycles = [c for c in self.exploration_cycles if c.status == "complete"]
+        completed_explorations = [e for e in self.explorations if e.status == "complete"]
 
         # Conditions for synthesis readiness:
-        # - Multiple cycles have completed
+        # - Multiple explorations have completed
         # - Multiple stories captured
-        # - Sufficient facts accumulated
+        # - Sufficient observations accumulated
         return (
-            len(completed_cycles) >= 2 or
+            len(completed_explorations) >= 2 or
             len(self.stories) >= 5 or
-            len(self.understanding.facts) >= 10
+            len(self.understanding.observations) >= 10
         )
 
     def _create_synthesis_report(self) -> SynthesisReport:
@@ -655,14 +813,14 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
         # Calculate confidence by domain
         confidence_by_domain: Dict[str, float] = {}
-        for fact in self.understanding.facts:
-            domain = fact.domain or "general"
+        for observation in self.understanding.observations:
+            domain = observation.domain or "general"
             if domain not in confidence_by_domain:
                 confidence_by_domain[domain] = 0.0
             confidence_by_domain[domain] = min(1.0, confidence_by_domain[domain] + 0.1)
 
-        # Get open questions from curiosity engine
-        open_questions = self._curiosity_engine.get_gaps()
+        # Get open questions from curiosities
+        open_questions = self._curiosities.get_gaps()
 
         # Build essence narrative if we have enough understanding
         essence_narrative = None
@@ -684,24 +842,24 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         """
         Get the timestamp of the most recent observation.
 
-        Scans all facts, stories, and evidence to find the newest timestamp.
+        Scans all observations, stories, and evidence to find the newest timestamp.
         Used for Crystal staleness detection.
         """
         timestamps = []
 
-        # Facts
-        for fact in self.understanding.facts:
-            if hasattr(fact, 't_created') and fact.t_created:
-                timestamps.append(fact.t_created)
+        # Observations
+        for observation in self.understanding.observations:
+            if hasattr(observation, 't_created') and observation.t_created:
+                timestamps.append(observation.t_created)
 
         # Stories
         for story in self.stories:
             if hasattr(story, 'timestamp') and story.timestamp:
                 timestamps.append(story.timestamp)
 
-        # Evidence in exploration cycles
-        for cycle in self.exploration_cycles:
-            for evidence in cycle.evidence:
+        # Evidence in explorations
+        for exploration in self.explorations:
+            for evidence in exploration.evidence:
                 if hasattr(evidence, 'timestamp') and evidence.timestamp:
                     timestamps.append(evidence.timestamp)
 
@@ -717,8 +875,8 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         Used for incremental Crystal updates - we only need to process
         what's new since the last crystallization.
         """
-        new_facts = [
-            f for f in self.understanding.facts
+        new_observations = [
+            f for f in self.understanding.observations
             if hasattr(f, 't_created') and f.t_created and f.t_created > since
         ]
 
@@ -728,16 +886,16 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         ]
 
         new_evidence = []
-        for cycle in self.exploration_cycles:
-            for evidence in cycle.evidence:
+        for exploration in self.explorations:
+            for evidence in exploration.evidence:
                 if hasattr(evidence, 'timestamp') and evidence.timestamp and evidence.timestamp > since:
                     new_evidence.append({
-                        "cycle_focus": cycle.focus,
+                        "exploration_focus": exploration.focus,
                         "evidence": evidence,
                     })
 
         return {
-            "facts": new_facts,
+            "observations": new_observations,
             "stories": new_stories,
             "evidence": new_evidence,
         }
@@ -752,7 +910,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
     def get_state_for_persistence(self) -> Dict[str, Any]:
         """Get state for persistence."""
         state = {
-            "curiosity_engine": self._curiosity_engine.to_dict(),
+            "curiosities": self._curiosities.to_dict(),
             "session_history": [
                 {"role": m.role, "content": m.content, "timestamp": m.timestamp.isoformat()}
                 for m in self.session_history
@@ -763,6 +921,15 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         if self.crystal:
             state["crystal"] = self.crystal.to_dict()
 
+        # Include shared Letters
+        if self.shared_summaries:
+            state["shared_summaries"] = [s.to_dict() for s in self.shared_summaries]
+
+        # Include session flags (guided collection mode, etc.)
+        # These need to persist so guided collection survives page reload
+        if self.session_flags:
+            state["session_flags"] = self.session_flags
+
         return state
 
     @classmethod
@@ -771,38 +938,59 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         child_id: str,
         child_name: Optional[str],
         understanding_data: Optional[Dict] = None,
-        exploration_cycles_data: Optional[List[Dict]] = None,
+        explorations_data: Optional[List[Dict]] = None,
         stories_data: Optional[List[Dict]] = None,
         journal_data: Optional[List[Dict]] = None,
-        curiosity_data: Optional[Dict] = None,
+        curiosities_data: Optional[Dict] = None,
         session_history_data: Optional[List[Dict]] = None,
         crystal_data: Optional[Dict] = None,
-    ) -> "LivingGestalt":
+        shared_summaries_data: Optional[List[Dict]] = None,
+        child_birth_date: Optional["date"] = None,
+        session_flags_data: Optional[Dict] = None,
+    ) -> "Darshan":
         """
-        Create a LivingGestalt from persisted child data.
+        Create Darshan from persisted child data.
 
-        This is a factory method for reconstructing the Gestalt
+        This is a factory method for reconstructing Darshan
         from stored state.
         """
         # Build Understanding
         understanding = Understanding()
         if understanding_data:
-            for fact_data in understanding_data.get("facts", []):
-                fact = TemporalFact(
-                    content=fact_data["content"],
-                    domain=fact_data.get("domain"),
-                    source=fact_data.get("source", "conversation"),
-                    confidence=fact_data.get("confidence", 0.7),
+            # Support both old "facts" and new "observations" keys
+            observations_list = understanding_data.get("observations", understanding_data.get("facts", []))
+            for obs_data in observations_list:
+                observation = TemporalFact(
+                    content=obs_data["content"],
+                    domain=obs_data.get("domain"),
+                    source=obs_data.get("source", "conversation"),
+                    confidence=obs_data.get("confidence", 0.7),
                 )
-                understanding.add_fact(fact)
+                understanding.add_observation(observation)
 
-        # Build exploration cycles
-        exploration_cycles = []
-        if exploration_cycles_data:
-            for cycle_data in exploration_cycles_data:
+            # Load milestones
+            milestones_list = understanding_data.get("milestones", [])
+            for m_data in milestones_list:
+                milestone = DevelopmentalMilestone(
+                    id=m_data.get("id", generate_id()),
+                    description=m_data["description"],
+                    age_months=m_data.get("age_months"),
+                    age_description=m_data.get("age_description"),
+                    domain=m_data.get("domain", "general"),
+                    milestone_type=m_data.get("milestone_type", "observation"),
+                    source=m_data.get("source", "conversation"),
+                    recorded_at=datetime.fromisoformat(m_data["recorded_at"]) if m_data.get("recorded_at") else datetime.now(),
+                    notes=m_data.get("notes"),
+                )
+                understanding.add_milestone(milestone)
+
+        # Build explorations
+        explorations = []
+        if explorations_data:
+            for exploration_data in explorations_data:
                 # Build video scenarios
                 video_scenarios = []
-                for scenario_data in cycle_data.get("video_scenarios", []):
+                for scenario_data in exploration_data.get("video_scenarios", []):
                     from .models import VideoScenario
                     scenario = VideoScenario(
                         id=scenario_data["id"],
@@ -816,6 +1004,8 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                         focus_points=scenario_data.get("focus_points", []),
                         category=scenario_data.get("category", "exploration"),
                         status=scenario_data.get("status", "pending"),
+                        created_at=datetime.fromisoformat(scenario_data["created_at"]) if scenario_data.get("created_at") else None,
+                        reminder_dismissed=scenario_data.get("reminder_dismissed", False),
                         video_path=scenario_data.get("video_path"),
                         uploaded_at=datetime.fromisoformat(scenario_data["uploaded_at"]) if scenario_data.get("uploaded_at") else None,
                         analysis_result=scenario_data.get("analysis_result"),
@@ -825,7 +1015,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
                 # Build evidence
                 evidence_list = []
-                for evidence_data in cycle_data.get("evidence", []):
+                for evidence_data in exploration_data.get("evidence", []):
                     from .models import Evidence
                     evidence = Evidence(
                         content=evidence_data["content"],
@@ -835,24 +1025,24 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     )
                     evidence_list.append(evidence)
 
-                cycle = ExplorationCycle(
-                    id=cycle_data["id"],
-                    curiosity_type=cycle_data.get("curiosity_type", "question"),
-                    focus=cycle_data["focus"],
-                    focus_domain=cycle_data.get("focus_domain", "general"),
-                    status=cycle_data.get("status", "active"),
-                    theory=cycle_data.get("theory"),
-                    confidence=cycle_data.get("confidence"),
-                    video_appropriate=cycle_data.get("video_appropriate", False),
-                    question=cycle_data.get("question"),
+                exploration = Exploration(
+                    id=exploration_data["id"],
+                    curiosity_type=exploration_data.get("curiosity_type", "question"),
+                    focus=exploration_data["focus"],
+                    focus_domain=exploration_data.get("focus_domain", "general"),
+                    status=exploration_data.get("status", "active"),
+                    theory=exploration_data.get("theory"),
+                    confidence=exploration_data.get("confidence"),
+                    video_appropriate=exploration_data.get("video_appropriate", False),
+                    question=exploration_data.get("question"),
                     # Video consent fields
-                    video_accepted=cycle_data.get("video_accepted", False),
-                    video_declined=cycle_data.get("video_declined", False),
-                    video_suggested_at=datetime.fromisoformat(cycle_data["video_suggested_at"]) if cycle_data.get("video_suggested_at") else None,
+                    video_accepted=exploration_data.get("video_accepted", False),
+                    video_declined=exploration_data.get("video_declined", False),
+                    video_suggested_at=datetime.fromisoformat(exploration_data["video_suggested_at"]) if exploration_data.get("video_suggested_at") else None,
                     video_scenarios=video_scenarios,
                     evidence=evidence_list,
                 )
-                exploration_cycles.append(cycle)
+                explorations.append(exploration)
 
         # Build stories
         stories = []
@@ -875,14 +1065,17 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     summary=entry_data["summary"],
                     learned=entry_data.get("learned", []),
                     significance=entry_data.get("significance", "routine"),
+                    entry_type=entry_data.get("entry_type", "insight"),  # Default for old data
                 )
                 journal.append(entry)
 
-        # Build curiosity engine
-        if curiosity_data:
-            curiosity_engine = CuriosityEngine.from_dict(curiosity_data)
+        # Build curiosities
+        # Support both old "curiosity_engine" key and new "curiosities" key
+        curiosities_data_to_use = curiosities_data
+        if curiosities_data_to_use:
+            curiosities = Curiosities.from_dict(curiosities_data_to_use)
         else:
-            curiosity_engine = CuriosityEngine()
+            curiosities = Curiosities()
 
         # Build session history
         session_history = []
@@ -900,14 +1093,38 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         if crystal_data:
             crystal = Crystal.from_dict(crystal_data)
 
-        return cls(
+        # Build shared Letters
+        shared_summaries = []
+        if shared_summaries_data:
+            for summary_data in shared_summaries_data:
+                shared_summaries.append(SharedSummary.from_dict(summary_data))
+
+        darshan = cls(
             child_id=child_id,
             child_name=child_name,
             understanding=understanding,
-            exploration_cycles=exploration_cycles,
+            explorations=explorations,
             stories=stories,
             journal=journal,
-            curiosity_engine=curiosity_engine,
+            curiosities=curiosities,
             session_history=session_history,
             crystal=crystal,
+            shared_summaries=shared_summaries,
+            child_birth_date=child_birth_date,
         )
+
+        # Restore session flags (guided collection mode, etc.)
+        if session_flags_data:
+            darshan.session_flags = session_flags_data
+
+        # Add "journey started" entry for brand new children (no journal entries yet)
+        if not journal:
+            name_part = f" עם {child_name}" if child_name else ""
+            darshan.journal.append(JournalEntry.create(
+                summary=f"התחלנו את המסע{name_part}",
+                learned=["מתחילים להכיר"],
+                significance="notable",
+                entry_type="session_started",
+            ))
+
+        return darshan

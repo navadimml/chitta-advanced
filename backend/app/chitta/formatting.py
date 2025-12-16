@@ -12,7 +12,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .curiosity import Curiosity
-    from .models import Understanding, ExplorationCycle, ExtractionResult, ToolCall, Crystal
+    from .models import Understanding, Exploration, PerceptionResult, ToolCall, Crystal
 
 
 # Type icons for visual display
@@ -50,7 +50,7 @@ def format_understanding(understanding: Optional["Understanding"]) -> str:
     if not understanding:
         return "Still getting to know this child."
 
-    if not understanding.facts:
+    if not understanding.observations:
         return "Still getting to know this child."
 
     sections = []
@@ -59,30 +59,50 @@ def format_understanding(understanding: Optional["Understanding"]) -> str:
     if understanding.essence and understanding.essence.narrative:
         sections.append(f"**Who they are**: {understanding.essence.narrative}")
 
-    # Key facts by domain
+    # Key observations by domain
     domains: dict = {}
-    for fact in understanding.facts:
-        domain = fact.domain or "general"
+    for observation in understanding.observations:
+        domain = observation.domain or "general"
         if domain not in domains:
             domains[domain] = []
-        domains[domain].append(fact.content)
+        domains[domain].append(observation.content)
 
-    for domain, facts in domains.items():
-        sections.append(f"**{domain}**: {'; '.join(facts[:3])}")
+    for domain, observations in domains.items():
+        sections.append(f"**{domain}**: {'; '.join(observations[:3])}")
 
     # Patterns
     if understanding.patterns:
         pattern_texts = [p.description for p in understanding.patterns[:3]]
         sections.append(f"**Patterns**: {'; '.join(pattern_texts)}")
 
+    # Developmental milestones (timeline)
+    if understanding.milestones:
+        milestone_texts = []
+        for m in sorted(understanding.milestones, key=lambda x: x.age_months or 999)[:5]:
+            age_str = ""
+            if m.age_months:
+                years = m.age_months // 12
+                months = m.age_months % 12
+                if years > 0 and months > 0:
+                    age_str = f"at {years}y{months}m"
+                elif years > 0:
+                    age_str = f"at {years}y"
+                else:
+                    age_str = f"at {months}m"
+            elif m.age_description:
+                age_str = m.age_description
+            type_marker = {"achievement": "✓", "concern": "⚠", "regression": "↓", "birth": "◯"}.get(m.milestone_type, "·")
+            milestone_texts.append(f"{type_marker} {m.description}" + (f" ({age_str})" if age_str else ""))
+        sections.append(f"**Milestones**: {'; '.join(milestone_texts)}")
+
     return "\n".join(sections) if sections else "Building understanding..."
 
 
 def format_curiosities(curiosities: List["Curiosity"]) -> str:
     """
-    Format curiosities for prompt with visual activation bars.
+    Format curiosities for prompt with visual pull bars.
 
-    Shows what the Gestalt is curious about right now.
+    Shows what Darshan is curious about right now.
     Returns English for LLM prompt context.
     """
     if not curiosities:
@@ -91,12 +111,12 @@ def format_curiosities(curiosities: List["Curiosity"]) -> str:
     lines = []
 
     for c in curiosities[:5]:
-        # Visual activation bar
-        filled = int(c.activation * 10)
+        # Visual pull bar
+        filled = int(c.pull * 10)
         empty = 10 - filled
         bar = "█" * filled + "░" * empty
         icon = TYPE_ICONS.get(c.type, "")
-        percent = int(c.activation * 100)
+        percent = int(c.pull * 100)
 
         lines.append(f"- {icon} {c.focus} [{bar}] {percent}%")
 
@@ -115,52 +135,52 @@ def format_curiosities(curiosities: List["Curiosity"]) -> str:
     return "\n".join(lines)
 
 
-def format_cycles(cycles: List["ExplorationCycle"]) -> str:
+def format_explorations(explorations: List["Exploration"]) -> str:
     """
-    Format active exploration cycles for prompt.
+    Format active explorations for prompt.
 
     Shows what explorations are currently active.
     Returns English for LLM prompt context.
     """
-    active = [c for c in cycles if c.status == "active"]
+    active = [e for e in explorations if e.status == "active"]
 
     if not active:
         return "No active explorations."
 
     lines = []
 
-    for c in active[:3]:
-        type_icon = TYPE_ICONS.get(c.curiosity_type, "")
-        lines.append(f"- [{type_icon} {c.curiosity_type}] {c.focus} (id: {c.id})")
+    for e in active[:3]:
+        type_icon = TYPE_ICONS.get(e.curiosity_type, "")
+        lines.append(f"- [{type_icon} {e.curiosity_type}] {e.focus} (id: {e.id})")
 
-        if c.curiosity_type == "hypothesis":
-            lines.append(f"  Testing: {c.theory}")
-            conf_percent = int((c.confidence or 0.5) * 100)
+        if e.curiosity_type == "hypothesis":
+            lines.append(f"  Testing: {e.theory}")
+            conf_percent = int((e.confidence or 0.5) * 100)
             lines.append(f"  Confidence: {conf_percent}%")
-            if c.video_appropriate:
+            if e.video_appropriate:
                 lines.append("  Video appropriate: Yes")
-        elif c.curiosity_type == "question":
-            lines.append(f"  Question: {c.question}")
+        elif e.curiosity_type == "question":
+            lines.append(f"  Question: {e.question}")
 
-        evidence_count = len(c.evidence)
+        evidence_count = len(e.evidence)
         lines.append(f"  Evidence collected: {evidence_count} pieces")
 
     return "\n".join(lines)
 
 
-def format_extraction_summary(extraction: "ExtractionResult") -> str:
+def format_perception_summary(perception: "PerceptionResult") -> str:
     """
-    Format what was extracted in Phase 1 for Phase 2 context.
+    Format what was perceived in Phase 1 for Phase 2 context.
 
     This tells the response LLM what we just learned.
     Returns English for LLM prompt context.
     """
-    if not extraction.tool_calls:
-        return "No specific extractions this turn."
+    if not perception.tool_calls:
+        return "No specific perceptions this turn."
 
     lines = []
 
-    for tc in extraction.tool_calls:
+    for tc in perception.tool_calls:
         if tc.name == "capture_story":
             summary = tc.args.get("summary", "story captured")
             lines.append(f"📖 Captured story: {summary}")
@@ -226,7 +246,8 @@ def format_turn_guidance(
     captured_story: bool = False,
     spawned_curiosity: bool = False,
     added_evidence: bool = False,
-    perceived_intent: str = "conversational"
+    perceived_intent: str = "conversational",
+    clinical_gaps: list = None,
 ) -> str:
     """
     Compute turn-specific guidance based on what was extracted.
@@ -234,8 +255,35 @@ def format_turn_guidance(
     NOT keyword matching - this is based on what the LLM
     actually understood and extracted in Phase 1.
 
+    Clinical gaps are surfaced as SOFT hints - opportunities to
+    naturally weave in questions, not rigid agenda items.
+
     Returns English for LLM alignment.
     """
+    clinical_gaps = clinical_gaps or []
+    # Summary/share request - guide to ChildSpace
+    if perceived_intent == "summary_request":
+        return """
+## TURN GUIDANCE: SUMMARY/SHARE REQUEST
+
+The parent wants a summary or to share information about their child.
+IMPORTANT: Summaries are created in the ChildSpace, not in chat.
+
+Guide them warmly:
+- Acknowledge their request
+- Explain that everything you've learned is organized in the child's Space
+- Tell them to tap on the child's avatar (the circle with their initial)
+- In the "שיתוף" (Share) tab, they can create customized summaries for different experts
+- The system will generate a professional summary tailored for the specific expert they choose
+
+Example response:
+"אשמח לעזור! כל מה שלמדתי על [שם הילד] מסודר במרחב שלו.
+לחצי על העיגול עם האות שלו למעלה, ובחרי בלשונית 'שיתוף'.
+שם תוכלי ליצור סיכום מותאם לכל מומחה - רופא ילדים, גננת, או כל איש מקצוע אחר."
+
+Do NOT try to create a summary in the chat.
+"""
+
     if captured_story:
         return """
 ## TURN GUIDANCE: STORY RECEIVED
@@ -288,7 +336,7 @@ The parent is expressing feelings.
 - Don't rush to problem-solve.
 """
 
-    return """
+    base_guidance = """
 ## TURN GUIDANCE: NATURAL RESPONSE
 
 Respond naturally to what was shared.
@@ -296,6 +344,52 @@ Respond naturally to what was shared.
 - One question at a time, if any
 - Let curiosity guide, not agenda
 """
+
+    # Add clinical gap hints if we have significant gaps
+    # These are SOFT suggestions - opportunities, not requirements
+    if clinical_gaps:
+        gap_hints = _format_clinical_gap_hints(clinical_gaps)
+        if gap_hints:
+            base_guidance += gap_hints
+
+    return base_guidance
+
+
+def _format_clinical_gap_hints(clinical_gaps: list) -> str:
+    """
+    Format clinical gaps as soft conversation hints.
+
+    These are NOT checklist items. They're opportunities to naturally
+    weave in useful questions when the moment feels right.
+    """
+    if not clinical_gaps:
+        return ""
+
+    # Only include critical and important gaps
+    relevant_gaps = [g for g in clinical_gaps if g.priority.value in ("critical", "important")]
+    if not relevant_gaps:
+        return ""
+
+    # Group by priority
+    critical = [g for g in relevant_gaps if g.priority.value == "critical"]
+    important = [g for g in relevant_gaps if g.priority.value == "important"]
+
+    lines = ["\n## CLINICAL CONTEXT (soft hints for natural weaving)\n"]
+    lines.append("If the moment feels natural, these topics would deepen our understanding:\n")
+
+    if critical:
+        lines.append("\n**Would be especially helpful:**")
+        for gap in critical[:3]:  # Max 3
+            lines.append(f"- {gap.parent_description}")
+            lines.append(f"  (Natural question: \"{gap.parent_question}\")")
+
+    if important:
+        lines.append("\n**Also useful when opportunity arises:**")
+        for gap in important[:2]:  # Max 2
+            lines.append(f"- {gap.parent_description}")
+
+    lines.append("\n*These are NOT agenda items. Respond to what the parent shared first.*")
+    return "\n".join(lines)
 
 
 def build_identity_section() -> str:
@@ -320,6 +414,21 @@ You are Chitta - an expert developmental psychologist (ages 0.5-18 years).
 - One question at a time, if any
 - Follow the flow, don't force agenda
 
+## CHILDSPACE - WHERE ARTIFACTS LIVE
+The parent can access a "ChildSpace" by tapping on the child's avatar (the circle with initial).
+This is where HOLISTIC artifacts live - things you've learned, organized for them.
+
+**When a parent asks for a summary, report, or to share information:**
+DO NOT try to create a summary in the chat. Instead, guide them warmly:
+- Tell them everything is organized in the child's Space (המרחב)
+- They tap the avatar at the top → open the "שיתוף" (Share) tab
+- There they can create customized summaries for different experts
+- The system generates professional summaries tailored for specific professionals
+
+Example response to "תעשי לי סיכום":
+"אשמח! כל מה שלמדתי על [שם הילד] מסודר במרחב שלו.
+לחצי על העיגול למעלה ובחרי בלשונית 'שיתוף' - שם תוכלי ליצור סיכום מותאם לכל מומחה."
+
 ## LANGUAGE
 - You MUST respond in natural Hebrew
 - Use simple, warm language
@@ -327,21 +436,30 @@ You are Chitta - an expert developmental psychologist (ages 0.5-18 years).
 """
 
 
-def build_extraction_tools_description() -> str:
+def build_perception_tools_description() -> str:
     """
-    Build the tools description for extraction phase.
+    Build the tools description for perception phase.
     English for LLM alignment.
     """
     return """
 ## TOOLS AVAILABLE
 
-Use these tools to extract and record what you perceive:
+Use these tools to perceive and record what you notice:
 
-- **notice**: Record an observation about the child
+- **notice**: Record an observation about the child (general facts, behaviors, concerns)
+- **record_milestone**: Record developmental milestones - use when parent mentions WHEN something happened:
+  - "Started walking at 14 months" → record_milestone(domain="motor", milestone_type="achievement", age_months=14)
+  - "First words around age 1" → record_milestone(domain="language", milestone_type="achievement", age_months=12)
+  - "Lost words at 18 months" → record_milestone(domain="language", milestone_type="regression", age_months=18)
+  - Birth/pregnancy: use domain="birth_history", NO age_months needed:
+    - "C-section" / "Natural birth" → milestone_type="birth" (the birth moment)
+    - "Born at 36 weeks" / "Difficult pregnancy" → milestone_type="concern" (pregnancy events)
 - **wonder**: Spawn a new curiosity (discovery/question/hypothesis/pattern)
-- **capture_story**: When a meaningful story is shared - extract what it reveals
-- **add_evidence**: Add evidence to active exploration cycle
-- **spawn_exploration**: Start focused investigation when curiosity is high
+- **capture_story**: When a meaningful story is shared - capture what it reveals
+- **add_evidence**: Add evidence to active exploration
+- **spawn_exploration**: Start focused investigation when curiosity pulls strongly
+
+**CRITICAL**: When parent mentions age/timing of developmental events, use record_milestone NOT notice!
 
 RESPOND WITH TOOL CALLS ONLY. No text response in this phase.
 """
@@ -352,13 +470,41 @@ def build_response_language_instruction() -> str:
     Build the language instruction for response phase.
     """
     return """
-## RESPONSE LANGUAGE
+## RESPONSE LANGUAGE - CRITICAL RULES
 
-CRITICAL: You MUST respond in natural Hebrew.
-- Warm, professional tone
-- Simple words, deep understanding
-- "שמתי לב ש..." not "המערכת זיהתה..."
-- Be human, not robotic
+**Be a supportive friend, NOT a professional or robot:**
+
+**EMOTIONAL PRESENCE - Make parent feel HEARD:**
+- When parent shares something hard or emotional, don't ignore it
+- Acknowledge briefly but genuinely, then continue naturally
+- DON'T say generic phrases like "אני מבינה את הרגשות שלך" or "זו חוויה מורכבת"
+- DO respond like a friend would: short, real, then move forward together
+
+**THE PRINCIPLE (not specific phrases to copy):**
+The key is brief, genuine acknowledgment in natural spoken Hebrew - the way a friend
+would respond before continuing the conversation. Use YOUR OWN varied phrasing each time.
+Every response should feel fresh and specific to what was shared.
+
+**Example of the PRINCIPLE (these are illustrations, NOT templates to repeat):**
+- Parent shares something hard → brief empathetic response + natural follow-up
+- The exact words should VARY each time - never use the same phrase repeatedly
+- What matters is the FEEL: warm, real, then moving forward together
+
+**NEVER DO THESE:**
+❌ Echo/parrot what parent said
+❌ Label things as important ("זה מידע משמעותי")
+❌ Use clinical terms (התפתחות שפתית, אנרגיה התפתחותית)
+❌ Move robotically to next question ("כדי להמשיך לאסוף...")
+❌ Be telegraphic - one word answers or cold/abrupt responses
+❌ Ignore emotional content and jump straight to questions
+❌ Repeat the same empathetic phrases over and over
+
+**INSTEAD:**
+✅ Brief, genuine acknowledgment + natural follow-up
+✅ Simple everyday Hebrew words
+✅ Be warm and curious like a friend
+✅ Show you're WITH the parent, not interviewing them
+✅ VARY your language naturally - conversation should flow, not feel scripted
 """
 
 

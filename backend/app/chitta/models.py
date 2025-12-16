@@ -3,14 +3,14 @@ Chitta Data Models - Lean and Purposeful
 
 מינימום המורכבות הנדרשת - minimum NECESSARY complexity.
 
-These models support the Living Gestalt architecture:
+These models support the Darshan architecture:
 - Simple dataclasses over complex Pydantic models where appropriate
 - Clear purpose for each model
 - No completeness anywhere
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Any
 import uuid
 
@@ -34,7 +34,7 @@ class DevelopmentalMilestone:
     developmental moments that matter to parents and clinicians.
 
     FUTURE IMPLEMENTATION NOTES:
-    - Belongs in the child's Understanding (part of Gestalt state)
+    - Belongs in the child's Understanding (part of Darshan state)
     - Should be displayed in ChildSpace - either in "מה גילינו" tab
       transformed into a developmental timeline, or as a dedicated view
     - Extraction: LLM tool during conversation when parent mentions milestones
@@ -48,10 +48,10 @@ class DevelopmentalMilestone:
     - "Toilet trained at 3.5 years"
 
     Required for implementation:
-    1. Add `developmental_milestones: List[DevelopmentalMilestone]` to Gestalt
+    1. Add `developmental_milestones: List[DevelopmentalMilestone]` to Darshan
     2. Create LLM tool: `record_milestone` for extraction during conversation
     3. Update ChildSpace UI to display age-based timeline
-    4. Consider: auto-extraction from existing facts that have temporal info
+    4. Consider: auto-extraction from existing observations that have temporal info
     """
     id: str
     description: str              # What happened: "אמר מילה ראשונה"
@@ -61,6 +61,7 @@ class DevelopmentalMilestone:
     milestone_type: str           # achievement, concern, regression, intervention, observation
     source: str                   # conversation, parent_report, clinical
     recorded_at: datetime
+    occurred_at: Optional[datetime] = None  # Calculated: when this actually happened
     notes: Optional[str] = None
 
     @classmethod
@@ -73,7 +74,16 @@ class DevelopmentalMilestone:
         age_description: Optional[str] = None,
         source: str = "conversation",
         notes: Optional[str] = None,
+        child_birth_date: Optional["date"] = None,
     ) -> "DevelopmentalMilestone":
+        # Calculate occurred_at from age_months and birth_date
+        occurred_at = None
+        if age_months is not None and child_birth_date is not None:
+            occurred_at = datetime.combine(
+                child_birth_date + timedelta(days=age_months * 30),
+                datetime.min.time()
+            )
+
         return cls(
             id=generate_id(),
             description=description,
@@ -83,6 +93,7 @@ class DevelopmentalMilestone:
             milestone_type=milestone_type,
             source=source,
             recorded_at=datetime.now(),
+            occurred_at=occurred_at,
             notes=notes,
         )
 
@@ -92,21 +103,31 @@ class DevelopmentalMilestone:
 @dataclass
 class JournalEntry:
     """
-    Lean journal entry - 4 fields.
+    Lean journal entry - 5 fields.
 
     Captures a moment from conversation without overhead.
+
+    Entry types for journey timeline (גילויים):
+    - session_started: First interaction began
+    - exploration_started: New exploration/curiosity spawned
+    - story_captured: Parent shared a meaningful story
+    - milestone_recorded: Developmental milestone noted
+    - pattern_found: Cross-domain pattern detected
+    - insight: General insight/learning
     """
     timestamp: datetime
     summary: str
     learned: List[str]
     significance: str  # "routine" | "notable" | "breakthrough"
+    entry_type: str = "insight"  # Type for journey timeline display
 
     @classmethod
     def create(
         cls,
         summary: str,
         learned: List[str],
-        significance: str = "routine"
+        significance: str = "routine",
+        entry_type: str = "insight"
     ) -> "JournalEntry":
         """Create a new journal entry with current timestamp."""
         return cls(
@@ -114,6 +135,7 @@ class JournalEntry:
             summary=summary,
             learned=learned,
             significance=significance,
+            entry_type=entry_type,
         )
 
 
@@ -147,7 +169,7 @@ class Story:
         )
 
 
-# === Facts & Evidence ===
+# === Observations & Evidence ===
 
 @dataclass
 class TemporalFact:
@@ -220,25 +242,30 @@ class Essence:
 @dataclass
 class Understanding:
     """
-    The Gestalt's understanding of the child.
+    Darshan's understanding of the child.
 
     This is the accumulated knowledge, not completeness score.
     """
-    facts: List[TemporalFact] = field(default_factory=list)
+    observations: List[TemporalFact] = field(default_factory=list)
     essence: Optional[Essence] = None
     patterns: List["Pattern"] = field(default_factory=list)
+    milestones: List["DevelopmentalMilestone"] = field(default_factory=list)
 
-    def add_fact(self, fact: TemporalFact):
-        """Add a fact to understanding."""
-        self.facts.append(fact)
+    def add_observation(self, observation: TemporalFact):
+        """Add an observation to understanding."""
+        self.observations.append(observation)
 
     def add_pattern(self, pattern: "Pattern"):
         """Add a pattern to understanding."""
         self.patterns.append(pattern)
 
-    def get_facts_by_domain(self, domain: str) -> List[TemporalFact]:
-        """Get all facts for a domain."""
-        return [f for f in self.facts if f.domain == domain]
+    def add_milestone(self, milestone: "DevelopmentalMilestone"):
+        """Add a developmental milestone."""
+        self.milestones.append(milestone)
+
+    def get_observations_by_domain(self, domain: str) -> List[TemporalFact]:
+        """Get all observations for a domain."""
+        return [o for o in self.observations if o.domain == domain]
 
     def to_text(self) -> str:
         """Convert understanding to text for prompts."""
@@ -247,16 +274,16 @@ class Understanding:
         if self.essence and self.essence.narrative:
             sections.append(f"מי הוא: {self.essence.narrative}")
 
-        # Group facts by domain
+        # Group observations by domain
         domains: Dict[str, List[str]] = {}
-        for fact in self.facts:
-            domain = fact.domain or "general"
+        for obs in self.observations:
+            domain = obs.domain or "general"
             if domain not in domains:
                 domains[domain] = []
-            domains[domain].append(fact.content)
+            domains[domain].append(obs.content)
 
-        for domain, facts in domains.items():
-            sections.append(f"{domain}: {'; '.join(facts[:3])}")
+        for domain, obs_list in domains.items():
+            sections.append(f"{domain}: {'; '.join(obs_list[:3])}")
 
         if self.patterns:
             patterns_text = ", ".join(p.description for p in self.patterns[:3])
@@ -300,6 +327,131 @@ class PortraitSection:
     content_type: str = "paragraph"  # "paragraph" | "bullets"
 
 
+# === Baseline Video Request ===
+
+@dataclass
+class BaselineVideoRequest:
+    """
+    Early-relationship request for a baseline video.
+
+    Not tied to any hypothesis - captures unknown unknowns.
+    Suggested after initial rapport, before strong theories form.
+
+    This is for DISCOVERY video value - seeing the child before
+    we know what to look for.
+    """
+    id: str
+    status: str = "pending"  # pending | accepted | declined | uploaded | analyzed
+
+    # Timing
+    suggested_at: Optional[datetime] = None
+    accepted_at: Optional[datetime] = None
+
+    # Parent-facing (simple, warm)
+    parent_instruction: str = "צלמי 3-5 דקות של משחק חופשי רגיל ביחד"
+    why_helpful: str = "זה עוזר לנו להכיר אותו בדרך שמשלימה את מה שאת מספרת"
+
+    # Video
+    video_path: Optional[str] = None
+    uploaded_at: Optional[datetime] = None
+
+    # Analysis results
+    analysis_result: Optional[Dict[str, Any]] = None
+    analyzed_at: Optional[datetime] = None
+    discoveries: List[str] = field(default_factory=list)  # What we learned
+
+    @classmethod
+    def create(cls) -> "BaselineVideoRequest":
+        """Create a new baseline video request."""
+        return cls(
+            id=generate_id(),
+            suggested_at=datetime.now(),
+        )
+
+    def accept(self):
+        """Parent accepted the suggestion."""
+        self.status = "accepted"
+        self.accepted_at = datetime.now()
+
+    def decline(self):
+        """Parent declined - respect it."""
+        self.status = "declined"
+
+    def mark_uploaded(self, video_path: str):
+        """Mark video as uploaded."""
+        self.status = "uploaded"
+        self.video_path = video_path
+        self.uploaded_at = datetime.now()
+
+    def mark_analyzed(self, analysis_result: Dict[str, Any], discoveries: List[str]):
+        """Mark video as analyzed with discoveries."""
+        self.status = "analyzed"
+        self.analysis_result = analysis_result
+        self.analyzed_at = datetime.now()
+        self.discoveries = discoveries
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "id": self.id,
+            "status": self.status,
+            "suggested_at": self.suggested_at.isoformat() if self.suggested_at else None,
+            "accepted_at": self.accepted_at.isoformat() if self.accepted_at else None,
+            "parent_instruction": self.parent_instruction,
+            "why_helpful": self.why_helpful,
+            "video_path": self.video_path,
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+            "analysis_result": self.analysis_result,
+            "analyzed_at": self.analyzed_at.isoformat() if self.analyzed_at else None,
+            "discoveries": self.discoveries,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "BaselineVideoRequest":
+        """Create from dict (persistence loading)."""
+        suggested_at = None
+        if data.get("suggested_at"):
+            try:
+                suggested_at = datetime.fromisoformat(data["suggested_at"])
+            except (ValueError, TypeError):
+                pass
+
+        accepted_at = None
+        if data.get("accepted_at"):
+            try:
+                accepted_at = datetime.fromisoformat(data["accepted_at"])
+            except (ValueError, TypeError):
+                pass
+
+        uploaded_at = None
+        if data.get("uploaded_at"):
+            try:
+                uploaded_at = datetime.fromisoformat(data["uploaded_at"])
+            except (ValueError, TypeError):
+                pass
+
+        analyzed_at = None
+        if data.get("analyzed_at"):
+            try:
+                analyzed_at = datetime.fromisoformat(data["analyzed_at"])
+            except (ValueError, TypeError):
+                pass
+
+        return cls(
+            id=data.get("id", generate_id()),
+            status=data.get("status", "pending"),
+            suggested_at=suggested_at,
+            accepted_at=accepted_at,
+            parent_instruction=data.get("parent_instruction", "צלמי 3-5 דקות של משחק חופשי רגיל ביחד"),
+            why_helpful=data.get("why_helpful", "זה עוזר לנו להכיר אותו בדרך שמשלימה את מה שאת מספרת"),
+            video_path=data.get("video_path"),
+            uploaded_at=uploaded_at,
+            analysis_result=data.get("analysis_result"),
+            analyzed_at=analyzed_at,
+            discoveries=data.get("discoveries", []),
+        )
+
+
 # === Video Scenarios ===
 
 @dataclass
@@ -328,7 +480,7 @@ class VideoScenario:
     category: str = "hypothesis_test"   # hypothesis_test | pattern_exploration | strength_baseline
 
     # STATUS & TIMESTAMPS
-    status: str = "pending"             # pending | uploaded | analyzed | validation_failed | rejected
+    status: str = "pending"             # pending | uploaded | needs_confirmation | analyzed | acknowledged | validation_failed | rejected
     created_at: Optional[datetime] = None  # When guidelines were generated
     reminder_dismissed: bool = False    # True = don't show reminder card, but guidelines still accessible
     video_path: Optional[str] = None
@@ -415,15 +567,15 @@ class VideoScenario:
         }
 
 
-# === Exploration Cycles ===
+# === Explorations ===
 
 @dataclass
-class ExplorationCycle:
+class Exploration:
     """
-    A focused investigation.
+    A focused investigation — following a thread of curiosity.
 
     Supports all 4 curiosity types via optional fields.
-    Cycles are time-bounded - when complete, they're frozen.
+    Explorations are time-bounded - when complete, they're frozen.
 
     Video exploration requires EXPLICIT CONSENT before guidelines are generated.
     """
@@ -446,6 +598,10 @@ class ExplorationCycle:
     discovery_aspect: Optional[str] = None # discovery (essence/strengths/context)
     pattern_observation: Optional[str] = None  # pattern
     supporting_cycle_ids: List[str] = field(default_factory=list)  # pattern
+
+    # Video value (LLM-determined) - WHY video would be valuable
+    video_value: Optional[str] = None      # calibration | chain | discovery | reframe | relational
+    video_value_reason: Optional[str] = None  # Brief explanation of what video could reveal
 
     # Video consent and scenarios (guidelines generated ONLY after consent)
     video_accepted: bool = False           # Parent said YES to video
@@ -518,7 +674,9 @@ class ExplorationCycle:
         theory: str,
         domain: str,
         video_appropriate: bool = True,
-    ) -> "ExplorationCycle":
+        video_value: Optional[str] = None,
+        video_value_reason: Optional[str] = None,
+    ) -> "Exploration":
         """Create a hypothesis exploration cycle."""
         return cls(
             id=generate_id(),
@@ -528,6 +686,8 @@ class ExplorationCycle:
             theory=theory,
             confidence=0.5,
             video_appropriate=video_appropriate,
+            video_value=video_value,
+            video_value_reason=video_value_reason,
         )
 
     @classmethod
@@ -536,7 +696,7 @@ class ExplorationCycle:
         focus: str,
         question: str,
         domain: str,
-    ) -> "ExplorationCycle":
+    ) -> "Exploration":
         """Create a question exploration cycle."""
         return cls(
             id=generate_id(),
@@ -552,7 +712,7 @@ class ExplorationCycle:
         focus: str,
         aspect: str,
         domain: str,
-    ) -> "ExplorationCycle":
+    ) -> "Exploration":
         """Create a discovery exploration cycle."""
         return cls(
             id=generate_id(),
@@ -568,7 +728,7 @@ class ExplorationCycle:
         focus: str,
         observation: str,
         domains: List[str],
-    ) -> "ExplorationCycle":
+    ) -> "Exploration":
         """Create a pattern exploration cycle."""
         return cls(
             id=generate_id(),
@@ -589,12 +749,12 @@ class ToolCall:
 
 
 @dataclass
-class ExtractionResult:
+class PerceptionResult:
     """
-    Result from Phase 1 (extraction with tools).
+    Result from Phase 1 (perception with tools).
 
     Contains the tool calls made by the LLM when perceiving
-    and extracting from the parent's message.
+    what the parent shared.
     """
     tool_calls: List[ToolCall]
     perceived_intent: str  # 'story' | 'informational' | 'question' | 'emotional' | 'conversational'
@@ -605,7 +765,7 @@ class TurnContext:
     """
     Context for processing a turn.
 
-    Built BEFORE Phase 1 - contains everything the extraction LLM needs.
+    Built BEFORE Phase 1 - contains everything the perception LLM needs.
     NOTE: No intent detection here - that happens INSIDE Phase 1 LLM.
     """
     understanding: Understanding
@@ -616,7 +776,7 @@ class TurnContext:
 
 @dataclass
 class Response:
-    """Response from the Gestalt."""
+    """Response from Darshan."""
     text: str
     curiosities: List[Any]  # List[Curiosity]
     open_questions: List[str]
@@ -1050,41 +1210,65 @@ class Message:
 
 # === Temporal Parsing ===
 
-def parse_temporal(when: Optional[str]) -> Optional[datetime]:
+def parse_temporal(
+    when_type: Optional[str],
+    when_value: Optional[float] = None,
+    reference_time: Optional[datetime] = None,
+    child_birth_date: Optional["date"] = None,
+) -> Optional[datetime]:
     """
-    Parse a temporal expression to datetime.
+    Convert structured temporal data (from LLM extraction) to absolute datetime.
 
-    Handles expressions like "yesterday", "usually", "at age 2".
-    Returns None if cannot parse or expression is vague.
+    The LLM extracts temporal info into:
+    - when_type: enum like "now", "days_ago", "age_months", etc.
+    - when_value: numeric value (days, weeks, months, or age in months)
+
+    Args:
+        when_type: Type of temporal reference (from enum)
+        when_value: Numeric value for the type
+        reference_time: When this was recorded (defaults to now)
+        child_birth_date: Child's birth date for age-based calculations
+
+    Returns:
+        Absolute datetime
     """
-    if not when:
-        return None
+    from datetime import timedelta, date
 
-    when_lower = when.lower().strip()
+    ref = reference_time or datetime.now()
 
-    # Current time references
-    if when_lower in ["now", "עכשיו", "היום", "today"]:
-        return datetime.now()
+    if not when_type:
+        return ref  # No temporal info - use recording time
 
-    # Yesterday
-    if when_lower in ["yesterday", "אתמול"]:
-        from datetime import timedelta
-        return datetime.now() - timedelta(days=1)
+    when_type = when_type.lower()
+    value = int(when_value) if when_value else 0
 
-    # Vague expressions - return None (still valid, just imprecise)
-    vague_terms = ["usually", "generally", "often", "sometimes", "בדרך כלל", "לעיתים"]
-    if any(term in when_lower for term in vague_terms):
-        return None
+    if when_type == "now":
+        return ref
 
-    # Age expressions - return None (relative to birth, not absolute)
-    if "age" in when_lower or "גיל" in when_lower:
-        return None
+    elif when_type == "days_ago":
+        return ref - timedelta(days=value)
 
-    # Try ISO format parse
-    try:
-        return datetime.fromisoformat(when)
-    except ValueError:
-        pass
+    elif when_type == "weeks_ago":
+        return ref - timedelta(weeks=value)
 
-    # Default: return None for unparseable expressions
-    return None
+    elif when_type == "months_ago":
+        return ref - timedelta(days=value * 30)
+
+    elif when_type == "age_months":
+        # Convert age in months to absolute date using child's birth date
+        if child_birth_date:
+            return datetime.combine(
+                child_birth_date + timedelta(days=value * 30),
+                datetime.min.time()
+            )
+        else:
+            return ref  # No birth date available
+
+    elif when_type == "habitual":
+        return ref  # Ongoing pattern - use reference time
+
+    elif when_type == "past_unspecified":
+        return ref - timedelta(days=30)  # Rough estimate
+
+    else:
+        return ref

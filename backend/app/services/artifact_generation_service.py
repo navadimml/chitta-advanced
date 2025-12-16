@@ -1842,7 +1842,7 @@ The extracted JSON will appear here:
         Get JSON schema for Stage 2 guidelines generation - Hypothesis-Driven.
 
         Each video scenario is designed to test specific hypotheses from the interview.
-        This aligns with the unified ExplorationCycle model where video is one method
+        This aligns with the unified Exploration model where video is one method
         of exploration among others (conversation, etc.).
         """
         return {

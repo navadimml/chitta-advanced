@@ -415,6 +415,64 @@ function App() {
       return;
     }
 
+    // Dismiss card (X button or הבנתי button)
+    if (action === 'dismiss' && cycleId) {
+      console.log('❌ Dismissing card for cycle:', cycleId, 'type:', card?.type);
+
+      try {
+        // For video suggestions, declining is the same as dismissing
+        if (card?.type === 'video_suggestion') {
+          await api.declineVideoSuggestion(activeFamilyId, cycleId);
+        } else {
+          // For video_analyzed and other cards, use generic dismiss with scenario_ids
+          await api.executeCardAction(activeFamilyId, 'dismiss', {
+            cycle_id: cycleId,
+            card_type: card?.type,
+            scenario_ids: card?.scenario_ids || [],
+          });
+        }
+        console.log('✅ Card dismissed');
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error dismissing card:', error);
+      }
+      return;
+    }
+
+    // Confirm video (parent verifies it's the correct video despite concerns)
+    if (action === 'confirm_video' && card?.scenario_id) {
+      console.log('✅ Confirming video for scenario:', card.scenario_id);
+
+      try {
+        await api.executeCardAction(activeFamilyId, 'confirm_video', {
+          cycle_id: cycleId,
+          scenario_id: card.scenario_id,
+        });
+        console.log('✅ Video confirmed');
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error confirming video:', error);
+      }
+      return;
+    }
+
+    // Reject video (parent says it's not the right video)
+    if (action === 'reject_video' && card?.scenario_id) {
+      console.log('❌ Rejecting video for scenario:', card.scenario_id);
+
+      try {
+        await api.executeCardAction(activeFamilyId, 'reject_video', {
+          cycle_id: cycleId,
+          scenario_id: card.scenario_id,
+        });
+        console.log('✅ Video rejected - can upload new one');
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error rejecting video:', error);
+      }
+      return;
+    }
+
     // View video insights
     if (action === 'view_insights' && card?.cycle_id) {
       try {
@@ -489,51 +547,37 @@ function App() {
     }
 
     if (action === 'analyze_videos') {
-      // 🎥 Trigger video analysis (v2 with cycle_id or v1 legacy)
-      // Note: Card shows its own loading state - don't block the chat
+      // 🎥 Trigger video analysis - runs in background, doesn't block chat
       console.log('🎬 Starting video analysis for family:', activeFamilyId, 'cycle:', cycleId);
 
-      try {
-        let result;
-        if (cycleId) {
-          // Living Gestalt v2: Use cycle-specific analysis
-          result = await api.analyzeVideos(activeFamilyId, cycleId);
-        } else {
-          // Legacy v1: Use old endpoint
+      if (cycleId) {
+        // Living Gestalt v2: Fire and forget - SSE will notify when done
+        api.analyzeVideos(activeFamilyId, cycleId)
+          .then(result => {
+            console.log('✅ Video analysis complete:', result);
+            // SSE will automatically update cards
+          })
+          .catch(error => {
+            console.error('❌ Error analyzing videos:', error);
+            // Refresh cards to clear loading state
+            refreshCards();
+          });
+
+        // Immediately refresh to show "analyzing" card state
+        await refreshCards();
+      } else {
+        // Legacy v1: Still blocking (deprecated path)
+        try {
           const response = await fetch(`${window.location.origin}/api/video/analyze?family_id=${activeFamilyId}`, {
             method: 'POST'
           });
-          result = await response.json();
+          const result = await response.json();
+          console.log('✅ Video analysis result:', result);
+          await refreshCards();
+        } catch (error) {
+          console.error('❌ Error analyzing videos:', error);
+          alert('שגיאה בניתוח הסרטונים. נא לנסות שוב.');
         }
-
-        console.log('✅ Video analysis result:', result);
-
-        // ⚠️ Check if confirmation is needed (legacy v1)
-        if (result.needs_confirmation) {
-          console.log('⚠️ Confirmation needed:', result.confirmation_message);
-
-          // Show confirmation dialog
-          const confirmed = window.confirm(result.confirmation_message);
-
-          if (confirmed) {
-            // User confirmed - re-call with confirmed=true
-            console.log('✅ User confirmed - proceeding with analysis');
-            const response = await fetch(`${window.location.origin}/api/video/analyze?family_id=${activeFamilyId}&confirmed=true`, {
-              method: 'POST'
-            });
-            const confirmedResult = await response.json();
-            console.log('✅ Video analysis result (confirmed):', confirmedResult);
-          } else {
-            console.log('❌ User cancelled analysis');
-          }
-          return;
-        }
-
-        // Refresh cards to show updated state
-        await refreshCards();
-      } catch (error) {
-        console.error('❌ Error analyzing videos:', error);
-        alert('שגיאה בניתוח הסרטונים. נא לנסות שוב.');
       }
       return;
     }
@@ -962,11 +1006,11 @@ function App() {
             setActiveDeepView('videoGallery');
           }
         }}
-        onGenerateSummary={async ({ expert, expertDescription, context, crystalInsights, comprehensive }) => {
+        onGenerateSummary={async ({ expert, expertDescription, context, crystalInsights, comprehensive, missingGaps }) => {
           const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
           const result = await api.generateShareableSummary(
             activeFamilyId,
-            { expert, expertDescription, context, crystalInsights, comprehensive }
+            { expert, expertDescription, context, crystalInsights, comprehensive, missingGaps }
           );
           return result;
         }}
@@ -976,6 +1020,15 @@ function App() {
           setShowChildSpace(false);
           setActiveDeepView('upload');
           setActiveViewData(scenario);  // Pass scenario directly, VideoUploadView expects it as scenarioData
+        }}
+        onAddChittaMessage={(message) => {
+          // Add a Chitta message to the chat (used for guided collection greeting)
+          const chittaMessage = {
+            sender: 'chitta',
+            text: message,
+            timestamp: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, chittaMessage]);
         }}
       />
 

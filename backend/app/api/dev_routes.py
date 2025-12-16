@@ -480,7 +480,7 @@ async def get_xray_report(filename: str):
 # ========================================
 # The old TEST_SCENARIOS and /seed/{scenario} endpoint used deprecated
 # services (session_service, lifecycle_manager, prerequisite_service).
-# Use the new Living Gestalt seeding system below instead:
+# Use the new Darshan seeding system below instead:
 # - GET /dev/seed/gestalt/scenarios - List available scenarios
 # - POST /dev/seed/gestalt/{scenario} - Seed a scenario
 
@@ -529,10 +529,10 @@ async def reset_session(family_id: str):
 
 
 # ========================================
-# 🧪 LIVING GESTALT SEEDING SYSTEM
+# 🧪 DARSHAN SEEDING SYSTEM
 # ========================================
-# These endpoints seed data for the new Living Gestalt architecture
-# allowing manual testing of video flow and exploration cycles
+# These endpoints seed data for the Darshan architecture
+# allowing manual testing of video flow and explorations
 
 GESTALT_SCENARIOS = {
     "video_suggestion": {
@@ -592,7 +592,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
     """
     Build realistic gestalt data for a scenario.
 
-    Returns data in the format expected by LivingGestalt.from_child_data()
+    Returns data in the format expected by Darshan.from_child_data()
     """
     from datetime import datetime, timedelta
 
@@ -639,10 +639,36 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
         }
     ]
 
-    # Base journal
+    # Base journal - with entry_type for גילויים view
     base_journal = [
-        {"timestamp": datetime.now().isoformat(), "summary": "התחלנו להכיר את המשפחה", "learned": ["קושי במעברים", "רגישות חושית"], "significance": "notable"},
-        {"timestamp": datetime.now().isoformat(), "summary": "שמענו על החוזקות", "learned": ["מוזיקה", "בנייה", "יצירתיות"], "significance": "routine"},
+        {
+            "timestamp": (datetime.now() - timedelta(days=2)).isoformat(),
+            "summary": f"התחלנו את המסע עם {child_name}",
+            "learned": ["מתחילים להכיר"],
+            "significance": "notable",
+            "entry_type": "session_started"
+        },
+        {
+            "timestamp": (datetime.now() - timedelta(days=1)).isoformat(),
+            "summary": "קשה לו לעבור מפעילות לפעילות",
+            "learned": ["מתקשה עם רעשים חזקים", "צריך זמן להתכונן לשינויים"],
+            "significance": "notable",
+            "entry_type": "story_captured"
+        },
+        {
+            "timestamp": (datetime.now() - timedelta(hours=12)).isoformat(),
+            "summary": "האם השינויים קשים בגלל שהם מפתיעים אותו?",
+            "learned": ["תחום: רגשי"],
+            "significance": "notable",
+            "entry_type": "exploration_started"
+        },
+        {
+            "timestamp": datetime.now().isoformat(),
+            "summary": "אוהב מוזיקה ובנייה",
+            "learned": ["שר שירים שלמים", "בונה מגדלים גבוהים מקוביות"],
+            "significance": "routine",
+            "entry_type": "story_captured"
+        },
     ]
 
     # Session history - realistic conversation
@@ -1098,7 +1124,7 @@ def build_gestalt_seed_data(scenario: str, child_name: str = "דניאל") -> di
 @router.get("/seed/gestalt/scenarios")
 async def list_gestalt_scenarios():
     """
-    🧪 List all available Living Gestalt seeding scenarios
+    🧪 List all available Darshan seeding scenarios
 
     Each scenario seeds a specific state in the video exploration flow,
     allowing manual testing from any point in the workflow.
@@ -1126,7 +1152,7 @@ async def seed_gestalt_scenario(
     child_name: str = "דניאל"
 ):
     """
-    🧪 Seed a Living Gestalt scenario for manual testing
+    🧪 Seed a Darshan scenario for manual testing
 
     This creates a family with the specified state in the video exploration flow,
     allowing you to manually test from any point without going through the full conversation.

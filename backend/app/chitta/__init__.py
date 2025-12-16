@@ -1,17 +1,17 @@
 """
-Chitta Core - Living Gestalt Architecture
+Chitta Core - Darshan Architecture
 
-The Gestalt is an **observing intelligence** - not a data container.
+Darshan (दर्शन) is the **observing intelligence** - not a data container.
 Understanding emerges through **curiosity**, not checklists.
 
 Key components:
-- LivingGestalt: The observing intelligence with 3 public methods
+- Darshan: The observing intelligence with 3 public methods
 - ChittaService: Thin orchestration layer
-- CuriosityEngine: Manages what we're curious about
+- Curiosities: Manages what we're curious about
 - SynthesisService: On-demand deep analysis
 
 Two-Phase LLM Architecture:
-- Phase 1: Extraction with tools (temp=0.0)
+- Phase 1: Perception with tools (temp=0.0)
 - Phase 2: Response without tools (temp=0.7)
 
 Tool calls and text response CANNOT be reliably combined.
@@ -20,16 +20,16 @@ Tool calls and text response CANNOT be reliably combined.
 # === New Architecture (Active) ===
 
 from .service import ChittaService, get_chitta_service
-from .gestalt import LivingGestalt
-from .curiosity import Curiosity, CuriosityEngine, create_hypothesis, create_question, create_pattern, create_discovery
-from .tools import get_extraction_tools, EXTRACTION_TOOLS
+from .gestalt import Darshan
+from .curiosity import Curiosity, Curiosities, create_hypothesis, create_question, create_pattern, create_discovery
+from .tools import get_perception_tools, PERCEPTION_TOOLS
 from .synthesis import SynthesisService, get_synthesis_service
 from .models import (
     Understanding,
     TemporalFact,
     Evidence,
     Story,
-    ExplorationCycle,
+    Exploration,
     JournalEntry,
     Pattern,
     Response,
@@ -40,8 +40,8 @@ from .models import (
 from .formatting import (
     format_understanding,
     format_curiosities,
-    format_cycles,
-    format_extraction_summary,
+    format_explorations,
+    format_perception_summary,
 )
 
 # === Deprecated (for backward compatibility) ===
@@ -96,22 +96,22 @@ except ImportError:
 
 
 __all__ = [
-    # === New Architecture ===
+    # === Darshan Architecture ===
     # Service
     "ChittaService",
     "get_chitta_service",
-    # Gestalt
-    "LivingGestalt",
+    # Darshan
+    "Darshan",
     # Curiosity
     "Curiosity",
-    "CuriosityEngine",
+    "Curiosities",
     "create_hypothesis",
     "create_question",
     "create_pattern",
     "create_discovery",
     # Tools
-    "get_extraction_tools",
-    "EXTRACTION_TOOLS",
+    "get_perception_tools",
+    "PERCEPTION_TOOLS",
     # Synthesis
     "SynthesisService",
     "get_synthesis_service",
@@ -120,7 +120,7 @@ __all__ = [
     "TemporalFact",
     "Evidence",
     "Story",
-    "ExplorationCycle",
+    "Exploration",
     "JournalEntry",
     "Pattern",
     "Response",
@@ -130,8 +130,8 @@ __all__ = [
     # Formatting
     "format_understanding",
     "format_curiosities",
-    "format_cycles",
-    "format_extraction_summary",
+    "format_explorations",
+    "format_perception_summary",
     # === Deprecated (backward compatibility) ===
     "build_gestalt",
     "Gestalt",
