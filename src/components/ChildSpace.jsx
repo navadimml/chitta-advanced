@@ -3,12 +3,13 @@ import {
   X, Sparkles, Lightbulb, Video, Share2,
   ChevronLeft, ChevronDown, ChevronUp, ChevronRight, Heart, Music, Palette, Zap,
   Eye, Play, Clock, Send, Copy, FileText, Printer,
-  Users, GraduationCap, Home, MessageCircle,
+  Users, GraduationCap, Home, MessageCircle, MessageSquare,
   Check, Loader2, ArrowRight, Search, ThumbsUp, ThumbsDown, Minus,
   UserPlus, FileCheck, GitBranch, Link2, Camera, Upload, Brain,
-  Maximize2, Trash2, RefreshCw
+  Maximize2, Trash2, RefreshCw, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import { api } from '../api/client';
+import ProfessionalSummary, { ProfessionalSummaryPrint } from './ProfessionalSummary';
 
 // Backend base URL for static files (videos)
 const BACKEND_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:8000';
@@ -43,7 +44,7 @@ function getVideoUrl(videoPath) {
 
 const TABS = [
   { id: 'essence', icon: Heart, label: 'הדיוקן', color: 'from-rose-400 to-orange-400' },
-  { id: 'discoveries', icon: Lightbulb, label: 'מה גילינו', color: 'from-amber-400 to-yellow-400' },
+  { id: 'discoveries', icon: Lightbulb, label: 'המסע', color: 'from-amber-400 to-yellow-400' },
   { id: 'observations', icon: Video, label: 'מה ראינו', color: 'from-teal-400 to-cyan-400' },
   { id: 'share', icon: Share2, label: 'שיתוף', color: 'from-blue-400 to-indigo-400' },
 ];
@@ -764,24 +765,519 @@ function FactsSection({ factsData }) {
  * 3. Build age-based timeline UI here
  */
 function DiscoveriesTab({ data, onVideoClick }) {
-  // Always show the "coming soon" state for now
-  // The developmental timeline feature is not yet implemented
-  return (
-    <div className="flex flex-col items-center justify-center py-16 px-8">
-      <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mb-4 animate-gentleFloat">
-        <Lightbulb className="w-10 h-10 text-amber-400" />
-      </div>
-      <h3 className="text-lg font-bold text-gray-700 mb-2">ציר זמן התפתחותי</h3>
-      <p className="text-gray-500 text-center text-sm">
-        בקרוב כאן יופיע ציר הזמן ההתפתחותי של הילד -<br />
-        אבני דרך משמעותיות לפי גיל
-      </p>
-      <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200 max-w-xs">
-        <p className="text-xs text-amber-700 text-center">
-          💡 ספרו לנו על אבני דרך בהתפתחות הילד במהלך השיחה,
-          ואנחנו נבנה את ציר הזמן שלו
+  const [activeView, setActiveView] = useState('discoveries'); // 'discoveries' or 'development'
+
+  const milestones = data?.milestones || [];
+
+  // Split milestones into two types
+  const developmentalMilestones = milestones.filter(m => m.type === 'developmental');
+  const journeyMilestones = milestones.filter(m => m.type !== 'developmental');
+
+  const hasDevelopmentalMilestones = developmentalMilestones.length > 0;
+  const hasJourneyMilestones = journeyMilestones.length > 0;
+  const hasAnyContent = hasDevelopmentalMilestones || hasJourneyMilestones;
+
+  // Milestone type configuration for developmental timeline
+  const milestoneTypeConfig = {
+    birth: {
+      color: 'bg-rose-500',
+      borderColor: 'border-rose-400',
+      bgLight: 'bg-rose-50',
+      textColor: 'text-rose-700',
+      icon: '◯',
+      label: 'לידה'
+    },
+    achievement: {
+      color: 'bg-emerald-500',
+      borderColor: 'border-emerald-400',
+      bgLight: 'bg-emerald-50',
+      textColor: 'text-emerald-700',
+      icon: '✓',
+      label: 'הישג'
+    },
+    concern: {
+      color: 'bg-amber-500',
+      borderColor: 'border-amber-400',
+      bgLight: 'bg-amber-50',
+      textColor: 'text-amber-700',
+      icon: '⚠',
+      label: 'תשומת לב'
+    },
+    regression: {
+      color: 'bg-red-500',
+      borderColor: 'border-red-400',
+      bgLight: 'bg-red-50',
+      textColor: 'text-red-700',
+      icon: '↓',
+      label: 'נסיגה'
+    },
+    intervention: {
+      color: 'bg-blue-500',
+      borderColor: 'border-blue-400',
+      bgLight: 'bg-blue-50',
+      textColor: 'text-blue-700',
+      icon: '→',
+      label: 'התערבות'
+    },
+  };
+
+  // Journey milestone type configuration
+  const journeyTypeConfig = {
+    started: {
+      icon: Sparkles,
+      color: 'bg-violet-500',
+      bgLight: 'bg-violet-50',
+      borderColor: 'border-violet-200',
+      label: 'התחלנו'
+    },
+    exploration_began: {
+      icon: Search,
+      color: 'bg-indigo-500',
+      bgLight: 'bg-indigo-50',
+      borderColor: 'border-indigo-200',
+      label: 'התחלנו לחקור'
+    },
+    video_analyzed: {
+      icon: Video,
+      color: 'bg-teal-500',
+      bgLight: 'bg-teal-50',
+      borderColor: 'border-teal-200',
+      label: 'צפינו בסרטון'
+    },
+    insight: {
+      icon: Lightbulb,
+      color: 'bg-amber-500',
+      bgLight: 'bg-amber-50',
+      borderColor: 'border-amber-200',
+      label: 'תובנה'
+    },
+    pattern: {
+      icon: Sparkles,
+      color: 'bg-purple-500',
+      bgLight: 'bg-purple-50',
+      borderColor: 'border-purple-200',
+      label: 'דפוס'
+    },
+  };
+
+  // Domain Hebrew labels
+  const domainLabels = {
+    motor: 'מוטורי',
+    language: 'שפה',
+    social: 'חברתי',
+    cognitive: 'קוגניטיבי',
+    regulation: 'ויסות',
+    birth_history: 'לידה והריון',
+    medical: 'רפואי',
+  };
+
+  // Sort developmental milestones by age_months for the timeline
+  const sortedDevMilestones = [...developmentalMilestones].sort((a, b) => {
+    const ageA = a.age_months ?? 999;
+    const ageB = b.age_months ?? 999;
+    return ageA - ageB;
+  });
+
+  // Sort journey milestones by timestamp (newest first)
+  const sortedJourneyMilestones = [...journeyMilestones].sort((a, b) => {
+    return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+  });
+
+  // Calculate timeline bounds for developmental view
+  const minAge = Math.min(...sortedDevMilestones.map(m => m.age_months ?? 0), 0);
+  const maxAge = Math.max(...sortedDevMilestones.map(m => m.age_months ?? 0), 12);
+
+  // Generate age markers for the developmental timeline
+  const generateAgeMarkers = () => {
+    const markers = [];
+    const endYear = Math.ceil(maxAge / 12);
+
+    if (minAge < 0) {
+      markers.push({ months: -1, label: 'הריון' });
+    }
+    markers.push({ months: 0, label: 'לידה' });
+    for (let year = 1; year <= endYear; year++) {
+      markers.push({ months: year * 12, label: year === 1 ? 'שנה' : `${year} שנים` });
+    }
+    return markers;
+  };
+
+  const ageMarkers = generateAgeMarkers();
+
+  const getTimelinePosition = (ageMonths) => {
+    const range = maxAge - minAge;
+    if (range === 0) return 50;
+    return ((ageMonths - minAge) / range) * 100;
+  };
+
+  // Format date for journey view
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'היום';
+    if (diffDays === 1) return 'אתמול';
+    if (diffDays < 7) return `לפני ${diffDays} ימים`;
+    if (diffDays < 30) return `לפני ${Math.floor(diffDays / 7)} שבועות`;
+    return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+  };
+
+  // Empty state
+  if (!hasAnyContent) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-8">
+        <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mb-4 animate-gentleFloat">
+          <Lightbulb className="w-10 h-10 text-amber-400" />
+        </div>
+        <h3 className="text-lg font-bold text-gray-700 mb-2">המסע מתחיל</h3>
+        <p className="text-gray-500 text-center text-sm">
+          כאן יופיע המסע שלנו יחד -<br />
+          הגילויים, התובנות, ואבני הדרך
         </p>
+        <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200 max-w-xs">
+          <p className="text-xs text-amber-700 text-center">
+            💡 ספרו לנו על הילד במהלך השיחה,
+            ואנחנו נבנה את המסע יחד
+          </p>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Segmented Toggle */}
+      <div className="flex justify-center">
+        <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
+          <button
+            onClick={() => setActiveView('discoveries')}
+            className={`
+              px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+              flex items-center gap-2
+              ${activeView === 'discoveries'
+                ? 'bg-white text-amber-700 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
+              }
+            `}
+          >
+            <Search className="w-4 h-4" />
+            גילויים
+          </button>
+          <button
+            onClick={() => setActiveView('development')}
+            className={`
+              px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+              flex items-center gap-2
+              ${activeView === 'development'
+                ? 'bg-white text-amber-700 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
+              }
+            `}
+          >
+            <TrendingUp className="w-4 h-4" />
+            התפתחות
+          </button>
+        </div>
+      </div>
+
+      {/* ============ DISCOVERIES VIEW ============ */}
+      {activeView === 'discoveries' && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="text-center">
+            <p className="text-sm text-gray-500">
+              מה גילינו יחד במסע שלנו
+            </p>
+          </div>
+
+          {hasJourneyMilestones ? (
+            <div className="space-y-3">
+              {sortedJourneyMilestones.map((milestone, index) => {
+                const config = journeyTypeConfig[milestone.type] || journeyTypeConfig.insight;
+                const Icon = config.icon;
+
+                return (
+                  <div
+                    key={milestone.id}
+                    className={`
+                      relative p-4 rounded-xl border transition-all
+                      ${config.bgLight} ${config.borderColor}
+                      ${milestone.significance === 'major' ? 'ring-1 ring-amber-300' : ''}
+                    `}
+                  >
+                    {/* Date badge */}
+                    <div className="absolute top-3 left-3 text-[10px] text-gray-400">
+                      {formatDate(milestone.timestamp)}
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      {/* Icon */}
+                      <div className={`
+                        w-10 h-10 rounded-xl ${config.color} flex items-center justify-center
+                        text-white shadow-sm flex-shrink-0
+                      `}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 pt-1">
+                        <div className="text-[10px] font-medium text-gray-500 mb-1">
+                          {config.label}
+                        </div>
+                        <h4 className="font-semibold text-gray-800 text-sm leading-snug">
+                          {milestone.title_he}
+                        </h4>
+                        {milestone.description_he && (
+                          <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                            {milestone.description_he}
+                          </p>
+                        )}
+
+                        {/* Video link if applicable */}
+                        {milestone.type === 'video_analyzed' && milestone.video_id && (
+                          <button
+                            onClick={() => onVideoClick?.(milestone.video_id)}
+                            className="mt-2 text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+                          >
+                            <Video className="w-3 h-3" />
+                            צפה בסרטון
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">
+                עוד לא צברנו גילויים משותפים
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                המשיכו לשוחח איתנו ולשתף סרטונים
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============ DEVELOPMENT VIEW ============ */}
+      {activeView === 'development' && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="text-center">
+            <p className="text-sm text-gray-500">
+              {hasDevelopmentalMilestones
+                ? `${sortedDevMilestones.length} אבני דרך התפתחותיות`
+                : 'ציר הזמן ההתפתחותי'
+              }
+            </p>
+          </div>
+
+          {hasDevelopmentalMilestones ? (
+            <>
+              {/* Legend */}
+              <div className="flex flex-wrap justify-center gap-3 px-2">
+                {Object.entries(milestoneTypeConfig).map(([type, config]) => (
+                  <div key={type} className="flex items-center gap-1.5">
+                    <div className={`w-3 h-3 rounded-full ${config.color}`} />
+                    <span className="text-xs text-gray-600">{config.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Timeline Infographic */}
+              <div className="relative bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="absolute inset-0 opacity-5 pointer-events-none">
+                  <div className="absolute inset-0" style={{
+                    backgroundImage: 'radial-gradient(circle, #6366f1 1px, transparent 1px)',
+                    backgroundSize: '20px 20px'
+                  }} />
+                </div>
+
+                <div className="overflow-x-auto" dir="ltr">
+                  <div
+                    className="relative py-4 px-16"
+                    style={{
+                      minHeight: '220px',
+                      minWidth: `${Math.max(350, sortedDevMilestones.length * 100)}px`
+                    }}
+                  >
+                    <div className="absolute top-1/2 left-12 right-12 h-1 bg-gradient-to-r from-rose-300 via-amber-300 via-emerald-300 to-blue-300 rounded-full transform -translate-y-1/2" />
+
+                    {ageMarkers.map((marker, idx) => {
+                      const position = getTimelinePosition(marker.months);
+                      const clampedPosition = Math.max(5, Math.min(95, position));
+                      return (
+                        <div
+                          key={idx}
+                          className="absolute top-1/2 transform -translate-x-1/2 -translate-y-1/2"
+                          style={{ left: `${clampedPosition}%` }}
+                        >
+                          <div className="w-0.5 h-4 bg-slate-400 mx-auto" />
+                          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                            {marker.label}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {sortedDevMilestones.map((milestone, index) => {
+                      const config = milestoneTypeConfig[milestone.milestone_type] || milestoneTypeConfig.achievement;
+                      const rawPosition = getTimelinePosition(milestone.age_months ?? 0);
+                      const position = Math.max(8, Math.min(92, rawPosition));
+                      const isAbove = index % 2 === 0;
+                      const isSignificant = milestone.significance === 'major';
+
+                      return (
+                        <div
+                          key={milestone.id}
+                          className="absolute group"
+                          style={{
+                            left: `${position}%`,
+                            top: isAbove ? '8px' : 'auto',
+                            bottom: isAbove ? 'auto' : '8px',
+                            transform: 'translateX(-50%)',
+                          }}
+                        >
+                          <div
+                            className={`
+                              relative w-24 p-2 rounded-lg border shadow-sm bg-white
+                              transition-all duration-200 cursor-pointer
+                              hover:shadow-md hover:scale-105 hover:z-20
+                              ${config.borderColor}
+                              ${isSignificant ? 'ring-1 ring-violet-300' : ''}
+                            `}
+                          >
+                            <div className={`
+                              absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center
+                              text-white text-[10px] font-bold shadow ${config.color}
+                            `}>
+                              {config.icon}
+                            </div>
+
+                            <div className="text-right" dir="rtl">
+                              {milestone.description_he && (
+                                <div className={`text-[9px] font-semibold ${config.textColor} mb-0.5`}>
+                                  {milestone.description_he}
+                                </div>
+                              )}
+                              <p className="text-[10px] text-gray-700 font-medium leading-tight line-clamp-2">
+                                {milestone.title_he?.replace(/^[◯✓⚠↓→·]\s*/, '')}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div
+                            className={`absolute left-1/2 w-px ${config.color} opacity-50`}
+                            style={{
+                              transform: 'translateX(-50%)',
+                              top: isAbove ? '100%' : 'auto',
+                              bottom: isAbove ? 'auto' : '100%',
+                              height: '20px',
+                            }}
+                          />
+
+                          <div
+                            className={`
+                              absolute left-1/2 transform -translate-x-1/2
+                              w-3 h-3 rounded-full border-2 bg-white shadow
+                              ${config.borderColor}
+                            `}
+                            style={{
+                              top: isAbove ? 'calc(100% + 20px)' : 'auto',
+                              bottom: isAbove ? 'auto' : 'calc(100% + 20px)',
+                            }}
+                          >
+                            <div className={`absolute inset-0.5 rounded-full ${config.color}`} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {sortedDevMilestones.length > 3 && (
+                  <div className="py-2 text-center text-[10px] text-slate-400 border-t border-slate-100">
+                    ← גלול להצגת ציר הזמן המלא →
+                  </div>
+                )}
+              </div>
+
+              {/* Milestone List */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-gray-700 px-1">רשימת אבני הדרך</h4>
+                <div className="space-y-1.5">
+                  {sortedDevMilestones.map((milestone) => {
+                    const config = milestoneTypeConfig[milestone.milestone_type] || milestoneTypeConfig.achievement;
+                    return (
+                      <div
+                        key={milestone.id}
+                        className={`
+                          flex items-center gap-3 p-2.5 rounded-lg border
+                          ${config.bgLight} ${config.borderColor}
+                        `}
+                      >
+                        <div className={`w-8 h-8 rounded-full ${config.color} flex items-center justify-center text-white text-sm flex-shrink-0`}>
+                          {config.icon}
+                        </div>
+                        <div className="flex-1 min-w-0" dir="rtl">
+                          <div className="text-sm font-medium text-gray-800 truncate">
+                            {milestone.title_he?.replace(/^[◯✓⚠↓→·]\s*/, '')}
+                          </div>
+                          <div className="text-xs text-gray-500 flex items-center gap-2">
+                            <span>{milestone.description_he}</span>
+                            {milestone.domain && (
+                              <>
+                                <span>•</span>
+                                <span>{domainLabels[milestone.domain] || milestone.domain}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">
+                עוד אין אבני דרך התפתחותיות
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                ספרו לנו על אבני דרך בהתפתחות הילד
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stats - shown in both views */}
+      {data?.days_since_start > 0 && (
+        <div className="p-4 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-slate-200">
+          <div className="flex justify-around text-center">
+            <div>
+              <div className="text-2xl font-bold text-violet-600">{data.days_since_start}</div>
+              <div className="text-xs text-gray-500">ימים יחד</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-teal-600">{data.total_videos || 0}</div>
+              <div className="text-xs text-gray-500">סרטונים</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-amber-600">{sortedDevMilestones.length}</div>
+              <div className="text-xs text-gray-500">אבני דרך</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1090,7 +1586,7 @@ function ScenarioCard({ scenario, onUpload, onAnalyze, onRemove, uploadProgress,
             <div className="p-4 bg-emerald-50/50">
               <h5 className="font-semibold text-emerald-900 text-sm mb-2 flex items-center gap-1">
                 <Eye className="w-4 h-4" />
-                מה גילינו
+                מה ראינו
               </h5>
               <div className="space-y-2">
                 {scenario.observations.map((obs, idx) => (
@@ -1527,19 +2023,24 @@ const FALLBACK_EXPERT_OPTIONS = [
   { id: 'family', label: 'בן/בת משפחה', profession: 'בן משפחה' },
 ];
 
-function ShareTab({ data, familyId, onGenerateSummary }) {
+function ShareTab({ data, familyId, onGenerateSummary, onStartGuidedCollection }) {
   const [selectedExpert, setSelectedExpert] = useState(null);
   const [customExpert, setCustomExpert] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [additionalContext, setAdditionalContext] = useState('');
   const [isComprehensive, setIsComprehensive] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState(null);
+  const [generatedContent, setGeneratedContent] = useState(null);  // Legacy text
+  const [structuredSummary, setStructuredSummary] = useState(null);  // New structured data
   const [copied, setCopied] = useState(false);
   const [viewingSavedSummary, setViewingSavedSummary] = useState(null);
   const [loadingSavedSummary, setLoadingSavedSummary] = useState(false);
   // Track newly generated summaries in this session (prepended to the list)
   const [newSummaries, setNewSummaries] = useState([]);
+  // Gap detection state
+  const [showGapWarning, setShowGapWarning] = useState(false);
+  const [gapData, setGapData] = useState(null);
+  const [isCheckingReadiness, setIsCheckingReadiness] = useState(false);
 
   const canGenerate = data?.can_generate !== false;
   // Combine new summaries (most recent first) with existing ones from server
@@ -1566,13 +2067,52 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
     }
   };
 
-  const handleGenerate = async () => {
+  // Map expert types to backend recipient_type for readiness check
+  const getRecipientType = (expert) => {
+    if (!expert) return 'default';
+    const id = expert.id || '';
+    // Map to backend-expected types
+    if (id === 'neurologist' || expert.profession?.includes('נוירולוג')) return 'neurologist';
+    if (id === 'speech' || expert.profession?.includes('תקשורת')) return 'speech_therapist';
+    if (id === 'ot' || expert.profession?.includes('עיסוק')) return 'ot';
+    if (id === 'pediatrician' || expert.profession?.includes('ילדים')) return 'pediatrician';
+    return 'default';
+  };
+
+  const handleGenerate = async (skipReadinessCheck = false, overrideGaps = null) => {
     const expertDescription = selectedExpert
       ? (selectedExpert.profession + (selectedExpert.specialization ? ` (${selectedExpert.specialization})` : ''))
       : customExpert;
 
     if (!expertDescription) return;
 
+    // Step 1: Check readiness (unless we're skipping because user chose "generate anyway")
+    if (!skipReadinessCheck) {
+      const recipientType = getRecipientType(selectedExpert);
+
+      // Only check readiness for clinical professionals
+      if (recipientType !== 'default') {
+        setIsCheckingReadiness(true);
+        try {
+          const readiness = await api.checkSummaryReadiness(familyId, recipientType);
+
+          if (readiness.status === 'partial' && readiness.missing_critical?.length > 0) {
+            // Show gap warning modal
+            setGapData(readiness);
+            setShowGapWarning(true);
+            setIsCheckingReadiness(false);
+            return; // Don't proceed - wait for user decision
+          }
+        } catch (error) {
+          console.error('Error checking readiness:', error);
+          // Continue with generation even if readiness check fails
+        } finally {
+          setIsCheckingReadiness(false);
+        }
+      }
+    }
+
+    // Step 2: Generate the summary
     setIsGenerating(true);
     try {
       // Pass the full expert info and let backend handle the wu-wei generation
@@ -1587,7 +2127,11 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
           recommended_approach: selectedExpert.recommended_approach,
           summary_for_professional: selectedExpert.summary_for_professional,
         } : null,
+        // Pass gaps if user chose "generate anyway" - LLM will note what's missing
+        missingGaps: overrideGaps || null,
       });
+      // Store both structured and legacy formats
+      setStructuredSummary(result.structured || null);
       setGeneratedContent(result.content);
 
       // Add the new summary to the list for immediate UI update
@@ -1598,7 +2142,36 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
       console.error('Error generating summary:', error);
     } finally {
       setIsGenerating(false);
+      setShowGapWarning(false);
+      setGapData(null);
     }
+  };
+
+  const handleGenerateAnyway = () => {
+    // User chose to generate despite gaps - pass the gaps so LLM can note them
+    handleGenerate(true, gapData?.missing_critical);
+  };
+
+  const handleAddInChat = async () => {
+    // User chose to add missing info in chat - start guided collection mode
+    const recipientType = getRecipientType(selectedExpert);
+    try {
+      // Call API to set the guided collection session flag and get greeting
+      const response = await api.startGuidedCollection(familyId, recipientType);
+
+      // If callback provided, pass the greeting so Chitta speaks first
+      if (onStartGuidedCollection) {
+        onStartGuidedCollection(response.greeting);
+      } else {
+        // Otherwise, show message and close the warning
+        alert('עברו לשיחה כדי להשלים את המידע החסר. כשתסיימו, תוכלו לחזור לכאן ליצור את הסיכום.');
+      }
+    } catch (error) {
+      console.error('Error starting guided collection:', error);
+      alert('אירעה שגיאה. נסו שוב.');
+    }
+    setShowGapWarning(false);
+    setGapData(null);
   };
 
   const handleCopy = () => {
@@ -1610,30 +2183,34 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
   };
 
   const handlePrint = () => {
-    if (!generatedContent) return;
+    if (!generatedContent && !structuredSummary) return;
     const printWindow = window.open('', '_blank');
-    const expertName = selectedExpert?.profession || customExpert || 'איש מקצוע';
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="he">
-      <head>
-        <meta charset="UTF-8">
-        <title>סיכום ל${expertName}</title>
-        <style>
-          body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
-          h1 { font-size: 1.5em; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          h2 { font-size: 1.2em; color: #444; margin-top: 1.5em; }
-          p { margin: 0.5em 0; }
-          ul, ol { margin: 0.5em 0; padding-right: 1.5em; }
-          @media print { body { margin: 0; padding: 20px; } }
-        </style>
-      </head>
-      <body>
-        <h1>סיכום ל${expertName}</h1>
-        ${generatedContent.replace(/\n/g, '<br>')}
-      </body>
-      </html>
-    `);
+
+    // Use professional print format if we have structured data
+    if (structuredSummary) {
+      printWindow.document.write(ProfessionalSummaryPrint({ data: structuredSummary }));
+    } else {
+      // Fallback to legacy format
+      const expertName = selectedExpert?.profession || customExpert || 'איש מקצוע';
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html dir="rtl" lang="he">
+        <head>
+          <meta charset="UTF-8">
+          <title>סיכום ל${expertName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.8; }
+            h1 { font-size: 1.5em; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            p { margin: 0.5em 0; white-space: pre-wrap; }
+          </style>
+        </head>
+        <body>
+          <h1>סיכום ל${expertName}</h1>
+          <p>${generatedContent}</p>
+        </body>
+        </html>
+      `);
+    }
     printWindow.document.close();
     printWindow.print();
   };
@@ -1641,8 +2218,13 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
   const handleBack = () => {
     if (viewingSavedSummary) {
       setViewingSavedSummary(null);
-    } else if (generatedContent) {
+    } else if (generatedContent || structuredSummary) {
+      // Reset all the way to expert list - don't stop at intermediate state
       setGeneratedContent(null);
+      setStructuredSummary(null);
+      setSelectedExpert(null);
+      setCustomExpert('');
+      setShowCustomInput(false);
     } else if (selectedExpert || customExpert) {
       setSelectedExpert(null);
       setCustomExpert('');
@@ -1659,7 +2241,7 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
             onClick={handleBack}
             className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4" />
             חזרה
           </button>
           <button
@@ -1732,45 +2314,132 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
     );
   }
 
+  // Gap warning modal - shown when clinical data is missing
+  if (showGapWarning && gapData) {
+    const expertName = selectedExpert?.profession || customExpert || 'איש מקצוע';
+    return (
+      <div className="pb-8 opacity-0 animate-fadeIn" style={{ animationFillMode: 'forwards' }}>
+        <button
+          onClick={() => {
+            setShowGapWarning(false);
+            setGapData(null);
+          }}
+          className="flex items-center gap-1 text-gray-500 hover:text-gray-700 mb-4 transition"
+        >
+          <ChevronRight className="w-4 h-4" />
+          חזרה
+        </button>
+
+        {/* Warning card */}
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg text-gray-800 mb-2">
+                יש מידע שיכול לעזור
+              </h3>
+              <p className="text-gray-600 text-sm mb-4">
+                כדי שהסיכום ל{expertName} יהיה שימושי יותר, היה עוזר אם נדע גם על:
+              </p>
+
+              {/* Missing items list */}
+              <ul className="space-y-2 mb-4">
+                {gapData.missing_critical?.map((gap, idx) => (
+                  <li key={idx} className="flex items-center gap-2 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                    <span className="text-gray-700">{gap.description || gap.parent_description}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {gapData.guidance_message && (
+                <p className="text-xs text-amber-700 italic">
+                  {gapData.guidance_message}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="space-y-3">
+          <button
+            onClick={handleAddInChat}
+            className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+          >
+            <MessageSquare className="w-5 h-5" />
+            הוסף פרטים בשיחה
+          </button>
+
+          <button
+            onClick={handleGenerateAnyway}
+            disabled={isGenerating}
+            className="w-full py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition flex items-center justify-center gap-2"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                יוצר סיכום...
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4" />
+                צור סיכום עם מה שיש
+              </>
+            )}
+          </button>
+
+          <p className="text-xs text-gray-500 text-center">
+            הסיכום יציין מה עדיין לא ידוע לנו
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Generated content view
-  if (generatedContent) {
+  if (generatedContent || structuredSummary) {
     const expertName = selectedExpert?.profession || customExpert || 'איש מקצוע';
     return (
       <div className="pb-8 opacity-0 animate-fadeIn" style={{ animationFillMode: 'forwards' }}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-6">
           <button
             onClick={handleBack}
             className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4" />
             חזרה
           </button>
-          <button
-            onClick={handleCopy}
-            className={`
-              flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition
-              ${copied ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
-            `}
-          >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'הועתק!' : 'העתק'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCopy}
+              className={`
+                flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition
+                ${copied ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
+              `}
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'הועתק!' : 'העתק'}
+            </button>
+          </div>
         </div>
 
-        {/* Title */}
-        <h3 className="font-bold text-xl text-gray-800 mb-4 flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
-            <Share2 className="w-5 h-5 text-white" />
+        {/* Professional Summary - Use structured if available, fallback to legacy */}
+        {structuredSummary ? (
+          <ProfessionalSummary data={structuredSummary} copied={copied} />
+        ) : (
+          <div className="prose prose-gray max-w-none" dir="rtl">
+            <pre className="whitespace-pre-wrap font-sans text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-6">
+              {generatedContent}
+            </pre>
           </div>
-          סיכום ל{expertName}
-        </h3>
-
-        {/* Content */}
-        <StyledSummary content={generatedContent} recipientType="professional" />
+        )}
 
         {/* Share buttons */}
-        <div className="flex gap-2 mt-6">
+        <div className="flex gap-2 mt-8">
           <button
             onClick={handleCopy}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition shadow-sm"
@@ -1787,7 +2456,7 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
           </button>
           <button
             onClick={() => {
-              const text = encodeURIComponent(generatedContent);
+              const text = encodeURIComponent(generatedContent || '');
               window.open(`https://wa.me/?text=${text}`, '_blank');
             }}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-500/25"
@@ -1798,7 +2467,10 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
         </div>
 
         <button
-          onClick={() => setGeneratedContent(null)}
+          onClick={() => {
+            setGeneratedContent(null);
+            setStructuredSummary(null);
+          }}
           className="w-full mt-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition"
         >
           צור סיכום חדש
@@ -1816,7 +2488,7 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
           onClick={handleBack}
           className="flex items-center gap-1 text-gray-500 hover:text-gray-700 mb-4 transition"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronRight className="w-4 h-4" />
           חזרה
         </button>
 
@@ -1872,7 +2544,7 @@ function ShareTab({ data, familyId, onGenerateSummary }) {
           </label>
 
           <button
-            onClick={handleGenerate}
+            onClick={() => handleGenerate()}
             disabled={isGenerating}
             className={`
               w-full py-4 rounded-xl font-bold text-white transition
@@ -2104,6 +2776,7 @@ export default function ChildSpace({
   onGenerateSummary,
   initialTab = 'essence',  // Allow opening to specific tab
   onUploadVideo,  // Callback for video upload
+  onAddChittaMessage,  // Callback to add Chitta message to chat
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [data, setData] = useState(null);
@@ -2374,6 +3047,13 @@ export default function ChildSpace({
                   data={data?.share}
                   familyId={familyId}
                   onGenerateSummary={onGenerateSummary}
+                  onStartGuidedCollection={(greeting) => {
+                    // Add Chitta's greeting to chat and close ChildSpace
+                    if (greeting && onAddChittaMessage) {
+                      onAddChittaMessage(greeting);
+                    }
+                    onClose();
+                  }}
                 />
               )}
             </>

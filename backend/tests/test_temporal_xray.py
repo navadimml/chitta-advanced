@@ -660,8 +660,9 @@ class ChittaXRayTest:
                 }
             ))
 
-        # === Detect Cycle Events ===
-        cycles = child_data.get("exploration_cycles", [])
+        # === Detect Exploration Events ===
+        # Support both old key (exploration_cycles) and new key (explorations)
+        cycles = child_data.get("explorations") or child_data.get("exploration_cycles", [])
         current_cycles = {c.get("id"): c for c in cycles}
 
         for cycle_id, cycle in current_cycles.items():
@@ -945,9 +946,10 @@ class ChittaXRayTest:
         # Build turn snapshot
         stats = ui_data.get("stats", {})
 
-        # Extract hypotheses summary from cycles
+        # Extract hypotheses summary from explorations (support both old and new keys)
         hypotheses_summary = []
-        for cycle in child_data.get("exploration_cycles", []):
+        explorations_data = child_data.get("explorations") or child_data.get("exploration_cycles", [])
+        for cycle in explorations_data:
             for h in cycle.get("hypotheses", []):
                 hypotheses_summary.append({
                     "id": h.get("id"),
@@ -990,7 +992,7 @@ class ChittaXRayTest:
                     "hypotheses_count": len(c.get("hypotheses", [])),
                     "artifacts_count": len(c.get("artifacts", []))
                 }
-                for c in child_data.get("exploration_cycles", [])
+                for c in explorations_data
             ],
             hypotheses_summary=hypotheses_summary,
             patterns=child_data.get("understanding", {}).get("patterns", []),
@@ -1000,7 +1002,7 @@ class ChittaXRayTest:
                     "type": a.get("type"),
                     "status": a.get("status")
                 }
-                for cycle in child_data.get("exploration_cycles", [])
+                for cycle in explorations_data
                 for a in cycle.get("artifacts", [])
             ],
             completeness=stats.get("completeness", 0),
@@ -1153,12 +1155,13 @@ class ChittaXRayTest:
         # Capture final state
         child_data = self.get_child_data() or {}
         self.report.final_child_profile = child_data.get("developmental_data", {})
-        self.report.final_cycles = child_data.get("exploration_cycles", [])
+        # Support both old key (exploration_cycles) and new key (explorations)
+        self.report.final_cycles = child_data.get("explorations") or child_data.get("exploration_cycles", [])
         self.report.final_patterns = child_data.get("understanding", {}).get("patterns", [])
 
         # Fix counts from final state (diff-based counting can miss items)
         # Only update if we have valid final state data - don't overwrite event-based counts on error
-        final_cycles = child_data.get("exploration_cycles", [])
+        final_cycles = child_data.get("explorations") or child_data.get("exploration_cycles", [])
         if final_cycles:
             # We have valid data from final state - use it
             self.report.cycles_created = len(final_cycles)
@@ -1286,11 +1289,12 @@ class ChittaXRayTest:
         # Capture final state
         child_data = self.get_child_data() or {}
         self.report.final_child_profile = child_data.get("developmental_data", {})
-        self.report.final_cycles = child_data.get("exploration_cycles", [])
+        # Support both old key (exploration_cycles) and new key (explorations)
+        self.report.final_cycles = child_data.get("explorations") or child_data.get("exploration_cycles", [])
         self.report.final_patterns = child_data.get("understanding", {}).get("patterns", [])
 
         # Update counts from final state
-        final_cycles = child_data.get("exploration_cycles", [])
+        final_cycles = child_data.get("explorations") or child_data.get("exploration_cycles", [])
         if final_cycles:
             self.report.cycles_created = len(final_cycles)
             total_hypotheses = 0

@@ -14,6 +14,7 @@ import {
   Upload,
   BellOff,
   XCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 /**
@@ -96,6 +97,15 @@ const CARD_CONFIGS = {
     iconBg: 'bg-amber-100',
     iconColor: 'text-amber-600',
     buttonBg: 'bg-amber-600 hover:bg-amber-700',
+  },
+  video_needs_confirmation: {
+    icon: HelpCircle,
+    accentColor: 'orange',
+    borderColor: 'border-orange-300',
+    bgColor: 'bg-orange-50/70',
+    iconBg: 'bg-orange-100',
+    iconColor: 'text-orange-600',
+    buttonBg: 'bg-orange-600 hover:bg-orange-700',
   },
   // FEEDBACK CARD - not action card. Analysis complete, insights woven into understanding.
   video_analyzed: {

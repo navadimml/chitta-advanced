@@ -397,12 +397,32 @@ class VideoAnalysisService:
                 analysis["_validation_reason"] = content_issues or ["Video did not pass validation"]
                 analysis["_validation_recommendation"] = recommendation
             else:
-                # Log successful validation
-                logger.info(f"✅ Video validation passed")
+                # Check for concerns that need parent confirmation
+                has_concerns = False
+                concern_reasons = []
+
                 if not scenario_match.get("matches_requested_scenario", True):
-                    logger.warning(f"   ⚠️ Scenario mismatch but continuing: {scenario_match.get('mismatch_reason', 'unknown')}")
+                    has_concerns = True
+                    concern_reasons.append(scenario_match.get('mismatch_reason', 'הסרטון לא תואם להנחיות'))
+                    logger.warning(f"   ⚠️ Scenario mismatch: {scenario_match.get('mismatch_reason', 'unknown')}")
+
                 if not child_verification.get("appears_to_be_same_child", True):
+                    has_concerns = True
+                    concern_reasons.append(child_verification.get('verification_notes', 'לא בטוחים שזה אותו ילד'))
                     logger.warning(f"   ⚠️ Child verification concern: {child_verification.get('verification_notes', 'unknown')}")
+
+                if not child_verification.get("age_consistent_with_profile", True):
+                    has_concerns = True
+                    concern_reasons.append(f"הגיל בסרטון ({child_verification.get('estimated_age_range', '?')}) לא תואם לפרופיל")
+                    logger.warning(f"   ⚠️ Age mismatch: estimated {child_verification.get('estimated_age_range', 'unknown')}")
+
+                if has_concerns:
+                    # Mark as needing confirmation instead of proceeding
+                    logger.warning(f"⚠️ Video has concerns - requesting parent confirmation")
+                    analysis["_needs_confirmation"] = True
+                    analysis["_confirmation_reasons"] = concern_reasons
+                else:
+                    logger.info(f"✅ Video validation passed")
 
         # Ensure strengths are present (critical for holistic approach)
         if not analysis.get("observed_strengths"):

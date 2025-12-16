@@ -22,17 +22,17 @@ async def test_crystallization_generates_all_fields():
 
     from app.chitta.synthesis import SynthesisService
     from app.chitta.models import (
-        Understanding, TemporalFact, ExplorationCycle,
+        Understanding, TemporalFact, Exploration,
         Story, Evidence
     )
-    from app.chitta.curiosity import CuriosityEngine
+    from app.chitta.curiosity import Curiosities
 
     # Create service
     synthesis = SynthesisService()
 
-    # Build Understanding with facts
+    # Build Understanding with observations
     understanding = Understanding(
-        facts=[
+        observations=[
             TemporalFact(content="דניאל בן 3.5", domain="identity", confidence=1.0, source="conversation"),
             TemporalFact(content="מתקשה במעברים בין פעילויות", domain="behavioral", confidence=0.9, source="conversation"),
             TemporalFact(content="רגיש לרעשים חזקים", domain="sensory", confidence=0.85, source="conversation"),
@@ -42,9 +42,9 @@ async def test_crystallization_generates_all_fields():
         ]
     )
 
-    # Build exploration cycles
-    exploration_cycles = [
-        ExplorationCycle(
+    # Build explorations
+    explorations = [
+        Exploration(
             id="cycle_transitions",
             curiosity_type="hypothesis",
             focus="קושי במעברים",
@@ -77,8 +77,8 @@ async def test_crystallization_generates_all_fields():
         )
     ]
 
-    # Curiosity engine (empty for test)
-    curiosity_engine = CuriosityEngine()
+    # Curiosities (empty for test)
+    curiosities = Curiosities()
 
     print("\n" + "="*60)
     print("TRIGGERING CRYSTALLIZATION")
@@ -92,9 +92,9 @@ async def test_crystallization_generates_all_fields():
     crystal = await synthesis.crystallize(
         child_name="דניאל",
         understanding=understanding,
-        exploration_cycles=exploration_cycles,
+        explorations=explorations,
         stories=stories,
-        curiosity_engine=curiosity_engine,
+        curiosities=curiosities,
         latest_observation_at=datetime.now(),
         existing_crystal=None,  # Force fresh generation
     )

@@ -48,39 +48,49 @@ class InterventionPathwaySchema(BaseModel):
 
 class ProfessionalSummarySchema(BaseModel):
     """
-    Holistic-first summary for a professional.
+    Summary for a professional - PREPARING THE GROUND, not delivering findings.
 
-    Every recipient gets the WHOLE child - that's Chitta's core value.
-    The lens (emphasis) changes based on recipient_type.
+    AUTHOR: This summary is written by CHITTA (the system), not the parents.
+    Chitta gathered information from conversations with parents AND video observations.
+
+    You are NOT the one who names. You are the one who prepares the ground.
+    The summary should make the clinician think: 'This helps me know where to look.'
+
+    LANGUAGE BY RECIPIENT:
+    - teacher: Everyday Hebrew, practical terms
+    - specialist: Can use clinical terms they understand (רגישות אודיטורית, ויסות חושי)
+    - medical: Clinical precision expected (היסטוריה התפתחותית, אבני דרך מוטוריות)
+
+    The THREE THREADS principle applies to ALL - separation matters regardless of language.
     """
     # Core holistic content (same for all recipients)
     who_this_child_is: str = Field(
-        description="2-3 sentences about who this child IS as a whole person"
+        description="2-3 sentences about who this child IS as a whole person - their essence, what makes them unique. Written by Chitta based on conversations and observations."
     )
     strengths_and_interests: str = Field(
-        description="What opens them up, what they love"
+        description="What opens them up, what they love - this is the bridge for ANY professional to reach them. Based on what we learned."
     )
     what_parents_shared: str = Field(
-        description="Thread 1: Parent observations in their words"
+        description="Thread 1: What PARENTS told us. Report their observations: 'ההורים סיפרו לנו ש...', 'האמא שיתפה ש...'. Their words, not our interpretation."
     )
     what_we_noticed: str = Field(
-        description="Thread 2: Patterns and connections - frame as offerings"
+        description="Thread 2: What CHITTA noticed - patterns and connections WE observed from conversations and videos. Use: 'שמנו לב ש...', 'תהינו אם יש קשר...'. These are OUR hypotheses, framed as offerings."
     )
     what_remains_open: str = Field(
-        description="Thread 3: Questions worth exploring"
+        description="Thread 3: Questions WE (Chitta) are curious about. 'שווה לבדוק אם...', 'אנחנו סקרנים לגבי...'. Invite the professional to investigate what we couldn't."
     )
 
     # Recipient-specific lens
     recipient_type: str = Field(
-        description="'teacher' | 'specialist' | 'medical'"
+        description="'teacher' (everyday Hebrew) | 'specialist' (clinical terms OK) | 'medical' (clinical precision expected)"
     )
     role_specific_section: str = Field(
-        description="teacher: daily strategies, specialist: investigation questions, medical: observable patterns"
+        description="teacher: daily strategies, what helps at home, everyday language. specialist: investigation questions, clinical terms OK. medical: observable patterns, developmental timeline, clinical precision."
     )
 
     # The invitation
     invitation: str = Field(
-        description="What we hope they'll help explore"
+        description="Chitta inviting the professional to help. e.g., 'נשמח שתעזרו לנו להבין...', 'נשמח לשמוע את ההתרשמות שלכם'"
     )
 
 

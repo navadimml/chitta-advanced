@@ -4,8 +4,8 @@ Video Analysis Prompt Builder - Hypothesis-Driven Analysis
 Builds comprehensive system prompt for analyzing child behavior videos
 with clinical rigor and hypothesis-driven exploration.
 
-Aligned with the Living Gestalt model:
-- Each video is part of an ExplorationCycle testing specific hypotheses
+Aligned with the Darshan model:
+- Each video is part of an Exploration testing specific hypotheses
 - Analysis provides EVIDENCE for or against hypotheses
 - Strengths and capacity are first-class observations
 """
@@ -23,17 +23,17 @@ def build_video_analysis_prompt(
     """
     Build comprehensive video analysis system prompt.
 
-    Aligned with the Living Gestalt and unified ExplorationCycle model.
+    Aligned with the Darshan and unified Exploration model.
     Each video is analyzed in context of:
     1. The hypothesis it's designed to test
-    2. The child's complete Gestalt (strengths, essence, concerns)
-    3. The exploration cycle it belongs to
+    2. The child's complete Darshan (strengths, essence, concerns)
+    3. The exploration it belongs to
 
     Args:
         child_data: Child demographics {name, age_years, age_months, gender}
-        interview_summary: Full Living Gestalt extraction (new structure)
+        interview_summary: Full Darshan perception (new structure)
         analyst_context: Guideline-specific context including hypothesis being tested
-        exploration_context: ExplorationCycle context {hypotheses_being_tested, patterns, etc.}
+        exploration_context: Exploration context {hypotheses_being_tested, patterns, etc.}
 
     Returns:
         Formatted system prompt for LLM video analysis

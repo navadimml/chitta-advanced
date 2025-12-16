@@ -13,12 +13,16 @@ We are a "Conversation-First" platform with a "Wu Wei" architecture.
 *   **Voice**: "שמתי לב ש..." not "המערכת זיהתה..." (Simple words, deep understanding).
 *   **Goal**: Create space for understanding through **curiosity**, not checklists.
 
-### The Living Gestalt
+### Darshan (The Observing Intelligence)
 
-The Gestalt is the **observing intelligence** - it HOLDS, NOTICES, and ACTS.
+**Darshan** (Sanskrit: दर्शन) means "mutual seeing" - to see and be seen.
+
+Darshan is the **observing intelligence** - it HOLDS, NOTICES, and ACTS.
 - Child and Session are its memory
-- The Gestalt is the mind
+- Darshan is the mind
 - Understanding emerges through conversation, not assessment
+
+See `backend/docs/METAPHOR_ARCHITECTURE.md` for the complete naming philosophy.
 
 ## 2. The 10 Golden Rules (Coding Constitution)
 
@@ -91,7 +95,7 @@ You can have a weak hypothesis (certainty=0.3) or a strong discovery (certainty=
 We use TWO separate LLM calls per message:
 
 ```
-Phase 1: Extraction (with tools)
+Phase 1: Perception (with tools)
   - temperature=0.0
   - FunctionCallingConfigMode.ANY
   - Returns: tool calls only
@@ -108,7 +112,7 @@ Phase 2: Response (without tools)
 
 **CRITICAL Configuration** - DO NOT CHANGE:
 ```python
-# Phase 1: Extraction
+# Phase 1: Perception
 config_params["tool_config"] = types.ToolConfig(
     function_calling_config=types.FunctionCallingConfig(
         mode=types.FunctionCallingConfigMode.ANY  # Forces tool calls
@@ -127,6 +131,76 @@ temperature = 0.7
 
 **Token Limits**: `max_output_tokens` must be **4000+** to prevent Hebrew truncation.
 
+### Gemini Structured Output (JSON Schema)
+
+When you need guaranteed JSON structure from LLM responses (e.g., portraits, reports), use **structured output** instead of asking the LLM to produce JSON.
+
+**How Gemini Structured Output Works:**
+1. Define schema using **Pydantic** models
+2. Call `chat_with_structured_output()` with the schema
+3. Gemini returns **syntactically valid JSON** matching your schema
+4. Validate and convert to your dataclass/model
+
+**Key Configuration (from Gemini docs):**
+```python
+config = types.GenerateContentConfig(
+    response_mime_type="application/json",   # REQUIRED: Request JSON output
+    response_schema=YourSchema.model_json_schema(),  # Your Pydantic schema
+    # ... other config
+)
+```
+
+**Our Abstraction - Use the LLM Provider:**
+```python
+from app.services.llm.factory import create_llm_provider
+from app.services.llm.base import Message as LLMMessage
+from your_module import YourPydanticSchema
+
+llm = create_llm_provider(provider_type="gemini", model="gemini-2.5-pro")
+
+# Get structured output
+response_data = await llm.chat_with_structured_output(
+    messages=[
+        LLMMessage(role="system", content="Your prompt here"),
+        LLMMessage(role="user", content="Generate the output"),
+    ],
+    response_schema=YourPydanticSchema.model_json_schema(),
+    temperature=0.7,
+)
+
+# response_data is already a dict - validate with Pydantic
+result = YourPydanticSchema.model_validate(response_data)
+```
+
+**Schema Best Practices:**
+- Use `Field(description="...")` to guide the LLM on each field
+- Use `enum` for constrained choices
+- Keep schemas relatively flat (1-2 levels) for reliability
+- Schema descriptions are part of the prompt - be explicit about what you want
+
+**Example Schema (Portrait):**
+```python
+from pydantic import BaseModel, Field
+from typing import List
+
+class PatternSchema(BaseModel):
+    description: str = Field(description="Pattern in situational language")
+    domains: List[str] = Field(description="Domains involved: behavioral, emotional, sensory")
+
+class PortraitOutput(BaseModel):
+    narrative: str = Field(description="2-3 sentences about who this child IS")
+    patterns: List[PatternSchema] = Field(default_factory=list)
+```
+
+**IMPORTANT Limitations:**
+- Structured output guarantees **syntactically correct JSON**, NOT semantically correct values
+- Always validate the output in your application code
+- Use `max_output_tokens=8000+` to prevent truncation on complex schemas
+
+**Where We Use Structured Output:**
+- `synthesis.py` → Portrait generation via `chat_with_structured_output()`
+- Schema defined in `portrait_schema.py`
+
 ### Model Tiers
 
 | Tier | Models | Use For |
@@ -143,7 +217,7 @@ temperature = 0.7
 - Response generation (natural Hebrew)
 
 **Simple Code Sufficient**:
-- Curiosity activation math (`base + boost - decay`)
+- Curiosity pull math (`base + boost - decay`)
 - Session transition detection (`hours >= 4`)
 - Evidence effect on confidence (`+0.1 supports, -0.15 contradicts`)
 - Formatting data for prompts
@@ -154,15 +228,15 @@ temperature = 0.7
 ```
 Message arrives
     ↓
-Phase 1: Extraction (with tools, temp=0)
-    - LLM perceives and understands
+Phase 1: Perception (with tools, temp=0)
+    - Darshan perceives and understands
     - Intent detected by comprehension, not keywords
     - Tool calls: notice, wonder, capture_story, add_evidence
     ↓
 Apply Learnings (update Child state)
     ↓
 Phase 2: Response (without tools, temp=0.7)
-    - Turn guidance based on what was extracted
+    - Turn guidance based on what was perceived
     - Natural Hebrew response
     ↓
 Persist + Return curiosity_state
@@ -182,19 +256,24 @@ Persist + Return curiosity_state
 
 | Category | File | Purpose |
 | :--- | :--- | :--- |
-| **Chitta Core** | `backend/app/chitta/gestalt.py` | Living Gestalt - the observing intelligence |
-| **Chitta Core** | `backend/app/chitta/curiosity.py` | Curiosity model and engine |
+| **Chitta Core** | `backend/app/chitta/gestalt.py` | Darshan - the observing intelligence |
+| **Chitta Core** | `backend/app/chitta/curiosity.py` | Curiosity model and Curiosities manager |
 | **Chitta Core** | `backend/app/chitta/service.py` | Service orchestration |
 | **Chitta Core** | `backend/app/chitta/models.py` | Data models |
 | **Chitta Core** | `backend/app/chitta/tools.py` | Tool definitions for LLM |
 | **Chitta Core** | `backend/app/chitta/formatting.py` | Prompt formatting utilities |
 | **Chitta Core** | `backend/app/chitta/reflection.py` | Synthesis and memory services |
+| **Chitta Core** | `backend/app/chitta/synthesis.py` | Portrait/crystal generation |
+| **Chitta Core** | `backend/app/chitta/portrait_schema.py` | Pydantic schema for structured output |
+| **LLM Layer** | `backend/app/services/llm/base.py` | LLM provider interface |
+| **LLM Layer** | `backend/app/services/llm/gemini_provider.py` | Gemini implementation |
+| **LLM Layer** | `backend/app/services/llm/factory.py` | Provider factory |
 | **Domain Config** | `backend/config/workflows/lifecycle_events.yaml` | Lifecycle events |
 | **Domain Config** | `backend/config/workflows/context_cards.yaml` | Card logic definition |
 | **Frontend** | `src/App.jsx` | Main state orchestrator |
 | **Frontend** | `src/components/CuriosityPanel.jsx` | Curiosity display |
 | **Docs** | `backend/docs/REFACTOR_PLAN.md` | Architecture plan |
-| **Docs** | `backend/docs/architecture/LIVING_GESTALT.md` | Gestalt principles |
+| **Docs** | `backend/docs/METAPHOR_ARCHITECTURE.md` | Darshan naming philosophy |
 
 ## 7. Quick Start & Environment
 
@@ -232,11 +311,26 @@ Before submitting code, verify:
 ## 9. Anti-Patterns to Reject
 
 *   **Keyword Intent Detection**: `if 'אתמול' in message` - LLM understands intent, not keywords
+*   **String Matching for Content Detection**: `if 'לידה' in observation.content` - NEVER use string/keyword matching to determine if we have data about something. The LLM extracts observations WITH domains via tools. Check domains, not content strings. If you need semantic understanding of content, use an LLM.
 *   **Combined Tool+Text**: Trying to get tool calls and text in one LLM call
-*   **Completeness Score**: We use curiosity activation, not completion percentage
+*   **Completeness Score**: We use curiosity pull, not completion percentage
 *   **Background Reflection**: Pattern detection is part of synthesis, not async
 *   **Simplistic vs פשוט**: Minimum NECESSARY, not minimum possible
 
+### The Right Way to Check for Data
+
+```python
+# ❌ WRONG - String matching
+if any('לידה' in obs.content for obs in observations):
+    has_birth_history = True
+
+# ✅ RIGHT - Domain-based (LLM already classified during perception)
+has_birth_history = any(obs.domain == 'birth_history' for obs in observations)
+
+# ✅ RIGHT - If you need semantic understanding, use LLM
+# But usually domain-based is sufficient because LLM already extracted with domain
+```
+
 ---
-**Version**: 3.0 (Living Gestalt Architecture)
+**Version**: 3.0 (Darshan Architecture)
 **Last Updated**: December 2025
