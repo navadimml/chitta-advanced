@@ -12,6 +12,7 @@ import os
 from dotenv import load_dotenv
 
 from app.api.routes import router
+from app.api.auth import router as auth_router
 from app.core.app_state import app_state
 
 # Load environment variables
@@ -61,6 +62,7 @@ app.add_middleware(
 
 # Include routes
 app.include_router(router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 # Serve uploaded files (timelines, etc.)
 uploads_dir = Path(__file__).parent.parent / "uploads"
