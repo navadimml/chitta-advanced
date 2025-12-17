@@ -285,7 +285,12 @@ class TokenService:
             token,
             self.settings.jwt_secret_key,
             algorithms=[self.settings.jwt_algorithm],
-            options={"verify_signature": False, "verify_exp": False}
+            options={
+                "verify_signature": False,
+                "verify_exp": False,
+                "verify_aud": False,
+                "verify_iss": False,
+            }
         )
 
     def get_token_hash(self, token: str) -> str:
