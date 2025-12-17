@@ -18,6 +18,7 @@ Tool calls and text response CANNOT be reliably combined.
 
 import logging
 import os
+import re
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 
@@ -333,7 +334,14 @@ class Darshan:
                 max_tokens=4000,
             )
 
-            return llm_response.content or "אני מתקשה להגיב כרגע. אפשר לנסות שוב?"
+            response_text = llm_response.content or "אני מתקשה להגיב כרגע. אפשר לנסות שוב?"
+
+            # Strip any <thoughts>...</thoughts> tags that leaked through
+            # The LLM sometimes includes internal reasoning that shouldn't be shown
+            response_text = re.sub(r'<thoughts>.*?</thoughts>\s*', '', response_text, flags=re.DOTALL)
+            response_text = response_text.strip()
+
+            return response_text or "אני מתקשה להגיב כרגע. אפשר לנסות שוב?"
 
         except Exception as e:
             logger.error(f"Phase 2 response error: {e}")
