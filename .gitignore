@@ -90,3 +90,21 @@ ENV/
 backend/.env
 .env.local
 backend/uploads/
+
+# Database files (SQLite for development)
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage reports
+.coverage
+htmlcov/
+backend/.coverage
+
+# Test data (generated during development/testing)
+backend/data/children/seed_*.json
+backend/data/children/xray-test-*.json
+backend/data/children/video-*.json
+backend/data/children/*_test_*.json
+backend/data/sessions/*_*.json
+backend/tests/xray_outputs/
