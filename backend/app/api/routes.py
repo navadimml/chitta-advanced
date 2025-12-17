@@ -2728,6 +2728,10 @@ async def execute_card_action(request: CardActionRequest):
             # Parent accepted baseline video suggestion (early discovery video)
             result = await chitta.accept_baseline_video(family_id)
 
+        elif action == "dismiss_baseline_video":
+            # Parent dismissed baseline video suggestion (אולי מאוחר יותר)
+            result = await chitta.dismiss_baseline_video(family_id)
+
         else:
             result = {"error": f"Unknown action: {action}"}
 

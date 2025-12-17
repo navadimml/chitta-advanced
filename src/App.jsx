@@ -415,8 +415,60 @@ function App() {
       return;
     }
 
-    // Dismiss card (X button or הבנתי button)
-    if (action === 'dismiss' && cycleId) {
+    // Accept baseline video suggestion (early discovery video)
+    if (action === 'accept_baseline_video') {
+      console.log('📹 Accepting baseline video suggestion');
+
+      try {
+        const result = await api.executeCardAction(activeFamilyId, 'accept_baseline_video', {});
+        console.log('✅ Baseline video accepted:', result);
+
+        // If guidelines were returned, show them
+        if (result.guidelines) {
+          setVideoGuidelines({ scenarios: result.guidelines });
+          setShowGuidelinesView(true);
+        }
+
+        // Refresh cards
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error accepting baseline video:', error);
+        alert('שגיאה. נא לנסות שוב.');
+      }
+      return;
+    }
+
+    // Dismiss card (X button or אולי מאוחר יותר button)
+    if (action === 'dismiss') {
+      console.log('❌ Dismissing card:', card?.type, 'cycle:', cycleId);
+
+      try {
+        // For baseline video suggestions (no cycle_id), use card action
+        if (card?.type === 'baseline_video_suggestion') {
+          await api.executeCardAction(activeFamilyId, 'dismiss_baseline_video', {});
+        }
+        // For video suggestions with cycle, declining is the same as dismissing
+        else if (card?.type === 'video_suggestion' && cycleId) {
+          await api.declineVideoSuggestion(activeFamilyId, cycleId);
+        }
+        // For other cards with cycle_id
+        else if (cycleId) {
+          await api.executeCardAction(activeFamilyId, 'dismiss', {
+            cycle_id: cycleId,
+            card_type: card?.type,
+            scenario_ids: card?.scenario_ids || [],
+          });
+        }
+        console.log('✅ Card dismissed');
+        await refreshCards();
+      } catch (error) {
+        console.error('❌ Error dismissing card:', error);
+      }
+      return;
+    }
+
+    // Dismiss card with cycleId (legacy handler - keeping for backwards compatibility)
+    if (action === 'dismiss_with_cycle' && cycleId) {
       console.log('❌ Dismissing card for cycle:', cycleId, 'type:', card?.type);
 
       try {

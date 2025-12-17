@@ -1045,6 +1045,25 @@ class ChittaService:
             "message": f"נהדר! אשמח לראות את {child_name}. הנחיות פשוטות מוכנות.",
         }
 
+    async def dismiss_baseline_video(self, family_id: str) -> Dict[str, Any]:
+        """
+        Parent dismissed baseline video suggestion (אולי מאוחר יותר).
+
+        Just marks it as requested so it doesn't show again.
+        """
+        gestalt = await self._get_gestalt(family_id)
+        if not gestalt:
+            return {"error": "Family not found"}
+
+        # Mark baseline video as requested (prevents re-suggestion)
+        gestalt._curiosities.mark_baseline_video_requested()
+        await self._persist_gestalt(family_id, gestalt)
+
+        return {
+            "status": "dismissed",
+            "message": "אין בעיה, אפשר לחזור לזה בהמשך.",
+        }
+
     async def get_video_guidelines(self, family_id: str, cycle_id: str) -> Dict[str, Any]:
         """Get video guidelines for a cycle (parent-facing format only)."""
         gestalt = await self._get_gestalt(family_id)

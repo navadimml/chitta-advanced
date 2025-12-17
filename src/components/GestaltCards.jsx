@@ -51,6 +51,15 @@ const CARD_CONFIGS = {
     iconColor: 'text-violet-600',
     buttonBg: 'bg-violet-600 hover:bg-violet-700',
   },
+  baseline_video_suggestion: {
+    icon: Eye,  // Discovery/seeing the child
+    accentColor: 'sky',
+    borderColor: 'border-sky-200',
+    bgColor: 'bg-sky-50/50',
+    iconBg: 'bg-sky-100',
+    iconColor: 'text-sky-600',
+    buttonBg: 'bg-sky-600 hover:bg-sky-700',
+  },
   video_guidelines_generating: {
     icon: Wand2,
     accentColor: 'amber',
