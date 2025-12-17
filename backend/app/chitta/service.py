@@ -2931,15 +2931,72 @@ Crystal Insights (what we already identified as relevant for this professional):
                 if clinical_term:
                     missing_data_items.append(clinical_term)
 
+        # Detect recipient type for tailored language
+        expert_name_lower = expert_name.lower()
+        is_teacher = any(term in expert_name_lower for term in ['גננת', 'גן', 'מורה', 'חינוך', 'סייעת', 'צהרון'])
+        is_medical = any(term in expert_name_lower for term in ['רופא', 'נוירולוג', 'רפואי', 'פסיכיאטר'])
+
+        # Build recipient-specific guidance
+        if is_teacher:
+            recipient_guidance = """
+## RECIPIENT TYPE: EDUCATOR (גננת/מורה)
+
+**LANGUAGE**: Everyday Hebrew - like talking to a friend, NOT clinical terms.
+- ❌ "ויסות רגשי" → ✅ "איך הוא מרגיע את עצמו"
+- ❌ "עיבוד חושי" → ✅ "איך הוא מגיב לרעשים / מגע"
+- ❌ "אבני דרך התפתחותיות" → ✅ "מתי התחיל ללכת/לדבר"
+- ❌ "רגישות טקטילית" → ✅ "לא אוהב לגעת בדברים מסוימים"
+
+**TONE**: Warm, collaborative - like a friend sharing insights about a child you both care about.
+NOT a clinical report. You're helping the teacher KNOW this child better.
+
+**RELEVANCE FILTER**: Skip birth details, medical history, vacuum delivery etc.
+Teachers need what happens NOW in daily life, not medical history.
+
+**PRACTICAL_TIPS**: CRITICAL for teachers! 2-4 concrete, actionable tips they can try TODAY.
+Connect what works to specific challenges:
+- "הוא מגיב טוב למוזיקה" → "כשקשה לו להיפרד בבוקר, שיר מוכר יכול לעזור"
+- "הוא אוהב לעזור" → "לתת לו תפקיד בכיתה יכול לגרום לו להרגיש שייך"
+
+**developmental_notes**: Only include if directly relevant to classroom behavior."""
+        elif is_medical:
+            recipient_guidance = """
+## RECIPIENT TYPE: MEDICAL PROFESSIONAL
+
+**LANGUAGE**: Clinical precision expected. Can use professional terms.
+- "developmental milestones", "sensory processing", "self-regulation"
+- Timeline with specific ages
+- Observable patterns
+
+**TONE**: Professional, concise, factual.
+
+**RELEVANCE**: Medical history IS relevant - birth, early development, milestones.
+
+**PRACTICAL_TIPS**: Can be more clinical - what interventions have worked,
+what the child responds to therapeutically."""
+        else:
+            recipient_guidance = """
+## RECIPIENT TYPE: SPECIALIST/THERAPIST
+
+**LANGUAGE**: Can use professional terms they understand (ויסות חושי, רגישות אודיטורית)
+but balance with everyday descriptions.
+
+**TONE**: Professional but warm. Collaborative - we're preparing the ground together.
+
+**PRACTICAL_TIPS**: 2-3 tips connecting strengths to therapeutic approaches.
+What does this child respond to? How can they use that in treatment?"""
+
         # Build the structured output prompt
         prompt = f"""# Task: Generate a STRUCTURED Professional Summary
 
-You are Chitta - a child understanding system. Generate a professional summary for a specialist.
+You are Chitta - a child understanding system. Generate a professional summary.
 
 ## PHILOSOPHY
 - Prepare the ground, don't deliver findings
 - Open doors for investigation, don't close them with conclusions
 - Frame patterns as hypotheses, not facts
+- Write like a PERSON, not a system
+{recipient_guidance}
 
 ## About the Professional
 {expert_info}
@@ -2957,25 +3014,32 @@ Name: {child_name}
 
 ## Instructions for Each Field
 
-**essence_paragraph**: 2-3 warm sentences about who this child IS - their personality, nature, what makes them unique. NOT their problems.
+**essence_paragraph**: 2-3 WARM sentences about who this child IS - their personality, what lights them up, what makes them unique. NOT their problems. Write like you're describing a child you care about.
 
-**strengths**: List strengths that can serve as BRIDGES for therapy/education. Format: strength + how it can be used.
+**strengths**: Strengths that can serve as BRIDGES. Format: strength + how it can be used.
 
-**parent_observations**: What parents TOLD us - factual, their words. Mark source as "parent".
+**parent_observations**: What parents TOLD us - their words, their perspective. Keep factual.
 
-**scenes**: 1-3 CONCRETE examples - what happens, intensity, duration, what helps/doesn't help.
+**scenes**: 1-2 CONCRETE examples relevant to THIS recipient. What happens, what helps.
 
-**patterns**: What WE (Chitta) noticed - frame TENTATIVELY: "נראה ש...", "יכול להיות ש...", "שמנו לב ש..."
+**patterns**: What WE noticed - frame TENTATIVELY: "נראה ש...", "יכול להיות ש..."
 
-**developmental_notes**: Key milestones and timeline - when things started, changes over time.
+**practical_tips**: CRITICAL - Concrete actionable tips connecting what works to specific challenges.
+Each tip has: what_works (the hook), challenge (what it addresses), suggestion (what to try).
+For teachers: classroom-applicable, everyday language.
+For therapists: can include professional approaches.
+
+**developmental_notes**: Timeline info - ONLY if relevant for this recipient.
 
 **open_questions**: Questions for THIS professional to investigate. Frame as invitations.
 
-**missing_info**: Be honest about what we don't know yet.
+**missing_info**: Be honest about gaps.
+
+**closing_note**: Brief warm closing - invitation to share back, thanks.
 
 ## Language
 - Write ALL content in Hebrew
-- For {expert_name}: use appropriate professional level (clinical terms for doctors, everyday language for teachers)
+- Match the language level to the recipient (see guidance above)
 - Date format: {now.strftime("%d/%m/%Y")}
 
 Generate the structured summary now:

@@ -69,6 +69,24 @@ class MissingInfo(BaseModel):
     why_relevant: str = Field(description="Why this would be useful for this professional")
 
 
+class PracticalTip(BaseModel):
+    """
+    A practical tip connecting strength to challenge - מה יכול לעזור.
+
+    For teachers: everyday language, classroom-applicable
+    For therapists: can use professional terms
+    """
+    what_works: str = Field(
+        description="What the child responds to / what opens them up (the hook)"
+    )
+    challenge: str = Field(
+        description="The challenge this addresses (in everyday words)"
+    )
+    suggestion: str = Field(
+        description="Concrete, actionable tip the professional can try"
+    )
+
+
 class ProfessionalSummary(BaseModel):
     """
     Complete structured summary for a professional.
@@ -132,6 +150,12 @@ class ProfessionalSummary(BaseModel):
     missing_info: List[MissingInfo] = Field(
         default_factory=list,
         description="Information we don't have yet - honest about gaps"
+    )
+
+    # === THREAD 9: PRACTICAL TIPS (מה יכול לעזור) ===
+    practical_tips: List[PracticalTip] = Field(
+        default_factory=list,
+        description="Practical tips connecting strengths to challenges. MOST USEFUL FOR TEACHERS - everyday tips they can use immediately. For specialists: can be more professional."
     )
 
     # === CLOSING ===
