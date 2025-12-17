@@ -10,6 +10,8 @@ including action definitions and availability checks.
 - always_available list for actions without prerequisites
 """
 
+import ast
+import operator
 from typing import Dict, Any, List, Optional, Set
 from pydantic import BaseModel
 import logging
@@ -17,6 +19,134 @@ import logging
 from app.config.config_loader import load_action_graph
 
 logger = logging.getLogger(__name__)
+
+
+class SafeExpressionEvaluator:
+    """
+    Safe expression evaluator using AST parsing.
+
+    Only supports:
+    - Variable lookups from context
+    - Comparison operators (<, >, <=, >=, ==, !=)
+    - Boolean operators (and, or, not)
+    - Basic arithmetic (+, -, *, /)
+    - Numeric and string literals
+
+    Does NOT support:
+    - Function calls (except len)
+    - Attribute access
+    - Subscript access
+    - Any form of code execution
+    """
+
+    # Allowed operators
+    _operators = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.Lt: operator.lt,
+        ast.LtE: operator.le,
+        ast.Gt: operator.gt,
+        ast.GtE: operator.ge,
+        ast.Eq: operator.eq,
+        ast.NotEq: operator.ne,
+        ast.And: lambda a, b: a and b,
+        ast.Or: lambda a, b: a or b,
+        ast.Not: operator.not_,
+        ast.USub: operator.neg,
+    }
+
+    def __init__(self, context: Dict[str, Any]):
+        self.context = context
+
+    def evaluate(self, expression: str) -> Any:
+        """
+        Safely evaluate an expression string.
+
+        Args:
+            expression: Expression string to evaluate
+
+        Returns:
+            Result of the expression
+
+        Raises:
+            ValueError: If expression contains unsafe operations
+        """
+        try:
+            tree = ast.parse(expression, mode='eval')
+            return self._eval_node(tree.body)
+        except (SyntaxError, TypeError) as e:
+            raise ValueError(f"Invalid expression: {expression}") from e
+
+    def _eval_node(self, node: ast.AST) -> Any:
+        """Recursively evaluate an AST node."""
+
+        # Numeric literals
+        if isinstance(node, ast.Constant):
+            return node.value
+
+        # For Python < 3.8 compatibility
+        if isinstance(node, ast.Num):
+            return node.n
+        if isinstance(node, ast.Str):
+            return node.s
+
+        # Variable lookup
+        if isinstance(node, ast.Name):
+            if node.id not in self.context:
+                raise ValueError(f"Unknown variable: {node.id}")
+            return self.context[node.id]
+
+        # Binary operations (a + b, a < b, etc.)
+        if isinstance(node, ast.BinOp):
+            left = self._eval_node(node.left)
+            right = self._eval_node(node.right)
+            op_func = self._operators.get(type(node.op))
+            if op_func is None:
+                raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+            return op_func(left, right)
+
+        # Comparison operations (a < b, a == b, etc.)
+        if isinstance(node, ast.Compare):
+            left = self._eval_node(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = self._eval_node(comparator)
+                op_func = self._operators.get(type(op))
+                if op_func is None:
+                    raise ValueError(f"Unsupported comparison: {type(op).__name__}")
+                if not op_func(left, right):
+                    return False
+                left = right
+            return True
+
+        # Boolean operations (and, or)
+        if isinstance(node, ast.BoolOp):
+            op_func = self._operators.get(type(node.op))
+            if op_func is None:
+                raise ValueError(f"Unsupported boolean operator: {type(node.op).__name__}")
+            result = self._eval_node(node.values[0])
+            for value in node.values[1:]:
+                result = op_func(result, self._eval_node(value))
+            return result
+
+        # Unary operations (not, -)
+        if isinstance(node, ast.UnaryOp):
+            operand = self._eval_node(node.operand)
+            op_func = self._operators.get(type(node.op))
+            if op_func is None:
+                raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
+            return op_func(operand)
+
+        # Limited function calls (only len)
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id == 'len':
+                if len(node.args) == 1 and not node.keywords:
+                    return len(self._eval_node(node.args[0]))
+            raise ValueError("Function calls not allowed (except len)")
+
+        # Reject everything else
+        raise ValueError(f"Unsupported expression type: {type(node).__name__}")
 
 
 class ActionDefinition(BaseModel):
@@ -204,12 +334,9 @@ class ActionRegistry:
             return None
 
         try:
-            # Evaluate condition
-            safe_builtins = {
-                "len": len, "min": min, "max": max, "abs": abs,
-                "int": int, "float": float, "str": str, "bool": bool,
-            }
-            condition_met = eval(condition, {"__builtins__": safe_builtins}, context)
+            # Safely evaluate condition using AST-based evaluator
+            evaluator = SafeExpressionEvaluator(context)
+            condition_met = evaluator.evaluate(condition)
 
             if condition_met:
                 formatted_message = message_template.format(**context)
@@ -217,6 +344,9 @@ class ActionRegistry:
 
             return None
 
+        except ValueError as e:
+            logger.error(f"Invalid condition expression for {action_id}: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error checking confirmation for {action_id}: {e}")
             return None
