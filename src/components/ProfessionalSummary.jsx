@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import {
   User, Heart, MessageCircle, Eye, Clock, HelpCircle,
-  AlertCircle, Sparkles, ChevronLeft, Copy, Printer, Send, Check
+  AlertCircle, Sparkles, ChevronLeft, Copy, Printer, Send, Check, Lightbulb
 } from 'lucide-react';
 
 /**
@@ -25,6 +25,7 @@ function Section({ icon: Icon, title, children, accentColor = 'indigo' }) {
     rose: 'from-rose-500 to-rose-600',
     slate: 'from-slate-500 to-slate-600',
     purple: 'from-purple-500 to-purple-600',
+    teal: 'from-teal-500 to-teal-600',
   };
 
   return (
@@ -83,6 +84,32 @@ function SceneCard({ scene }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Practical tip card component - מה יכול לעזור
+function TipCard({ tip }) {
+  return (
+    <div className="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl p-5 border border-teal-100 shadow-sm">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <Lightbulb className="w-3.5 h-3.5 text-teal-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-gray-800 font-medium">{tip.suggestion}</p>
+        </div>
+      </div>
+      <div className="pr-9 space-y-1.5">
+        <div className="flex items-start gap-2 text-sm">
+          <span className="text-teal-600 font-medium whitespace-nowrap">מה עובד:</span>
+          <span className="text-gray-600">{tip.what_works}</span>
+        </div>
+        <div className="flex items-start gap-2 text-sm">
+          <span className="text-amber-600 font-medium whitespace-nowrap">לאתגר:</span>
+          <span className="text-gray-600">{tip.challenge}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -184,6 +211,17 @@ export default function ProfessionalSummary({
           <div className="space-y-4">
             {data.scenes.map((scene, idx) => (
               <SceneCard key={idx} scene={scene} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Practical Tips - מה יכול לעזור */}
+      {data.practical_tips && data.practical_tips.length > 0 && (
+        <Section icon={Lightbulb} title="מה יכול לעזור" accentColor="teal">
+          <div className="space-y-4">
+            {data.practical_tips.map((tip, idx) => (
+              <TipCard key={idx} tip={tip} />
             ))}
           </div>
         </Section>
@@ -546,6 +584,23 @@ export function ProfessionalSummaryPrint({ data }) {
               ${scene.what_doesnt_help ? `<span>✗ מה לא עוזר: ${scene.what_doesnt_help}</span>` : ''}
             </div>
           ` : ''}
+        </div>
+      `).join('')}
+    </div>
+  ` : ''}
+
+  ${data.practical_tips && data.practical_tips.length > 0 ? `
+    <div class="section">
+      <div class="section-title">💡 מה יכול לעזור</div>
+      ${data.practical_tips.map(tip => `
+        <div class="scene-card" style="background: linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%); border-color: #99f6e4;">
+          <p style="font-weight: 600; color: #0f766e; margin-bottom: 8px;">${tip.suggestion || ''}</p>
+          <div style="font-size: 12px; color: #4b5563;">
+            <span style="color: #0d9488; font-weight: 500;">מה עובד:</span> ${tip.what_works || ''}
+          </div>
+          <div style="font-size: 12px; color: #4b5563; margin-top: 4px;">
+            <span style="color: #d97706; font-weight: 500;">לאתגר:</span> ${tip.challenge || ''}
+          </div>
         </div>
       `).join('')}
     </div>
