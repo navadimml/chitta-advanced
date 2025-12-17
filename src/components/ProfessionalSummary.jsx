@@ -106,7 +106,7 @@ function TipCard({ tip }) {
           <span className="text-gray-600">{tip.what_works}</span>
         </div>
         <div className="flex items-start gap-2 text-sm">
-          <span className="text-amber-600 font-medium whitespace-nowrap">לאתגר:</span>
+          <span className="text-amber-600 font-medium whitespace-nowrap">מאתגר:</span>
           <span className="text-gray-600">{tip.challenge}</span>
         </div>
       </div>
@@ -599,7 +599,7 @@ export function ProfessionalSummaryPrint({ data }) {
             <span style="color: #0d9488; font-weight: 500;">מה עובד:</span> ${tip.what_works || ''}
           </div>
           <div style="font-size: 12px; color: #4b5563; margin-top: 4px;">
-            <span style="color: #d97706; font-weight: 500;">לאתגר:</span> ${tip.challenge || ''}
+            <span style="color: #d97706; font-weight: 500;">מאתגר:</span> ${tip.challenge || ''}
           </div>
         </div>
       `).join('')}
