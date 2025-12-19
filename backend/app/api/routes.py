@@ -25,8 +25,6 @@ from app.services.session_service import get_session_service
 from app.config.card_generator import get_card_generator
 from app.config.view_manager import get_view_manager
 from app.config.config_loader import load_app_messages
-# Demo Mode: Import demo orchestrator
-from app.services.demo_orchestrator_service import get_demo_orchestrator
 # State-based architecture (UnifiedStateService replaces MockGraphiti)
 from app.services.unified_state_service import get_unified_state_service
 from app.services.state_derivation import (
@@ -49,38 +47,6 @@ logger = logging.getLogger(__name__)
 # Include dev routes (only in development)
 if os.getenv("ENVIRONMENT", "development") == "development":
     router.include_router(dev_routes.router)
-
-
-# 🌟 Wu Wei: Helper function for config-driven trigger detection
-def detect_system_trigger(message: str) -> Optional[str]:
-    """
-    Detect system triggers from user message using app_messages.yaml config.
-
-    Returns trigger action name (e.g., "start_demo") or None.
-    """
-    import re
-
-    messages_config = load_app_messages()
-    triggers = messages_config.get("system_triggers", {})
-    message_lower = message.lower()
-
-    for trigger_action, trigger_config in triggers.items():
-        keywords = trigger_config.get("keywords", {})
-        pattern_type = trigger_config.get("pattern", "word_boundary")
-
-        # Check English keywords
-        for keyword in keywords.get("en", []):
-            if pattern_type == "word_boundary":
-                if re.search(r'\b' + re.escape(keyword) + r'\b', message_lower):
-                    return trigger_action
-
-        # Check Hebrew keywords
-        for keyword in keywords.get("he", []):
-            # Hebrew word boundary: beginning/end of string or whitespace
-            if re.search(r'(?:^|[\s])' + re.escape(keyword) + r'(?:[\s]|$)', message_lower):
-                return trigger_action
-
-    return None
 
 
 # === Request/Response Models ===
@@ -211,82 +177,6 @@ async def send_message(
     # Get services (Wu Wei: simplified architecture only)
     conversation_service = get_simplified_conversation_service()
     state_service = get_unified_state_service()
-
-    # 🌟 Wu Wei: Config-driven trigger detection (replaces hardcoded keywords)
-    action = detect_system_trigger(request.message)
-
-    # 🚨 Check if already in test mode (prevents recursive triggering)
-    simulator = get_parent_simulator()
-    is_in_test_mode = request.family_id in simulator.active_simulations
-
-    # Don't trigger test mode if already in it
-    if action == "start_test_mode" and is_in_test_mode:
-        action = None
-
-    # Handle system/developer actions
-    if action:
-
-        # 🎬 Demo Mode
-        if action == "start_demo":
-            demo_orchestrator = get_demo_orchestrator()
-            # Use demo orchestrator's logic to pick scenario
-            scenario_id = "language_concerns"  # Default scenario
-            demo_result = await demo_orchestrator.start_demo(scenario_id)
-
-            # 🌟 Wu Wei: Load demo mode UI data from config
-            messages_config = load_app_messages()
-            demo_config = messages_config.get("demo_mode", {})
-            demo_ui = demo_config.get("ui_data", {})
-
-            return SendMessageResponse(
-                response=demo_result["first_message"]["content"],
-                stage="demo",
-                ui_data={
-                    "demo_mode": demo_ui.get("demo_mode", True),
-                    "demo_family_id": demo_result["demo_family_id"],
-                    "demo_scenario": demo_result["scenario"],
-                    "cards": [demo_result["demo_card"]],
-                    "suggestions": demo_ui.get("suggestions", ["המשך דמו"]),
-                    "hint": demo_ui.get("hint"),
-                    "progress": 0
-                }
-            )
-
-        # 🧪 Test Mode
-        elif action == "start_test_mode":
-            simulator = get_parent_simulator()
-            personas = simulator.list_personas()
-
-            # Build persona list
-            persona_list = "\n".join([
-                f"- {p['parent']}: {p['child']} - {p['concern']}"
-                for p in personas[:5]  # Show first 5
-            ])
-
-            # 🌟 Wu Wei: Load test mode message from config
-            messages_config = load_app_messages()
-            test_config = messages_config.get("test_mode", {})
-            response_template = test_config.get("response_template", "🧪 מצב בדיקה")
-            test_ui = test_config.get("ui_data", {})
-
-            # Format response with persona data
-            response = response_template.format(
-                persona_count=len(personas),
-                persona_list=persona_list
-            )
-
-            return SendMessageResponse(
-                response=response,
-                stage="interview",
-                ui_data={
-                    "test_mode_available": test_ui.get("test_mode_available", True),
-                    "personas": personas,
-                    "suggestions": test_ui.get("suggestions", ["המשך שיחה רגילה"]),
-                    "hint": test_ui.get("hint"),
-                    "cards": [],
-                    "progress": 0
-                }
-            )
 
     # 🌟 Wu Wei: Update UI state from frontend (if provided)
     if request.ui_state:
