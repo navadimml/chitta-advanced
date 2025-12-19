@@ -548,8 +548,8 @@ class ChildService:
             return {k: self._make_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [self._make_serializable(v) for v in obj]
-        elif hasattr(obj, "dict"):
-            return self._make_serializable(obj.dict())
+        elif hasattr(obj, "model_dump"):
+            return self._make_serializable(obj.model_dump())
         elif hasattr(obj, "__dict__"):
             return self._make_serializable(obj.__dict__)
         else:

@@ -771,7 +771,7 @@ class LifecycleManager:
                 # Build context for card evaluation (same as conversation_service does)
                 session_data = {
                     "family_id": family_id,
-                    "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+                    "extracted_data": session.extracted_data.model_dump(),
                     "message_count": len(session.conversation_history),
                     "artifacts": artifacts_dict,  # 🚨 FIX: Dict format for card evaluation
                     "uploaded_video_count": video_count,  # 🌟 Wu Wei: From FamilyState

@@ -400,15 +400,15 @@ Based on the conversation, identify:
         # Get concerns
         concerns = {
             "primary_areas": child.concerns.primary_areas,
-            "details": [d.dict() for d in child.concerns.details] if child.concerns.details else [],
+            "details": [d.model_dump() for d in child.concerns.details] if child.concerns.details else [],
         }
 
         # Build prompt for LLM
         prompt = self._build_gestalt_guidelines_prompt(
             child_name=child_name,
             child_age=child_age,
-            hypotheses=[h.dict() for h in hypotheses],
-            patterns=[p.dict() for p in patterns],
+            hypotheses=[h.model_dump() for h in hypotheses],
+            patterns=[p.model_dump() for p in patterns],
             concerns=concerns,
             strengths=strengths,
             parent_narrative=parent_narrative,

@@ -542,11 +542,11 @@ class UnifiedStateService:
             },
             "has_video_guidelines": child.has_artifact("baseline_video_guidelines"),
             # Videos
-            "videos": [v.dict() for v in child.videos],
+            "videos": [v.model_dump() for v in child.videos],
             "video_count": child.video_count,
             "analyzed_video_count": child.analyzed_video_count,
             # UI state
-            "active_cards": [c.dict() for c in session.active_cards],
+            "active_cards": [c.model_dump() for c in session.active_cards],
             "dismissed_card_moments": {
                 k: v.isoformat() for k, v in session.dismissed_card_moments.items()
             },
@@ -621,8 +621,8 @@ class UnifiedStateService:
                 "session_id": session.session_id,
                 "user_id": session.user_id,
                 "child_id": session.child_id,
-                "messages": [m.dict() for m in session.messages],
-                "active_cards": [c.dict() for c in session.active_cards],
+                "messages": [m.model_dump() for m in session.messages],
+                "active_cards": [c.model_dump() for c in session.active_cards],
                 "dismissed_card_moments": {
                     k: v.isoformat() for k, v in session.dismissed_card_moments.items()
                 },

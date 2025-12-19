@@ -315,10 +315,7 @@ class MomentContextBuilder:
 
     def _build_session_data_for_prerequisites(self, session_state) -> Dict[str, Any]:
         """Build session data dict for prerequisite service"""
-        try:
-            extracted_dict = session_state.extracted_data.model_dump()
-        except AttributeError:
-            extracted_dict = session_state.extracted_data.dict()
+        extracted_dict = session_state.extracted_data.model_dump()
 
         return {
             "extracted_data": extracted_dict,

@@ -262,10 +262,10 @@ class SessionService:
             # Convert to dict for persistence
             session_data = {
                 "family_id": session.family_id,
-                "extracted_data": session.extracted_data.dict(),
+                "extracted_data": session.extracted_data.model_dump(),
                 "completeness": session.completeness,
                 "conversation_history": session.conversation_history,
-                "artifacts": {k: v.dict() if hasattr(v, 'dict') else v for k, v in session.artifacts.items()},
+                "artifacts": {k: v.model_dump() if hasattr(v, 'model_dump') else v for k, v in session.artifacts.items()},
                 "created_at": session.created_at.isoformat(),
                 "updated_at": session.updated_at.isoformat(),
                 "semantic_verification": session.semantic_verification,

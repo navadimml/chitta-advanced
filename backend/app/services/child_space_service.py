@@ -239,24 +239,9 @@ class ChildSpaceService:
         return artifacts
 
     def _normalize_artifact_data(self, artifact_data: Any) -> Dict[str, Any]:
-        """
-        Normalize artifact data to a dict.
-
-        Handles both Artifact objects and dict formats.
-        """
+        """Normalize artifact data to a dict."""
         if hasattr(artifact_data, "model_dump"):
             return artifact_data.model_dump()
-        elif hasattr(artifact_data, "dict"):
-            return artifact_data.dict()
-        elif hasattr(artifact_data, "status"):
-            # Artifact object
-            return {
-                "artifact_id": getattr(artifact_data, "artifact_id", None),
-                "status": artifact_data.status,
-                "content": getattr(artifact_data, "content", None),
-                "created_at": getattr(artifact_data, "created_at", None),
-                "exists": getattr(artifact_data, "exists", False),
-            }
         elif isinstance(artifact_data, dict):
             return artifact_data
         else:

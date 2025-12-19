@@ -430,7 +430,7 @@ class ParentSimulator:
 
         return {
             "family_id": family_id,
-            "persona": persona.dict(),
+            "persona": persona.model_dump(),
             "status": "active"
         }
 

@@ -546,7 +546,7 @@ async def analyze_videos(
         # Build general context (same pattern used throughout the app)
         session_data = {
             "family_id": family_id,
-            "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+            "extracted_data": session.extracted_data.model_dump(),
             "message_count": len(session.conversation_history),
             "artifacts": session.artifacts,
             "uploaded_video_count": len(state.videos_uploaded),
@@ -655,7 +655,7 @@ async def analyze_videos(
             # Build context for lifecycle evaluation
             session_data = {
                 "family_id": family_id,
-                "extracted_data": session.extracted_data.model_dump() if hasattr(session.extracted_data, 'model_dump') else session.extracted_data.dict(),
+                "extracted_data": session.extracted_data.model_dump(),
                 "message_count": len(session.conversation_history),
                 "artifacts": session.artifacts,
                 "uploaded_video_count": len(state.videos_uploaded),
@@ -2139,7 +2139,7 @@ async def get_family_state(
     suggestions = derive_suggestions(state)
 
     return {
-        "state": state.dict(),
+        "state": state.model_dump(),
         "ui": {
             "greeting": greeting,
             "cards": cards,
@@ -2998,16 +2998,13 @@ async def get_child_data(family_id: str):
         child = unified.get_child(family_id)
 
         # Serialize exploration cycles with full hypothesis data
-        cycles_data = []
-        for cycle in child.exploration_cycles:
-            cycle_dict = cycle.model_dump() if hasattr(cycle, 'model_dump') else cycle.dict()
-            cycles_data.append(cycle_dict)
+        cycles_data = [cycle.model_dump() for cycle in child.exploration_cycles]
 
         # Get developmental data (backward compatibility property)
         dev_data = child.developmental_data
 
         # Get understanding (patterns, insights)
-        understanding_dict = child.understanding.model_dump() if hasattr(child.understanding, 'model_dump') else child.understanding.dict()
+        understanding_dict = child.understanding.model_dump()
 
         return {
             "family_id": family_id,
@@ -3046,40 +3043,32 @@ async def get_child_gestalt(family_id: str):
         unified = get_unified_state_service()
         child = unified.get_child(family_id)
 
-        # Serialize all gestalt fields
-        def safe_dump(obj):
-            if hasattr(obj, 'model_dump'):
-                return obj.model_dump()
-            elif hasattr(obj, 'dict'):
-                return obj.dict()
-            return obj
-
         return {
             "family_id": family_id,
             "child_id": child.id,
 
             # Core identity
-            "identity": safe_dump(child.identity),
+            "identity": child.identity.model_dump(),
 
             # The Darshan
-            "essence": safe_dump(child.essence),
-            "strengths": safe_dump(child.strengths),
-            "concerns": safe_dump(child.concerns),
-            "history": safe_dump(child.history),
-            "family": safe_dump(child.family),
+            "essence": child.essence.model_dump(),
+            "strengths": child.strengths.model_dump(),
+            "concerns": child.concerns.model_dump(),
+            "history": child.history.model_dump(),
+            "family": child.family.model_dump(),
 
             # Understanding (hypotheses, patterns)
-            "understanding": safe_dump(child.understanding),
+            "understanding": child.understanding.model_dump(),
 
             # Exploration cycles with full data
-            "exploration_cycles": [safe_dump(c) for c in child.exploration_cycles],
+            "exploration_cycles": [c.model_dump() for c in child.exploration_cycles],
 
             # Synthesis reports
-            "synthesis_reports": [safe_dump(r) for r in child.synthesis_reports],
+            "synthesis_reports": [r.model_dump() for r in child.synthesis_reports],
 
             # Videos and journal
-            "videos": [safe_dump(v) for v in child.videos],
-            "journal_entries": [safe_dump(j) for j in child.journal_entries],
+            "videos": [v.model_dump() for v in child.videos],
+            "journal_entries": [j.model_dump() for j in child.journal_entries],
 
             # Metadata
             "created_at": child.created_at.isoformat() if child.created_at else None,

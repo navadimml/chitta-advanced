@@ -296,10 +296,7 @@ class ContextBuffer:
         """Load action availability context"""
         try:
             # Build session data for prerequisite checks
-            try:
-                extracted_dict = session.extracted_data.model_dump()
-            except AttributeError:
-                extracted_dict = session.extracted_data.dict()
+            extracted_dict = session.extracted_data.model_dump()
 
             session_data = {
                 "extracted_data": extracted_dict,

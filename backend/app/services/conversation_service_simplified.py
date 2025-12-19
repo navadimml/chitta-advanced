@@ -1329,10 +1329,7 @@ Examples:
         Wu Wei Principle: Pass ONLY raw session state - let config-driven services
         interpret it. NO domain knowledge, NO transformations!
         """
-        try:
-            extracted_dict = session.extracted_data.model_dump()
-        except AttributeError:
-            extracted_dict = session.extracted_data.dict()
+        extracted_dict = session.extracted_data.model_dump()
 
         # Get video count from family state
         from app.services.unified_state_service import get_unified_state_service
@@ -1394,14 +1391,10 @@ Examples:
                 # Already a dict
                 artifacts_dict[artifact_id] = artifact_obj
 
-        # 🚨 CRITICAL FIX: Convert ExtractedData Pydantic model to dict
-        # Cards need dict access for top-level keys like child_name, filming_preference
-        try:
-            extracted_dict = session.extracted_data.model_dump()
-        except AttributeError:
-            extracted_dict = session.extracted_data.dict()
+        # Convert ExtractedData Pydantic model to dict
+        extracted_dict = session.extracted_data.model_dump()
 
-        # 🌟 FLATTEN extracted_data fields to top-level for backward compatibility
+        # Flatten extracted_data fields to top-level
         # This allows YAML to use `child_name:` instead of `extracted_data.child_name:`
         context = {
             "message_count": len(session.conversation_history),
