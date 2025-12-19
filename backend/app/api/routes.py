@@ -34,8 +34,8 @@ from app.services.state_derivation import (
     derive_contextual_greeting,
     derive_suggestions
 )
-# Darshan: Card derivation (deprecated module for backward compat)
-from app.chitta import derive_cards_from_child, handle_card_action
+# Darshan: Card derivation via ChittaService
+from app.chitta import get_chitta_service
 # Parent Simulator (Test Mode)
 from app.services.parent_simulator import get_parent_simulator
 # SSE for real-time updates
@@ -2647,21 +2647,23 @@ async def get_gestalt_cards(family_id: str, language: str = "he"):
     Cards are portals to deep views, not hypothesis details.
     """
     try:
+        # Use ChittaService for card derivation
+        chitta = get_chitta_service()
+        cards = await chitta.get_cards(family_id)
+
+        # Get child for additional metadata
         unified = get_unified_state_service()
         child = unified.get_child(family_id)
-        session = await unified.get_or_create_session_async(family_id)
-
-        cards = derive_cards_from_child(child, session, language)
 
         return GestaltCardsResponse(
             family_id=family_id,
-            cards=[c.model_dump() for c in cards],
+            cards=cards,  # Already list of dicts from get_cards()
             has_active_cycles=len(child.active_exploration_cycles()) > 0,
             pending_insights_count=len(child.understanding.unshared_insights()),
         )
 
     except Exception as e:
-        logger.error(f"Error getting gestalt cards: {e}", exc_info=True)
+        logger.error(f"Error getting darshan cards: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3124,7 +3126,7 @@ async def chat_v2_init(
         logger.info(f"🚀 Chat init for user: {current_user.email}")
 
     try:
-        from app.chitta import get_chitta_service, derive_cards_from_child
+        from app.chitta import get_chitta_service
 
         # Initialize i18n for requested language
         get_i18n(language)
@@ -3171,11 +3173,11 @@ async def chat_v2_init(
             # New user - first contact
             greeting = t("greetings.first_visit")
 
-        # Derive cards
-        cards = derive_cards_from_child(child, session, language)
+        # Derive cards via ChittaService
+        cards = await chitta.get_cards(family_id)
 
         ui_data = {
-            "cards": [c.model_dump() for c in cards],
+            "cards": cards,  # Already list of dicts from get_cards()
             "progress": child.data_completeness,
             "stats": {
                 "family_id": family_id,

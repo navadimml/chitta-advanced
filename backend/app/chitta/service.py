@@ -171,6 +171,21 @@ class ChittaService:
             "suggest_baseline_video": suggest_baseline_video,
         }
 
+    async def get_cards(self, family_id: str) -> List[Dict]:
+        """
+        Get current context cards for a family.
+
+        This is the public API for card retrieval, replacing the deprecated
+        derive_cards_from_child function.
+
+        Returns list of card dicts ready for frontend consumption.
+        """
+        darshan = await self._get_gestalt(family_id)
+        if not darshan:
+            return []
+
+        return self._derive_cards(darshan)
+
     # ========================================
     # DARSHAN MANAGEMENT
     # ========================================
