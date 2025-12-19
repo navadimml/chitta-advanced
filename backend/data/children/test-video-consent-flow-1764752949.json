@@ -1,0 +1,121 @@
+{
+  "child_id": "test-video-consent-flow-1764752949",
+  "identity": {
+    "name": "נועם",
+    "birth_date": "2021-01-01",
+    "gender": "male"
+  },
+  "essence": {
+    "temperament_observations": [],
+    "energy_pattern": null,
+    "core_qualities": []
+  },
+  "strengths": {
+    "abilities": [],
+    "interests": [],
+    "what_lights_them_up": null,
+    "surprises_people": null
+  },
+  "concerns": {
+    "primary_areas": [
+      "behavioral",
+      "emotional"
+    ],
+    "details": [],
+    "parent_narrative": "קושי גדול עם מעברים, בעיקר בבוקר כשצריך להתלבש וללכת לגן. נכנס להתקפי זעם. מתפרק אם אין הכנה מראש. הגננת מדווחת על קושי במעברים בין פעילויות גם בגן"
+  },
+  "history": {
+    "birth": {
+      "complications": null,
+      "premature": null,
+      "weeks_gestation": null,
+      "early_medical": null
+    },
+    "early_development": null,
+    "milestone_notes": null,
+    "medical_history": null,
+    "previous_evaluations": [],
+    "previous_diagnoses": []
+  },
+  "family": {
+    "structure": null,
+    "siblings": [],
+    "languages_at_home": [],
+    "family_developmental_history": null,
+    "support_system": null
+  },
+  "understanding": {
+    "hypotheses": [
+      {
+        "id": "a1fb3be5",
+        "theory": "הקושי במעברים קשור כנראה לצורך במוכנות וניבוי (predictability) ולאו דווקא להתנגדות התנהגותית - 'הפתעה' היא הטריגר",
+        "domain": "emotional",
+        "source": "pattern",
+        "source_details": "ההורה מציין שהטריגר הוא 'פתאומיות' וש'אזהרה מראש' עוזרת, והקושי מופיע גם בבית וגם בגן",
+        "questions_to_explore": [
+          "האם שימוש בטיימר או עזר ויזואלי עוזר?",
+          "האם יש פעילויות ספציפיות שמהן קשה לו יותר להיפרד?"
+        ],
+        "evidence": [
+          {
+            "id": "c72d3779",
+            "observed_at": "2025-12-03T11:10:22.260150",
+            "source": "conversation",
+            "content": "מתפרק כשאין אזהרה מראש",
+            "domain": "emotional"
+          },
+          {
+            "id": "d0fd92d2",
+            "observed_at": "2025-12-03T11:10:22.260217",
+            "source": "conversation",
+            "content": "קושי במעברים פתאומיים",
+            "domain": "emotional"
+          },
+          {
+            "id": "d73dbc75",
+            "observed_at": "2025-12-03T11:10:22.260235",
+            "source": "conversation",
+            "content": "דיווח על קושי דומה בגן",
+            "domain": "emotional"
+          }
+        ],
+        "status": "active",
+        "confidence": 0.9500000000000001,
+        "formed_at": "2025-12-03T11:10:22.260125",
+        "last_evidence_at": "2025-12-03T11:10:22.260235",
+        "resolution": null,
+        "resolution_note": null,
+        "evolved_into": null
+      }
+    ],
+    "patterns": [
+      {
+        "id": "214248d5",
+        "theme": "קושי במעברים חוצה מסגרות (בית וגן)",
+        "description": "Observations: קושי במעברים בבוקר בבית; קושי במעברים בין פעילויות בגן",
+        "related_hypotheses": [],
+        "confidence": 0.9,
+        "detected_at": "2025-12-03T11:10:22.259256",
+        "source": "conversation"
+      }
+    ],
+    "pending_insights": [
+      {
+        "id": "38b3b46c",
+        "source": "parent_goal",
+        "content": "Wants to know if behavior is normal for age 4.9, seeks actionable advice/strategies",
+        "importance": "medium",
+        "share_when": "when_relevant",
+        "related_hypotheses": [],
+        "created_at": "2025-12-03T11:11:21.926597",
+        "shared": false
+      }
+    ]
+  },
+  "exploration_cycles": [],
+  "artifacts": {},
+  "videos": [],
+  "journal_entries": [],
+  "created_at": "2025-12-03T11:09:09.927528",
+  "updated_at": "2025-12-03T11:11:21.940481"
+}

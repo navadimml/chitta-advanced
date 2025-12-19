@@ -2,13 +2,17 @@
 Chitta Backend - FastAPI Application
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 import logging
 import os
 from dotenv import load_dotenv
 
 from app.api.routes import router
+from app.api.auth import router as auth_router
 from app.core.app_state import app_state
 
 # Load environment variables
@@ -22,15 +26,32 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup/shutdown events"""
+    # Startup
+    logger.info("🚀 Starting Chitta Backend...")
+    await app_state.initialize()
+    logger.info("✅ Chitta Backend ready!")
+
+    yield
+
+    # Shutdown
+    logger.info("👋 Shutting down Chitta Backend...")
+    await app_state.shutdown()
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Chitta API",
     description="API for Chitta child development assessment platform",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS
-origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -41,18 +62,17 @@ app.add_middleware(
 
 # Include routes
 app.include_router(router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
-# Startup/Shutdown events
-@app.on_event("startup")
-async def startup():
-    logger.info("🚀 Starting Chitta Backend...")
-    await app_state.initialize()
-    logger.info("✅ Chitta Backend ready!")
+# Serve uploaded files (timelines, etc.)
+uploads_dir = Path(__file__).parent.parent / "uploads"
+uploads_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
-@app.on_event("shutdown")
-async def shutdown():
-    logger.info("👋 Shutting down Chitta Backend...")
-    await app_state.shutdown()
+# Serve video files from data/videos
+videos_dir = Path(__file__).parent.parent / "data" / "videos"
+videos_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/data/videos", StaticFiles(directory=str(videos_dir)), name="videos")
 
 # Health check
 @app.get("/health")

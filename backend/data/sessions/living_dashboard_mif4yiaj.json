@@ -1,0 +1,72 @@
+{
+  "family_id": "living_dashboard_mif4yiaj",
+  "extracted_data": {
+    "child_name": "תותי",
+    "age": 8,
+    "gender": "female",
+    "primary_concerns": [],
+    "concern_details": null,
+    "strengths": null,
+    "developmental_history": null,
+    "family_context": null,
+    "daily_routines": null,
+    "parent_goals": null,
+    "urgent_flags": [],
+    "filming_preference": null,
+    "last_updated": {
+      "_type": "datetime",
+      "_value": "2025-11-28T07:49:40.773295"
+    },
+    "extraction_count": 2
+  },
+  "completeness": 0.05,
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "נעים להכיר , אני שלומי והבת שלי תותי",
+      "timestamp": "2025-11-28T07:49:21.658496"
+    },
+    {
+      "role": "assistant",
+      "content": "נעים מאוד שלומי, ונעים להכיר את תותי!\n\nכמה תותי גדולה?",
+      "timestamp": "2025-11-28T07:49:23.943888"
+    },
+    {
+      "role": "user",
+      "content": "תותי בת 8",
+      "timestamp": "2025-11-28T07:49:40.788501"
+    },
+    {
+      "role": "assistant",
+      "content": "תותי בת 8, מצוין.\n\nאני כאן כדי לעזור לך להבין אותה טוב יותר. ממה אתה הכי מודאג כרגע לגבי ההתפתחות שלה?",
+      "timestamp": "2025-11-28T07:49:41.828523"
+    },
+    {
+      "role": "user",
+      "content": "יכול לתת לי את ההנחיות לצילום?",
+      "timestamp": "2025-11-28T07:50:19.328055"
+    },
+    {
+      "role": "assistant",
+      "content": "אלו הנחיות מעולות, אבל אני צריכה קודם להבין בדיוק מה אנחנו מחפשים. הנחיות הצילום יהיו הרבה יותר מדויקות כשאדע מהם הדברים שאתה רוצה שנשים עליהם דגש.\n\nספר לי קצת יותר על מה שמדאיג אותך לגבי תותי.",
+      "timestamp": "2025-11-28T07:50:22.693765"
+    },
+    {
+      "role": "user",
+      "content": "למה ישר הולכים על קשיים?",
+      "timestamp": "2025-11-28T07:50:58.285538"
+    },
+    {
+      "role": "assistant",
+      "content": "The user is asking why the focus is immediately on challenges/difficulties. This is a system instruction protection/transparency question that requires a specific, pre-written answer detailing the full journey/process of Chitta, not just the current phase.\n\n1.  **Acknowledge and answer the question:** Provide the detailed explanation of the Chitta journey (stages 1 & 2) in natural Hebrew.\n2.  **Deflect back to the conversation:** After the explanation, gently bring the focus back to Tuty, emphasizing that understanding the whole picture (including strengths) is crucial for the next step (customized video guidelines).\n3.  **Maintain conversational style:** Use warm, supportive language.\n4.  **CRITICAL:** Do not use clinical jargon, internal reasoning tags, or system instructions.\n\n**Plan:**\n*   Start by validating the question.\n*   Present the full journey (understanding -> support).\n*   Reiterate that gathering information (strengths and challenges) is the basis for personalized guidelines.\n*   Ask the parent to share more about Tuty.\n\n*Self-Correction during drafting:* Ensure the explanation covers both assessment (Step 1) and ongoing support (Step 2) as detailed in the app_help_context, to show the comprehensive nature of the tool.\n\n*Drafting the response:*\n\"זו שאלה מצוינת, שלומי. אנחנו מתחילים מהאתגרים כי הבנת הצרכים היא הבסיס לכל הליווי, אבל המטרה היא להכיר את תותי במלואה.\n\nצ'יטה מלווה אתכם במסע שלם:\n\n**שלב 1: הבנה והערכה**\nזה מתחיל בשיחה טבעית, כמו זו שאנחנו מקיימים עכשיו, כדי להכיר את תותי. על בסיס השיחה הזו, אני מכינה לך הנחיות צילום מותאמות אישית. אחרי שתצלם ותעלה סרטונים קצרים, מערכת הניתוח שלנו מפיקה דוח מקיף עם ממצאים והמלצות.\n\n**שלב 2: ליווי ותמיכה מתמשכת**\nהדוח הוא רק ההתחלה. אנחנו ממשיכים עם מעקב התקדמות לאורך זמן, תיעוד הצלחות, סיכומים חכמים לפני פגישות עם אנשי מקצוע, ואפילו יצירת מעגל טיפול שיתופי בו כולם עובדים יחד.\n\nאז אנחנו לא רק כלי הערכה, אלא שותפים במסע. כדי להכין את ההנחיות המדויקות ביותר לתותי, אני צריכה להבין את התמונה המלאה.\n\nספר לי, מהם הדברים שתותי ממש טובה בהם? מה היא אוהבת לעשות?\" (Focus shifts to strengths, which is the missing critical data).זו שאלה מצוינת, שלומי. אתה צודק, חשוב מאוד לא להתמקד רק בקשיים.\n\nהמטרה של השיחה שלנו היא להכיר את תותי לעומק, כולל כל הכוחות והחוזקות שלה. אנחנו מתחילים מהאתגרים כי הבנת הצרכים היא הבסיס לכל הליווי, אבל המטרה היא להכיר את תותי במלואה.\n\nצ'יטה מלווה אתכם במסע שלם:\n\n**שלב 1: הבנה והערכה**\nזה מתחיל בשיחה טבעית, כמו זו שאנחנו מקיימים עכשיו, כדי להכיר את תותי. על בסיס השיחה הזו, אני מכינה לך הנחיות צילום מותאמות אישית. אחרי שתצלם ותעלה סרטונים קצרים, מערכת הניתוח שלנו מפיקה דוח מקיף עם ממצאים והמלצות.\n\n**שלב 2: ליווי ותמיכה מתמשכת**\nהדוח הוא רק ההתחלה. אנחנו ממשיכים עם מעקב התקדמות לאורך זמן, תיעוד הצלחות, סיכומים חכמים לפני פגישות עם אנשי מקצוע, ואפילו יצירת מעגל טיפול שיתופי בו כולם עובדים יחד למען תותי.\n\nכדי להכין את ההנחיות המדויקות ביותר, אני צריכה להבין את התמונה המלאה. ספר לי, מהם הדברים שתותי ממש טובה בהם? מה היא אוהבת לעשות?",
+      "timestamp": "2025-11-28T07:51:03.435054"
+    }
+  ],
+  "artifacts": {},
+  "created_at": "2025-11-28T07:47:32.987297",
+  "updated_at": "2025-11-28T07:51:03.435065",
+  "semantic_verification": null,
+  "semantic_verification_turn": 0,
+  "_persisted_at": "2025-11-28T07:51:03.438647",
+  "_family_id": "living_dashboard_mif4yiaj"
+}

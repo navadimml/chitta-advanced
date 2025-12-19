@@ -1,0 +1,51 @@
+{
+  "artifact_id": "baseline_parent_report",
+  "family_id": "living_dashboard_mieu679c",
+  "threads": [
+    {
+      "thread_id": "e501481c4e7c40bb",
+      "family_id": "living_dashboard_mieu679c",
+      "artifact_id": "baseline_parent_report",
+      "section_id": "baseline_parent_report_המלצות_לתקשורת",
+      "section_type": "paragraph",
+      "section_title": "המלצות לתקשורת",
+      "section_text": "- לעודד תקשורת מילולית בכל הזדמנות\n- להשתמש בתמונות ומילים יחד\n- לשיר שירים פשוטים עם חזרות",
+      "messages": [
+        {
+          "message_id": "1d1ab9c1d4c6",
+          "role": "user",
+          "content": "מה ההמלצות לתקשורת?",
+          "created_at": "2025-11-25T17:16:36.011761",
+          "metadata": {}
+        },
+        {
+          "message_id": "1ffb1337d50b",
+          "role": "user",
+          "content": "מה ההמלצות לתקשורת?",
+          "created_at": "2025-11-25T17:16:36.049896",
+          "metadata": {}
+        },
+        {
+          "message_id": "5c3e8ed1a64b",
+          "role": "assistant",
+          "content": "זו שאלה מצוינת, ואנחנו כאן כדי לעזור לכם ליישם את ההמלצות האלה.\n\nההמלצות לתקשורת מתמקדות בשלושה דברים עיקריים:\n\n1.  **לעודד תקשורת מילולית** בכל הזדמנות.\n2.  **להשתמש בתמונות ומילים יחד** כדי לחזק את ההבנה.\n3.  **לשיר שירים פשוטים** עם הרבה חזרות.\n\nאלו כלים נהדרים ופשוטים שתוכלו לשלב בשגרת היום שלכם!",
+          "created_at": "2025-11-25T17:16:39.374038",
+          "metadata": {}
+        }
+      ],
+      "created_at": "2025-11-25T17:16:36.011628",
+      "updated_at": "2025-11-25T17:16:39.374049",
+      "is_resolved": false,
+      "is_collapsed": true,
+      "preview": "מה ההמלצות לתקשורת?",
+      "message_count": 3
+    }
+  ],
+  "threads_by_section": {
+    "baseline_parent_report_המלצות_לתקשורת": [
+      "e501481c4e7c40bb"
+    ]
+  },
+  "total_threads": 1,
+  "unresolved_threads": 1
+}

@@ -1,0 +1,192 @@
+# Action Graph - What actions are available and their prerequisites
+# 🌟 Wu Wei v2.0: Simplified artifact-to-action mapping
+
+version: "2.0"
+graph_name: "child_development_actions"
+description: "Available actions with artifact-based prerequisites (Wu Wei simplified)"
+
+# ============================================
+# ALWAYS AVAILABLE ACTIONS
+# ============================================
+# Actions that require no prerequisites
+always_available:
+  - continue_interview
+  - complete_interview
+  - consultation
+  - add_journal_entry
+  - view_journal
+  - analyze_videos  # Available if any videos uploaded (checked in action)
+
+# ============================================
+# ARTIFACT-TO-ACTION MAPPING
+# ============================================
+# 🌟 Wu Wei: When artifact exists, its related actions become available
+# This replaces the verbose prerequisite_types section
+
+artifact_actions:
+  baseline_video_guidelines:
+    enables:
+      - view_video_guidelines
+      - upload_video
+    explanation_when_locked: "ההנחיות עדיין לא מוכנות. אני צריכה עוד קצת מידע על {child_name} כדי להכין הנחיות מותאמות אישית."
+
+  baseline_parent_report:
+    enables:
+      - view_report
+      - download_report
+      - share_report
+      - find_experts
+      - contact_expert
+    explanation_when_locked: "הדוח עדיין לא מוכן. הוא יהיה זמין אחרי שנסיים את הניתוח."
+
+# ============================================
+# ACTION DEFINITIONS
+# ============================================
+# Detailed action metadata (category, views, etc.)
+actions:
+  # ========================================
+  # INTERVIEW ACTIONS (always available)
+  # ========================================
+  continue_interview:
+    description: "Continue the interview"
+    category: interview
+    opens_view: chat
+
+  complete_interview:
+    description: "Complete interview when sufficient information gathered"
+    category: interview
+    notes: "LLM decides based on conversation richness, not hard rule"
+
+  # ========================================
+  # VIDEO ACTIONS
+  # ========================================
+  view_video_guidelines:
+    description: "View personalized video filming guidelines"
+    category: video
+    opens_view: guidelines
+    # 🌟 Wu Wei: availability derived from artifact_actions.baseline_video_guidelines
+
+  upload_video:
+    description: "Upload behavioral observation video"
+    category: video
+    opens_view: upload
+    # 🌟 Wu Wei: availability derived from artifact_actions.baseline_video_guidelines
+
+  analyze_videos:
+    description: "Holistic clinical analysis of uploaded videos"
+    category: video
+    triggers_artifact: baseline_video_analysis
+    # Confirmation when fewer videos than recommended
+    requires_confirmation:
+      condition: "uploaded_video_count < guideline_scenario_count"
+      confirmation_message: |
+        ביקשתי ממך לצלם {guideline_scenario_count} סרטונים, אבל העלית רק {uploaded_video_count}.
+
+        אוכל לנתח את מה שיש, אבל התמונה תהיה חלקית יותר.
+
+        האם להמשיך בניתוח?
+    processing:
+      type: background
+      progress_updates: true
+
+  # ========================================
+  # REPORT ACTIONS
+  # ========================================
+  view_report:
+    description: "View comprehensive assessment report"
+    category: reports
+    opens_view: report
+    # 🌟 Wu Wei: availability derived from artifact_actions.baseline_parent_report
+
+  download_report:
+    description: "Download report as PDF"
+    category: reports
+    # 🌟 Wu Wei: availability derived from artifact_actions.baseline_parent_report
+
+  share_report:
+    description: "Share report with others (experts, family)"
+    category: sharing
+    opens_view: share
+    # 🌟 Wu Wei: availability derived from artifact_actions.baseline_parent_report
+
+  # ========================================
+  # EXPERT ACTIONS
+  # ========================================
+  find_experts:
+    description: "Browse and find developmental experts"
+    category: experts
+    opens_view: experts
+    # 🌟 Wu Wei: availability derived from artifact_actions.baseline_parent_report
+
+  contact_expert:
+    description: "Contact a specific expert"
+    category: experts
+    # 🌟 Wu Wei: availability derived from artifact_actions.baseline_parent_report
+
+  # ========================================
+  # SUPPORT ACTIONS (always available)
+  # ========================================
+  consultation:
+    description: "Ask questions about child development or the process"
+    category: support
+    opens_view: consultation
+    notes: "Consultation mode available anytime"
+
+  add_journal_entry:
+    description: "Add observation to developmental journal"
+    category: support
+    opens_view: journal
+    creates_artifact: journal_entry
+
+  view_journal:
+    description: "View previous journal entries"
+    category: support
+    opens_view: journal
+
+# Action categories for organization
+categories:
+  interview:
+    description: "Interview and data collection actions"
+    icon: "message-circle"
+
+  video:
+    description: "Video-related actions"
+    icon: "video"
+
+  reports:
+    description: "Report viewing and management"
+    icon: "file-text"
+
+  experts:
+    description: "Expert finding and connection"
+    icon: "users"
+
+  sharing:
+    description: "Sharing reports and information"
+    icon: "share-2"
+
+  support:
+    description: "Always-available support features"
+    icon: "help-circle"
+
+# Metadata
+metadata:
+  language: "he"
+  designed_for: "child_development_workflow"
+  last_updated: "2025-11-25"
+  version_history:
+    - "1.0: Verbose prerequisite_types with artifact_exists checks"
+    - "2.0: Simplified artifact_actions mapping (Wu Wei)"
+  notes: |
+    🌟 Wu Wei v2.0: Simplified action graph
+
+    Key changes:
+    - Removed prerequisite_types section (redundant)
+    - Added artifact_actions: direct mapping from artifacts to enabled actions
+    - Actions derive availability from artifact existence
+    - always_available list for actions without prerequisites
+
+    How it works:
+    1. Check always_available list first
+    2. For other actions, check if enabling artifact exists
+    3. Action definitions contain metadata only (category, view, etc.)

@@ -1,0 +1,283 @@
+{
+  "id": "test_portrait_sections",
+  "name": "דניאל",
+  "understanding": {
+    "facts": [
+      {
+        "content": "דניאל בן 3.5",
+        "domain": "identity",
+        "source": "conversation",
+        "confidence": 1.0
+      },
+      {
+        "content": "מתקשה במעברים בין פעילויות",
+        "domain": "behavioral",
+        "source": "conversation",
+        "confidence": 0.9
+      },
+      {
+        "content": "רגיש לרעשים חזקים",
+        "domain": "sensory",
+        "source": "conversation",
+        "confidence": 0.85
+      },
+      {
+        "content": "אוהב מוזיקה ויכול לשיר שירים שלמים",
+        "domain": "strengths",
+        "source": "conversation",
+        "confidence": 0.95
+      },
+      {
+        "content": "יצירתי מאוד בציור ובנייה עם קוביות",
+        "domain": "strengths",
+        "source": "conversation",
+        "confidence": 0.9
+      },
+      {
+        "content": "יש אחות גדולה בת 6",
+        "domain": "family",
+        "source": "conversation",
+        "confidence": 1.0
+      }
+    ]
+  },
+  "exploration_cycles": [
+    {
+      "id": "cycle_transitions",
+      "curiosity_type": "hypothesis",
+      "focus": "קושי במעברים",
+      "focus_domain": "behavioral",
+      "status": "complete",
+      "theory": "הקושי במעברים נובע מרגישות חושית",
+      "confidence": 0.85,
+      "video_appropriate": true,
+      "question": null,
+      "video_accepted": true,
+      "video_declined": false,
+      "video_suggested_at": null,
+      "video_scenarios": [
+        {
+          "id": "scenario_morning",
+          "title": "מעבר בוקר - יציאה לגן",
+          "what_to_film": "צלמו את דניאל בבוקר כשצריך לצאת מהבית.",
+          "rationale_for_parent": "זה יעזור לראות איך הוא מגיב לשינויים.",
+          "duration_suggestion": "5-7 דקות",
+          "example_situations": [],
+          "target_hypothesis_id": "cycle_transitions",
+          "what_we_hope_to_learn": "",
+          "focus_points": [],
+          "category": "exploration",
+          "status": "analyzed",
+          "video_path": "/uploads/mock_video.mp4",
+          "uploaded_at": "2025-12-11T12:02:17.292558",
+          "analysis_result": {
+            "verdict": "supports",
+            "confidence_level": "high"
+          },
+          "analyzed_at": "2025-12-11T13:02:17.292563"
+        }
+      ],
+      "evidence": [
+        {
+          "content": "מתפרץ כשצריך לצאת",
+          "effect": "supports",
+          "source": "conversation",
+          "timestamp": "2025-12-11T13:02:17.292566"
+        },
+        {
+          "content": "מכסה אוזניים בסרטון",
+          "effect": "supports",
+          "source": "video",
+          "timestamp": "2025-12-11T13:02:17.292569"
+        }
+      ]
+    },
+    {
+      "id": "cycle_social",
+      "curiosity_type": "question",
+      "focus": "משחק חברתי",
+      "focus_domain": "social",
+      "status": "complete",
+      "theory": null,
+      "confidence": null,
+      "video_appropriate": false,
+      "question": "האם יש קושי חברתי?",
+      "video_accepted": false,
+      "video_declined": false,
+      "video_suggested_at": null,
+      "video_scenarios": [],
+      "evidence": [
+        {
+          "content": "משחק לבד בגן",
+          "effect": "supports",
+          "source": "conversation",
+          "timestamp": "2025-12-11T13:02:17.292576"
+        }
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "summary": "אתמול דניאל התפרץ כשצריך היה לצאת מהבית לגן. לקח 20 דקות להרגיע אותו.",
+      "reveals": [
+        "קושי במעברים",
+        "קושי בוויסות רגשי"
+      ],
+      "domains": [
+        "behavioral",
+        "emotional"
+      ],
+      "significance": 0.8,
+      "timestamp": "2025-12-11T13:03:39.445696"
+    },
+    {
+      "summary": "בשבת דניאל בנה מגדל מקוביות - הגבוה ביותר שבנה! היה גאה מאוד.",
+      "reveals": [
+        "יכולת מוטורית עדינה",
+        "התמדה",
+        "גאווה בהישגים"
+      ],
+      "domains": [
+        "motor",
+        "emotional",
+        "cognitive"
+      ],
+      "significance": 0.7,
+      "timestamp": "2025-12-11T13:03:39.445699"
+    },
+    {
+      "summary": "בגן המטפלת אמרה ש-דניאל לא מצטרף לחוג יחד עם הילדים האחרים. הוא יושב בצד ומשחק לבד.",
+      "reveals": [
+        "קושי חברתי",
+        "העדפה למשחק עצמאי"
+      ],
+      "domains": [
+        "social"
+      ],
+      "significance": 0.75,
+      "timestamp": "2025-12-11T13:03:39.445701"
+    }
+  ],
+  "journal": [
+    {
+      "timestamp": "2025-12-11T13:02:17.292452",
+      "summary": "התחלנו להכיר את המשפחה",
+      "learned": [
+        "קושי במעברים",
+        "רגישות חושית"
+      ],
+      "significance": "notable"
+    },
+    {
+      "timestamp": "2025-12-11T13:02:17.292455",
+      "summary": "שמענו על החוזקות",
+      "learned": [
+        "מוזיקה",
+        "בנייה",
+        "יצירתיות"
+      ],
+      "significance": "routine"
+    }
+  ],
+  "curiosity_engine": {
+    "dynamic": []
+  },
+  "crystal": {
+    "essence_narrative": "דניאל הוא ילד עם עולם פנימי עשיר, שמוצא הרבה ביטחון ושמחה ביצירה ובמוזיקה. הוא חווה את העולם בעוצמה רבה – רעשים חזקים או שינויים פתאומיים יכולים להציף אותו, ולכן הוא זקוק לקצב שלו ולזמן הכנה כדי להרגיש בנוח להצטרף לאחרים. כשהוא מרגיש בטוח ובשליטה, כמו כשהוא בונה מגדל גבוה, הוא מתמלא גאווה ומראה יכולות נהדרות.",
+    "temperament": [
+      "רגיש לרעשים",
+      "מתבונן מהצד",
+      "יצירתי",
+      "נחוש",
+      "זקוק להכנה מראש"
+    ],
+    "core_qualities": [
+      "סקרנות",
+      "התמדה",
+      "דמיון מפותח",
+      "מוזיקליות",
+      "יכולת בנייה מרשימה"
+    ],
+    "patterns": [
+      {
+        "description": "הקושי ביציאה מהבית או במעבר בין פעילויות גורם להצפה רגשית - דניאל זקוק לזמן ולעזרה כדי להחליף הילוך",
+        "domains_involved": ["behavioral", "emotional", "sensory"],
+        "confidence": 0.75,
+        "detected_at": "2025-12-11T13:04:18.251206"
+      },
+      {
+        "description": "הרגישות לרעש והמולה גורמת לו להתרחק בגן - הוא בוחר לשחק לבד כדי לשמור על השקט הפנימי שלו",
+        "domains_involved": ["sensory", "social", "behavioral"],
+        "confidence": 0.7,
+        "detected_at": "2025-12-11T13:04:18.251238"
+      },
+      {
+        "description": "הבנייה וההצלחה בה הן מקור לגאווה - כשהוא מצליח ליצור משהו יציב וגדול זה מחזק את הביטחון העצמי",
+        "domains_involved": ["motor", "emotional", "cognitive"],
+        "confidence": 0.8,
+        "detected_at": "2025-12-11T13:04:18.251264"
+      }
+    ],
+    "intervention_pathways": [
+      {
+        "hook": "אהבה למוזיקה ושירים",
+        "concern": "קושי ביציאה מהבית בבוקר",
+        "suggestion": "להכין רשימת השמעה קבועה של 2-3 שירים שדניאל אוהב, ולהשמיע אותם בזמן ההתארגנות ליציאה. כשהשיר האחרון נגמר – יוצאים. המוזיקה מחליפה את ה\"נדנודים\" ועוזרת לו להבין שהזמן עובר בצורה נעימה.",
+        "confidence": 0.5
+      },
+      {
+        "hook": "כישרון בבנייה",
+        "concern": "ישיבה בצד בזמן חוג בגן",
+        "suggestion": "לבקש מהצוות בגן לאפשר לדניאל לבנות בצד בזמן הפעילות, או לתת לו תפקיד שקשור לאביזרים, כך שהוא יוכל להיות \"ליד\" הקבוצה ולהרגיש שייך, אבל במרחק שנעים לו לאוזניים.",
+        "confidence": 0.5
+      },
+      {
+        "hook": "גאווה בהצלחות",
+        "concern": "התמודדות עם תסכול",
+        "suggestion": "לצלם את המגדלים והיצירות שלו ולתלות תמונות בחדר. ברגעים של בכי או קושי, להזכיר לו את המגדל שבנה ולהראות לו את התמונה כדי לחבר אותו מחדש לתחושת המסוגלות.",
+        "confidence": 0.5
+      }
+    ],
+    "open_questions": [
+      "איך דניאל מסתדר עם אחותו הגדולה? האם הם משחקים יחד או שהרעש שלה מפריע לו?",
+      "מה עזר לו להירגע אחרי 20 דקות של בכי לפני היציאה לגן? (חיבוק? שקט? הסחת דעת?)",
+      "האם בגן יש ילד אחד שדניאל כן מוכן לשחק איתו בשקט בצד?"
+    ],
+    "expert_recommendations": [
+      {
+        "profession": "ריפוי בעיסוק",
+        "specialization": "טיפול בגישה חושית-רגשית",
+        "why_this_match": "דניאל הוא ילד שחווה את העולם דרך הגוף והחושים – הוא נהנה לבנות (מגע, תכנון) ורגיש לרעשים. מרפאה בעיסוק תדע להשתמש באהבה שלו לבנייה כדי לחזק אותו.",
+        "recommended_approach": "יצירת \"דיאטה חושית\" מותאמת אישית ומשחקים משותפים שמערבים תנועה ובנייה.",
+        "why_this_approach": "הגישה הזו לא דורשת ממנו \"לדבר על הרגשות\" אלא נותנת מענה פיזי ומוחשי לקושי שלו עם רעשים ומעברים, דרך דברים שהוא כבר אוהב לעשות.",
+        "what_to_look_for": [
+          "חיבור טוב לילד",
+          "גישה משחקית ולא \"לימודית\"",
+          "נכונות להדריך אתכם ההורים איך לסדר את הבית/הבוקר."
+        ],
+        "summary_for_professional": "דניאל בן 3.5, ילד נבון ויצירתי מאוד עם יכולות בנייה גבוהות. מציג רגישות שמיעתית (נמנע מפעילויות רועשות בגן) וקושי משמעותי במעברים (התפרצויות ביציאה מהבית). זקוק לעזרה בויסות העוצמות הרגשיות והחושיות כדי להצליח להשתלב חברתית ולעבור את היום בנחת.",
+        "confidence": 0.6,
+        "priority": "important"
+      },
+      {
+        "profession": "תרפיה במוזיקה",
+        "specialization": "טיפול רגשי באמצעות אומנויות",
+        "why_this_match": "המוזיקה היא כבר עכשיו \"שפת האם\" הרגשית של דניאל. הוא שר שירים שלמים ונרגע דרך צלילים. זהו ערוץ פתוח ובטוח עבורו.",
+        "recommended_approach": "שימוש בכלי נגינה, שירה וכתיבת שירים משותפת כדי לעבד חוויות של פרידה, שינוי ותסכול.",
+        "why_this_approach": "מכיוון שדניאל נמנע ממצבים חברתיים רועשים, המרחב המוזיקלי האינטימי יאפשר לו לתרגל תקשורת וקשר בקצב שלו, בלי האיום של \"רעש לא נשלט\".",
+        "what_to_look_for": [
+          "מטפל/ת שיודעים לעבוד עם הגיל הרך",
+          "חדר טיפולים מזמין עם מגוון כלי נגינה נגישים."
+        ],
+        "summary_for_professional": "דניאל בן 3.5, ילד מוזיקלי מאוד שזוכר ושר שירים שלמים. מתמודד עם רגישות לרעש וקושי במעברים שמתבטא בהתפרצויות. המוזיקה היא המקום הבטוח שלו, והמטרה היא להשתמש בה כדי להגמיש את היכולת שלו להתמודד עם שינויים ולחזק את הביטחון שלו בקשר עם אחרים.",
+        "confidence": 0.6,
+        "priority": "soon"
+      }
+    ],
+    "portrait_sections": [],
+    "created_at": "2025-12-11T13:04:18.251428",
+    "based_on_observations_through": "2025-12-11T13:03:39.445701",
+    "version": 2,
+    "previous_version_summary": "Updated with 6 new facts, 3 new stories"
+  }
+}

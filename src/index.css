@@ -16,11 +16,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom animations */
+/* Custom animations - smooth and joyful */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
   }
   to {
     opacity: 1;
@@ -28,7 +37,17 @@ body {
   }
 }
 
-@keyframes slideUp {
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Native-like panel animation - transform only for GPU acceleration */
+@keyframes panelUp {
   from {
     transform: translateY(100%);
   }
@@ -38,11 +57,29 @@ body {
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
+  opacity: 0;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-slideUp {
-  animation: slideUp 0.3s ease-out;
+  opacity: 0;
+  transform: translateY(30px);
+  animation: slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-backdropIn {
+  opacity: 0;
+  animation: backdropIn 0.3s ease-out forwards;
+}
+
+
+.animate-panelUp {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  contain: layout style;
+  transform: translateY(100%) translateZ(0);
+  animation: panelUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
 /* RTL Support */
@@ -67,3 +104,172 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* ========================================
+   ChildSpace - Living Portrait Animations
+   ======================================== */
+
+/* Gentle float animation for icons */
+@keyframes gentleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Soft pulse for highlights */
+@keyframes softPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Shimmer effect for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Staggered entrance for list items */
+@keyframes staggerIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Expand animation for accordion-style content */
+@keyframes expandIn {
+  from {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+  }
+  99% {
+    max-height: 2000px;
+    overflow: hidden;
+  }
+  to {
+    opacity: 1;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Scale in with spring */
+@keyframes scaleSpring {
+  0% { transform: scale(0.9); opacity: 0; }
+  70% { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Draw line animation for timeline */
+@keyframes drawLine {
+  from { height: 0; }
+  to { height: 100%; }
+}
+
+/* Glow animation for active states */
+@keyframes subtleGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.15); }
+}
+
+.animate-gentleFloat {
+  animation: gentleFloat 3s ease-in-out infinite;
+}
+
+.animate-softPulse {
+  animation: softPulse 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-staggerIn {
+  animation: staggerIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-expandIn {
+  animation: expandIn 0.3s ease-out forwards;
+}
+
+.animate-scaleSpring {
+  animation: scaleSpring 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-subtleGlow {
+  animation: subtleGlow 2s ease-in-out infinite;
+}
+
+/* Stagger delays for list items */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Beautiful card hover effect */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px rgba(99, 102, 241, 0.2);
+}
+
+/* Smooth tab indicator */
+.tab-indicator {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Beautiful focus states */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+/* Strength card gradient backgrounds */
+.strength-music { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+.strength-creativity { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+.strength-persistence { background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); }
+.strength-social { background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); }
+.strength-motor { background: linear-gradient(135deg, #fddb92 0%, #d1fdff 100%); }
+.strength-default { background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); }
