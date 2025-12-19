@@ -194,12 +194,19 @@ async def root():
     return {"message": "Chitta API", "version": "1.0.0"}
 
 @router.post("/chat/send", response_model=SendMessageResponse)
-async def send_message(request: SendMessageRequest):
+async def send_message(
+    request: SendMessageRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     שליחת הודעה לצ'יטה - Real AI Conversation with Function Calling
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
+
+    # Log authenticated user if present
+    if current_user:
+        logger.info(f"💬 Chat from authenticated user: {current_user.email}")
 
     # Get services (Wu Wei: simplified architecture only)
     conversation_service = get_simplified_conversation_service()
@@ -426,7 +433,8 @@ async def upload_video(
     video_id: str = Form(...),
     scenario: str = Form(...),
     duration_seconds: int = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     🌟 Darshan: Upload video file and update gestalt state
@@ -438,6 +446,9 @@ async def upload_video(
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
+
+    if current_user:
+        logger.info(f"🎥 Video upload by: {current_user.email}")
 
     # Create uploads directory structure
     uploads_dir = Path("uploads") / family_id
@@ -687,10 +698,16 @@ async def analyze_videos(family_id: str, confirmed: bool = False):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/reports/generate")
-async def generate_reports(family_id: str):
+async def generate_reports(
+    family_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     יצירת דוחות (מקצועי + להורה)
     """
+    if current_user:
+        logger.info(f"📄 Report generation requested by: {current_user.email}")
+
     session = app_state.get_or_create_session(family_id)
 
     # יצירת דוחות באמצעות הפונקציה הפנימית
@@ -1359,7 +1376,10 @@ from app.services.child_space_service import get_child_space_service
 
 
 @router.get("/family/{family_id}/space")
-async def get_child_space(family_id: str):
+async def get_child_space(
+    family_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     🌟 Living Dashboard Phase 2: Get Daniel's Space
 
@@ -2075,11 +2095,17 @@ async def subscribe_to_state_updates(family_id: str):
 
 
 @router.get("/state/{family_id}")
-async def get_family_state(family_id: str):
+async def get_family_state(
+    family_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     🌟 Darshan: Get complete family state.
     Cards and curiosity state are derived from Darshan explorations.
     """
+    if current_user:
+        logger.debug(f"📊 State request from user: {current_user.email}")
+
     state_service = get_unified_state_service()
     state = state_service.get_family_state(family_id)
 
@@ -3062,7 +3088,11 @@ class ChatV2InitResponse(BaseModel):
 
 
 @router.get("/chat/v2/init/{family_id}", response_model=ChatV2InitResponse)
-async def chat_v2_init(family_id: str, language: str = "he"):
+async def chat_v2_init(
+    family_id: str,
+    language: str = "he",
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     V2 Chat Init - Get Chitta's opening message
 
@@ -3074,6 +3104,9 @@ async def chat_v2_init(family_id: str, language: str = "he"):
     """
     from app.services.i18n_service import t, get_i18n
     from app.services.state_derivation import calculate_time_gap
+
+    if current_user:
+        logger.info(f"🚀 Chat init for user: {current_user.email}")
 
     try:
         from app.chitta import get_chitta_service, derive_cards_from_child
@@ -3245,7 +3278,10 @@ async def request_synthesis_v2(family_id: str):
 
 
 @router.post("/chat/v2/send", response_model=SendMessageV2Response)
-async def send_message_v2(request: SendMessageV2Request):
+async def send_message_v2(
+    request: SendMessageV2Request,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     V2 Chat Endpoint - Uses ChittaService with Darshan
 
@@ -3262,6 +3298,10 @@ async def send_message_v2(request: SendMessageV2Request):
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
+
+    # Log authenticated user if present
+    if current_user:
+        logger.info(f"💬 V2 Chat from authenticated user: {current_user.email}")
 
     try:
         # Get the NEW ChittaService (Darshan architecture)
