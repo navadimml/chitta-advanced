@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
 # Authentication dependencies
-from app.db.dependencies import get_current_user_optional
+from app.db.dependencies import get_current_user_optional, get_current_user, RequireAuth
 from app.db.models_auth import User
 from datetime import datetime
 import asyncio
@@ -503,7 +503,11 @@ async def upload_video(
     }
 
 @router.post("/video/analyze")
-async def analyze_videos(family_id: str, confirmed: bool = False):
+async def analyze_videos(
+    family_id: str,
+    confirmed: bool = False,
+    auth: RequireAuth = Depends(RequireAuth())
+):
     """
     🎥 Wu Wei: Holistic Clinical Video Analysis
 
@@ -513,7 +517,12 @@ async def analyze_videos(family_id: str, confirmed: bool = False):
     Args:
         family_id: Family identifier
         confirmed: True if user already confirmed action (skip confirmation check)
+
+    Requires authentication.
     """
+    # Verify user has access to this family
+    auth.verify_access(family_id)
+
     from app.services.video_analysis_service import VideoAnalysisService
     from app.config.action_registry import get_action_registry
     from app.services.prerequisite_service import get_prerequisite_service
@@ -2373,14 +2382,20 @@ class GenerateSummaryRequest(BaseModel):
 @router.post("/family/{family_id}/child-space/share/generate")
 async def generate_shareable_summary(
     family_id: str,
-    request: GenerateSummaryRequest
+    request: GenerateSummaryRequest,
+    auth: RequireAuth = Depends(RequireAuth())
 ):
     """
     Generate a shareable summary adapted for the recipient.
 
     Wu-wei approach: Explain clearly what we need and let the model's
     intelligence determine appropriate style, tone, and depth.
+
+    Requires authentication.
     """
+    # Verify user has access to this family
+    auth.verify_access(family_id)
+
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
 
@@ -3236,7 +3251,10 @@ async def get_curiosity_state_v2(family_id: str):
 
 
 @router.post("/chat/v2/synthesis/{family_id}")
-async def request_synthesis_v2(family_id: str):
+async def request_synthesis_v2(
+    family_id: str,
+    auth: RequireAuth = Depends(RequireAuth())
+):
     """
     Request on-demand synthesis for a family.
 
@@ -3251,7 +3269,12 @@ async def request_synthesis_v2(family_id: str):
     - patterns: Cross-domain patterns detected
     - confidence_by_domain: Confidence level per developmental domain
     - open_questions: What we still want to learn
+
+    Requires authentication.
     """
+    # Verify user has access to this family
+    auth.verify_access(family_id)
+
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 

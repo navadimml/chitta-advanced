@@ -379,3 +379,90 @@ require_child_manage = ChildAccessChecker(require_manage=True)
 
 require_family_owner = FamilyAccessChecker(require_owner=True)
 require_family_parent = FamilyAccessChecker(require_parent=True)
+
+
+class RequireAuth:
+    """
+    Simple authentication requirement for string-based family_ids.
+
+    This dependency:
+    1. Requires user to be authenticated
+    2. Logs access to the family
+    3. Stores user for downstream use
+
+    Use this for endpoints that use string family_ids (not yet migrated to DB).
+    For UUID-based families, use FamilyAccessChecker instead.
+
+    Usage:
+        @router.get("/family/{family_id}/data")
+        async def get_data(
+            family_id: str,
+            auth: RequireAuth = Depends(RequireAuth()),
+        ):
+            # auth.user is the authenticated user
+            # auth.family_id is set after calling verify_access
+            ...
+    """
+
+    def __init__(self, log_access: bool = True):
+        """
+        Args:
+            log_access: Whether to log family access (default True)
+        """
+        self.log_access = log_access
+        self.user: Optional[User] = None
+        self.family_id: Optional[str] = None
+
+    async def __call__(
+        self,
+        current_user: User = Depends(get_current_user),
+    ) -> "RequireAuth":
+        """Store authenticated user."""
+        self.user = current_user
+        return self
+
+    def verify_access(self, family_id: str) -> User:
+        """
+        Verify user has access to family and log the access.
+
+        For now, any authenticated user can access any family.
+        This can be extended later to check actual permissions
+        once families are migrated to the database.
+
+        Args:
+            family_id: String-based family identifier
+
+        Returns:
+            The authenticated user
+
+        Raises:
+            HTTPException: If not authenticated
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self.user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+
+        self.family_id = family_id
+
+        if self.log_access:
+            logger.info(f"🔐 User {self.user.email} accessing family {family_id}")
+
+        # TODO: Add actual family-level permission check once families
+        # are migrated to the database. For now, any authenticated user
+        # can access any family.
+        #
+        # Future implementation:
+        # 1. Look up family in DB by string ID or create mapping
+        # 2. Check if user has FamilyMember or ChildAccess relationship
+        # 3. Raise 403 if no access
+
+        return self.user
+
+
+# Simple auth requirement instance
+require_auth = RequireAuth()
