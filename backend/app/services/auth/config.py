@@ -11,7 +11,7 @@ import os
 from datetime import timedelta
 from typing import Optional
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AuthSettings(BaseSettings):
@@ -51,10 +51,11 @@ class AuthSettings(BaseSettings):
     apple_team_id: Optional[str] = None
     apple_key_id: Optional[str] = None
 
-    class Config:
-        env_prefix = ""  # No prefix, use exact names
-        env_file = ".env"
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_prefix="",  # No prefix, use exact names
+        env_file=".env",
+        extra="ignore"
+    )
 
     @property
     def access_token_expires(self) -> timedelta:

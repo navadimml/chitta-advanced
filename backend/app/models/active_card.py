@@ -7,7 +7,7 @@ Part of the Card Lifecycle system that decouples:
 - CONTENT: Dynamic updates without recreation
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
@@ -57,8 +57,7 @@ class ActiveCard(BaseModel):
     # Actions available on this card (can be action IDs or action dicts)
     actions: List[Any] = Field(default_factory=list)  # List[str | Dict[str, Any]]
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
     def should_auto_dismiss(self) -> bool:
         """Check if card has exceeded its auto-dismiss timeout."""

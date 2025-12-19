@@ -16,7 +16,7 @@ The Living Gestalt:
 - Understanding evolves through evidence
 """
 
-from pydantic import BaseModel, Field, validator, computed_field, model_serializer
+from pydantic import BaseModel, Field, field_validator, computed_field, model_serializer
 from typing import List, Dict, Optional, Any
 from datetime import datetime, date
 
@@ -64,7 +64,8 @@ class ChildIdentity(BaseModel):
             months_diff -= 1
         return round(age + months_diff / 12, 1)
 
-    @validator('name')
+    @field_validator('name', mode='before')
+    @classmethod
     def validate_name(cls, v):
         """Reject placeholder values."""
         if v is None:

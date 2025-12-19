@@ -19,7 +19,7 @@ This service:
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import json
 import os
 import asyncio
@@ -64,7 +64,8 @@ class ExtractedData(BaseModel):
     last_updated: datetime = datetime.now()
     extraction_count: int = 0  # How many times data was extracted
 
-    @validator('child_name')
+    @field_validator('child_name', mode='before')
+    @classmethod
     def validate_child_name(cls, v):
         """Reject placeholder values and invalid names"""
         if v is None:
@@ -102,7 +103,8 @@ class ExtractedData(BaseModel):
         # Return cleaned name
         return cleaned
 
-    @validator('age')
+    @field_validator('age', mode='before')
+    @classmethod
     def validate_age(cls, v):
         """Ensure age is in valid range for child development (0-18 years)"""
         if v is None:
@@ -115,7 +117,8 @@ class ExtractedData(BaseModel):
 
         return v
 
-    @validator('gender')
+    @field_validator('gender', mode='before')
+    @classmethod
     def validate_gender(cls, v):
         """Ensure gender is one of valid values"""
         if v is None:
@@ -128,7 +131,8 @@ class ExtractedData(BaseModel):
 
         return v.lower()
 
-    @validator('primary_concerns')
+    @field_validator('primary_concerns', mode='before')
+    @classmethod
     def validate_primary_concerns(cls, v):
         """Ensure concerns are from valid enum and not placeholders"""
         if not v:
