@@ -1335,9 +1335,9 @@ Examples:
             extracted_dict = session.extracted_data.dict()
 
         # Get video count from family state
-        from app.services.mock_graphiti import get_mock_graphiti
-        graphiti = get_mock_graphiti()
-        state = graphiti.get_or_create_state(family_id)
+        from app.services.unified_state_service import get_unified_state_service
+        state_service = get_unified_state_service()
+        state = state_service.get_family_state(family_id)
         uploaded_video_count = len(state.videos_uploaded)
 
         # Minimal raw data - prerequisite_service (config-driven) does the rest

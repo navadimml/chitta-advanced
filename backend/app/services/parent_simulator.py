@@ -439,7 +439,7 @@ class ParentSimulator:
     family_id: str,
     chitta_question: str,
     llm_provider,
-    graphiti=None
+    state_service=None
 ) -> Optional[str]:
         """Generate realistic parent response using LLM."""
         simulation = self.active_simulations.get(family_id)
@@ -536,8 +536,8 @@ Your response as {persona.parent_name} (natural Hebrew, conversational):"""
         # 🔥 CRITICAL FIX: Use FULL conversation history for parent simulator too
         # Previous bug: Limited to last 8 messages caused parent to lose context
         # Now: Send all messages so parent maintains consistent persona throughout
-        if graphiti:
-            state = graphiti.get_or_create_state(family_id)
+        if state_service:
+            state = state_service.get_family_state(family_id)
             # Use ALL conversation history, not just last 8
             for msg in state.conversation:
                 messages.append(Message(

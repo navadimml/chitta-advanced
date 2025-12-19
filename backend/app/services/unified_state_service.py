@@ -25,6 +25,12 @@ from app.models.child import Child, DevelopmentalData, Video, JournalEntry
 from app.models.user_session import UserSession, ConversationMessage, create_session_id
 from app.models.active_card import ActiveCard
 from app.models.artifact import Artifact
+from app.models.family_state import (
+    FamilyState,
+    Message as FamilyMessage,
+    Artifact as FamilyArtifact,
+    Video as FamilyVideo,
+)
 from app.services.child_service import get_child_service, ChildService
 from app.services.session_persistence import get_session_persistence, SessionPersistence
 from app.services.llm.factory import create_llm_provider
@@ -296,6 +302,82 @@ class UnifiedStateService:
     def get_videos_pending_analysis(self, family_id: str) -> List[Video]:
         """Get videos pending analysis"""
         return self._child_service.get_videos_pending_analysis(family_id)
+
+    # === FamilyState View (replaces MockGraphiti.get_or_create_state) ===
+
+    def get_family_state(self, family_id: str) -> FamilyState:
+        """
+        Build FamilyState view from Child and UserSession.
+
+        This replaces MockGraphiti.get_or_create_state() and provides
+        the same FamilyState model for backwards compatibility.
+        """
+        child = self.get_child(family_id)
+        session = self.get_or_create_session(family_id)
+        data = child.developmental_data
+
+        # Build child dict for profile
+        child_dict = None
+        if data.child_name or data.age:
+            child_dict = {
+                "name": data.child_name,
+                "age": data.age,
+            }
+            if data.gender:
+                child_dict["gender"] = data.gender
+
+        # Convert messages to FamilyState Message format
+        conversation = []
+        for msg in session.messages:
+            conversation.append(FamilyMessage(
+                role=msg.role,
+                content=msg.content,
+                timestamp=msg.timestamp
+            ))
+
+        # Convert artifacts from exploration cycles
+        artifacts = {}
+        for cycle in child.exploration_cycles:
+            for artifact in cycle.artifacts:
+                artifacts[artifact.id] = FamilyArtifact(
+                    type=artifact.type,
+                    content=artifact.content,
+                    created_at=artifact.created_at
+                )
+
+        # Convert videos
+        videos = []
+        for video in child.videos:
+            videos.append(FamilyVideo(
+                id=video.id,
+                scenario=video.scenario,
+                uploaded_at=video.uploaded_at,
+                duration_seconds=video.duration_seconds,
+                file_path=video.file_path,
+                file_url=video.file_url,
+                analyst_context=video.observation_context,
+                analysis_status=video.analysis_status,
+                analysis_artifact_id=video.analysis_artifact_id,
+                analysis_error=video.analysis_error,
+            ))
+
+        # Build and return FamilyState
+        return FamilyState(
+            family_id=family_id,
+            child=child_dict,
+            parent=None,
+            conversation=conversation,
+            artifacts=artifacts,
+            videos_uploaded=videos,
+            journal_entries=[],
+            created_at=child.created_at,
+            last_active=session.updated_at,
+            active_cards=session.active_cards,
+            dismissed_card_moments={
+                k: v for k, v in session.dismissed_card_moments.items()
+            },
+            previous_context_snapshot=session.previous_context_snapshot,
+        )
 
     # === Semantic Verification ===
 

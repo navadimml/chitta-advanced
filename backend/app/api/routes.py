@@ -2,10 +2,14 @@
 API Routes for Chitta
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+
+# Authentication dependencies
+from app.db.dependencies import get_current_user_optional
+from app.db.models_auth import User
 from datetime import datetime
 import asyncio
 import json
@@ -23,8 +27,8 @@ from app.config.view_manager import get_view_manager
 from app.config.config_loader import load_app_messages
 # Demo Mode: Import demo orchestrator
 from app.services.demo_orchestrator_service import get_demo_orchestrator
-# State-based architecture
-from app.services.mock_graphiti import get_mock_graphiti
+# State-based architecture (UnifiedStateService replaces MockGraphiti)
+from app.services.unified_state_service import get_unified_state_service
 from app.services.state_derivation import (
     derive_active_cards,
     derive_contextual_greeting,
@@ -32,7 +36,6 @@ from app.services.state_derivation import (
 )
 # Darshan: Card derivation (deprecated module for backward compat)
 from app.chitta import derive_cards_from_child, handle_card_action
-from app.services.unified_state_service import get_unified_state_service
 # Parent Simulator (Test Mode)
 from app.services.parent_simulator import get_parent_simulator
 # SSE for real-time updates
@@ -200,7 +203,7 @@ async def send_message(request: SendMessageRequest):
 
     # Get services (Wu Wei: simplified architecture only)
     conversation_service = get_simplified_conversation_service()
-    graphiti = get_mock_graphiti()
+    state_service = get_unified_state_service()
 
     # 🌟 Wu Wei: Config-driven trigger detection (replaces hardcoded keywords)
     action = detect_system_trigger(request.message)
@@ -288,7 +291,7 @@ async def send_message(request: SendMessageRequest):
         )
 
     # Save user message to state
-    await graphiti.add_message(
+    await state_service.add_conversation_turn_async(
         family_id=request.family_id,
         role="user",
         content=request.message
@@ -303,7 +306,7 @@ async def send_message(request: SendMessageRequest):
         )
 
         # Save assistant response to state
-        await graphiti.add_message(
+        await state_service.add_conversation_turn_async(
             family_id=request.family_id,
             role="assistant",
             content=result["response"]
@@ -318,15 +321,11 @@ async def send_message(request: SendMessageRequest):
         session_service = get_session_service()
         interview_session = session_service.get_or_create_session(request.family_id)
 
-        # Sync artifacts to graphiti state (CRITICAL FIX!)
+        # Sync artifacts to state service
         # The state derivation checks state.artifacts, so we must sync them
         for artifact_id, artifact in interview_session.artifacts.items():
             if artifact.is_ready:  # Only sync ready artifacts
-                await graphiti.add_artifact(
-                    family_id=request.family_id,
-                    artifact_type=artifact_id,
-                    content={"status": "ready", "content": artifact.content}
-                )
+                state_service.add_artifact(request.family_id, artifact)
 
         # Convert artifacts to simplified format for UI
         artifacts_for_ui = {}
@@ -339,7 +338,7 @@ async def send_message(request: SendMessageRequest):
             }
 
         # Get current state for derived suggestions (keep legacy compatibility)
-        state = graphiti.get_or_create_state(request.family_id)
+        state = state_service.get_family_state(request.family_id)
         derived_suggestions = derive_suggestions(state)
 
         # 🌟 Wu Wei: Use YAML-driven cards from conversation_service (not hardcoded derive_active_cards)
@@ -509,13 +508,13 @@ async def analyze_videos(family_id: str, confirmed: bool = False):
     from app.services.prerequisite_service import get_prerequisite_service
 
     # Get services
-    graphiti = get_mock_graphiti()
+    state_service = get_unified_state_service()
     session_service = get_session_service()
     action_registry = get_action_registry()
     prerequisite_service = get_prerequisite_service()
 
     # Get state and session
-    state = graphiti.get_or_create_state(family_id)
+    state = state_service.get_family_state(family_id)
     session = session_service.get_or_create_session(family_id)
 
     # Check if there are videos to analyze
@@ -1376,11 +1375,11 @@ async def get_child_space(family_id: str):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     # Get services
-    graphiti = get_mock_graphiti()
+    state_service = get_unified_state_service()
     child_space_service = get_child_space_service()
 
     # Get family state
-    state = graphiti.get_or_create_state(family_id)
+    state = state_service.get_family_state(family_id)
 
     # Sync artifacts from session to family state
     session_service = get_session_service()
@@ -1414,10 +1413,10 @@ async def get_child_space_header(family_id: str):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    graphiti = get_mock_graphiti()
+    state_service = get_unified_state_service()
     child_space_service = get_child_space_service()
 
-    state = graphiti.get_or_create_state(family_id)
+    state = state_service.get_family_state(family_id)
 
     # Sync artifacts from session
     session_service = get_session_service()
@@ -1445,10 +1444,10 @@ async def get_slot_detail(family_id: str, slot_id: str):
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    graphiti = get_mock_graphiti()
+    state_service = get_unified_state_service()
     child_space_service = get_child_space_service()
 
-    state = graphiti.get_or_create_state(family_id)
+    state = state_service.get_family_state(family_id)
 
     # Sync artifacts from session
     session_service = get_session_service()
@@ -2081,8 +2080,8 @@ async def get_family_state(family_id: str):
     🌟 Darshan: Get complete family state.
     Cards and curiosity state are derived from Darshan explorations.
     """
-    graphiti = get_mock_graphiti()
-    state = graphiti.get_or_create_state(family_id)
+    state_service = get_unified_state_service()
+    state = state_service.get_family_state(family_id)
 
     # 🌟 Darshan - use ChittaService for cards and curiosity
     from app.chitta.service import get_chitta_service
@@ -2472,7 +2471,7 @@ async def generate_parent_response(request: GenerateResponseRequest):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     simulator = get_parent_simulator()
-    graphiti = get_mock_graphiti()
+    state_service = get_unified_state_service()
 
     # CRITICAL FIX: Use flash-lite for test simulation to avoid safety filters
     # gemini-2.5-pro blocks roleplay scenarios involving child behavioral concerns
@@ -2486,7 +2485,7 @@ async def generate_parent_response(request: GenerateResponseRequest):
             family_id=request.family_id,
             chitta_question=request.chitta_question,
             llm_provider=test_llm,  # Use flash-lite instead of pro
-            graphiti=graphiti
+            state_service=state_service
         )
 
         # If response is None, interview has completed - parent stops responding

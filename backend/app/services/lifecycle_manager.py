@@ -375,9 +375,9 @@ class LifecycleManager:
 
         # 🌟 Phase 1 Living Dashboard: Process card lifecycle
         # Get family state for card management
-        from app.services.mock_graphiti import get_mock_graphiti
-        graphiti = get_mock_graphiti()
-        family_state = graphiti.get_or_create_state(family_id)
+        from app.services.unified_state_service import get_unified_state_service
+        state_service = get_unified_state_service()
+        family_state = state_service.get_family_state(family_id)
 
         # Build previous context from stored snapshot (or empty if first time)
         previous_card_context = family_state.previous_context_snapshot or {}
@@ -762,10 +762,10 @@ class LifecycleManager:
                         # Already a dict
                         artifacts_dict[art_id] = art_obj
 
-                # 🌟 Wu Wei: Get video count from FamilyState (graphiti)
-                from app.services.mock_graphiti import get_mock_graphiti
-                graphiti = get_mock_graphiti()
-                state = graphiti.get_or_create_state(family_id)
+                # 🌟 Wu Wei: Get video count from FamilyState
+                from app.services.unified_state_service import get_unified_state_service
+                state_service = get_unified_state_service()
+                state = state_service.get_family_state(family_id)
                 video_count = len(state.videos_uploaded)
 
                 # Build context for card evaluation (same as conversation_service does)

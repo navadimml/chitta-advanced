@@ -17,7 +17,6 @@ from datetime import datetime
 
 from .llm.base import Message, BaseLLMProvider
 from .llm.factory import create_llm_provider
-from .mock_graphiti import MockGraphiti
 from .session_service import get_session_service
 
 logger = logging.getLogger(__name__)
@@ -39,17 +38,14 @@ class ConsultationService:
 
     def __init__(
         self,
-        graphiti: Optional[MockGraphiti] = None,
         llm_provider: Optional[BaseLLMProvider] = None
     ):
         """
         Initialize consultation service.
 
         Args:
-            graphiti: Graphiti instance (or mock)
             llm_provider: LLM provider for generating responses
         """
-        self.graphiti = graphiti or MockGraphiti()
         self.llm = llm_provider or create_llm_provider()
         self.session_service = get_session_service()
 
