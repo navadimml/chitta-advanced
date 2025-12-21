@@ -1,9 +1,8 @@
 """
-Video API Routes - Video upload and analysis endpoints
+Video API Routes - Video upload endpoint
 
-Includes:
-- /video/upload - Upload video file
-- /video/analyze - Analyze uploaded videos
+Video analysis is handled by the Darshan/Chitta architecture:
+    POST /chat/v2/video/analyze/{family_id}/{cycle_id}
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Form, File, UploadFile
@@ -12,12 +11,9 @@ from pathlib import Path
 import logging
 
 from app.core.app_state import app_state
-from app.db.dependencies import get_current_user_optional, RequireAuth
+from app.db.dependencies import get_current_user_optional
 from app.db.models_auth import User
-from app.services.unified_state_service import get_unified_state_service
-from app.services.session_service import get_session_service
 from app.services.sse_notifier import get_sse_notifier
-from app.config.card_generator import get_card_generator
 
 router = APIRouter(prefix="/video", tags=["video"])
 logger = logging.getLogger(__name__)
@@ -89,186 +85,3 @@ async def upload_video(
         "gestalt_result": result,
         "cards_updated": len(updated_cards)
     }
-
-
-@router.post("/analyze")
-async def analyze_videos(
-    family_id: str,
-    confirmed: bool = False,
-    auth: RequireAuth = Depends(RequireAuth())
-):
-    """
-    ⚠️  DEPRECATED: Use /chat/v2/video/analyze/{family_id}/{cycle_id} instead.
-
-    This endpoint is part of the legacy Wu Wei architecture.
-    New code should use the Darshan/Chitta video analysis via:
-        POST /chat/v2/video/analyze/{family_id}/{cycle_id}
-
-    Holistic Clinical Video Analysis.
-
-    Analyzes uploaded videos using comprehensive clinical + holistic framework.
-    Each video is analyzed separately with its specific analyst_context.
-
-    Args:
-        family_id: Family identifier
-        confirmed: True if user already confirmed action (skip confirmation check)
-
-    Requires authentication.
-    """
-    import warnings
-    warnings.warn(
-        "POST /video/analyze is deprecated. Use /chat/v2/video/analyze/{family_id}/{cycle_id} instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    logger.warning(f"⚠️ DEPRECATED: /video/analyze called for {family_id}. Use /chat/v2/video/analyze instead.")
-
-    auth.verify_access(family_id)
-
-    from app.services.video_analysis_service import VideoAnalysisService
-    from app.config.action_registry import get_action_registry
-    from app.services.prerequisite_service import get_prerequisite_service
-
-    state_service = get_unified_state_service()
-    session_service = get_session_service()
-    action_registry = get_action_registry()
-    prerequisite_service = get_prerequisite_service()
-
-    state = state_service.get_family_state(family_id)
-    session = session_service.get_or_create_session(family_id)
-
-    if not state.videos_uploaded:
-        raise HTTPException(status_code=400, detail="No videos uploaded yet")
-
-    if not confirmed:
-        session_data = {
-            "family_id": family_id,
-            "extracted_data": session.extracted_data.model_dump(),
-            "message_count": len(session.conversation_history),
-            "artifacts": session.artifacts,
-            "uploaded_video_count": len(state.videos_uploaded),
-            "guideline_scenario_count": session.guideline_scenario_count,
-        }
-        context = prerequisite_service.get_context_for_cards(session_data)
-
-        confirmation_message = action_registry.check_confirmation_needed("analyze_videos", context)
-
-        if confirmation_message:
-            logger.info(f"Action requires confirmation: analyze_videos")
-            return {
-                "needs_confirmation": True,
-                "confirmation_message": confirmation_message
-            }
-
-    child_data = {
-        "name": session.extracted_data.child_name,
-        "age": session.extracted_data.age,
-        "gender": session.extracted_data.gender,
-        "concerns": session.extracted_data.primary_concerns or [],
-    }
-
-    logger.info(f"Holistic video analysis for {family_id} ({len(state.videos_uploaded)} videos)")
-
-    video_analysis_service = VideoAnalysisService()
-
-    videos_to_analyze = []
-    for video in state.videos_uploaded:
-        if not video.analyst_context:
-            logger.warning(f"Video {video.id} missing analyst_context")
-            continue
-
-        videos_to_analyze.append({
-            "id": video.id,
-            "path": video.file_path or f"./uploads/{video.id}",
-            "guideline_title": video.analyst_context.get("guideline_title", video.scenario),
-            "analyst_context": video.analyst_context
-        })
-
-    if not videos_to_analyze:
-        raise HTTPException(status_code=400, detail="No videos with context found")
-
-    session.video_analysis_status = "analyzing"
-    logger.info(f"Setting video_analysis_status to 'analyzing'")
-
-    card_generator = get_card_generator()
-
-    session_data = {
-        "family_id": family_id,
-        "extracted_data": session.extracted_data.model_dump(),
-        "message_count": len(session.conversation_history),
-        "artifacts": session.artifacts,
-        "uploaded_video_count": len(state.videos_uploaded),
-        "video_analysis_status": "analyzing",
-        "guideline_scenario_count": session.guideline_scenario_count,
-    }
-
-    context = prerequisite_service.get_context_for_cards(session_data)
-    updated_cards = card_generator.get_visible_cards(context, max_cards=4)
-
-    logger.info(f"Sending {len(updated_cards)} cards with 'analyzing' state via SSE")
-    await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
-
-    try:
-        analysis_artifact = await video_analysis_service.analyze_multiple_videos(
-            videos=videos_to_analyze,
-            child_data=child_data,
-            extracted_data=session.extracted_data.model_dump(mode='json')
-        )
-
-        if analysis_artifact.status == "ready":
-            session.artifacts["baseline_video_analysis"] = analysis_artifact
-            session.video_analysis_status = "complete"
-            logger.info(f"Setting video_analysis_status to 'complete'")
-
-            for video in state.videos_uploaded:
-                video.analysis_status = "ready"
-                video.analysis_artifact_id = "baseline_video_analysis"
-
-            logger.info(f"Video analysis complete for {family_id}")
-
-            from app.services.lifecycle_manager import get_lifecycle_manager
-
-            lifecycle_manager = get_lifecycle_manager()
-
-            session_data = {
-                "family_id": family_id,
-                "extracted_data": session.extracted_data.model_dump(),
-                "message_count": len(session.conversation_history),
-                "artifacts": session.artifacts,
-                "uploaded_video_count": len(state.videos_uploaded),
-                "video_analysis_status": session.video_analysis_status,
-            }
-
-            context = prerequisite_service.get_context_for_cards(session_data)
-
-            lifecycle_result = await lifecycle_manager.process_lifecycle_events(
-                family_id=family_id,
-                context=context,
-                session=session
-            )
-
-            if lifecycle_result.get("events_triggered"):
-                logger.info(f"Lifecycle events triggered: {[e['event_name'] for e in lifecycle_result['events_triggered']]}")
-
-            if lifecycle_result.get("artifacts_generated"):
-                logger.info(f"Artifacts generated: {lifecycle_result['artifacts_generated']}")
-
-            await get_sse_notifier().notify_cards_updated(family_id, [])
-
-            return {
-                "success": True,
-                "artifact_id": "baseline_video_analysis",
-                "videos_analyzed": len(videos_to_analyze),
-                "next_steps": "Reports can now be generated"
-            }
-        else:
-            session.video_analysis_status = "pending"
-            logger.error(f"Video analysis failed: {analysis_artifact.error_message}")
-            await get_sse_notifier().notify_cards_updated(family_id, [])
-            raise HTTPException(status_code=500, detail=analysis_artifact.error_message)
-
-    except Exception as e:
-        session.video_analysis_status = "pending"
-        logger.error(f"Error in video analysis: {e}", exc_info=True)
-        await get_sse_notifier().notify_cards_updated(family_id, [])
-        raise HTTPException(status_code=500, detail=str(e))
