@@ -17,13 +17,10 @@ from app.db.dependencies import get_current_user_optional
 from app.db.models_auth import User
 from app.services.sse_notifier import get_sse_notifier
 from app.services.unified_state_service import get_unified_state_service
+from app.services.state_derivation import derive_contextual_greeting, derive_suggestions
 
 router = APIRouter(prefix="/state", tags=["state"])
 logger = logging.getLogger(__name__)
-
-
-# Import UI derivation functions
-from app.api.legacy_routes import derive_contextual_greeting, derive_suggestions
 
 
 @router.get("/subscribe")
@@ -86,18 +83,14 @@ async def get_family_state(
 
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
-    gestalt = await chitta._get_gestalt(family_id)
 
-    cards = []
-    curiosity_state = {"active_curiosities": [], "open_questions": []}
-    child_space_data = None
+    # Use public APIs instead of private methods
+    cards = await chitta.get_cards(family_id)
+    curiosity_state = await chitta.get_curiosity_state(family_id)
+    child_space_data = await chitta.get_child_space(family_id)
 
-    if gestalt:
-        cards = chitta._derive_cards(gestalt)
-        curiosity_state = await chitta.get_curiosity_state(family_id)
-        child_space_data = chitta._derive_child_space(gestalt)
-        logger.info(f"Darshan cards for {family_id}: {[c['type'] for c in cards]}")
-        logger.info(f"Curiosities: {len(curiosity_state.get('active_curiosities', []))}")
+    logger.info(f"Darshan cards for {family_id}: {[c['type'] for c in cards]}")
+    logger.info(f"Curiosities: {len(curiosity_state.get('active_curiosities', []))}")
 
     greeting = derive_contextual_greeting(state)
     suggestions = derive_suggestions(state)
