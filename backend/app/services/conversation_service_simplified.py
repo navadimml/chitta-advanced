@@ -1,6 +1,13 @@
 """
 Simplified Conversation Service - Single LLM Architecture (Refactored)
 
+⚠️  DEPRECATED: This module is part of the legacy Wu Wei architecture.
+    New code should use the Darshan/Chitta architecture instead:
+    - Conversation: app.chitta.service.ChittaService.process_message()
+    - Gestalt: app.chitta.gestalt.Darshan
+
+    This module is maintained for backwards compatibility with V1 /chat/send endpoint.
+
 This replaces the complex Sage+Hand+Strategic architecture with ONE comprehensive LLM call.
 
 Benefits:
@@ -22,6 +29,7 @@ Key improvements in this refactored version:
 import logging
 import asyncio
 import re
+import warnings
 from typing import Dict, Any, Optional, List, Set, Tuple
 from datetime import datetime
 from collections import defaultdict
@@ -80,6 +88,8 @@ def clean_response(text: str) -> str:
 
 class SimplifiedConversationService:
     """
+    ⚠️  DEPRECATED: Use ChittaService.process_message() instead.
+
     Simplified conversation service using single LLM call with Wu Wei flow.
 
     Replaces:
@@ -100,6 +110,11 @@ class SimplifiedConversationService:
 
     def __init__(self, llm_provider=None):
         """Initialize simplified conversation service"""
+        warnings.warn(
+            "SimplifiedConversationService is deprecated. Use ChittaService.process_message() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.llm = llm_provider or create_llm_provider()
         self.session_service = get_session_service()
         self.lifecycle_manager = get_lifecycle_manager()

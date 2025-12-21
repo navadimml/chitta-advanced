@@ -66,16 +66,30 @@ class VideoDeclineRequest(BaseModel):
     cycle_id: str
 
 
-# === V1 Endpoints ===
+# === V1 Endpoints (DEPRECATED) ===
 
-@router.post("/send", response_model=SendMessageResponse)
+@router.post("/send", response_model=SendMessageResponse, deprecated=True)
 async def send_message(
     request: SendMessageRequest,
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
+    ⚠️  DEPRECATED: Use POST /chat/v2/send instead.
+
     V1 Chat - Send message to Chitta
+
+    This endpoint uses the legacy Wu Wei architecture.
+    New clients should use the Darshan/Chitta architecture via:
+        POST /chat/v2/send
     """
+    import warnings
+    warnings.warn(
+        "POST /chat/send is deprecated. Use /chat/v2/send instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(f"⚠️ DEPRECATED: /chat/send called for {request.family_id}. Use /chat/v2/send instead.")
+
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
