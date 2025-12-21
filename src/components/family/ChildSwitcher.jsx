@@ -50,17 +50,15 @@ export default function ChildSwitcher() {
 
   return (
     <div className="relative">
-      {/* Trigger Button */}
+      {/* Trigger Button - just shows icon and dropdown arrow, name is in header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition"
+        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition"
+        title="בחר או הוסף ילד/ה"
       >
         <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center">
           <User className="w-3.5 h-3.5 text-white" />
         </div>
-        <span className="text-sm font-medium text-gray-700">
-          {getChildDisplayName(activeChild)}
-        </span>
         <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
