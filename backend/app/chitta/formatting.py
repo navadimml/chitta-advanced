@@ -447,6 +447,10 @@ def build_perception_tools_description() -> str:
 
 Use these tools to perceive and record what you notice:
 
+- **set_child_identity**: ALWAYS use this when you learn the child's name, age, or gender!
+  - "יש לי בן בן 3, קוראים לו יוני" → set_child_identity(name="יוני", age=3, gender="male")
+  - "הילדה שלי בת 5" → set_child_identity(age=5, gender="female")
+  - Infer gender from Hebrew: הוא/בן = male, היא/בת = female
 - **notice**: Record an observation about the child (general facts, behaviors, concerns)
 - **record_milestone**: Record developmental milestones - use when parent mentions WHEN something happened:
   - "Started walking at 14 months" → record_milestone(domain="motor", milestone_type="achievement", age_months=14)
@@ -460,7 +464,9 @@ Use these tools to perceive and record what you notice:
 - **add_evidence**: Add evidence to active exploration
 - **spawn_exploration**: Start focused investigation when curiosity pulls strongly
 
-**CRITICAL**: When parent mentions age/timing of developmental events, use record_milestone NOT notice!
+**CRITICAL**:
+- When parent mentions child's NAME or AGE, use set_child_identity!
+- When parent mentions age/timing of developmental events, use record_milestone NOT notice!
 
 RESPOND WITH TOOL CALLS ONLY. No text response in this phase.
 """

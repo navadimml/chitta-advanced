@@ -232,9 +232,17 @@ class GestaltManager:
         darshan_state = darshan.get_state_for_persistence()
 
         # Build child data
+        # Include both root-level "name" (for Darshan) and nested "identity" (for Child model)
         child_data = {
             "id": family_id,
+            "child_id": family_id,  # Alias for Child model
             "name": darshan.child_name,
+            # Identity structure for Child model compatibility
+            "identity": {
+                "name": darshan.child_name,
+                "birth_date": darshan.child_birth_date.isoformat() if darshan.child_birth_date else None,
+                "gender": None,  # Will be populated from observations if set
+            },
             "understanding": {
                 "observations": [
                     {
