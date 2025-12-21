@@ -1,240 +1,201 @@
-# Chitta Backend (FastAPI)
+# Chitta Backend
 
-AI-powered child development screening platform - Backend API
+FastAPI backend implementing the Darshan architecture for child development understanding.
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.11 or higher
-- FalkorDB database (for Graphiti knowledge graph)
-- Gemini API key (free at https://ai.google.dev/)
-
-### Setup
-
-1. **Create and activate virtual environment:**
+## Quick Start
 
 ```bash
-cd backend
-python -m venv venv
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# On Linux/Mac:
-source venv/bin/activate
-
-# On Windows:
-venv\Scripts\activate
-```
-
-2. **Install dependencies:**
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-3. **Set up environment variables:**
-
-```bash
-# Copy example env file
-cp .env.example .env
-
-# Edit .env and add your API keys
-# Minimum required:
-# - GEMINI_API_KEY (get from https://ai.google.dev/)
-# - FALKORDB_PASSWORD (optional, only if FalkorDB has password protection)
-```
-
-4. **Start FalkorDB database (using Docker):**
-
-```bash
-docker run -d \
-  --name falkordb \
-  -p 6379:6379 \
-  falkordb/falkordb:latest
-```
-
-Or install locally (see https://docs.falkordb.com/)
-
-5. **Run the development server:**
-
-```bash
-# Option 1: Using uvicorn directly
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Option 2: Using Python
+# Run the server
 python -m app.main
 ```
 
-6. **Access the API:**
+Server runs at http://localhost:8000
 
-- API: http://localhost:8000/
-- Interactive Docs: http://localhost:8000/docs
-- Health Check: http://localhost:8000/health
+## Architecture: Darshan/Chitta
 
-## 📁 Project Structure
+The backend implements the **Darshan** (दर्शन - "mutual seeing") architecture:
+
+### Core Components (`app/chitta/`)
+
+| File | Purpose |
+|------|---------|
+| `service.py` | ChittaService - thin orchestrator, public API |
+| `gestalt.py` | Darshan - the observing intelligence |
+| `curiosity.py` | Curiosity model (discovery, question, hypothesis, pattern) |
+| `models.py` | Data models (Understanding, Evidence, Story, etc.) |
+| `tools.py` | LLM perception tools (notice, wonder, capture_story, add_evidence) |
+| `synthesis.py` | Portrait/crystal generation with strongest model |
+| `cards.py` | Context card derivation from gestalt state |
+| `video_service.py` | Video consent → guidelines → upload → analysis |
+| `child_space.py` | Living Portrait derivation |
+| `sharing.py` | Shareable summary generation |
+| `journal_service.py` | Parent journal processing |
+| `gestalt_manager.py` | Darshan lifecycle & persistence |
+
+### Two-Phase LLM Architecture
+
+Every message is processed in two phases:
+
+```
+Phase 1: Perception (temp=0.0, with tools)
+  → Darshan perceives and understands
+  → Tool calls: notice, wonder, capture_story, add_evidence
+
+Phase 2: Response (temp=0.7, no tools)
+  → Natural Hebrew response generation
+  → Warm, empathetic communication
+```
+
+## Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py                      # FastAPI app entry point
-│   ├── config.py                    # Settings management
-│   │
-│   ├── api/                         # API routes
-│   │   └── v1/
-│   │       ├── messages.py          # (TODO) Conversation endpoints
-│   │       ├── videos.py            # (TODO) Video upload & analysis
-│   │       ├── reports.py           # (TODO) Report generation
-│   │       └── families.py          # (TODO) Family management
-│   │
-│   ├── models/                      # (TODO) Pydantic models
-│   │   ├── family.py
-│   │   ├── message.py
-│   │   ├── video.py
-│   │   └── report.py
-│   │
-│   ├── services/                    # (TODO) Business logic
-│   │   ├── conversation_service.py
-│   │   ├── interview_service.py
-│   │   ├── video_service.py
-│   │   ├── report_service.py
-│   │   └── llm/                     # LLM provider abstraction
-│   │       ├── base.py
-│   │       ├── factory.py
-│   │       └── gemini_provider.py
-│   │
-│   ├── prompts/                     # (TODO) System prompts
-│   │   ├── interview_prompt.py
-│   │   └── video_analysis_prompt.py
-│   │
-│   └── core/                        # (TODO) Core utilities
-│       ├── exceptions.py
-│       └── storage.py
-│
-├── tests/                           # (TODO) Test suite
-│   ├── test_api/
-│   └── test_services/
-│
-├── requirements.txt                 # Python dependencies
-├── .env.example                     # Environment variables template
-├── .env                             # Your local env (create this)
-└── README.md                        # This file
+│   ├── main.py                 # FastAPI entry point
+│   ├── chitta/                 # Core Darshan architecture
+│   │   ├── service.py          # ChittaService (public API)
+│   │   ├── gestalt.py          # Darshan (observing intelligence)
+│   │   ├── curiosity.py        # Curiosity model
+│   │   ├── models.py           # Data models
+│   │   ├── tools.py            # Perception tools
+│   │   ├── synthesis.py        # Portrait generation
+│   │   ├── cards.py            # Card derivation
+│   │   ├── video_service.py    # Video workflow
+│   │   ├── child_space.py      # Living Portrait
+│   │   ├── sharing.py          # Summary sharing
+│   │   ├── journal_service.py  # Journal processing
+│   │   └── gestalt_manager.py  # Lifecycle management
+│   ├── api/
+│   │   ├── routes/
+│   │   │   ├── chat.py         # Chat V2 endpoints
+│   │   │   ├── video.py        # Video upload
+│   │   │   ├── state.py        # State & SSE
+│   │   │   ├── family.py       # Family management
+│   │   │   └── darshan.py      # Darshan API
+│   │   └── dev_routes.py       # Development tools
+│   ├── services/
+│   │   ├── llm/                # LLM provider abstraction
+│   │   │   ├── base.py         # Provider interface
+│   │   │   ├── gemini_provider.py
+│   │   │   └── factory.py
+│   │   ├── unified_state_service.py
+│   │   ├── session_service.py
+│   │   └── sse_notifier.py
+│   ├── config/                 # YAML-driven configuration
+│   │   ├── workflows/          # Lifecycle events, cards
+│   │   └── i18n/               # Internationalization
+│   └── core/
+│       └── app_state.py        # Application state
+├── tests/                      # 153 tests
+├── data/                       # Persisted child/session data
+├── docs/                       # Architecture documentation
+└── config/                     # Configuration files
 ```
 
-## 🎯 Current Status
+## API Endpoints
 
-✅ **Completed:**
-- Basic FastAPI application setup
-- Configuration management
-- CORS middleware
-- Health check endpoint
+### Chat V2 (Current)
+```
+GET  /api/chat/v2/init/{family_id}     # Initialize session
+POST /api/chat/v2/send                  # Send message
+GET  /api/chat/v2/curiosity/{family_id} # Get curiosity state
+POST /api/chat/v2/synthesis/{family_id} # Request synthesis
+```
 
-❌ **TODO (Next Steps):**
-1. Implement LLM provider abstraction (Gemini/Claude/OpenAI)
-2. Set up Graphiti integration for knowledge graph
-3. Create conversation/message endpoint with function calling
-4. Implement interview service with continuous extraction
-5. Add video upload and analysis endpoints
-6. Create report generation services
-7. Implement authentication (JWT)
+### Video Workflow
+```
+POST /api/chat/v2/video/accept          # Accept video suggestion
+POST /api/chat/v2/video/decline         # Decline video suggestion
+GET  /api/chat/v2/video/guidelines/{family_id}/{cycle_id}
+POST /api/chat/v2/video/upload
+POST /api/chat/v2/video/analyze/{family_id}/{cycle_id}
+```
 
-## 📚 Documentation
+### State & SSE
+```
+GET  /api/state/{family_id}             # Complete family state
+GET  /api/state/subscribe?family_id=X   # SSE real-time updates
+```
 
-For detailed implementation guidance, see:
-- **COMPREHENSIVE_DOCS_SUMMARY.md** - Complete architecture overview
-- **FASTAPI_BACKEND_DESIGN.md** - Detailed implementation guide
-- **INTERVIEW_IMPLEMENTATION_GUIDE.md** - Interview system specs
-- **VIDEO_ANALYSIS_SYSTEM_PROMPT.md** - Video analysis specs
+## Environment Variables
 
-## 🔧 Development
+Create `.env` from `.env.example`:
 
-### Running Tests
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GEMINI_API_KEY` | Google Gemini API key | Required |
+| `LLM_PROVIDER` | Provider: gemini, anthropic, openai | gemini |
+| `ENVIRONMENT` | development, production | development |
+| `LOG_LEVEL` | DEBUG, INFO, WARNING, ERROR | INFO |
+
+## Running Tests
 
 ```bash
-pytest
+# All tests
+pytest tests/ -v
+
+# Specific test file
+pytest tests/test_curiosity.py -v
+
+# With coverage
+pytest tests/ --cov=app --cov-report=html
 ```
 
-### Code Formatting
+153 tests currently passing.
 
-```bash
-# Format code
-black app/
+## Development
 
-# Lint code
-ruff check app/
+### Code Guidelines
+
+See `CLAUDE.md` for the complete developer constitution:
+
+- **Curiosity-driven**: Use discovery, question, hypothesis, pattern - not checklists
+- **Two-phase LLM**: Tool calls and text responses are separate
+- **Natural Hebrew**: "שמתי לב ש..." not "המערכת זיהתה..."
+- **Minimum necessary complexity** (פשוט)
+
+### Key Principles
+
+1. Darshan is the **observing intelligence** - not a data container
+2. Understanding emerges through **curiosity**, not assessment
+3. **Type and certainty are independent**: You can have weak hypotheses or strong discoveries
+4. Tool calls and text responses **cannot be combined** in one LLM call
+
+## LLM Configuration
+
+### Model Tiers
+| Tier | Models | Use For |
+|------|--------|---------|
+| Strongest | gemini-3-pro-preview | Pattern detection, synthesis |
+| Standard | gemini-2.5-flash | Conversation, memory distillation |
+
+### Critical Settings
+```python
+# Phase 1: Perception
+temperature = 0.0
+tool_config = FunctionCallingConfigMode.ANY
+automatic_function_calling = disabled
+
+# Phase 2: Response
+temperature = 0.7
+functions = None  # No tools
 ```
 
-### API Documentation
+## Documentation
 
-After starting the server, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Developer constitution & coding guidelines |
+| `docs/METAPHOR_ARCHITECTURE.md` | Darshan naming philosophy |
+| `docs/CURIOSITY_EXPLORATION_REDESIGN.md` | Curiosity system design |
 
-## 🌐 Environment Variables
+---
 
-Key environment variables (see `.env.example` for complete list):
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `GEMINI_API_KEY` | Google Gemini API key | Yes |
-| `FALKORDB_HOST` | FalkorDB host | Yes (default: localhost) |
-| `FALKORDB_PORT` | FalkorDB port | Yes (default: 6379) |
-| `FALKORDB_GRAPH` | FalkorDB graph name | Yes (default: chitta) |
-| `ALLOWED_ORIGINS` | CORS allowed origins | Yes |
-| `JWT_SECRET_KEY` | JWT signing key | Yes |
-
-## 🚀 Deployment
-
-### Docker (TODO)
-
-```bash
-docker build -t chitta-backend .
-docker run -p 8000:8000 chitta-backend
-```
-
-### Production Checklist
-
-- [ ] Set `DEBUG=False` in production
-- [ ] Use strong `JWT_SECRET_KEY`
-- [ ] Configure proper CORS origins
-- [ ] Set up proper FalkorDB production instance
-- [ ] Configure S3 for video storage
-- [ ] Add rate limiting
-- [ ] Set up monitoring (Sentry)
-- [ ] Enable HTTPS
-
-## 🔑 Getting API Keys
-
-### Gemini API (Recommended)
-1. Go to https://ai.google.dev/
-2. Click "Get API Key"
-3. Create a new project
-4. Copy your API key
-5. Add to `.env`: `GEMINI_API_KEY=your_key_here`
-
-**Why Gemini?**
-- FREE during preview period
-- Native video analysis (crucial for Chitta)
-- 1M token context window
-- Excellent Hebrew support
-- Strong reasoning for clinical analysis
-
-### Alternative: Anthropic Claude
-1. Go to https://console.anthropic.com/
-2. Generate API key
-3. Add to `.env`: `ANTHROPIC_API_KEY=your_key_here`
-
-### Alternative: OpenAI
-1. Go to https://platform.openai.com/
-2. Generate API key
-3. Add to `.env`: `OPENAI_API_KEY=your_key_here`
-
-## 📞 Support
-
-For questions or issues:
-1. Check the comprehensive documentation files in the root directory
-2. Review the API docs at `/docs` endpoint
-3. Check GitHub issues
-
-## 📄 License
-
-[Your License Here]
+Built with the Darshan philosophy: seeing children clearly through curiosity and conversation.

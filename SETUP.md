@@ -1,310 +1,226 @@
 # Chitta Setup Guide
 
-This guide will help you set up the Chitta application on your local machine.
+Complete setup guide for the Chitta development environment.
 
 ## Prerequisites
 
-- **Node.js** 16+ and npm
-- **Python** 3.8+
+- **Python** 3.11+
+- **Node.js** 18+ and npm
 - **Git**
 
 ## Quick Start
 
-### 1. Update Your Local Repository
+### 1. Clone & Setup Backend
 
 ```bash
-# Navigate to your project directory
-cd chitta-advanced
-
-# Fetch latest changes from GitHub
-git fetch origin
-
-# Check what's new (optional but recommended)
-git log HEAD..origin/claude/clarify-task-description-011CUR6BKA4beVRbfq928vjT --oneline
-
-# Merge the new backend integration into your main branch
-git checkout main
-git merge origin/claude/clarify-task-description-011CUR6BKA4beVRbfq928vjT
-```
-
-**Note:** The difference between `fetch` and `pull`:
-- `git fetch` - Downloads changes but doesn't apply them (safe, lets you inspect first)
-- `git pull` - Combines fetch + merge (faster but less control)
-
-### 2. Backend Setup (Python Virtual Environment)
-
-#### Option A: Automated Setup (Recommended)
-
-```bash
-cd backend
-./setup.sh
-```
-
-This script will:
-- Create a Python virtual environment
-- Install all required dependencies
-- Provide instructions for running the server
-
-#### Option B: Manual Setup
-
-```bash
-cd backend
+cd chitta-advanced/backend
 
 # Create virtual environment
 python3 -m venv venv
-
-# Activate virtual environment
-source venv/bin/activate  # On Linux/Mac
-# OR
-venv\Scripts\activate     # On Windows
-
-# Upgrade pip
-pip install --upgrade pip
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Copy environment file
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY
 ```
 
-### 3. Frontend Setup
+### 2. Setup Frontend
 
 ```bash
-# From project root
+cd chitta-advanced
 npm install
 ```
 
-### 4. Running the Application
+### 3. Run the Application
 
-#### Start Backend Server
-
+**Terminal 1 - Backend:**
 ```bash
-# From backend directory with activated virtual environment
 cd backend
-source venv/bin/activate  # If not already activated
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+source venv/bin/activate
+python -m app.main
 ```
 
-The backend will be available at: http://localhost:8000
-
-Health check: http://localhost:8000/health
-
-#### Start Frontend Development Server
-
-In a **separate terminal**:
-
+**Terminal 2 - Frontend:**
 ```bash
-# From project root
 npm run dev
 ```
 
-The frontend will be available at: http://localhost:3000
+Open http://localhost:5173 in your browser.
 
-### 5. Verify Everything Works
+## Environment Configuration
 
-Open http://localhost:3000 in your browser. You should see the Chitta chat interface.
+### Backend (.env)
 
-Test the integration:
 ```bash
-# In another terminal, test the API
-curl http://localhost:8000/health
+# Required
+GEMINI_API_KEY=your_key_here
+
+# Optional (defaults shown)
+LLM_PROVIDER=gemini
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-Expected response:
-```json
-{"status":"healthy","environment":"development","initialized":true}
+### Getting a Gemini API Key
+
+1. Go to https://ai.google.dev/
+2. Click "Get API Key"
+3. Create a new project
+4. Copy your API key
+5. Add to `.env`: `GEMINI_API_KEY=your_key_here`
+
+## Verifying Installation
+
+### Backend Health Check
+```bash
+curl http://localhost:8000/api/
+# Expected: {"message":"Chitta API","version":"2.0.0","architecture":"darshan"}
+```
+
+### Run Tests
+```bash
+cd backend
+source venv/bin/activate
+pytest tests/ -v
+# Expected: 153 tests passed
 ```
 
 ## Architecture Overview
 
-### Backend (`/backend`)
+### Darshan/Chitta Architecture
 
-- **FastAPI** web framework
-- **Simulated Graphiti** - In-memory temporal knowledge graph (no Neo4j required)
-- **Simulated LLM** - Mock Hebrew responses (no API keys required)
-- **Multi-tenant** - Isolated data per family using group_id
+Chitta uses the **Darshan** architecture:
 
-**Directory Structure:**
+```
+Message arrives
+    ↓
+Phase 1: Perception (with tools, temp=0)
+    - Darshan perceives and understands
+    - Tool calls: notice, wonder, capture_story, add_evidence
+    ↓
+Apply Learnings (update gestalt)
+    ↓
+Phase 2: Response (without tools, temp=0.7)
+    - Natural Hebrew response
+    ↓
+Persist + Return
+```
+
+### Key Directories
+
 ```
 backend/
-├── app/
-│   ├── main.py              # FastAPI application entry point
-│   ├── api/
-│   │   └── routes.py        # API endpoints
-│   └── core/
-│       ├── app_state.py     # Application state management
-│       ├── simulated_graphiti.py  # In-memory graph storage
-│       └── simulated_llm.py       # Mock LLM provider
-├── requirements.txt         # Python dependencies
-├── setup.sh                 # Automated setup script
-├── .env                     # Environment configuration
-└── .env.example             # Example environment variables
+├── app/chitta/          # Core Darshan architecture
+│   ├── service.py       # ChittaService (thin orchestrator)
+│   ├── gestalt.py       # Darshan (observing intelligence)
+│   ├── curiosity.py     # Curiosity model
+│   └── ...
+├── app/api/routes/      # API endpoints
+├── app/services/llm/    # LLM provider abstraction
+└── tests/               # 153 tests
+
+src/                     # React frontend
+├── App.jsx              # Main state orchestrator
+├── api/client.js        # API client
+└── components/          # UI components
 ```
 
-### Frontend (`/src`)
+## API Endpoints
 
-- **React** 18.2.0 with Vite
-- **API Client** (`src/api/client.js`) - Clean interface to backend
-- **Simplified State** - React hooks, no complex state management
-
-### API Endpoints
-
+### Chat V2
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/api/` | API info |
-| POST | `/api/chat/send` | Send message to Chitta |
-| POST | `/api/interview/complete` | Complete interview, generate video guidelines |
-| POST | `/api/video/upload` | Upload video |
-| POST | `/api/video/analyze` | Analyze all videos |
-| POST | `/api/reports/generate` | Generate reports |
-| GET | `/api/timeline/{family_id}` | Get journey timeline |
+| GET | `/api/chat/v2/init/{family_id}` | Initialize session |
+| POST | `/api/chat/v2/send` | Send message |
+| GET | `/api/chat/v2/curiosity/{family_id}` | Get curiosity state |
+| POST | `/api/chat/v2/synthesis/{family_id}` | Request synthesis |
 
-## Environment Configuration
+### Video Workflow
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/chat/v2/video/accept` | Accept video suggestion |
+| POST | `/api/chat/v2/video/decline` | Decline video suggestion |
+| GET | `/api/chat/v2/video/guidelines/{family_id}/{cycle_id}` | Get guidelines |
+| POST | `/api/chat/v2/video/upload` | Upload video |
+| POST | `/api/chat/v2/video/analyze/{family_id}/{cycle_id}` | Analyze videos |
 
-The backend uses environment variables for configuration. Copy `.env.example` to `.env` and modify as needed:
-
-```bash
-cd backend
-cp .env.example .env
-```
-
-Default configuration:
-- `LLM_PROVIDER=simulated` - Uses mock LLM (no API calls)
-- `ENVIRONMENT=development`
-- `LOG_LEVEL=INFO`
-- `CORS_ORIGINS=http://localhost:5173,http://localhost:3000`
+### State
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/state/{family_id}` | Get family state |
+| GET | `/api/state/subscribe` | SSE updates |
 
 ## Development Workflow
 
-### Activating Virtual Environment
+### Virtual Environment
 
-Every time you open a new terminal to work on the backend:
-
+Always activate the virtual environment when working on backend:
 ```bash
 cd backend
-source venv/bin/activate  # Linux/Mac
-# OR
-venv\Scripts\activate     # Windows
+source venv/bin/activate  # (venv) appears in prompt
 ```
 
-You'll see `(venv)` in your terminal prompt when activated.
-
-### Deactivating Virtual Environment
-
+Deactivate when done:
 ```bash
 deactivate
 ```
 
-### Installing New Python Packages
-
-```bash
-# Make sure venv is activated
-pip install package-name
-
-# Update requirements.txt
-pip freeze > requirements.txt
-```
-
 ### Running Tests
-
 ```bash
-# Backend tests (when implemented)
 cd backend
-pytest
-
-# Frontend tests
-npm test
+source venv/bin/activate
+pytest tests/ -v           # All tests
+pytest tests/test_curiosity.py -v  # Specific file
 ```
+
+### Code Guidelines
+
+See `CLAUDE.md` for the complete developer constitution:
+
+1. **Curiosity-driven**: Use discovery, question, hypothesis, pattern
+2. **Two-phase LLM**: Tool calls and text responses are separate
+3. **Natural Hebrew**: "שמתי לב ש..." not "המערכת זיהתה..."
+4. **פשוט**: Minimum necessary complexity
 
 ## Troubleshooting
 
 ### Backend won't start
 
-1. Make sure virtual environment is activated: `source venv/bin/activate`
-2. Check Python version: `python --version` (should be 3.8+)
+1. Check virtual environment is activated: `source venv/bin/activate`
+2. Check Python version: `python --version` (needs 3.11+)
 3. Reinstall dependencies: `pip install -r requirements.txt`
-4. Check if port 8000 is already in use: `lsof -i :8000`
+4. Check port 8000: `lsof -i :8000`
 
 ### Frontend won't start
 
-1. Clear node_modules: `rm -rf node_modules && npm install`
-2. Check if port 3000 is in use: `lsof -i :3000`
-3. Try a different port: `npm run dev -- --port 3001`
-
-### CORS errors
-
-Make sure both servers are running and the backend CORS settings in `.env` include your frontend URL.
+1. Reinstall: `rm -rf node_modules && npm install`
+2. Check port: `lsof -i :5173`
 
 ### API not responding
 
-1. Check backend is running: `curl http://localhost:8000/health`
-2. Check frontend API client URL in `src/api/client.js` matches backend URL
+1. Check backend: `curl http://localhost:8000/api/`
+2. Check CORS settings in `.env`
 3. Check browser console for errors
 
-## Next Steps
+### Tests failing
 
-### Moving from Simulated to Real Services
+1. Make sure venv is activated
+2. Check for missing dependencies: `pip install -r requirements.txt`
+3. Run with verbose: `pytest tests/ -v --tb=short`
 
-When ready to use real services:
+## Key Documentation
 
-1. **Real LLM (Google Gemini)**:
-   - Set `LLM_PROVIDER=gemini` in `.env`
-   - Add `LLM_API_KEY=your_key_here` in `.env`
-   - Install: `pip install google-generativeai`
-
-2. **Real Graphiti (Neo4j)**:
-   - Install Neo4j locally or use cloud service
-   - Install: `pip install graphiti-core neo4j`
-   - Update `app/core/app_state.py` to use real Graphiti client
-   - Configure Neo4j connection in `.env`
-
-### Development Features to Add
-
-- User authentication
-- Video file storage and processing
-- Real video analysis with computer vision
-- Professional report generation with templates
-- Email notifications
-- Data persistence (database)
-- Deployment configuration
-
-## Project Structure
-
-```
-chitta-advanced/
-├── backend/               # FastAPI backend
-│   ├── app/
-│   │   ├── api/          # API routes
-│   │   ├── core/         # Business logic
-│   │   └── main.py       # Application entry
-│   ├── venv/             # Virtual environment (not in git)
-│   └── requirements.txt
-├── src/                  # React frontend
-│   ├── api/             # API client
-│   ├── components/      # React components
-│   └── App.jsx          # Main app component
-├── public/              # Static assets
-├── SETUP.md            # This file
-└── package.json        # Frontend dependencies
-```
-
-## Contributing
-
-When making changes:
-
-1. Create a feature branch: `git checkout -b feature-name`
-2. Make your changes
-3. Test thoroughly
-4. Commit with clear messages
-5. Push and create a pull request
-
-## Support
-
-For issues or questions:
-- Check the [Troubleshooting](#troubleshooting) section
-- Review the [API documentation](#api-endpoints)
-- Check backend logs for error messages
-- Check browser console for frontend errors
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Developer constitution & coding guidelines |
+| `README.md` | Project overview |
+| `backend/README.md` | Backend architecture |
+| `backend/docs/METAPHOR_ARCHITECTURE.md` | Darshan naming philosophy |
 
 ---
 
-Built with ❤️ for child development assessment
+For questions, check the documentation or review the test files for usage examples.
