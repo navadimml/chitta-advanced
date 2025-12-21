@@ -586,6 +586,8 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     self._handle_spawn_exploration(call.args)
                 elif call.name == "record_milestone":
                     self._handle_record_milestone(call.args)
+                elif call.name == "set_child_identity":
+                    self._handle_set_child_identity(call.args)
             except Exception as e:
                 logger.error(f"Error handling tool call {call.name}: {e}")
 
@@ -783,6 +785,52 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             entry_type="milestone_recorded",
         )
         self.journal.append(entry)
+
+    def _handle_set_child_identity(self, args: Dict[str, Any]):
+        """Set child identity (name, age, gender).
+
+        Updates both Darshan's internal state AND the Child model via child_service.
+        This ensures the ChildSwitcher and other UI components show the correct name.
+        """
+        # Build data dict for child_service.update_developmental_data
+        update_data = {}
+
+        if "name" in args and args["name"]:
+            self.child_name = args["name"]
+            update_data["child_name"] = args["name"]
+            logger.info(f"👶 Child name set: {self.child_name}")
+
+        if "age" in args and args["age"] is not None:
+            # Calculate birth date from age
+            from datetime import date
+            from dateutil.relativedelta import relativedelta
+            age_years = float(args["age"])
+            age_months = int(age_years * 12)
+            today = date.today()
+            self.child_birth_date = today - relativedelta(months=age_months)
+            update_data["age"] = age_years
+            logger.info(f"📅 Child age set: {age_years} years (birth date: {self.child_birth_date})")
+
+        if "gender" in args and args["gender"]:
+            update_data["gender"] = args["gender"]
+            # Also store gender in understanding as an observation
+            from app.chitta.models import TemporalFact
+            gender_he = "בן" if args["gender"] == "male" else "בת"
+            observation = TemporalFact(
+                content=f"הילד/ה {gender_he}",
+                domain="context",
+                source="conversation",
+                confidence=0.9,
+            )
+            self.understanding.add_observation(observation)
+            logger.info(f"⚧ Child gender set: {args['gender']}")
+
+        # Update the Child model in child_service so ChildSwitcher etc. see the name
+        if update_data:
+            from app.services.child_service import get_child_service
+            child_service = get_child_service()
+            child_service.update_developmental_data(self.child_id, update_data)
+            logger.info(f"📝 Updated Child model with identity: {update_data}")
 
     def _get_exploration(self, exploration_id: str) -> Optional[Exploration]:
         """Get exploration by ID."""

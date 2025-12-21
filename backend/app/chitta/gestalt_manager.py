@@ -72,13 +72,8 @@ class GestaltManager:
         # Extract data from our own persistence (gestalt files)
         child_data = self._extract_child_data_for_darshan(child, family_id)
 
-        # Session history from SessionState
-        session_history = []
-        if session and hasattr(session, 'history'):
-            session_history = [
-                {"role": m.role, "content": m.content}
-                for m in session.history
-            ] if session.history else []
+        # Session history from child_data (persisted with Darshan state)
+        session_history = child_data.get("session_history", [])
 
         # Get child's birth date for temporal calculations
         child_birth_date = None
@@ -121,13 +116,8 @@ class GestaltManager:
         # Extract data from our persistence
         child_data = self._extract_child_data_for_darshan(child, family_id)
 
-        # Session history
-        session_history = []
-        if session and hasattr(session, 'history'):
-            session_history = [
-                {"role": m.role, "content": m.content}
-                for m in session.history
-            ] if session.history else []
+        # Session history from child_data (persisted with Darshan state)
+        session_history = child_data.get("session_history", [])
 
         # Get child's birth date for temporal calculations
         child_birth_date = None
@@ -355,6 +345,10 @@ class GestaltManager:
         # Include session flags (guided collection mode, etc.)
         if "session_flags" in darshan_state:
             child_data["session_flags"] = darshan_state["session_flags"]
+
+        # Include session history for conversation persistence
+        if "session_history" in darshan_state:
+            child_data["session_history"] = darshan_state["session_history"]
 
         # Persist to our own file (Darshan's state)
         # SessionService persists sessions automatically

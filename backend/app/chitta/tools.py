@@ -323,6 +323,44 @@ Timeline order: pregnancy events → birth → post-birth milestones by age
 }
 
 
+TOOL_SET_CHILD_IDENTITY = {
+    "name": "set_child_identity",
+    "description": """Set or update basic identity information about the child.
+
+CALL THIS when you learn the child's:
+- Name (שם)
+- Age (גיל) - in years, can be decimal like 3.5
+- Gender (מין) - inferred from Hebrew pronouns (הוא=male, היא=female)
+
+Examples:
+- Parent says "יש לי בת בת 4, שמה מיקה" → name: "מיקה", age: 4, gender: "female"
+- Parent says "הבן שלי בן 3.5" → age: 3.5, gender: "male"
+- "קוראים לה נועה" → name: "נועה", gender: "female"
+
+Only set fields that are explicitly mentioned. Don't guess.
+This updates the child's permanent identity record.""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Child's name. Only set if explicitly mentioned."
+            },
+            "age": {
+                "type": "number",
+                "description": "Child's age in years. Can be decimal (3.5 = three and a half)."
+            },
+            "gender": {
+                "type": "string",
+                "enum": ["male", "female"],
+                "description": "Child's gender. Infer from Hebrew: הוא/בן=male, היא/בת=female"
+            }
+        },
+        "required": []
+    }
+}
+
+
 TOOL_SPAWN_EXPLORATION = {
     "name": "spawn_exploration",
     "description": """Start a focused exploration.
@@ -390,6 +428,7 @@ PERCEPTION_TOOLS = [
     TOOL_ADD_EVIDENCE,
     TOOL_SPAWN_EXPLORATION,
     TOOL_RECORD_MILESTONE,
+    TOOL_SET_CHILD_IDENTITY,
 ]
 
 

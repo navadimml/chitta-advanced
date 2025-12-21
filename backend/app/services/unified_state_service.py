@@ -327,13 +327,33 @@ class UnifiedStateService:
                 child_dict["gender"] = data.gender
 
         # Convert messages to FamilyState Message format
+        # First try session messages, then fall back to child's persisted session_history
         conversation = []
-        for msg in session.messages:
-            conversation.append(FamilyMessage(
-                role=msg.role,
-                content=msg.content,
-                timestamp=msg.timestamp
-            ))
+        if session.messages:
+            for msg in session.messages:
+                conversation.append(FamilyMessage(
+                    role=msg.role,
+                    content=msg.content,
+                    timestamp=msg.timestamp
+                ))
+        else:
+            # Load from child's gestalt file if session is empty
+            # (Darshan persists session_history there)
+            from pathlib import Path
+            import json
+            gestalt_file = Path("data/children") / f"{family_id}.json"
+            if gestalt_file.exists():
+                try:
+                    with open(gestalt_file, "r", encoding="utf-8") as f:
+                        child_data = json.load(f)
+                    for msg in child_data.get("session_history", []):
+                        conversation.append(FamilyMessage(
+                            role=msg.get("role", "user"),
+                            content=msg.get("content", ""),
+                            timestamp=datetime.fromisoformat(msg["timestamp"]) if msg.get("timestamp") else datetime.now()
+                        ))
+                except Exception as e:
+                    logger.warning(f"Failed to load session_history from gestalt: {e}")
 
         # Convert artifacts from exploration cycles
         artifacts = {}
