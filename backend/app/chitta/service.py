@@ -209,6 +209,18 @@ class ChittaService:
         """
         return await self._gestalt_manager.get_darshan(family_id)
 
+    async def get_child_space(self, family_id: str) -> Dict[str, Any]:
+        """
+        Get child space data for the Living Portrait UI.
+
+        Returns header data (child_name, badges) for the ChildSpaceHeader component.
+        """
+        darshan = await self._gestalt_manager.get_darshan(family_id)
+        if not darshan:
+            return {"child_name": None, "badges": []}
+
+        return self._child_space_service.derive_child_space_header(darshan)
+
     # ========================================
     # CRYSTALLIZATION
     # ========================================
