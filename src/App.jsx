@@ -31,6 +31,9 @@ import LivingDocument from './components/LivingDocument';
 // Living Gestalt Components
 import GestaltCards from './components/GestaltCards';
 
+// Family Components
+import ChildSwitcher from './components/family/ChildSwitcher';
+
 function App() {
   // Auth state
   const { isAuthenticated, isLoading: authLoading, logout } = useAuth();
@@ -826,8 +829,8 @@ function AuthenticatedApp({ userFamilyId, onLogout }) {
       )}
 
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-1">
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2">
           <button className="p-2 hover:bg-gray-100 rounded-full transition">
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
@@ -838,6 +841,8 @@ function AuthenticatedApp({ userFamilyId, onLogout }) {
           >
             <LogOut className="w-5 h-5 text-gray-600" />
           </button>
+          {/* Child Switcher - allows switching between children and adding new ones */}
+          <ChildSwitcher />
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
