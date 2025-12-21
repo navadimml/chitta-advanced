@@ -33,6 +33,7 @@ export function FamilyProvider({ children }) {
       setError(null);
 
       const data = await api.getMyFamily();
+      console.log('👨‍👩‍👧 Family data fetched:', data.children.map(c => ({ id: c.id.slice(0,8), name: c.name })));
 
       setFamily(data.family);
       setChildrenList(data.children);

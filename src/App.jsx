@@ -382,7 +382,8 @@ function AuthenticatedApp({ userFamilyId, onLogout, onRefreshFamily }) {
       // Refresh family data to update ChildSwitcher with latest child names
       // This handles cases where child identity was extracted from conversation
       if (onRefreshFamily) {
-        onRefreshFamily();
+        await onRefreshFamily();
+        console.log('👨‍👩‍👧 Family data refreshed after message');
       }
 
     } catch (error) {
