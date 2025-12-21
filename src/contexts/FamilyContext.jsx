@@ -24,12 +24,14 @@ export function FamilyProvider({ children }) {
   const [error, setError] = useState(null);
 
   /**
-   * Fetch family data from backend.
+   * Fetch family data from backend (internal - with loading state).
    * Auto-creates family + child placeholder for new users.
    */
-  const fetchFamily = useCallback(async () => {
+  const fetchFamilyInternal = useCallback(async (showLoading = true) => {
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       setError(null);
 
       const data = await api.getMyFamily();
@@ -54,9 +56,22 @@ export function FamilyProvider({ children }) {
       console.error('Failed to fetch family:', err);
       setError(err.message);
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   }, []);
+
+  /**
+   * Initial fetch with loading state.
+   */
+  const fetchFamily = useCallback(() => fetchFamilyInternal(true), [fetchFamilyInternal]);
+
+  /**
+   * Refresh family data without showing loading screen.
+   * Used after messages to update child names in ChildSwitcher.
+   */
+  const refreshFamily = useCallback(() => fetchFamilyInternal(false), [fetchFamilyInternal]);
 
   /**
    * Add a new child placeholder to the family.
@@ -129,7 +144,7 @@ export function FamilyProvider({ children }) {
     // Actions
     addChild,
     switchChild,
-    refreshFamily: fetchFamily,
+    refreshFamily,
   };
 
   return (
