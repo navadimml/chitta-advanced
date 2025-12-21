@@ -108,6 +108,185 @@ describe('ChittaAPIClient', () => {
     });
   });
 
+  // ==========================================
+  // Authentication tests
+  // ==========================================
+
+  describe('setAccessToken', () => {
+    it('should set access token and include it in headers', async () => {
+      api.setAccessToken('test_token_123');
+      mockFetch({ message: 'ok' });
+
+      await api.getState('test_family');
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test_token_123'
+          })
+        })
+      );
+
+      // Clean up
+      api.setAccessToken(null);
+    });
+
+    it('should not include Authorization header when token is null', async () => {
+      api.setAccessToken(null);
+      mockFetch({ message: 'ok' });
+
+      await api.getState('test_family');
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: { 'Content-Type': 'application/json' }
+        })
+      );
+    });
+  });
+
+  describe('register', () => {
+    it('should register a new user', async () => {
+      const mockUser = { id: 'user_123', email: 'test@example.com', display_name: 'Test User' };
+      mockFetch(mockUser);
+
+      const result = await api.register('test@example.com', 'password123', 'Test User');
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/register'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('test@example.com')
+        })
+      );
+      expect(result.email).toBe('test@example.com');
+    });
+
+    it('should throw error with Hebrew message on failure', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: () => Promise.resolve({ detail: 'Email already exists' })
+      });
+
+      await expect(api.register('test@example.com', 'password123', 'Test User'))
+        .rejects.toThrow('Email already exists');
+    });
+
+    it('should use default Hebrew error message on unknown failure', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: () => Promise.reject(new Error('Parse error'))
+      });
+
+      await expect(api.register('test@example.com', 'password123', 'Test User'))
+        .rejects.toThrow('שגיאה בהרשמה');
+    });
+  });
+
+  describe('login', () => {
+    it('should login and return tokens', async () => {
+      const mockResponse = {
+        access_token: 'access_123',
+        refresh_token: 'refresh_123',
+        user: { id: 'user_123', email: 'test@example.com' }
+      };
+      mockFetch(mockResponse);
+
+      const result = await api.login('test@example.com', 'password123');
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/login'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('test@example.com')
+        })
+      );
+      expect(result.access_token).toBe('access_123');
+    });
+
+    it('should throw error with Hebrew message on failure', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: () => Promise.resolve({ detail: 'Invalid credentials' })
+      });
+
+      await expect(api.login('test@example.com', 'wrongpassword'))
+        .rejects.toThrow('Invalid credentials');
+    });
+  });
+
+  describe('refreshToken', () => {
+    it('should refresh access token', async () => {
+      const mockResponse = { access_token: 'new_access_123' };
+      mockFetch(mockResponse);
+
+      const result = await api.refreshToken('refresh_123');
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/refresh'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('refresh_123')
+        })
+      );
+      expect(result.access_token).toBe('new_access_123');
+    });
+
+    it('should throw error on refresh failure', async () => {
+      mockFetch({}, false);
+
+      await expect(api.refreshToken('invalid_refresh'))
+        .rejects.toThrow('Token refresh failed');
+    });
+  });
+
+  describe('logout', () => {
+    it('should logout successfully', async () => {
+      mockFetch({ message: 'Logged out' });
+
+      // Should not throw
+      await api.logout('refresh_123');
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/logout'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('refresh_123')
+        })
+      );
+    });
+
+    it('should not throw on logout failure', async () => {
+      mockFetch({}, false);
+
+      // Should not throw even on failure
+      await expect(api.logout('refresh_123')).resolves.not.toThrow();
+    });
+  });
+
+  describe('getMe', () => {
+    it('should get current user info', async () => {
+      const mockUser = { id: 'user_123', email: 'test@example.com', display_name: 'Test User' };
+      mockFetch(mockUser);
+
+      const result = await api.getMe();
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/me'),
+        expect.objectContaining({ headers: expect.any(Object) })
+      );
+      expect(result.email).toBe('test@example.com');
+    });
+
+    it('should throw error on failure', async () => {
+      mockFetch({}, false);
+
+      await expect(api.getMe()).rejects.toThrow('Failed to get user info');
+    });
+  });
+
   describe('getState', () => {
     it('should fetch family state', async () => {
       const mockState = {
@@ -123,7 +302,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getState('test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/state/test_family')
+        expect.stringContaining('/state/test_family'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.state.child.name).toBe('דני');
     });
@@ -146,7 +326,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getCuriosityState('test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/chat/v2/curiosity/test_family')
+        expect.stringContaining('/chat/v2/curiosity/test_family'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.active_curiosities).toHaveLength(1);
       expect(result.active_curiosities[0].type).toBe('discovery');
@@ -227,7 +408,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getVideoGuidelines('test_family', 'cycle_123');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/chat/v2/video/guidelines/test_family/cycle_123')
+        expect.stringContaining('/chat/v2/video/guidelines/test_family/cycle_123'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.scenarios).toHaveLength(1);
     });
@@ -252,7 +434,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getVideoInsights('test_family', 'cycle_123');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/gestalt/test_family/insights/cycle_123')
+        expect.stringContaining('/gestalt/test_family/insights/cycle_123'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.insights).toHaveLength(2);
     });
@@ -304,7 +487,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getChildSpaceFull('test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/child-space')
+        expect.stringContaining('/family/test_family/child-space'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.essence.narrative).toBe('ילד מקסים');
     });
@@ -317,7 +501,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getChildSpace('test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/space')
+        expect.stringContaining('/family/test_family/space'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.slots).toEqual([]);
     });
@@ -332,7 +517,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getChildSpaceHeader('test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/space/header')
+        expect.stringContaining('/family/test_family/space/header'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.badges).toHaveLength(2);
     });
@@ -347,7 +533,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getSlotDetail('test_family', 'report');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/space/slot/report')
+        expect.stringContaining('/family/test_family/space/slot/report'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.id).toBe('report');
     });
@@ -362,7 +549,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getArtifact('test_family', 'baseline_report');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/artifacts/baseline_report?family_id=test_family')
+        expect.stringContaining('/artifacts/baseline_report?family_id=test_family'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.content).toBe('Report content');
     });
@@ -379,7 +567,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getStructuredArtifact('test_family', 'report_1');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/artifact/report_1/structured?family_id=test_family')
+        expect.stringContaining('/artifact/report_1/structured?family_id=test_family'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.sections).toHaveLength(1);
     });
@@ -394,7 +583,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getArtifactThreads('test_family', 'report_1');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/artifact/report_1/threads?family_id=test_family')
+        expect.stringContaining('/artifact/report_1/threads?family_id=test_family'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.threads).toHaveLength(1);
     });
@@ -435,7 +625,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getThread('thread_123', 'report_1', 'test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/thread/thread_123?artifact_id=report_1&family_id=test_family')
+        expect.stringContaining('/thread/thread_123?artifact_id=report_1&family_id=test_family'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.id).toBe('thread_123');
     });
@@ -487,7 +678,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getTestPersonas();
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/test/personas')
+        expect.stringContaining('/test/personas'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.personas).toHaveLength(1);
     });
@@ -574,7 +766,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.checkSummaryReadiness('test_family', 'pediatrician');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/child-space/share/readiness/pediatrician')
+        expect.stringContaining('/family/test_family/child-space/share/readiness/pediatrician'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.ready).toBe(true);
     });
@@ -604,7 +797,8 @@ describe('ChittaAPIClient', () => {
       const result = await api.getTimeline('test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/timeline/test_family')
+        expect.stringContaining('/timeline/test_family'),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.events).toEqual([]);
     });

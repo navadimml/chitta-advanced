@@ -6,6 +6,139 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 class ChittaAPIClient {
+  constructor() {
+    this.accessToken = null;
+  }
+
+  /**
+   * Set the access token for authenticated requests
+   */
+  setAccessToken(token) {
+    this.accessToken = token;
+  }
+
+  /**
+   * Get headers with auth token if available
+   */
+  getAuthHeaders() {
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    if (this.accessToken) {
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+    return headers;
+  }
+
+  // ==========================================
+  // Authentication
+  // ==========================================
+
+  /**
+   * Register a new user
+   */
+  async register(email, password, displayName) {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        display_name: displayName
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'שגיאה בהרשמה');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Login with email and password
+   */
+  async login(email, password) {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'שגיאה בהתחברות');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshToken(refreshToken) {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        refresh_token: refreshToken
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Token refresh failed');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Logout - revoke refresh token
+   */
+  async logout(refreshToken) {
+    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({
+        refresh_token: refreshToken
+      })
+    });
+
+    // Don't throw on logout failure - just log it
+    if (!response.ok) {
+      console.warn('Logout request failed');
+    }
+  }
+
+  /**
+   * Get current user info
+   */
+  async getMe() {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get user info');
+    }
+
+    return response.json();
+  }
+
+  // ==========================================
+  // Chat & Conversation
+  // ==========================================
+
   /**
    * שליחת הודעה לצ'יטה
    */
@@ -13,9 +146,7 @@ class ChittaAPIClient {
     // Real API call - Using V2 endpoint with Living Gestalt / ChittaService
     const response = await fetch(`${API_BASE_URL}/chat/v2/send`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         family_id: familyId,
         message: message,
@@ -81,6 +212,9 @@ class ChittaAPIClient {
 
       // Send request
       xhr.open('POST', `${API_BASE_URL}/video/upload`);
+      if (this.accessToken) {
+        xhr.setRequestHeader('Authorization', `Bearer ${this.accessToken}`);
+      }
       xhr.send(formData);
     });
   }
@@ -89,7 +223,9 @@ class ChittaAPIClient {
    * קבלת timeline
    */
   async getTimeline(familyId) {
-    const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`);
+    const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -110,7 +246,9 @@ class ChittaAPIClient {
    * קבלת מצב המשפחה (State)
    */
   async getState(familyId) {
-    const response = await fetch(`${API_BASE_URL}/state/${familyId}`);
+    const response = await fetch(`${API_BASE_URL}/state/${familyId}`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -123,7 +261,9 @@ class ChittaAPIClient {
    * 🧪 Test Mode: Get available personas
    */
   async getTestPersonas() {
-    const response = await fetch(`${API_BASE_URL}/test/personas`);
+    const response = await fetch(`${API_BASE_URL}/test/personas`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -138,9 +278,7 @@ class ChittaAPIClient {
   async startTest(personaId, familyId = null) {
     const response = await fetch(`${API_BASE_URL}/test/start`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         persona_id: personaId,
         family_id: familyId
@@ -160,9 +298,7 @@ class ChittaAPIClient {
   async generateParentResponse(familyId, chittaQuestion) {
     const response = await fetch(`${API_BASE_URL}/test/generate-response`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         family_id: familyId,
         chitta_question: chittaQuestion
@@ -181,7 +317,9 @@ class ChittaAPIClient {
    * Fetches generated artifacts like video guidelines, reports, etc.
    */
   async getArtifact(familyId, artifactId) {
-    const response = await fetch(`${API_BASE_URL}/artifacts/${artifactId}?family_id=${familyId}`);
+    const response = await fetch(`${API_BASE_URL}/artifacts/${artifactId}?family_id=${familyId}`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -198,7 +336,9 @@ class ChittaAPIClient {
    * Get full child space with all slots
    */
   async getChildSpace(familyId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space`);
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -211,7 +351,9 @@ class ChittaAPIClient {
    * Get header badges only (lightweight)
    */
   async getChildSpaceHeader(familyId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/header`);
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/header`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -224,7 +366,9 @@ class ChittaAPIClient {
    * Get slot detail with history
    */
   async getSlotDetail(familyId, slotId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/slot/${slotId}`);
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/slot/${slotId}`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -242,7 +386,8 @@ class ChittaAPIClient {
    */
   async getStructuredArtifact(familyId, artifactId) {
     const response = await fetch(
-      `${API_BASE_URL}/artifact/${artifactId}/structured?family_id=${familyId}`
+      `${API_BASE_URL}/artifact/${artifactId}/structured?family_id=${familyId}`,
+      { headers: this.getAuthHeaders() }
     );
 
     if (!response.ok) {
@@ -257,7 +402,8 @@ class ChittaAPIClient {
    */
   async getArtifactThreads(familyId, artifactId) {
     const response = await fetch(
-      `${API_BASE_URL}/artifact/${artifactId}/threads?family_id=${familyId}`
+      `${API_BASE_URL}/artifact/${artifactId}/threads?family_id=${familyId}`,
+      { headers: this.getAuthHeaders() }
     );
 
     if (!response.ok) {
@@ -275,9 +421,7 @@ class ChittaAPIClient {
       `${API_BASE_URL}/artifact/${artifactId}/section/${sectionId}/thread`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           family_id: familyId,
           initial_question: question,
@@ -299,7 +443,8 @@ class ChittaAPIClient {
    */
   async getThread(threadId, artifactId, familyId) {
     const response = await fetch(
-      `${API_BASE_URL}/thread/${threadId}?artifact_id=${artifactId}&family_id=${familyId}`
+      `${API_BASE_URL}/thread/${threadId}?artifact_id=${artifactId}&family_id=${familyId}`,
+      { headers: this.getAuthHeaders() }
     );
 
     if (!response.ok) {
@@ -317,9 +462,7 @@ class ChittaAPIClient {
       `${API_BASE_URL}/thread/${threadId}/message`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           family_id: familyId,
           content: content
@@ -341,7 +484,8 @@ class ChittaAPIClient {
     const response = await fetch(
       `${API_BASE_URL}/thread/${threadId}/resolve?artifact_id=${artifactId}`,
       {
-        method: 'POST'
+        method: 'POST',
+        headers: this.getAuthHeaders()
       }
     );
 
@@ -361,7 +505,9 @@ class ChittaAPIClient {
    * Returns what the Gestalt is "curious about" - drives exploration
    */
   async getCuriosityState(familyId) {
-    const response = await fetch(`${API_BASE_URL}/chat/v2/curiosity/${familyId}`);
+    const response = await fetch(`${API_BASE_URL}/chat/v2/curiosity/${familyId}`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -376,7 +522,8 @@ class ChittaAPIClient {
    */
   async requestSynthesis(familyId) {
     const response = await fetch(`${API_BASE_URL}/chat/v2/synthesis/${familyId}`, {
-      method: 'POST'
+      method: 'POST',
+      headers: this.getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -398,9 +545,7 @@ class ChittaAPIClient {
   async acceptVideoSuggestion(familyId, cycleId) {
     const response = await fetch(`${API_BASE_URL}/chat/v2/video/accept`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         family_id: familyId,
         cycle_id: cycleId
@@ -420,9 +565,7 @@ class ChittaAPIClient {
   async declineVideoSuggestion(familyId, cycleId) {
     const response = await fetch(`${API_BASE_URL}/chat/v2/video/decline`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         family_id: familyId,
         cycle_id: cycleId
@@ -442,7 +585,8 @@ class ChittaAPIClient {
    */
   async getVideoGuidelines(familyId, cycleId) {
     const response = await fetch(
-      `${API_BASE_URL}/chat/v2/video/guidelines/${familyId}/${cycleId}`
+      `${API_BASE_URL}/chat/v2/video/guidelines/${familyId}/${cycleId}`,
+      { headers: this.getAuthHeaders() }
     );
 
     if (!response.ok) {
@@ -458,7 +602,8 @@ class ChittaAPIClient {
    */
   async getVideoInsights(familyId, cycleId) {
     const response = await fetch(
-      `${API_BASE_URL}/gestalt/${familyId}/insights/${cycleId}`
+      `${API_BASE_URL}/gestalt/${familyId}/insights/${cycleId}`,
+      { headers: this.getAuthHeaders() }
     );
 
     if (!response.ok) {
@@ -507,6 +652,9 @@ class ChittaAPIClient {
       xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
 
       xhr.open('POST', `${API_BASE_URL}/chat/v2/video/upload`);
+      if (this.accessToken) {
+        xhr.setRequestHeader('Authorization', `Bearer ${this.accessToken}`);
+      }
       xhr.send(formData);
     });
   }
@@ -518,7 +666,10 @@ class ChittaAPIClient {
   async analyzeVideos(familyId, cycleId) {
     const response = await fetch(
       `${API_BASE_URL}/chat/v2/video/analyze/${familyId}/${cycleId}`,
-      { method: 'POST' }
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders()
+      }
     );
 
     if (!response.ok) {
@@ -535,9 +686,7 @@ class ChittaAPIClient {
   async executeCardAction(familyId, action, params = {}) {
     const response = await fetch(`${API_BASE_URL}/gestalt/card-action`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         family_id: familyId,
         action: action,
@@ -558,9 +707,7 @@ class ChittaAPIClient {
   async generateTimeline(familyId, style = 'warm') {
     const response = await fetch(`${API_BASE_URL}/timeline/generate`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         family_id: familyId,
         style: style
@@ -577,8 +724,10 @@ class ChittaAPIClient {
   /**
    * Get existing timeline
    */
-  async getTimeline(familyId) {
-    const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`);
+  async getExistingTimeline(familyId) {
+    const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -596,7 +745,9 @@ class ChittaAPIClient {
    * Returns data for all four tabs: essence, discoveries, observations, share
    */
   async getChildSpaceFull(familyId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space`);
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space`, {
+      headers: this.getAuthHeaders()
+    });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
@@ -611,7 +762,8 @@ class ChittaAPIClient {
    */
   async checkSummaryReadiness(familyId, recipientType) {
     const response = await fetch(
-      `${API_BASE_URL}/family/${familyId}/child-space/share/readiness/${recipientType}`
+      `${API_BASE_URL}/family/${familyId}/child-space/share/readiness/${recipientType}`,
+      { headers: this.getAuthHeaders() }
     );
 
     if (!response.ok) {
@@ -630,9 +782,7 @@ class ChittaAPIClient {
       `${API_BASE_URL}/family/${familyId}/child-space/share/guided-collection/start`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({ recipient_type: recipientType })
       }
     );
@@ -651,9 +801,7 @@ class ChittaAPIClient {
   async generateShareableSummary(familyId, { expert, expertDescription, context, crystalInsights, comprehensive, missingGaps }) {
     const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space/share/generate`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getAuthHeaders(),
       body: JSON.stringify({
         expert,
         expert_description: expertDescription,

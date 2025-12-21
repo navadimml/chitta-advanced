@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 
-from app.db.dependencies import get_current_user_optional
+from app.db.dependencies import get_current_user
 from app.db.models_auth import User
 from app.services.sse_notifier import get_sse_notifier
 from app.services.unified_state_service import get_unified_state_service
@@ -69,14 +69,13 @@ async def subscribe_to_state_updates(family_id: str):
 @router.get("/{family_id}")
 async def get_family_state(
     family_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get complete family state.
     Cards and curiosity state are derived from Darshan explorations.
     """
-    if current_user:
-        logger.debug(f"State request from user: {current_user.email}")
+    logger.debug(f"State request from user: {current_user.email}")
 
     state_service = get_unified_state_service()
     state = state_service.get_family_state(family_id)

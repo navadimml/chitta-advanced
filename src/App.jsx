@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Menu, MessageCircle } from 'lucide-react';
+import { Menu, MessageCircle, LogOut } from 'lucide-react';
 
 // API Client
 import { api } from './api/client';
+
+// Auth
+import { useAuth } from './contexts/AuthContext';
+import { AuthPage } from './components/auth';
+import LoadingScreen from './components/LoadingScreen';
 
 // Test Mode Orchestrator
 import { testModeOrchestrator } from './services/TestModeOrchestrator.jsx';
@@ -25,32 +30,32 @@ import LivingDocument from './components/LivingDocument';
 // Living Gestalt Components
 import GestaltCards from './components/GestaltCards';
 
-// Generate unique family ID (in real app, from auth)
-// Persist family ID in localStorage to maintain session across page refreshes
-// Also check URL params for family ID (useful for dev mode)
-const getFamilyId = () => {
-  // Check URL params first (for dev mode)
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlFamilyId = urlParams.get('family');
-  if (urlFamilyId) {
-    localStorage.setItem('chitta_family_id', urlFamilyId);
-    return urlFamilyId;
-  }
-
-  // Otherwise use localStorage or generate new
-  let familyId = localStorage.getItem('chitta_family_id');
-  if (!familyId) {
-    familyId = 'family_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('chitta_family_id', familyId);
-  }
-  return familyId;
-};
-
-const INITIAL_FAMILY_ID = getFamilyId();
-
 function App() {
-  // Simple state
-  const [familyId, setFamilyId] = useState(INITIAL_FAMILY_ID);
+  // Auth state
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+
+  // Show loading screen while auth is being checked
+  if (authLoading) {
+    return <LoadingScreen />;
+  }
+
+  // Show auth page if not authenticated
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  // Use user ID as family ID (user is guaranteed to exist here)
+  const userFamilyId = user.id;
+
+  return <AuthenticatedApp userFamilyId={userFamilyId} onLogout={logout} />;
+}
+
+/**
+ * Main app component for authenticated users
+ */
+function AuthenticatedApp({ userFamilyId, onLogout }) {
+  // Simple state - use user ID as default family ID
+  const [familyId, setFamilyId] = useState(userFamilyId);
   const [messages, setMessages] = useState([]);
   const [cards, setCards] = useState([]);
   const [suggestions, setSuggestions] = useState([
@@ -804,9 +809,18 @@ function App() {
 
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between shadow-sm">
-        <button className="p-2 hover:bg-gray-100 rounded-full transition">
-          <Menu className="w-5 h-5 text-gray-600" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="p-2 hover:bg-gray-100 rounded-full transition">
+            <Menu className="w-5 h-5 text-gray-600" />
+          </button>
+          <button
+            onClick={onLogout}
+            className="p-2 hover:bg-gray-100 rounded-full transition"
+            title="התנתק"
+          >
+            <LogOut className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
             <h1 className="text-lg font-bold text-gray-800">Chitta</h1>

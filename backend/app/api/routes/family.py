@@ -12,7 +12,7 @@ from typing import Optional, List, Dict, Any
 import logging
 
 from app.core.app_state import app_state
-from app.db.dependencies import get_current_user_optional, RequireAuth
+from app.db.dependencies import get_current_user, RequireAuth
 from app.db.models_auth import User
 from app.services.unified_state_service import get_unified_state_service
 from app.services.session_service import get_session_service
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 @router.get("/{family_id}/space")
 async def get_child_space(
     family_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get complete child space with all artifact slots.
@@ -60,7 +60,10 @@ async def get_child_space(
 
 
 @router.get("/{family_id}/space/header")
-async def get_child_space_header(family_id: str):
+async def get_child_space_header(
+    family_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Get header badges only (lightweight endpoint).
     """
@@ -87,7 +90,11 @@ async def get_child_space_header(family_id: str):
 
 
 @router.get("/{family_id}/space/slot/{slot_id}")
-async def get_slot_detail(family_id: str, slot_id: str):
+async def get_slot_detail(
+    family_id: str,
+    slot_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Get detailed slot info including version history.
     """
@@ -116,7 +123,10 @@ async def get_slot_detail(family_id: str, slot_id: str):
 # === Living Portrait (Child-Space) Endpoints ===
 
 @router.get("/{family_id}/child-space")
-async def get_child_space_full(family_id: str):
+async def get_child_space_full(
+    family_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Get complete ChildSpace data for the Living Portrait UI.
     """
@@ -136,7 +146,11 @@ async def get_child_space_full(family_id: str):
 # === Summary Readiness & Guided Collection ===
 
 @router.get("/{family_id}/child-space/share/readiness/{recipient_type}")
-async def check_summary_readiness(family_id: str, recipient_type: str):
+async def check_summary_readiness(
+    family_id: str,
+    recipient_type: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Check if we have enough data to generate a useful summary.
     """
@@ -179,7 +193,11 @@ class StartGuidedCollectionRequest(BaseModel):
 
 
 @router.post("/{family_id}/child-space/share/guided-collection/start")
-async def start_guided_collection(family_id: str, request: StartGuidedCollectionRequest):
+async def start_guided_collection(
+    family_id: str,
+    request: StartGuidedCollectionRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Start guided collection mode for preparing a summary.
     """
@@ -237,7 +255,10 @@ async def start_guided_collection(family_id: str, request: StartGuidedCollection
 
 
 @router.post("/{family_id}/child-space/share/guided-collection/end")
-async def end_guided_collection(family_id: str):
+async def end_guided_collection(
+    family_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     End guided collection mode.
     """
@@ -301,7 +322,11 @@ async def generate_shareable_summary(
 
 
 @router.get("/{family_id}/child-space/share/summaries/{summary_id}")
-async def get_saved_summary(family_id: str, summary_id: str):
+async def get_saved_summary(
+    family_id: str,
+    summary_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Get a previously saved summary by ID.
     """

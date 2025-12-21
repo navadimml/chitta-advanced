@@ -17,7 +17,7 @@ from pathlib import Path
 import logging
 
 from app.core.app_state import app_state
-from app.db.dependencies import get_current_user_optional, RequireAuth
+from app.db.dependencies import get_current_user_optional, get_current_user, RequireAuth
 from app.db.models_auth import User
 from app.services.unified_state_service import get_unified_state_service
 from app.config.config_loader import load_app_messages
@@ -65,7 +65,7 @@ class VideoDeclineRequest(BaseModel):
 async def chat_v2_init(
     family_id: str,
     language: str = "he",
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     V2 Chat Init - Get Chitta's opening message
@@ -73,8 +73,7 @@ async def chat_v2_init(
     from app.services.i18n_service import t, get_i18n
     from app.chitta import get_chitta_service
 
-    if current_user:
-        logger.info(f"Chat init for user: {current_user.email}")
+    logger.info(f"Chat init for user: {current_user.email}")
 
     try:
         get_i18n(language)
@@ -142,7 +141,10 @@ async def chat_v2_init(
 
 
 @router.get("/v2/curiosity/{family_id}")
-async def get_curiosity_state_v2(family_id: str):
+async def get_curiosity_state_v2(
+    family_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Get current curiosity state for a family.
     """
@@ -204,7 +206,7 @@ async def request_synthesis_v2(
 @router.post("/v2/send", response_model=SendMessageResponse)
 async def send_message_v2(
     request: SendMessageRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     V2 Chat Endpoint - Uses ChittaService with Darshan architecture
@@ -212,8 +214,7 @@ async def send_message_v2(
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
-    if current_user:
-        logger.info(f"V2 Chat from authenticated user: {current_user.email}")
+    logger.info(f"V2 Chat from user: {current_user.email}")
 
     try:
         from app.chitta import get_chitta_service
@@ -260,7 +261,10 @@ async def send_message_v2(
 # === V2 Video Endpoints ===
 
 @router.post("/v2/video/accept")
-async def accept_video_suggestion(request: VideoAcceptRequest):
+async def accept_video_suggestion(
+    request: VideoAcceptRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Parent accepts video suggestion - generate guidelines.
     """
@@ -294,7 +298,10 @@ async def accept_video_suggestion(request: VideoAcceptRequest):
 
 
 @router.post("/v2/video/decline")
-async def decline_video_suggestion(request: VideoDeclineRequest):
+async def decline_video_suggestion(
+    request: VideoDeclineRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Parent declines video suggestion.
     """
@@ -327,7 +334,11 @@ async def decline_video_suggestion(request: VideoDeclineRequest):
 
 
 @router.get("/v2/video/guidelines/{family_id}/{cycle_id}")
-async def get_video_guidelines(family_id: str, cycle_id: str):
+async def get_video_guidelines(
+    family_id: str,
+    cycle_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Get video guidelines for a cycle (after consent).
     """
@@ -361,6 +372,7 @@ async def upload_video_v2(
     cycle_id: str = Form(...),
     scenario_id: str = Form(...),
     video: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload a video for a scenario.
@@ -408,7 +420,11 @@ async def upload_video_v2(
 
 
 @router.post("/v2/video/analyze/{family_id}/{cycle_id}")
-async def analyze_videos_v2(family_id: str, cycle_id: str):
+async def analyze_videos_v2(
+    family_id: str,
+    cycle_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Analyze uploaded videos for a cycle.
     """
