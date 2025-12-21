@@ -385,6 +385,45 @@ class ChittaService:
         return await self._video_service.analyze_cycle_videos(family_id, cycle_id)
 
     # ========================================
+    # RETURNING USER CHECK
+    # ========================================
+
+    def _check_returning_user(self, session: Any, child: Any) -> Optional[Dict[str, Any]]:
+        """
+        Check if this is a returning user and return context about their absence.
+
+        Returns None for new users, or a dict with:
+        - category: "returning" | "long_absence"
+        - days_since: number of days since last activity
+        """
+        if not session or not hasattr(session, 'last_activity_at'):
+            return None
+
+        last_activity = session.last_activity_at
+        if not last_activity:
+            return None
+
+        # Calculate days since last activity
+        if isinstance(last_activity, str):
+            try:
+                last_activity = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+            except ValueError:
+                return None
+
+        now = datetime.now(last_activity.tzinfo) if last_activity.tzinfo else datetime.now()
+        days_since = (now - last_activity).days
+
+        # Only show returning context if at least 1 day has passed
+        if days_since < 1:
+            return None
+
+        category = "long_absence" if days_since >= 14 else "returning"
+        return {
+            "category": category,
+            "days_since": days_since,
+        }
+
+    # ========================================
     # HELPERS
     # ========================================
 
