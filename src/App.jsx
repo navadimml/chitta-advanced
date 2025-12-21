@@ -634,22 +634,6 @@ function App() {
       return;
     }
 
-    if (action === 'generate_report') {
-      // 📋 Generate report without videos
-      // Note: Card shows its own loading state - don't block the chat
-      console.log('📋 Generating report for family:', activeFamilyId);
-
-      try {
-        const result = await api.generateReports(activeFamilyId);
-        console.log('✅ Report generation result:', result);
-        // Cards will update automatically via SSE
-      } catch (error) {
-        console.error('❌ Error generating report:', error);
-        alert('שגיאה ביצירת הדוח. נא לנסות שוב.');
-      }
-      return;
-    }
-
     // Upload video action (from validation_failed card) - opens guidelines view
     if (action === 'upload_video' && cycleId) {
       console.log('📹 Opening guidelines for re-upload, cycle:', cycleId);
@@ -677,10 +661,6 @@ function App() {
     } else if (action === 'journal') {
       setActiveDeepView('journal');
       setActiveViewData(null);
-    } else if (action === 'complete_interview') {
-      await handleCompleteInterview();
-    } else if (action === 'skipAnalysis') {
-      await handleSkipAnalysis();
     } else if (action === 'parentReport') {
       setActiveDeepView('parentReport');
       setActiveViewData(null);
@@ -698,75 +678,6 @@ function App() {
         setActiveDeepView('dynamic_guideline');
         setActiveViewData(card);
       }
-    }
-  };
-
-  // Handle complete interview
-  const handleCompleteInterview = async () => {
-    setIsTyping(true);
-
-    try {
-      // Refresh cards before API call to ensure clean state
-      await refreshCards();
-
-      const response = await api.completeInterview(familyId);
-
-      // Show video guidelines
-      if (response.video_guidelines) {
-        const guidelinesMsg = {
-          sender: 'chitta',
-          text: 'תודה רבה! הכנתי לך הנחיות מותאמות אישית לצילום וידאו.',
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => [...prev, guidelinesMsg]);
-
-        // Save guidelines to state
-        setVideoGuidelines(response.video_guidelines);
-        setStage('video_upload');
-
-        // Refresh cards to show updated status
-        await refreshCards();
-      }
-
-    } catch (error) {
-      console.error('Error completing interview:', error);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  // Handle skip analysis (dev only)
-  const handleSkipAnalysis = async () => {
-    setIsTyping(true);
-
-    try {
-      const response = await api.analyzeVideos(familyId);
-
-      if (response.success) {
-        const msg = {
-          sender: 'chitta',
-          text: 'ניתוח הסרטונים הושלם! הדוחות מוכנים לצפייה.',
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, msg]);
-
-        // Update stage
-        setStage(response.next_stage || 'report_generation');
-
-        // Refresh cards
-        await refreshCards();
-      }
-    } catch (error) {
-      console.error('Error skipping analysis:', error);
-      const errorMsg = {
-        sender: 'chitta',
-        text: 'שגיאה בסימולציה. נסי שוב.',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsTyping(false);
     }
   };
 

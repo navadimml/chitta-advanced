@@ -31,21 +31,6 @@ class ChittaAPIClient {
   }
 
   /**
-   * סיום ראיון
-   */
-  async completeInterview(familyId) {
-    const response = await fetch(`${API_BASE_URL}/interview/complete?family_id=${familyId}`, {
-      method: 'POST'
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  /**
    * העלאת וידאו (actual file upload with progress callback)
    */
   async uploadVideo(familyId, videoId, scenario, durationSeconds, videoFile, onProgress = null) {
@@ -98,42 +83,6 @@ class ChittaAPIClient {
       xhr.open('POST', `${API_BASE_URL}/video/upload`);
       xhr.send(formData);
     });
-  }
-
-  /**
-   * ניתוח וידאואים
-   */
-  async analyzeVideos(familyId, confirmed = false) {
-    const url = new URL(`${API_BASE_URL}/video/analyze`);
-    url.searchParams.append('family_id', familyId);
-    if (confirmed) {
-      url.searchParams.append('confirmed', 'true');
-    }
-
-    const response = await fetch(url.toString(), {
-      method: 'POST'
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  /**
-   * יצירת דוחות
-   */
-  async generateReports(familyId) {
-    const response = await fetch(`${API_BASE_URL}/reports/generate?family_id=${familyId}`, {
-      method: 'POST'
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
   /**
