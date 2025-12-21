@@ -1,14 +1,17 @@
 """
-Chat API Routes - V1 and V2 conversation endpoints
+Chat API Routes - Darshan/Chitta conversation endpoints
 
-Includes:
-- /chat/send (v1)
-- /chat/v2/* endpoints (init, send, curiosity, synthesis, video)
+All endpoints use the Darshan/Chitta architecture:
+- /chat/v2/init - Get opening message
+- /chat/v2/send - Send message
+- /chat/v2/curiosity - Get curiosity state
+- /chat/v2/synthesis - Request synthesis
+- /chat/v2/video/* - Video workflow endpoints
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 from pathlib import Path
 import logging
@@ -16,40 +19,30 @@ import logging
 from app.core.app_state import app_state
 from app.db.dependencies import get_current_user_optional, RequireAuth
 from app.db.models_auth import User
-from app.services.conversation_service_simplified import get_simplified_conversation_service
 from app.services.unified_state_service import get_unified_state_service
-from app.services.session_service import get_session_service
-from app.services.state_derivation import derive_suggestions
 from app.config.config_loader import load_app_messages
-
-from .models import (
-    UIStateUpdate,
-    SendMessageRequest,
-    SendMessageResponse,
-)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
 
 
-# === V2 Models (defined here as they're chat-specific) ===
+# === Request/Response Models ===
 
-class SendMessageV2Request(BaseModel):
-    """Request model for v2 chat endpoint"""
+class SendMessageRequest(BaseModel):
+    """Request model for chat endpoint"""
     family_id: str
     message: str
     language: str = "he"
-    ui_state: Optional[UIStateUpdate] = None
 
 
-class SendMessageV2Response(BaseModel):
-    """Response model for v2 chat endpoint"""
+class SendMessageResponse(BaseModel):
+    """Response model for chat endpoint"""
     response: str
     ui_data: dict
 
 
-class ChatV2InitResponse(BaseModel):
-    """Response model for v2 chat init"""
+class ChatInitResponse(BaseModel):
+    """Response model for chat init"""
     greeting: str
     ui_data: dict
 
@@ -66,133 +59,9 @@ class VideoDeclineRequest(BaseModel):
     cycle_id: str
 
 
-# === V1 Endpoints (DEPRECATED) ===
+# === Chat Endpoints ===
 
-@router.post("/send", response_model=SendMessageResponse, deprecated=True)
-async def send_message(
-    request: SendMessageRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
-):
-    """
-    ⚠️  DEPRECATED: Use POST /chat/v2/send instead.
-
-    V1 Chat - Send message to Chitta
-
-    This endpoint uses the legacy Wu Wei architecture.
-    New clients should use the Darshan/Chitta architecture via:
-        POST /chat/v2/send
-    """
-    import warnings
-    warnings.warn(
-        "POST /chat/send is deprecated. Use /chat/v2/send instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    logger.warning(f"⚠️ DEPRECATED: /chat/send called for {request.family_id}. Use /chat/v2/send instead.")
-
-    if not app_state.initialized:
-        raise HTTPException(status_code=500, detail="App not initialized")
-
-    if current_user:
-        logger.info(f"Chat from authenticated user: {current_user.email}")
-
-    conversation_service = get_simplified_conversation_service()
-    state_service = get_unified_state_service()
-
-    # Update UI state from frontend (if provided)
-    if request.ui_state:
-        from app.services.ui_state_tracker import get_ui_state_tracker
-        ui_tracker = get_ui_state_tracker()
-        ui_tracker.update_from_request(
-            family_id=request.family_id,
-            ui_state_data=request.ui_state.model_dump(exclude_none=True)
-        )
-
-    # Save user message to state
-    await state_service.add_conversation_turn_async(
-        family_id=request.family_id,
-        role="user",
-        content=request.message
-    )
-
-    try:
-        # Process message with LLM
-        result = await conversation_service.process_message(
-            family_id=request.family_id,
-            user_message=request.message,
-            temperature=0.7
-        )
-
-        # Save assistant response to state
-        await state_service.add_conversation_turn_async(
-            family_id=request.family_id,
-            role="assistant",
-            content=result["response"]
-        )
-
-        # Get session for backward compatibility
-        session = app_state.get_or_create_session(request.family_id)
-
-        # Get artifacts for frontend
-        session_service = get_session_service()
-        interview_session = session_service.get_or_create_session(request.family_id)
-
-        # Sync artifacts to state service
-        for artifact_id, artifact in interview_session.artifacts.items():
-            if artifact.is_ready:
-                state_service.add_artifact(request.family_id, artifact)
-
-        # Convert artifacts to simplified format for UI
-        artifacts_for_ui = {}
-        for artifact_id, artifact in interview_session.artifacts.items():
-            artifacts_for_ui[artifact_id] = {
-                "exists": artifact.exists,
-                "status": artifact.status,
-                "artifact_type": artifact.artifact_type,
-                "ready_at": artifact.ready_at.isoformat() if artifact.ready_at else None
-            }
-
-        # Get derived suggestions
-        state = state_service.get_family_state(request.family_id)
-        derived_suggestions = derive_suggestions(state)
-
-        # Get cards from conversation service
-        cards_from_conversation = result.get("context_cards", [])
-
-        ui_data = {
-            "suggestions": derived_suggestions,
-            "cards": cards_from_conversation,
-            "progress": result["completeness"] / 100,
-            "extracted_data": result.get("extracted_data", {}),
-            "stats": result.get("stats", {}),
-            "artifacts": artifacts_for_ui
-        }
-
-        return SendMessageResponse(
-            response=result["response"],
-            ui_data=ui_data
-        )
-
-    except Exception as e:
-        logger.error(f"Error in send_message: {e}", exc_info=True)
-
-        messages_config = load_app_messages()
-        error_config = messages_config.get("errors", {}).get("technical_error", {})
-
-        return SendMessageResponse(
-            response=error_config.get("response", "מצטערת, נתקלתי בבעיה טכנית."),
-            ui_data={
-                "suggestions": error_config.get("suggestions", ["נסה שוב"]),
-                "cards": [],
-                "progress": 0,
-                "error": str(e)
-            }
-        )
-
-
-# === V2 Endpoints ===
-
-@router.get("/v2/init/{family_id}", response_model=ChatV2InitResponse)
+@router.get("/v2/init/{family_id}", response_model=ChatInitResponse)
 async def chat_v2_init(
     family_id: str,
     language: str = "he",
@@ -262,11 +131,11 @@ async def chat_v2_init(
             session.add_message("assistant", greeting)
             await unified._persist_session(session)
 
-        return ChatV2InitResponse(greeting=greeting, ui_data=ui_data)
+        return ChatInitResponse(greeting=greeting, ui_data=ui_data)
 
     except Exception as e:
         logger.error(f"Error in chat_v2_init: {e}", exc_info=True)
-        return ChatV2InitResponse(
+        return ChatInitResponse(
             greeting=t("greetings.first_visit"),
             ui_data={"cards": [], "progress": 0, "error": str(e)},
         )
@@ -332,9 +201,9 @@ async def request_synthesis_v2(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/v2/send", response_model=SendMessageV2Response)
+@router.post("/v2/send", response_model=SendMessageResponse)
 async def send_message_v2(
-    request: SendMessageV2Request,
+    request: SendMessageRequest,
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
@@ -369,7 +238,7 @@ async def send_message_v2(
             "architecture": "living_gestalt",
         }
 
-        return SendMessageV2Response(response=result["response"], ui_data=ui_data)
+        return SendMessageResponse(response=result["response"], ui_data=ui_data)
 
     except Exception as e:
         logger.error(f"Error in send_message_v2: {e}", exc_info=True)
@@ -377,7 +246,7 @@ async def send_message_v2(
         messages_config = load_app_messages()
         error_config = messages_config.get("errors", {}).get("technical_error", {})
 
-        return SendMessageV2Response(
+        return SendMessageResponse(
             response=error_config.get("response", "מצטערת, נתקלתי בבעיה טכנית."),
             ui_data={
                 "cards": [],
