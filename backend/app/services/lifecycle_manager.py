@@ -1,6 +1,16 @@
 """
 Lifecycle Manager - Wu Wei Architecture Core
 
+⚠️  DEPRECATED: This module is part of the legacy Wu Wei architecture.
+    New code should use the Darshan/Chitta architecture instead:
+    - Conversation: app.chitta.service.ChittaService
+    - Video workflow: app.chitta.video_service.VideoService
+    - Cards: app.chitta.cards.CardsService
+
+    This module is maintained for backwards compatibility with:
+    - V1 chat endpoints
+    - /video/analyze legacy endpoint
+
 This is the heart of the Wu Wei system. It:
 1. Reads workflow.yaml (the simplified moments configuration)
 2. Monitors prerequisite transitions
@@ -16,6 +26,7 @@ Key Principle: EMERGENCE, NOT FORCE
 """
 
 import logging
+import warnings
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
@@ -31,6 +42,8 @@ logger = logging.getLogger(__name__)
 
 class LifecycleManager:
     """
+    ⚠️  DEPRECATED: Use Darshan/Chitta services instead.
+
     🌟 Wu Wei: Configuration-driven moment lifecycle manager (פשוט - נטול חלקים עודפים)
 
     This manager reads workflow.yaml and automatically:
@@ -47,6 +60,12 @@ class LifecycleManager:
         artifact_service: Optional[ArtifactGenerationService] = None
     ):
         """Initialize lifecycle manager with configuration."""
+        warnings.warn(
+            "LifecycleManager is deprecated. Use Darshan/Chitta services instead: "
+            "ChittaService, VideoService, CardsService",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.config = load_workflow()
         self.prerequisite_evaluator = WuWeiPrerequisites()
         self.artifact_service = artifact_service or ArtifactGenerationService()

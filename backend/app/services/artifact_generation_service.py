@@ -1,6 +1,17 @@
 """
 Artifact Generation Service - Wu Wei Architecture
 
+⚠️  DEPRECATED: This module is part of the legacy Wu Wei architecture.
+    New code should use the Darshan/Chitta architecture instead:
+    - Video guidelines: app.chitta.video_service.VideoService
+    - Reports: app.chitta.sharing.SharingService
+    - Synthesis: app.chitta.synthesis.SynthesisService
+
+    This module is maintained for backwards compatibility with:
+    - V1 chat endpoints
+    - /video/analyze legacy endpoint
+    - LifecycleManager flows
+
 Generates artifacts (guidelines, reports) when prerequisites are met.
 Uses LLM to create personalized, context-aware content.
 
@@ -12,6 +23,7 @@ Key artifacts:
 
 import logging
 import os
+import warnings
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import time
@@ -34,6 +46,8 @@ logger = logging.getLogger(__name__)
 
 class ArtifactGenerationService:
     """
+    ⚠️  DEPRECATED: Use Darshan/Chitta services instead.
+
     Service for generating artifacts using LLM.
 
     Each artifact has:
@@ -49,6 +63,12 @@ class ArtifactGenerationService:
         Args:
             llm_provider: LLM provider for generation (optional, will create strong LLM if None)
         """
+        warnings.warn(
+            "ArtifactGenerationService is deprecated. Use Darshan/Chitta services instead: "
+            "VideoService, SharingService, SynthesisService",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if llm_provider is None:
             # 🌟 Create strong LLM specifically for artifact generation
             # This ensures high-quality output for guidelines, reports, etc.
