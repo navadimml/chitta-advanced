@@ -75,12 +75,10 @@ async def upload_video(
     if "error" in result:
         logger.warning(f"Could not record video in gestalt: {result['error']}")
 
-    gestalt = await chitta._get_gestalt(family_id)
-    updated_cards = []
-    if gestalt:
-        updated_cards = chitta._derive_cards(gestalt)
-        logger.info(f"Updated cards after video upload: {[c['type'] for c in updated_cards]}")
-        await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
+    # Get updated cards and notify via SSE
+    updated_cards = await chitta.get_cards(family_id)
+    logger.info(f"Updated cards after video upload: {[c['type'] for c in updated_cards]}")
+    await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
 
     return {
         "success": True,
@@ -100,6 +98,12 @@ async def analyze_videos(
     auth: RequireAuth = Depends(RequireAuth())
 ):
     """
+    ⚠️  DEPRECATED: Use /chat/v2/video/analyze/{family_id}/{cycle_id} instead.
+
+    This endpoint is part of the legacy Wu Wei architecture.
+    New code should use the Darshan/Chitta video analysis via:
+        POST /chat/v2/video/analyze/{family_id}/{cycle_id}
+
     Holistic Clinical Video Analysis.
 
     Analyzes uploaded videos using comprehensive clinical + holistic framework.
@@ -111,6 +115,14 @@ async def analyze_videos(
 
     Requires authentication.
     """
+    import warnings
+    warnings.warn(
+        "POST /video/analyze is deprecated. Use /chat/v2/video/analyze/{family_id}/{cycle_id} instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(f"⚠️ DEPRECATED: /video/analyze called for {family_id}. Use /chat/v2/video/analyze instead.")
+
     auth.verify_access(family_id)
 
     from app.services.video_analysis_service import VideoAnalysisService
