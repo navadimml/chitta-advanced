@@ -1208,8 +1208,8 @@ async def seed_gestalt_scenario(
         if family_id in chitta_service._gestalts:
             del chitta_service._gestalts[family_id]
 
-        gestalt = await chitta_service._get_gestalt(family_id)
-        derived_cards = chitta_service._derive_cards(gestalt) if gestalt else []
+        gestalt = await chitta_service.get_gestalt(family_id)
+        derived_cards = chitta_service._cards_service.derive_cards(gestalt) if gestalt else []
     except Exception as e:
         logger.warning(f"Could not derive cards: {e}")
         derived_cards = []

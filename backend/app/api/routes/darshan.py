@@ -192,9 +192,8 @@ async def execute_card_action(request: CardActionRequest):
             result = {"error": f"Unknown action: {action}"}
 
         # Send SSE to update cards
-        gestalt = await chitta._get_gestalt(family_id)
-        if gestalt:
-            updated_cards = chitta._derive_cards(gestalt)
+        updated_cards = await chitta.get_cards(family_id)
+        if updated_cards:
             await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
 
         return CardActionResponse(
@@ -240,7 +239,7 @@ async def get_video_insights(family_id: str, cycle_id: str):
     try:
         from app.chitta.service import get_chitta_service
         chitta = get_chitta_service()
-        gestalt = await chitta._get_gestalt(family_id)
+        gestalt = await chitta.get_gestalt(family_id)
 
         if not gestalt:
             raise HTTPException(status_code=404, detail=f"Family {family_id} not found")

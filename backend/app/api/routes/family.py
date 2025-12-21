@@ -122,13 +122,13 @@ async def get_child_space_full(family_id: str):
     """
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
-    gestalt = await chitta._get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(family_id)
 
     if not gestalt:
         raise HTTPException(status_code=404, detail="Family not found")
 
     await chitta.ensure_crystal_fresh(family_id)
-    gestalt = await chitta._get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(family_id)
 
     return chitta.derive_child_space_full(gestalt)
 
@@ -144,7 +144,7 @@ async def check_summary_readiness(family_id: str, recipient_type: str):
     from app.chitta.clinical_gaps import ClinicalGaps
 
     chitta = get_chitta_service()
-    gestalt = await chitta._get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(family_id)
 
     if not gestalt:
         raise HTTPException(status_code=404, detail="Family not found")
@@ -187,7 +187,7 @@ async def start_guided_collection(family_id: str, request: StartGuidedCollection
     from app.chitta.clinical_gaps import ClinicalGaps
 
     chitta = get_chitta_service()
-    gestalt = await chitta._get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(family_id)
 
     if not gestalt:
         raise HTTPException(status_code=404, detail="Family not found")
@@ -244,7 +244,7 @@ async def end_guided_collection(family_id: str):
     from app.chitta.service import get_chitta_service
 
     chitta = get_chitta_service()
-    gestalt = await chitta._get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(family_id)
 
     if not gestalt:
         raise HTTPException(status_code=404, detail="Family not found")
@@ -308,7 +308,7 @@ async def get_saved_summary(family_id: str, summary_id: str):
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
 
-    gestalt = await chitta._get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(family_id)
     if not gestalt:
         raise HTTPException(status_code=404, detail="Family not found")
 

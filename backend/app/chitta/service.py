@@ -116,7 +116,7 @@ class ChittaService:
                 ],
                 "open_questions": response.open_questions,
             },
-            "cards": self._derive_cards(gestalt),
+            "cards": self._cards_service.derive_cards(gestalt),
         }
 
     async def _background_crystallize(self, family_id: str):
@@ -200,6 +200,14 @@ class ChittaService:
             return []
 
         return self._cards_service.derive_cards(darshan)
+
+    async def get_gestalt(self, family_id: str) -> Optional[Darshan]:
+        """
+        Get Darshan (gestalt) for a family.
+
+        Public API for routes that need direct gestalt access.
+        """
+        return await self._gestalt_manager.get_darshan(family_id)
 
     # ========================================
     # CRYSTALLIZATION
