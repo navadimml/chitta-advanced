@@ -258,13 +258,18 @@ Persist + Return curiosity_state
 | :--- | :--- | :--- |
 | **Chitta Core** | `backend/app/chitta/gestalt.py` | Darshan - the observing intelligence |
 | **Chitta Core** | `backend/app/chitta/curiosity.py` | Curiosity model and Curiosities manager |
-| **Chitta Core** | `backend/app/chitta/service.py` | Service orchestration |
+| **Chitta Core** | `backend/app/chitta/service.py` | Thin orchestrator, public API |
 | **Chitta Core** | `backend/app/chitta/models.py` | Data models |
 | **Chitta Core** | `backend/app/chitta/tools.py` | Tool definitions for LLM |
 | **Chitta Core** | `backend/app/chitta/formatting.py` | Prompt formatting utilities |
-| **Chitta Core** | `backend/app/chitta/reflection.py` | Synthesis and memory services |
 | **Chitta Core** | `backend/app/chitta/synthesis.py` | Portrait/crystal generation |
 | **Chitta Core** | `backend/app/chitta/portrait_schema.py` | Pydantic schema for structured output |
+| **Specialized Services** | `backend/app/chitta/gestalt_manager.py` | Darshan lifecycle & persistence |
+| **Specialized Services** | `backend/app/chitta/video_service.py` | Video consent → guidelines → upload → analysis |
+| **Specialized Services** | `backend/app/chitta/child_space.py` | Living Portrait derivation (read-only) |
+| **Specialized Services** | `backend/app/chitta/sharing.py` | Shareable summary generation |
+| **Specialized Services** | `backend/app/chitta/cards.py` | Context card derivation |
+| **Specialized Services** | `backend/app/chitta/journal_service.py` | Parent journal processing |
 | **LLM Layer** | `backend/app/services/llm/base.py` | LLM provider interface |
 | **LLM Layer** | `backend/app/services/llm/gemini_provider.py` | Gemini implementation |
 | **LLM Layer** | `backend/app/services/llm/factory.py` | Provider factory |
@@ -272,7 +277,6 @@ Persist + Return curiosity_state
 | **Domain Config** | `backend/config/workflows/context_cards.yaml` | Card logic definition |
 | **Frontend** | `src/App.jsx` | Main state orchestrator |
 | **Frontend** | `src/components/CuriosityPanel.jsx` | Curiosity display |
-| **Docs** | `backend/docs/REFACTOR_PLAN.md` | Architecture plan |
 | **Docs** | `backend/docs/METAPHOR_ARCHITECTURE.md` | Darshan naming philosophy |
 
 ## 7. Quick Start & Environment
