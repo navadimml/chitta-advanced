@@ -152,11 +152,11 @@ describe('AuthContext', () => {
   });
 
   describe('Register', () => {
-    it('should register and auto-login when tokens returned', async () => {
+    it('should register successfully and return success', async () => {
       api.register.mockResolvedValue({
-        access_token: 'access_123',
-        refresh_token: 'refresh_123',
-        user: { id: 'user_123', email: 'new@example.com' }
+        id: 'user_123',
+        email: 'new@example.com',
+        display_name: 'New User'
       });
 
       let authContext;
@@ -170,12 +170,15 @@ describe('AuthContext', () => {
         expect(screen.getByTestId('loading').textContent).toBe('false');
       });
 
+      let result;
       await act(async () => {
-        await authContext.register('new@example.com', 'password123', 'New User');
+        result = await authContext.register('new@example.com', 'password123', 'New User');
       });
 
-      expect(screen.getByTestId('authenticated').textContent).toBe('true');
-      expect(api.setAccessToken).toHaveBeenCalledWith('access_123');
+      // Register returns success but doesn't auto-login
+      expect(result).toEqual({ success: true });
+      expect(screen.getByTestId('authenticated').textContent).toBe('false');
+      expect(api.register).toHaveBeenCalledWith('new@example.com', 'password123', 'New User');
     });
   });
 

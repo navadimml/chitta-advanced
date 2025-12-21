@@ -93,28 +93,25 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const result = await api.login(email, password);
 
-    setUser(result.user);
+    // Set tokens first
     setTokens(result.access_token, result.refresh_token);
 
-    return result.user;
+    // Fetch user info with the new token
+    const userInfo = await api.getMe();
+    setUser(userInfo);
+
+    return userInfo;
   }, [setTokens]);
 
   /**
    * Register a new user
+   * Returns { success: true } on success, caller should switch to login mode
    */
   const register = useCallback(async (email, password, displayName) => {
-    const result = await api.register(email, password, displayName);
-
-    // Auto-login after registration if tokens are returned
-    if (result.access_token) {
-      setUser(result.user);
-      setTokens(result.access_token, result.refresh_token);
-      return result.user;
-    }
-
-    // If no auto-login, just return the user
-    return result;
-  }, [setTokens]);
+    await api.register(email, password, displayName);
+    // Registration successful - caller should switch to login mode
+    return { success: true };
+  }, []);
 
   /**
    * Logout current user

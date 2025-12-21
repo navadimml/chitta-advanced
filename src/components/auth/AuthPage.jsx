@@ -27,6 +27,8 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       await register(email, password, displayName);
+      // Registration successful - switch to login mode
+      setMode('login');
     } finally {
       setIsLoading(false);
     }
