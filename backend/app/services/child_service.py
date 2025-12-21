@@ -535,7 +535,18 @@ class ChildService:
         )
 
     def _dict_to_child(self, data: Dict[str, Any]) -> Child:
-        """Convert dict to Child"""
+        """Convert dict to Child.
+
+        Handles both old gestalt format (name at root) and new format (name in identity).
+        """
+        # Backward compatibility: if identity is missing or empty but name exists at root,
+        # create the identity structure from root-level fields
+        if data.get("name") and (not data.get("identity") or not data.get("identity", {}).get("name")):
+            if "identity" not in data:
+                data["identity"] = {}
+            data["identity"]["name"] = data["name"]
+            logger.debug(f"Migrated root-level name to identity.name: {data['name']}")
+
         # Use Pydantic's model_validate for proper deserialization
         # This handles aliases (child_id -> id), nested models, datetime parsing
         return Child.model_validate(data)
