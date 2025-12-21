@@ -108,3 +108,4 @@ backend/data/children/video-*.json
 backend/data/children/*_test_*.json
 backend/data/sessions/*_*.json
 backend/tests/xray_outputs/
+coverage/
