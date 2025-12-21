@@ -23,6 +23,11 @@ greetings:
 
     מה השם והגיל?
 
+  additional_child: |
+    היי! 💙 שמחה להכיר עוד ילד במשפחה!
+
+    ספרי לי עליו - מה שמו והגיל?
+
   returning:
     same_session: "שלום שוב! 💙 איפה עצרנו?"
 

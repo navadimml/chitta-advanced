@@ -22,6 +22,43 @@ router = APIRouter(prefix="/family", tags=["family"])
 logger = logging.getLogger(__name__)
 
 
+# === Family Management Endpoints ===
+
+class AddChildResponse(BaseModel):
+    """Response for add child endpoint."""
+    child_id: str
+
+
+@router.post("/{family_id}/children", response_model=AddChildResponse)
+async def add_child_to_family(
+    family_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Add a new child placeholder to family.
+
+    Creates an empty child that will be filled via conversation.
+    """
+    from app.services.family_service import get_family_service
+
+    logger.info(f"Adding child to family {family_id} by user {current_user.email}")
+
+    family_service = get_family_service()
+
+    # Verify user has access to this family
+    user_family_id = await family_service.get_user_family_id(str(current_user.id))
+    if user_family_id != family_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have access to this family"
+        )
+
+    # Create new child placeholder
+    child_id = await family_service.add_child_to_family(family_id)
+
+    return AddChildResponse(child_id=child_id)
+
+
 # === Living Dashboard (Space) Endpoints ===
 
 @router.get("/{family_id}/space")

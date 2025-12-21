@@ -136,19 +136,56 @@ class ChittaAPIClient {
   }
 
   // ==========================================
+  // Family & Children
+  // ==========================================
+
+  /**
+   * Get current user's family with all children.
+   * Auto-creates family + child placeholder for new users.
+   */
+  async getMyFamily() {
+    const response = await fetch(`${API_BASE_URL}/user/me/family`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch family');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Add a new child placeholder to family.
+   * Child identity will be filled via conversation.
+   */
+  async addChild(familyId) {
+    const response = await fetch(`${API_BASE_URL}/family/${familyId}/children`, {
+      method: 'POST',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to add child');
+    }
+
+    return response.json();
+  }
+
+  // ==========================================
   // Chat & Conversation
   // ==========================================
 
   /**
    * שליחת הודעה לצ'יטה
    */
-  async sendMessage(familyId, message, parentName = 'הורה') {
+  async sendMessage(childId, message, parentName = 'הורה') {
     // Real API call - Using V2 endpoint with Living Gestalt / ChittaService
     const response = await fetch(`${API_BASE_URL}/chat/v2/send`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
-        family_id: familyId,
+        child_id: childId,
         message: message,
         parent_name: parentName
       })
@@ -164,10 +201,10 @@ class ChittaAPIClient {
   /**
    * העלאת וידאו (actual file upload with progress callback)
    */
-  async uploadVideo(familyId, videoId, scenario, durationSeconds, videoFile, onProgress = null) {
+  async uploadVideo(childId, videoId, scenario, durationSeconds, videoFile, onProgress = null) {
     // Create FormData for multipart/form-data upload
     const formData = new FormData();
-    formData.append('family_id', familyId);
+    formData.append('child_id', childId);
     formData.append('video_id', videoId);
     formData.append('scenario', scenario);
     formData.append('duration_seconds', durationSeconds);
@@ -222,8 +259,8 @@ class ChittaAPIClient {
   /**
    * קבלת timeline
    */
-  async getTimeline(familyId) {
-    const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`, {
+  async getTimeline(childId) {
+    const response = await fetch(`${API_BASE_URL}/timeline/${childId}`, {
       headers: this.getAuthHeaders()
     });
 
@@ -243,10 +280,10 @@ class ChittaAPIClient {
   }
 
   /**
-   * קבלת מצב המשפחה (State)
+   * קבלת מצב הילד (State)
    */
-  async getState(familyId) {
-    const response = await fetch(`${API_BASE_URL}/state/${familyId}`, {
+  async getState(childId) {
+    const response = await fetch(`${API_BASE_URL}/state/${childId}`, {
       headers: this.getAuthHeaders()
     });
 
@@ -275,13 +312,13 @@ class ChittaAPIClient {
   /**
    * 🧪 Test Mode: Start test with persona
    */
-  async startTest(personaId, familyId = null) {
+  async startTest(personaId, childId = null) {
     const response = await fetch(`${API_BASE_URL}/test/start`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
         persona_id: personaId,
-        family_id: familyId
+        child_id: childId
       })
     });
 
@@ -295,12 +332,12 @@ class ChittaAPIClient {
   /**
    * 🧪 Test Mode: Generate parent response
    */
-  async generateParentResponse(familyId, chittaQuestion) {
+  async generateParentResponse(childId, chittaQuestion) {
     const response = await fetch(`${API_BASE_URL}/test/generate-response`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
-        family_id: familyId,
+        child_id: childId,
         chitta_question: chittaQuestion
       })
     });
@@ -316,8 +353,8 @@ class ChittaAPIClient {
    * Get artifact content
    * Fetches generated artifacts like video guidelines, reports, etc.
    */
-  async getArtifact(familyId, artifactId) {
-    const response = await fetch(`${API_BASE_URL}/artifacts/${artifactId}?family_id=${familyId}`, {
+  async getArtifact(childId, artifactId) {
+    const response = await fetch(`${API_BASE_URL}/artifacts/${artifactId}?child_id=${childId}`, {
       headers: this.getAuthHeaders()
     });
 
@@ -329,14 +366,14 @@ class ChittaAPIClient {
   }
 
   // ==========================================
-  // Living Dashboard Phase 2: Daniel's Space
+  // Living Dashboard Phase 2: Child's Space
   // ==========================================
 
   /**
    * Get full child space with all slots
    */
-  async getChildSpace(familyId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space`, {
+  async getChildSpace(childId) {
+    const response = await fetch(`${API_BASE_URL}/family/${childId}/space`, {
       headers: this.getAuthHeaders()
     });
 
@@ -350,8 +387,8 @@ class ChittaAPIClient {
   /**
    * Get header badges only (lightweight)
    */
-  async getChildSpaceHeader(familyId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/header`, {
+  async getChildSpaceHeader(childId) {
+    const response = await fetch(`${API_BASE_URL}/family/${childId}/space/header`, {
       headers: this.getAuthHeaders()
     });
 
@@ -365,8 +402,8 @@ class ChittaAPIClient {
   /**
    * Get slot detail with history
    */
-  async getSlotDetail(familyId, slotId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/space/slot/${slotId}`, {
+  async getSlotDetail(childId, slotId) {
+    const response = await fetch(`${API_BASE_URL}/family/${childId}/space/slot/${slotId}`, {
       headers: this.getAuthHeaders()
     });
 
@@ -384,9 +421,9 @@ class ChittaAPIClient {
   /**
    * Get structured artifact with sections
    */
-  async getStructuredArtifact(familyId, artifactId) {
+  async getStructuredArtifact(childId, artifactId) {
     const response = await fetch(
-      `${API_BASE_URL}/artifact/${artifactId}/structured?family_id=${familyId}`,
+      `${API_BASE_URL}/artifact/${artifactId}/structured?child_id=${childId}`,
       { headers: this.getAuthHeaders() }
     );
 
@@ -400,9 +437,9 @@ class ChittaAPIClient {
   /**
    * Get all threads for an artifact
    */
-  async getArtifactThreads(familyId, artifactId) {
+  async getArtifactThreads(childId, artifactId) {
     const response = await fetch(
-      `${API_BASE_URL}/artifact/${artifactId}/threads?family_id=${familyId}`,
+      `${API_BASE_URL}/artifact/${artifactId}/threads?child_id=${childId}`,
       { headers: this.getAuthHeaders() }
     );
 
@@ -416,14 +453,14 @@ class ChittaAPIClient {
   /**
    * Create a new thread on an artifact section
    */
-  async createThread(familyId, artifactId, sectionId, question, sectionTitle = null, sectionText = null) {
+  async createThread(childId, artifactId, sectionId, question, sectionTitle = null, sectionText = null) {
     const response = await fetch(
       `${API_BASE_URL}/artifact/${artifactId}/section/${sectionId}/thread`,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
-          family_id: familyId,
+          child_id: childId,
           initial_question: question,
           section_title: sectionTitle,
           section_text: sectionText
@@ -441,9 +478,9 @@ class ChittaAPIClient {
   /**
    * Get a specific thread
    */
-  async getThread(threadId, artifactId, familyId) {
+  async getThread(threadId, artifactId, childId) {
     const response = await fetch(
-      `${API_BASE_URL}/thread/${threadId}?artifact_id=${artifactId}&family_id=${familyId}`,
+      `${API_BASE_URL}/thread/${threadId}?artifact_id=${artifactId}&child_id=${childId}`,
       { headers: this.getAuthHeaders() }
     );
 
@@ -457,14 +494,14 @@ class ChittaAPIClient {
   /**
    * Add message to thread and get AI response
    */
-  async addThreadMessage(threadId, familyId, content) {
+  async addThreadMessage(threadId, childId, content) {
     const response = await fetch(
       `${API_BASE_URL}/thread/${threadId}/message`,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
-          family_id: familyId,
+          child_id: childId,
           content: content
         })
       }
@@ -501,11 +538,11 @@ class ChittaAPIClient {
   // ==========================================
 
   /**
-   * Get current curiosity state for a family
+   * Get current curiosity state for a child
    * Returns what the Gestalt is "curious about" - drives exploration
    */
-  async getCuriosityState(familyId) {
-    const response = await fetch(`${API_BASE_URL}/chat/v2/curiosity/${familyId}`, {
+  async getCuriosityState(childId) {
+    const response = await fetch(`${API_BASE_URL}/chat/v2/curiosity/${childId}`, {
       headers: this.getAuthHeaders()
     });
 
@@ -520,8 +557,8 @@ class ChittaAPIClient {
    * Request on-demand synthesis report
    * Uses strongest model for deep pattern analysis
    */
-  async requestSynthesis(familyId) {
-    const response = await fetch(`${API_BASE_URL}/chat/v2/synthesis/${familyId}`, {
+  async requestSynthesis(childId) {
+    const response = await fetch(`${API_BASE_URL}/chat/v2/synthesis/${childId}`, {
       method: 'POST',
       headers: this.getAuthHeaders()
     });
@@ -542,12 +579,12 @@ class ChittaAPIClient {
    * Accept video suggestion - triggers personalized guidelines generation
    * Parent accepts the video suggestion, THEN we generate guidelines
    */
-  async acceptVideoSuggestion(familyId, cycleId) {
+  async acceptVideoSuggestion(childId, cycleId) {
     const response = await fetch(`${API_BASE_URL}/chat/v2/video/accept`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
-        family_id: familyId,
+        child_id: childId,
         cycle_id: cycleId
       })
     });
@@ -562,12 +599,12 @@ class ChittaAPIClient {
   /**
    * Decline video suggestion - we respect their choice and don't re-ask
    */
-  async declineVideoSuggestion(familyId, cycleId) {
+  async declineVideoSuggestion(childId, cycleId) {
     const response = await fetch(`${API_BASE_URL}/chat/v2/video/decline`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
-        family_id: familyId,
+        child_id: childId,
         cycle_id: cycleId
       })
     });
@@ -583,9 +620,9 @@ class ChittaAPIClient {
    * Get video guidelines for a cycle (after consent was given)
    * Returns parent-facing format only - no hypothesis revealed
    */
-  async getVideoGuidelines(familyId, cycleId) {
+  async getVideoGuidelines(childId, cycleId) {
     const response = await fetch(
-      `${API_BASE_URL}/chat/v2/video/guidelines/${familyId}/${cycleId}`,
+      `${API_BASE_URL}/chat/v2/video/guidelines/${childId}/${cycleId}`,
       { headers: this.getAuthHeaders() }
     );
 
@@ -600,9 +637,9 @@ class ChittaAPIClient {
    * Get video analysis insights for a cycle
    * Returns parent-appropriate insights from analyzed videos
    */
-  async getVideoInsights(familyId, cycleId) {
+  async getVideoInsights(childId, cycleId) {
     const response = await fetch(
-      `${API_BASE_URL}/gestalt/${familyId}/insights/${cycleId}`,
+      `${API_BASE_URL}/gestalt/${childId}/insights/${cycleId}`,
       { headers: this.getAuthHeaders() }
     );
 
@@ -617,9 +654,9 @@ class ChittaAPIClient {
    * Upload video for a scenario (v2 - Living Gestalt)
    * Returns upload status, triggers "uploaded" card
    */
-  async uploadVideoV2(familyId, cycleId, scenarioId, videoFile, onProgress = null) {
+  async uploadVideoV2(childId, cycleId, scenarioId, videoFile, onProgress = null) {
     const formData = new FormData();
-    formData.append('family_id', familyId);
+    formData.append('child_id', childId);
     formData.append('cycle_id', cycleId);
     formData.append('scenario_id', scenarioId);
     formData.append('video', videoFile);
@@ -663,9 +700,9 @@ class ChittaAPIClient {
    * Analyze uploaded videos for a cycle
    * Returns insights (parent-facing) and updates hypothesis confidence
    */
-  async analyzeVideos(familyId, cycleId) {
+  async analyzeVideos(childId, cycleId) {
     const response = await fetch(
-      `${API_BASE_URL}/chat/v2/video/analyze/${familyId}/${cycleId}`,
+      `${API_BASE_URL}/chat/v2/video/analyze/${childId}/${cycleId}`,
       {
         method: 'POST',
         headers: this.getAuthHeaders()
@@ -683,12 +720,12 @@ class ChittaAPIClient {
    * Execute a card action (dismiss_reminder, reject_guidelines, etc.)
    * Used for actions that need backend processing but don't have dedicated endpoints
    */
-  async executeCardAction(familyId, action, params = {}) {
+  async executeCardAction(childId, action, params = {}) {
     const response = await fetch(`${API_BASE_URL}/gestalt/card-action`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
-        family_id: familyId,
+        child_id: childId,
         action: action,
         params: params
       })
@@ -704,12 +741,12 @@ class ChittaAPIClient {
   /**
    * Generate timeline infographic
    */
-  async generateTimeline(familyId, style = 'warm') {
+  async generateTimeline(childId, style = 'warm') {
     const response = await fetch(`${API_BASE_URL}/timeline/generate`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
-        family_id: familyId,
+        child_id: childId,
         style: style
       })
     });
@@ -724,8 +761,8 @@ class ChittaAPIClient {
   /**
    * Get existing timeline
    */
-  async getExistingTimeline(familyId) {
-    const response = await fetch(`${API_BASE_URL}/timeline/${familyId}`, {
+  async getExistingTimeline(childId) {
+    const response = await fetch(`${API_BASE_URL}/timeline/${childId}`, {
       headers: this.getAuthHeaders()
     });
 
@@ -744,8 +781,8 @@ class ChittaAPIClient {
    * Get complete ChildSpace data for the Living Portrait UI
    * Returns data for all four tabs: essence, discoveries, observations, share
    */
-  async getChildSpaceFull(familyId) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space`, {
+  async getChildSpaceFull(childId) {
+    const response = await fetch(`${API_BASE_URL}/family/${childId}/child-space`, {
       headers: this.getAuthHeaders()
     });
 
@@ -760,9 +797,9 @@ class ChittaAPIClient {
    * Check if we have enough data to generate a useful summary for a recipient type
    * Returns readiness status with missing info details
    */
-  async checkSummaryReadiness(familyId, recipientType) {
+  async checkSummaryReadiness(childId, recipientType) {
     const response = await fetch(
-      `${API_BASE_URL}/family/${familyId}/child-space/share/readiness/${recipientType}`,
+      `${API_BASE_URL}/family/${childId}/child-space/share/readiness/${recipientType}`,
       { headers: this.getAuthHeaders() }
     );
 
@@ -777,9 +814,9 @@ class ChittaAPIClient {
    * Start guided collection mode for preparing a summary
    * Sets session flag that injects gap context into chat responses
    */
-  async startGuidedCollection(familyId, recipientType) {
+  async startGuidedCollection(childId, recipientType) {
     const response = await fetch(
-      `${API_BASE_URL}/family/${familyId}/child-space/share/guided-collection/start`,
+      `${API_BASE_URL}/family/${childId}/child-space/share/guided-collection/start`,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
@@ -798,8 +835,8 @@ class ChittaAPIClient {
    * Generate a shareable summary adapted for a specific expert
    * Pass expert info and let model determine appropriate style
    */
-  async generateShareableSummary(familyId, { expert, expertDescription, context, crystalInsights, comprehensive, missingGaps }) {
-    const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space/share/generate`, {
+  async generateShareableSummary(childId, { expert, expertDescription, context, crystalInsights, comprehensive, missingGaps }) {
+    const response = await fetch(`${API_BASE_URL}/family/${childId}/child-space/share/generate`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({

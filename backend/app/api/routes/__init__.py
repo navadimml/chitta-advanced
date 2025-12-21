@@ -4,8 +4,9 @@ API Routes Package
 Modular route organization:
 - chat.py: Conversation endpoints (v1 and v2)
 - darshan.py: Cards, actions, insights, and summary
-- family.py: Family space and child-space endpoints
+- family.py: Family space, child-space, and family management endpoints
 - child.py: Child data and gestalt endpoints
+- user.py: User-centric endpoints (family, children)
 - artifacts.py: Artifact management, threads, and session endpoints
 - test.py: Test mode and dev endpoints
 - state.py: SSE subscriptions and state endpoints
@@ -30,6 +31,7 @@ from .views import router as views_router
 from .video import router as video_router
 from .journal import router as journal_router
 from .timeline import router as timeline_router
+from .user import router as user_router
 
 # Import legacy router (endpoints not yet migrated)
 from ..legacy_routes import router as legacy_router
@@ -49,6 +51,7 @@ router.include_router(views_router)
 router.include_router(video_router)
 router.include_router(journal_router)
 router.include_router(timeline_router)
+router.include_router(user_router)
 
 # Include legacy routes (endpoints not yet in modular files)
 router.include_router(legacy_router)
@@ -57,5 +60,6 @@ router.include_router(legacy_router)
 __all__ = [
     "router", "chat_router", "darshan_router", "family_router",
     "child_router", "artifacts_router", "test_router", "state_router",
-    "views_router", "video_router", "journal_router", "timeline_router"
+    "views_router", "video_router", "journal_router", "timeline_router",
+    "user_router"
 ]

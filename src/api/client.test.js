@@ -549,7 +549,7 @@ describe('ChittaAPIClient', () => {
       const result = await api.getArtifact('test_family', 'baseline_report');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/artifacts/baseline_report?family_id=test_family'),
+        expect.stringContaining('/artifacts/baseline_report?child_id=test_family'),
         expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.content).toBe('Report content');
@@ -567,7 +567,7 @@ describe('ChittaAPIClient', () => {
       const result = await api.getStructuredArtifact('test_family', 'report_1');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/artifact/report_1/structured?family_id=test_family'),
+        expect.stringContaining('/artifact/report_1/structured?child_id=test_family'),
         expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.sections).toHaveLength(1);
@@ -583,7 +583,7 @@ describe('ChittaAPIClient', () => {
       const result = await api.getArtifactThreads('test_family', 'report_1');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/artifact/report_1/threads?family_id=test_family'),
+        expect.stringContaining('/artifact/report_1/threads?child_id=test_family'),
         expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.threads).toHaveLength(1);
@@ -625,7 +625,7 @@ describe('ChittaAPIClient', () => {
       const result = await api.getThread('thread_123', 'report_1', 'test_family');
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/thread/thread_123?artifact_id=report_1&family_id=test_family'),
+        expect.stringContaining('/thread/thread_123?artifact_id=report_1&child_id=test_family'),
         expect.objectContaining({ headers: expect.any(Object) })
       );
       expect(result.id).toBe('thread_123');

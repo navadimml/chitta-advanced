@@ -6,6 +6,7 @@ import { api } from './api/client';
 
 // Auth
 import { useAuth } from './contexts/AuthContext';
+import { FamilyProvider, useFamily } from './contexts/FamilyContext';
 import { AuthPage } from './components/auth';
 import LoadingScreen from './components/LoadingScreen';
 
@@ -32,7 +33,7 @@ import GestaltCards from './components/GestaltCards';
 
 function App() {
   // Auth state
-  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, logout } = useAuth();
 
   // Show loading screen while auth is being checked
   if (authLoading) {
@@ -44,10 +45,27 @@ function App() {
     return <AuthPage />;
   }
 
-  // Use user ID as family ID (user is guaranteed to exist here)
-  const userFamilyId = user.id;
+  // Wrap authenticated app with FamilyProvider
+  return (
+    <FamilyProvider>
+      <AuthenticatedAppWithFamily onLogout={logout} />
+    </FamilyProvider>
+  );
+}
 
-  return <AuthenticatedApp userFamilyId={userFamilyId} onLogout={logout} />;
+/**
+ * Intermediate component that uses FamilyContext to get activeChildId
+ */
+function AuthenticatedAppWithFamily({ onLogout }) {
+  const { activeChildId, isLoading: familyLoading } = useFamily();
+
+  // Show loading while family data is being fetched
+  if (familyLoading) {
+    return <LoadingScreen />;
+  }
+
+  // Pass activeChildId as the familyId prop
+  return <AuthenticatedApp userFamilyId={activeChildId} onLogout={onLogout} />;
 }
 
 /**
@@ -183,14 +201,14 @@ function AuthenticatedApp({ userFamilyId, onLogout }) {
     };
   }, []);
 
-  // 🌟 SSE connection - dynamically updates when family_id changes (e.g., test mode)
+  // 🌟 SSE connection - dynamically updates when child_id changes (e.g., test mode)
   useEffect(() => {
-    // Determine active family ID (test mode uses testFamilyId, normal mode uses familyId)
+    // Determine active child ID (test mode uses testFamilyId, normal mode uses familyId)
     const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
 
-    console.log('📡 SSE: Connecting to family_id:', activeFamilyId);
+    console.log('📡 SSE: Connecting to child_id:', activeFamilyId);
 
-    const eventSource = new EventSource(`/api/state/subscribe?family_id=${activeFamilyId}`);
+    const eventSource = new EventSource(`/api/state/subscribe?child_id=${activeFamilyId}`);
 
     eventSource.onmessage = (event) => {
       try {
@@ -216,12 +234,12 @@ function AuthenticatedApp({ userFamilyId, onLogout }) {
       // Automatically reconnects on error
     };
 
-    // Cleanup: close connection when family_id changes or component unmounts
+    // Cleanup: close connection when child_id changes or component unmounts
     return () => {
-      console.log('📡 SSE: Closing connection for family_id:', activeFamilyId);
+      console.log('📡 SSE: Closing connection for child_id:', activeFamilyId);
       eventSource.close();
     };
-  }, [testMode, testFamilyId, familyId]); // Re-create SSE connection when family_id changes
+  }, [testMode, testFamilyId, familyId]); // Re-create SSE connection when child_id changes
 
   // 🧪 Monitor messages and trigger next response in test mode
   useEffect(() => {

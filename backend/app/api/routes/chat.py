@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 class SendMessageRequest(BaseModel):
     """Request model for chat endpoint"""
-    family_id: str
+    child_id: str
     message: str
     language: str = "he"
 
@@ -49,21 +49,21 @@ class ChatInitResponse(BaseModel):
 
 class VideoAcceptRequest(BaseModel):
     """Request to accept video suggestion"""
-    family_id: str
+    child_id: str
     cycle_id: str
 
 
 class VideoDeclineRequest(BaseModel):
     """Request to decline video suggestion"""
-    family_id: str
+    child_id: str
     cycle_id: str
 
 
 # === Chat Endpoints ===
 
-@router.get("/v2/init/{family_id}", response_model=ChatInitResponse)
+@router.get("/v2/init/{child_id}", response_model=ChatInitResponse)
 async def chat_v2_init(
-    family_id: str,
+    child_id: str,
     language: str = "he",
     current_user: User = Depends(get_current_user)
 ):
@@ -78,8 +78,8 @@ async def chat_v2_init(
     try:
         get_i18n(language)
         unified = get_unified_state_service()
-        child = unified.get_child(family_id)
-        session = await unified.get_or_create_session_async(family_id)
+        child = unified.get_child(child_id)
+        session = await unified.get_or_create_session_async(child_id)
 
         chitta = get_chitta_service()
         returning_context = chitta._check_returning_user(session, child)
@@ -110,15 +110,26 @@ async def chat_v2_init(
         elif session.turn_count > 0:
             greeting = t("greetings.returning.same_session")
         else:
-            greeting = t("greetings.first_visit")
+            # First visit for this child - check if it's an additional child
+            from app.services.family_service import get_family_service
+            family_service = get_family_service()
 
-        cards = await chitta.get_cards(family_id)
+            # Get the family for current user
+            family = await family_service.get_or_create_family_for_user(current_user.id)
+
+            # If family has more than 1 child, use additional_child greeting
+            if len(family.children) > 1:
+                greeting = t("greetings.additional_child")
+            else:
+                greeting = t("greetings.first_visit")
+
+        cards = await chitta.get_cards(child_id)
 
         ui_data = {
             "cards": cards,
             "progress": child.data_completeness,
             "stats": {
-                "family_id": family_id,
+                "child_id": child_id,
                 "is_new": session.turn_count == 0,
                 "is_returning": returning_context is not None,
                 "conversation_turns": session.turn_count,
@@ -140,13 +151,13 @@ async def chat_v2_init(
         )
 
 
-@router.get("/v2/curiosity/{family_id}")
+@router.get("/v2/curiosity/{child_id}")
 async def get_curiosity_state_v2(
-    family_id: str,
+    child_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get current curiosity state for a family.
+    Get current curiosity state for a child.
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
@@ -155,10 +166,10 @@ async def get_curiosity_state_v2(
         from app.chitta import get_chitta_service
 
         chitta = get_chitta_service()
-        result = await chitta.get_curiosity_state(family_id)
+        result = await chitta.get_curiosity_state(child_id)
 
         return {
-            "family_id": family_id,
+            "child_id": child_id,
             "curiosity_state": result,
             "architecture": "living_gestalt",
         }
@@ -168,15 +179,15 @@ async def get_curiosity_state_v2(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/v2/synthesis/{family_id}")
+@router.post("/v2/synthesis/{child_id}")
 async def request_synthesis_v2(
-    family_id: str,
+    child_id: str,
     auth: RequireAuth = Depends(RequireAuth())
 ):
     """
-    Request on-demand synthesis for a family.
+    Request on-demand synthesis for a child.
     """
-    auth.verify_access(family_id)
+    auth.verify_access(child_id)
 
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
@@ -185,13 +196,13 @@ async def request_synthesis_v2(
         from app.chitta import get_chitta_service
 
         chitta = get_chitta_service()
-        result = await chitta.request_synthesis(family_id)
+        result = await chitta.request_synthesis(child_id)
 
         if result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
 
         return {
-            "family_id": family_id,
+            "child_id": child_id,
             "synthesis": result,
             "architecture": "living_gestalt",
         }
@@ -222,7 +233,7 @@ async def send_message_v2(
         chitta = get_chitta_service()
 
         result = await chitta.process_message(
-            family_id=request.family_id,
+            family_id=request.child_id,
             user_message=request.message,
         )
 
@@ -233,7 +244,7 @@ async def send_message_v2(
             }),
             "cards": result.get("cards", []),
             "stats": {
-                "family_id": request.family_id,
+                "child_id": request.child_id,
                 "curiosity_count": len(result.get("curiosity_state", {}).get("active_curiosities", [])),
             },
             "architecture": "living_gestalt",
@@ -276,7 +287,7 @@ async def accept_video_suggestion(
 
         chitta = get_chitta_service()
         result = await chitta.accept_video_suggestion(
-            family_id=request.family_id,
+            family_id=request.child_id,
             cycle_id=request.cycle_id,
         )
 
@@ -313,7 +324,7 @@ async def decline_video_suggestion(
 
         chitta = get_chitta_service()
         result = await chitta.decline_video_suggestion(
-            family_id=request.family_id,
+            family_id=request.child_id,
             cycle_id=request.cycle_id,
         )
 
@@ -333,9 +344,9 @@ async def decline_video_suggestion(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/v2/video/guidelines/{family_id}/{cycle_id}")
+@router.get("/v2/video/guidelines/{child_id}/{cycle_id}")
 async def get_video_guidelines(
-    family_id: str,
+    child_id: str,
     cycle_id: str,
     current_user: User = Depends(get_current_user)
 ):
@@ -350,7 +361,7 @@ async def get_video_guidelines(
 
         chitta = get_chitta_service()
         result = await chitta.get_video_guidelines(
-            family_id=family_id,
+            family_id=child_id,
             cycle_id=cycle_id,
         )
 
@@ -368,7 +379,7 @@ async def get_video_guidelines(
 
 @router.post("/v2/video/upload")
 async def upload_video_v2(
-    family_id: str = Form(...),
+    child_id: str = Form(...),
     cycle_id: str = Form(...),
     scenario_id: str = Form(...),
     video: UploadFile = File(...),
@@ -385,7 +396,7 @@ async def upload_video_v2(
 
         chitta = get_chitta_service()
 
-        upload_dir = Path("data/videos") / family_id
+        upload_dir = Path("data/videos") / child_id
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         video_filename = f"{cycle_id}_{scenario_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
@@ -396,7 +407,7 @@ async def upload_video_v2(
             f.write(content)
 
         result = await chitta.mark_video_uploaded(
-            family_id=family_id,
+            family_id=child_id,
             cycle_id=cycle_id,
             scenario_id=scenario_id,
             video_path=str(video_path),
@@ -419,9 +430,9 @@ async def upload_video_v2(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/v2/video/analyze/{family_id}/{cycle_id}")
+@router.post("/v2/video/analyze/{child_id}/{cycle_id}")
 async def analyze_videos_v2(
-    family_id: str,
+    child_id: str,
     cycle_id: str,
     current_user: User = Depends(get_current_user)
 ):
@@ -436,7 +447,7 @@ async def analyze_videos_v2(
 
         chitta = get_chitta_service()
         result = await chitta.analyze_cycle_videos(
-            family_id=family_id,
+            family_id=child_id,
             cycle_id=cycle_id,
         )
 
