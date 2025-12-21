@@ -39,8 +39,7 @@ export default function ChildSwitcher() {
   const handleSwitchChild = (childId) => {
     switchChild(childId);
     setIsOpen(false);
-    // Reload to get fresh state for the new child
-    window.location.reload();
+    // React's key={activeChildId} on AuthenticatedApp handles state reset
   };
 
   // Get display name for a child

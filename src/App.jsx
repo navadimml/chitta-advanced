@@ -60,21 +60,29 @@ function App() {
  * Intermediate component that uses FamilyContext to get activeChildId
  */
 function AuthenticatedAppWithFamily({ onLogout }) {
-  const { activeChildId, isLoading: familyLoading } = useFamily();
+  const { activeChildId, isLoading: familyLoading, refreshFamily } = useFamily();
 
   // Show loading while family data is being fetched
   if (familyLoading) {
     return <LoadingScreen />;
   }
 
-  // Pass activeChildId as the familyId prop
-  return <AuthenticatedApp userFamilyId={activeChildId} onLogout={onLogout} />;
+  // Use key={activeChildId} to force remount when switching children
+  // This ensures all state (messages, cards, etc.) resets for the new child
+  return (
+    <AuthenticatedApp
+      key={activeChildId}
+      userFamilyId={activeChildId}
+      onLogout={onLogout}
+      onRefreshFamily={refreshFamily}
+    />
+  );
 }
 
 /**
  * Main app component for authenticated users
  */
-function AuthenticatedApp({ userFamilyId, onLogout }) {
+function AuthenticatedApp({ userFamilyId, onLogout, onRefreshFamily }) {
   // Simple state - use user ID as default family ID
   const [familyId, setFamilyId] = useState(userFamilyId);
   const [messages, setMessages] = useState([]);
@@ -369,6 +377,12 @@ function AuthenticatedApp({ userFamilyId, onLogout }) {
           // Action not allowed - Chitta's response already includes explanation
           console.log(`❌ Action "${action}" not feasible: ${explanation || 'Prerequisites not met'}`);
         }
+      }
+
+      // Refresh family data to update ChildSwitcher with latest child names
+      // This handles cases where child identity was extracted from conversation
+      if (onRefreshFamily) {
+        onRefreshFamily();
       }
 
     } catch (error) {
