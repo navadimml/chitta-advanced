@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { api } from './client';
 
 // Helper to create mock fetch response
@@ -10,9 +10,66 @@ const mockFetch = (data, ok = true) => {
   });
 };
 
+// Helper to create mock XMLHttpRequest class
+const createMockXHRClass = (options = {}) => {
+  const {
+    status = 200,
+    statusText = 'OK',
+    responseText = '{}',
+    shouldError = false,
+    shouldAbort = false
+  } = options;
+
+  return class MockXHR {
+    constructor() {
+      this.open = vi.fn();
+      this.send = vi.fn().mockImplementation(() => {
+        setTimeout(() => {
+          if (shouldError) {
+            if (this._errorHandler) this._errorHandler();
+          } else if (shouldAbort) {
+            if (this._abortHandler) this._abortHandler();
+          } else {
+            if (this._loadHandler) this._loadHandler();
+          }
+        }, 0);
+      });
+      this.upload = {
+        addEventListener: vi.fn().mockImplementation((event, handler) => {
+          if (event === 'progress') {
+            this._progressHandler = handler;
+          }
+        })
+      };
+      this.addEventListener = vi.fn().mockImplementation((event, handler) => {
+        if (event === 'load') this._loadHandler = handler;
+        if (event === 'error') this._errorHandler = handler;
+        if (event === 'abort') this._abortHandler = handler;
+      });
+      this.status = status;
+      this.statusText = statusText;
+      this.responseText = responseText;
+    }
+
+    // Allow triggering progress from tests
+    triggerProgress(loaded, total) {
+      if (this._progressHandler) {
+        this._progressHandler({ lengthComputable: true, loaded, total });
+      }
+    }
+  };
+};
+
 describe('ChittaAPIClient', () => {
+  let originalXHR;
+
   beforeEach(() => {
     vi.restoreAllMocks();
+    originalXHR = global.XMLHttpRequest;
+  });
+
+  afterEach(() => {
+    global.XMLHttpRequest = originalXHR;
   });
 
   describe('sendMessage', () => {
@@ -567,6 +624,363 @@ describe('ChittaAPIClient', () => {
         })
       );
       expect(result.timeline_url).toBe('/timeline/123.png');
+    });
+
+    it('should throw error on failure', async () => {
+      mockFetch({}, false);
+
+      await expect(api.generateTimeline('test_family'))
+        .rejects.toThrow('API error');
+    });
+  });
+
+  // ==========================================
+  // checkHealth tests
+  // ==========================================
+
+  describe('checkHealth', () => {
+    it('should check health endpoint', async () => {
+      const mockHealth = { status: 'healthy', version: '1.0.0' };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockHealth)
+      });
+
+      const result = await api.checkHealth();
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/health')
+      );
+      expect(result.status).toBe('healthy');
+    });
+  });
+
+  // ==========================================
+  // uploadVideo tests (XMLHttpRequest)
+  // ==========================================
+
+  describe('uploadVideo', () => {
+    it('should upload video successfully', async () => {
+      const MockXHR = createMockXHRClass({
+        status: 200,
+        responseText: JSON.stringify({ status: 'uploaded', video_id: 'vid_123' })
+      });
+
+      global.XMLHttpRequest = MockXHR;
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+      const result = await api.uploadVideo('test_family', 'vid_123', 'play', 60, mockFile);
+
+      expect(result.status).toBe('uploaded');
+    });
+
+    it('should track upload progress', async () => {
+      let xhrInstance;
+      const MockXHR = class extends createMockXHRClass({
+        status: 200,
+        responseText: JSON.stringify({ status: 'uploaded' })
+      }) {
+        constructor() {
+          super();
+          xhrInstance = this;
+        }
+      };
+
+      global.XMLHttpRequest = MockXHR;
+
+      const onProgress = vi.fn();
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      // Start upload (don't await yet)
+      const uploadPromise = api.uploadVideo('test_family', 'vid_123', 'play', 60, mockFile, onProgress);
+
+      // Wait for XHR to be created
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      // Trigger progress
+      if (xhrInstance) {
+        xhrInstance.triggerProgress(50, 100);
+      }
+
+      await uploadPromise;
+
+      expect(onProgress).toHaveBeenCalledWith(50);
+    });
+
+    it('should handle upload error', async () => {
+      global.XMLHttpRequest = createMockXHRClass({ shouldError: true });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideo('test_family', 'vid_123', 'play', 60, mockFile))
+        .rejects.toThrow('Upload failed');
+    });
+
+    it('should handle upload abort', async () => {
+      global.XMLHttpRequest = createMockXHRClass({ shouldAbort: true });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideo('test_family', 'vid_123', 'play', 60, mockFile))
+        .rejects.toThrow('Upload cancelled');
+    });
+
+    it('should handle non-200 response', async () => {
+      global.XMLHttpRequest = createMockXHRClass({
+        status: 500,
+        statusText: 'Internal Server Error'
+      });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideo('test_family', 'vid_123', 'play', 60, mockFile))
+        .rejects.toThrow('Upload failed');
+    });
+
+    it('should handle invalid JSON response', async () => {
+      global.XMLHttpRequest = createMockXHRClass({
+        status: 200,
+        responseText: 'not valid json'
+      });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideo('test_family', 'vid_123', 'play', 60, mockFile))
+        .rejects.toThrow('Failed to parse response');
+    });
+  });
+
+  // ==========================================
+  // uploadVideoV2 tests (XMLHttpRequest)
+  // ==========================================
+
+  describe('uploadVideoV2', () => {
+    it('should upload video v2 successfully', async () => {
+      global.XMLHttpRequest = createMockXHRClass({
+        status: 200,
+        responseText: JSON.stringify({ status: 'uploaded', scenario_id: 'scenario_1' })
+      });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+      const result = await api.uploadVideoV2('test_family', 'cycle_123', 'scenario_1', mockFile);
+
+      expect(result.status).toBe('uploaded');
+    });
+
+    it('should track upload progress for v2', async () => {
+      let xhrInstance;
+      const MockXHR = class extends createMockXHRClass({
+        status: 200,
+        responseText: JSON.stringify({ status: 'uploaded' })
+      }) {
+        constructor() {
+          super();
+          xhrInstance = this;
+        }
+      };
+
+      global.XMLHttpRequest = MockXHR;
+
+      const onProgress = vi.fn();
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      const uploadPromise = api.uploadVideoV2('test_family', 'cycle_123', 'scenario_1', mockFile, onProgress);
+
+      // Wait for XHR to be created
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      // Trigger progress
+      if (xhrInstance) {
+        xhrInstance.triggerProgress(75, 100);
+      }
+
+      await uploadPromise;
+
+      expect(onProgress).toHaveBeenCalledWith(75);
+    });
+
+    it('should handle v2 upload error', async () => {
+      global.XMLHttpRequest = createMockXHRClass({ shouldError: true });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideoV2('test_family', 'cycle_123', 'scenario_1', mockFile))
+        .rejects.toThrow('Upload failed');
+    });
+
+    it('should handle v2 upload abort', async () => {
+      global.XMLHttpRequest = createMockXHRClass({ shouldAbort: true });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideoV2('test_family', 'cycle_123', 'scenario_1', mockFile))
+        .rejects.toThrow('Upload cancelled');
+    });
+
+    it('should handle v2 non-200 response', async () => {
+      global.XMLHttpRequest = createMockXHRClass({
+        status: 400,
+        statusText: 'Bad Request'
+      });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideoV2('test_family', 'cycle_123', 'scenario_1', mockFile))
+        .rejects.toThrow('Upload failed');
+    });
+
+    it('should handle v2 invalid JSON response', async () => {
+      global.XMLHttpRequest = createMockXHRClass({
+        status: 200,
+        responseText: '{invalid json'
+      });
+
+      const mockFile = new Blob(['video content'], { type: 'video/mp4' });
+
+      await expect(api.uploadVideoV2('test_family', 'cycle_123', 'scenario_1', mockFile))
+        .rejects.toThrow('Failed to parse response');
+    });
+  });
+
+  // ==========================================
+  // Error handling tests for remaining methods
+  // ==========================================
+
+  describe('error handling', () => {
+    it('getState should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getState('test_family')).rejects.toThrow('API error');
+    });
+
+    it('getCuriosityState should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getCuriosityState('test_family')).rejects.toThrow('API error');
+    });
+
+    it('requestSynthesis should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.requestSynthesis('test_family')).rejects.toThrow('API error');
+    });
+
+    it('acceptVideoSuggestion should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.acceptVideoSuggestion('test_family', 'cycle_1')).rejects.toThrow('API error');
+    });
+
+    it('declineVideoSuggestion should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.declineVideoSuggestion('test_family', 'cycle_1')).rejects.toThrow('API error');
+    });
+
+    it('getVideoInsights should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getVideoInsights('test_family', 'cycle_1')).rejects.toThrow('API error');
+    });
+
+    it('analyzeVideos should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.analyzeVideos('test_family', 'cycle_1')).rejects.toThrow('API error');
+    });
+
+    it('executeCardAction should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.executeCardAction('test_family', 'dismiss')).rejects.toThrow('API error');
+    });
+
+    it('getTimeline should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getTimeline('test_family')).rejects.toThrow('API error');
+    });
+
+    it('getChildSpace should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getChildSpace('test_family')).rejects.toThrow('API error');
+    });
+
+    it('getChildSpaceHeader should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getChildSpaceHeader('test_family')).rejects.toThrow('API error');
+    });
+
+    it('getSlotDetail should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getSlotDetail('test_family', 'slot_1')).rejects.toThrow('API error');
+    });
+
+    it('getArtifact should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getArtifact('test_family', 'artifact_1')).rejects.toThrow('API error');
+    });
+
+    it('getStructuredArtifact should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getStructuredArtifact('test_family', 'artifact_1')).rejects.toThrow('API error');
+    });
+
+    it('getArtifactThreads should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getArtifactThreads('test_family', 'artifact_1')).rejects.toThrow('API error');
+    });
+
+    it('createThread should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.createThread('test_family', 'artifact_1', 'section_1', 'question')).rejects.toThrow('API error');
+    });
+
+    it('getThread should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getThread('thread_1', 'artifact_1', 'test_family')).rejects.toThrow('API error');
+    });
+
+    it('addThreadMessage should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.addThreadMessage('thread_1', 'test_family', 'message')).rejects.toThrow('API error');
+    });
+
+    it('resolveThread should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.resolveThread('thread_1', 'artifact_1')).rejects.toThrow('API error');
+    });
+
+    it('getTestPersonas should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getTestPersonas()).rejects.toThrow('API error');
+    });
+
+    it('startTest should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.startTest('persona_1')).rejects.toThrow('API error');
+    });
+
+    it('generateParentResponse should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.generateParentResponse('test_family', 'question')).rejects.toThrow('API error');
+    });
+
+    it('getChildSpaceFull should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.getChildSpaceFull('test_family')).rejects.toThrow('API error');
+    });
+
+    it('checkSummaryReadiness should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.checkSummaryReadiness('test_family', 'pediatrician')).rejects.toThrow('API error');
+    });
+
+    it('startGuidedCollection should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.startGuidedCollection('test_family', 'pediatrician')).rejects.toThrow('API error');
+    });
+
+    it('generateShareableSummary should throw on failure', async () => {
+      mockFetch({}, false);
+      await expect(api.generateShareableSummary('test_family', {
+        expert: {},
+        expertDescription: 'test',
+        context: 'test',
+        crystalInsights: {}
+      })).rejects.toThrow('API error');
     });
   });
 });
