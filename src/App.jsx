@@ -9,7 +9,6 @@ import { testModeOrchestrator } from './services/TestModeOrchestrator.jsx';
 
 // UI Components
 import ConversationTranscript from './components/ConversationTranscript';
-// ContextualSurface replaced by GestaltCards for Living Gestalt architecture
 import InputArea from './components/InputArea';
 import SuggestionsPopup from './components/SuggestionsPopup';
 import DeepViewManager from './components/DeepViewManager';
@@ -53,7 +52,6 @@ function App() {
   // Simple state
   const [familyId, setFamilyId] = useState(INITIAL_FAMILY_ID);
   const [messages, setMessages] = useState([]);
-  const [stage, setStage] = useState('welcome');
   const [cards, setCards] = useState([]);
   const [suggestions, setSuggestions] = useState([
     { text: "שמו יוני והוא בן 3.5", action: null },
@@ -180,7 +178,7 @@ function App() {
     };
   }, []);
 
-  // 🌟 Wu Wei: SSE connection - dynamically updates when family_id changes (e.g., test mode)
+  // 🌟 SSE connection - dynamically updates when family_id changes (e.g., test mode)
   useEffect(() => {
     // Determine active family ID (test mode uses testFamilyId, normal mode uses familyId)
     const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
@@ -333,7 +331,7 @@ function App() {
         }
       }
 
-      // 🌟 Wu Wei: Handle action validation (config-driven from action_graph.yaml)
+      // 🌟 Handle action validation (config-driven)
       if (response.action_validation) {
         const { action, feasible, view_to_open, explanation } = response.action_validation;
 
@@ -467,30 +465,6 @@ function App() {
       return;
     }
 
-    // Dismiss card with cycleId (legacy handler - keeping for backwards compatibility)
-    if (action === 'dismiss_with_cycle' && cycleId) {
-      console.log('❌ Dismissing card for cycle:', cycleId, 'type:', card?.type);
-
-      try {
-        // For video suggestions, declining is the same as dismissing
-        if (card?.type === 'video_suggestion') {
-          await api.declineVideoSuggestion(activeFamilyId, cycleId);
-        } else {
-          // For video_analyzed and other cards, use generic dismiss with scenario_ids
-          await api.executeCardAction(activeFamilyId, 'dismiss', {
-            cycle_id: cycleId,
-            card_type: card?.type,
-            scenario_ids: card?.scenario_ids || [],
-          });
-        }
-        console.log('✅ Card dismissed');
-        await refreshCards();
-      } catch (error) {
-        console.error('❌ Error dismissing card:', error);
-      }
-      return;
-    }
-
     // Confirm video (parent verifies it's the correct video despite concerns)
     if (action === 'confirm_video' && card?.scenario_id) {
       console.log('✅ Confirming video for scenario:', card.scenario_id);
@@ -598,39 +572,24 @@ function App() {
       return;
     }
 
-    if (action === 'analyze_videos') {
+    if (action === 'analyze_videos' && cycleId) {
       // 🎥 Trigger video analysis - runs in background, doesn't block chat
       console.log('🎬 Starting video analysis for family:', activeFamilyId, 'cycle:', cycleId);
 
-      if (cycleId) {
-        // Living Gestalt v2: Fire and forget - SSE will notify when done
-        api.analyzeVideos(activeFamilyId, cycleId)
-          .then(result => {
-            console.log('✅ Video analysis complete:', result);
-            // SSE will automatically update cards
-          })
-          .catch(error => {
-            console.error('❌ Error analyzing videos:', error);
-            // Refresh cards to clear loading state
-            refreshCards();
-          });
-
-        // Immediately refresh to show "analyzing" card state
-        await refreshCards();
-      } else {
-        // Legacy v1: Still blocking (deprecated path)
-        try {
-          const response = await fetch(`${window.location.origin}/api/video/analyze?family_id=${activeFamilyId}`, {
-            method: 'POST'
-          });
-          const result = await response.json();
-          console.log('✅ Video analysis result:', result);
-          await refreshCards();
-        } catch (error) {
+      // Fire and forget - SSE will notify when done
+      api.analyzeVideos(activeFamilyId, cycleId)
+        .then(result => {
+          console.log('✅ Video analysis complete:', result);
+          // SSE will automatically update cards
+        })
+        .catch(error => {
           console.error('❌ Error analyzing videos:', error);
-          alert('שגיאה בניתוח הסרטונים. נא לנסות שוב.');
-        }
-      }
+          // Refresh cards to clear loading state
+          refreshCards();
+        });
+
+      // Immediately refresh to show "analyzing" card state
+      await refreshCards();
       return;
     }
 
@@ -763,7 +722,7 @@ function App() {
   // Function to refresh cards from backend
   const refreshCards = async () => {
     try {
-      // 🌟 Wu Wei: Use /state endpoint (YAML-driven cards), not /timeline (old stage-based)
+      // Get cards from state endpoint
       const activeFamilyId = testMode && testFamilyId ? testFamilyId : familyId;
       const response = await api.getState(activeFamilyId);
       if (response.ui && response.ui.cards) {
