@@ -177,7 +177,7 @@ class ChittaAPIClient {
   }
 
   /**
-   * 🌟 Wu Wei: Get artifact content
+   * Get artifact content
    * Fetches generated artifacts like video guidelines, reports, etc.
    */
   async getArtifact(familyId, artifactId) {
@@ -646,7 +646,7 @@ class ChittaAPIClient {
 
   /**
    * Generate a shareable summary adapted for a specific expert
-   * Wu-wei approach: Pass expert info and let model determine style
+   * Pass expert info and let model determine appropriate style
    */
   async generateShareableSummary(familyId, { expert, expertDescription, context, crystalInsights, comprehensive, missingGaps }) {
     const response = await fetch(`${API_BASE_URL}/family/${familyId}/child-space/share/generate`, {

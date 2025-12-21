@@ -2,7 +2,7 @@
  * Test Mode Orchestrator
  *
  * Automates test conversations using REAL backend processing.
- * Unlike demo mode (mocked), this validates the entire Wu Wei dependency graph.
+ * Validates the complete Darshan curiosity-driven conversation flow.
  *
  * Architecture:
  * 1. Monitors for Chitta's questions (last assistant message)

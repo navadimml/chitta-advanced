@@ -2008,7 +2008,7 @@ function StyledSummary({ content, recipientType }) {
 }
 
 // ============================================
-// SHARE TAB - Wu-Wei Sharing (Crystal-Driven)
+// SHARE TAB - Crystal-Driven Sharing
 // ============================================
 
 // Fallback expert suggestions for when crystal doesn't have recommendations
@@ -2115,7 +2115,7 @@ function ShareTab({ data, familyId, onGenerateSummary, onStartGuidedCollection }
     // Step 2: Generate the summary
     setIsGenerating(true);
     try {
-      // Pass the full expert info and let backend handle the wu-wei generation
+      // Pass the full expert info and let backend determine appropriate style
       const result = await onGenerateSummary({
         expert: selectedExpert || { customDescription: customExpert },
         expertDescription,
