@@ -136,7 +136,7 @@ export default function TimelineView({ familyId, childName, onClose }) {
               <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                 <p className="text-amber-800 text-sm">
                   ציר הזמן ייווצר על בסיס המידע שנאסף במהלך השיחות -
-                  כולל אירועים מרכזיים, צפייה בסרטונים, ודוחות שנוצרו.
+                  כולל אירועים מרכזיים, צפייה בסרטונים, ועדכונים בדיוקן.
                 </p>
               </div>
 

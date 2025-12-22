@@ -48,7 +48,7 @@ export default function ShareView({ onClose }) {
                 <FileText className={`w-5 h-5 ${shareToggles.parentReport ? 'text-indigo-600' : 'text-gray-500'}`} />
                 <div>
                   <div className="font-semibold text-sm text-gray-900">מדריך להורים</div>
-                  <div className="text-xs text-gray-600">דוח מפורט עם ממצאים</div>
+                  <div className="text-xs text-gray-600">סיכום מפורט עם ממצאים</div>
                 </div>
               </div>
               {shareToggles.parentReport ? 

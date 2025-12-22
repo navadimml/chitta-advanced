@@ -149,15 +149,7 @@ class WorkflowConfigLoader(ConfigLoader):
     Loads all workflow-related configs:
     - extraction_schema.yaml
     - action_graph.yaml
-    - artifacts.yaml (includes generator config)
     - deep_views.yaml
-    - workflow.yaml (Wu Wei moments + cards)
-
-    Consolidation history:
-    - v3.1: phases.yaml removed (state derived from artifacts)
-    - v3.2: context_cards.yaml merged into lifecycle_events.yaml
-    - v2.0: artifact_generators.yaml merged into artifacts.yaml
-    - v3.2: lifecycle_events.yaml renamed to workflow.yaml
     """
 
     def __init__(self):
@@ -195,20 +187,6 @@ class WorkflowConfigLoader(ConfigLoader):
         return self._cache["action_graph"]
 
     @lru_cache(maxsize=1)
-    def load_artifacts(self) -> Dict[str, Any]:
-        """Load artifacts configuration."""
-        if "artifacts" not in self._cache:
-            config = self.load_yaml(f"{self.workflows_path}/artifacts.yaml")
-            self.validate_required_fields(
-                config,
-                ["version", "artifact_catalog_name", "artifacts"],
-                "artifacts.yaml"
-            )
-            self._cache["artifacts"] = config
-
-        return self._cache["artifacts"]
-
-    @lru_cache(maxsize=1)
     def load_deep_views(self) -> Dict[str, Any]:
         """Load deep views configuration."""
         if "deep_views" not in self._cache:
@@ -222,20 +200,6 @@ class WorkflowConfigLoader(ConfigLoader):
 
         return self._cache["deep_views"]
 
-    @lru_cache(maxsize=1)
-    def load_workflow(self) -> Dict[str, Any]:
-        """Load workflow configuration (Wu Wei moments + cards)."""
-        if "workflow" not in self._cache:
-            config = self.load_yaml(f"{self.workflows_path}/workflow.yaml")
-            self.validate_required_fields(
-                config,
-                ["version", "workflow_name", "moments", "always_available"],
-                "workflow.yaml"
-            )
-            self._cache["workflow"] = config
-
-        return self._cache["workflow"]
-
     def load_all(self) -> Dict[str, Dict[str, Any]]:
         """
         Load all workflow configurations.
@@ -246,9 +210,7 @@ class WorkflowConfigLoader(ConfigLoader):
         return {
             "extraction_schema": self.load_extraction_schema(),
             "action_graph": self.load_action_graph(),
-            "artifacts": self.load_artifacts(),
             "deep_views": self.load_deep_views(),
-            "workflow": self.load_workflow(),
         }
 
     def clear_cache(self) -> None:
@@ -256,9 +218,7 @@ class WorkflowConfigLoader(ConfigLoader):
         self._cache.clear()
         self.load_extraction_schema.cache_clear()
         self.load_action_graph.cache_clear()
-        self.load_artifacts.cache_clear()
         self.load_deep_views.cache_clear()
-        self.load_workflow.cache_clear()
         logger.info("Configuration cache cleared")
 
 
@@ -292,19 +252,9 @@ def load_action_graph() -> Dict[str, Any]:
     return get_workflow_config_loader().load_action_graph()
 
 
-def load_artifacts() -> Dict[str, Any]:
-    """Load artifacts configuration."""
-    return get_workflow_config_loader().load_artifacts()
-
-
 def load_deep_views() -> Dict[str, Any]:
     """Load deep views configuration."""
     return get_workflow_config_loader().load_deep_views()
-
-
-def load_workflow() -> Dict[str, Any]:
-    """Load workflow configuration (Wu Wei moments + cards)."""
-    return get_workflow_config_loader().load_workflow()
 
 
 # === App Configuration Loader ===

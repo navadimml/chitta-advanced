@@ -1,8 +1,8 @@
 """
-Family API Routes - Family space and child-space endpoints
+Family API Routes - Family management and child-space endpoints
 
 Includes:
-- /family/{family_id}/space/* (Living Dashboard)
+- /family/{family_id}/children (Family management)
 - /family/{family_id}/child-space/* (Living Portrait + Sharing)
 """
 
@@ -11,12 +11,8 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
 
-from app.core.app_state import app_state
 from app.db.dependencies import get_current_user, RequireAuth
 from app.db.models_auth import User
-from app.services.unified_state_service import get_unified_state_service
-from app.services.session_service import get_session_service
-from app.services.child_space_service import get_child_space_service
 
 router = APIRouter(prefix="/family", tags=["family"])
 logger = logging.getLogger(__name__)
@@ -57,104 +53,6 @@ async def add_child_to_family(
     child_id = await family_service.add_child_to_family(family_id)
 
     return AddChildResponse(child_id=child_id)
-
-
-# === Living Dashboard (Space) Endpoints ===
-
-@router.get("/{family_id}/space")
-async def get_child_space(
-    family_id: str,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get complete child space with all artifact slots.
-    """
-    if not app_state.initialized:
-        raise HTTPException(status_code=500, detail="App not initialized")
-
-    state_service = get_unified_state_service()
-    child_space_service = get_child_space_service()
-
-    state = state_service.get_family_state(family_id)
-
-    # Sync artifacts from session to family state
-    session_service = get_session_service()
-    session = session_service.get_or_create_session(family_id)
-
-    for artifact_id, artifact in session.artifacts.items():
-        if artifact.is_ready or artifact.status == "generating":
-            state.artifacts[artifact_id] = artifact
-
-    space = child_space_service.get_child_space(state)
-
-    return {
-        "family_id": space.family_id,
-        "child_name": space.child_name,
-        "slots": [slot.model_dump() for slot in space.slots],
-        "header_badges": space.header_badges,
-        "last_updated": space.last_updated.isoformat() if space.last_updated else None
-    }
-
-
-@router.get("/{family_id}/space/header")
-async def get_child_space_header(
-    family_id: str,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get header badges only (lightweight endpoint).
-    """
-    if not app_state.initialized:
-        raise HTTPException(status_code=500, detail="App not initialized")
-
-    state_service = get_unified_state_service()
-    child_space_service = get_child_space_service()
-
-    state = state_service.get_family_state(family_id)
-
-    session_service = get_session_service()
-    session = session_service.get_or_create_session(family_id)
-    for artifact_id, artifact in session.artifacts.items():
-        if artifact.is_ready or artifact.status == "generating":
-            state.artifacts[artifact_id] = artifact
-
-    badges = child_space_service.get_header_summary(state)
-
-    return {
-        "family_id": family_id,
-        "badges": badges
-    }
-
-
-@router.get("/{family_id}/space/slot/{slot_id}")
-async def get_slot_detail(
-    family_id: str,
-    slot_id: str,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get detailed slot info including version history.
-    """
-    if not app_state.initialized:
-        raise HTTPException(status_code=500, detail="App not initialized")
-
-    state_service = get_unified_state_service()
-    child_space_service = get_child_space_service()
-
-    state = state_service.get_family_state(family_id)
-
-    session_service = get_session_service()
-    session = session_service.get_or_create_session(family_id)
-    for artifact_id, artifact in session.artifacts.items():
-        if artifact.is_ready or artifact.status == "generating":
-            state.artifacts[artifact_id] = artifact
-
-    slot = child_space_service.get_slot_detail(state, slot_id)
-
-    if not slot:
-        raise HTTPException(status_code=404, detail=f"Slot '{slot_id}' not found")
-
-    return {"slot": slot.model_dump()}
 
 
 # === Living Portrait (Child-Space) Endpoints ===

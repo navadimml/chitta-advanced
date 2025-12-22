@@ -494,52 +494,6 @@ describe('ChittaAPIClient', () => {
     });
   });
 
-  describe('getChildSpace', () => {
-    it('should fetch child space', async () => {
-      mockFetch({ slots: [] });
-
-      const result = await api.getChildSpace('test_family');
-
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/space'),
-        expect.objectContaining({ headers: expect.any(Object) })
-      );
-      expect(result.slots).toEqual([]);
-    });
-  });
-
-  describe('getChildSpaceHeader', () => {
-    it('should fetch header badges', async () => {
-      const mockHeader = { badges: ['badge1', 'badge2'] };
-
-      mockFetch(mockHeader);
-
-      const result = await api.getChildSpaceHeader('test_family');
-
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/space/header'),
-        expect.objectContaining({ headers: expect.any(Object) })
-      );
-      expect(result.badges).toHaveLength(2);
-    });
-  });
-
-  describe('getSlotDetail', () => {
-    it('should fetch slot detail with history', async () => {
-      const mockSlot = { id: 'report', history: [] };
-
-      mockFetch(mockSlot);
-
-      const result = await api.getSlotDetail('test_family', 'report');
-
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/family/test_family/space/slot/report'),
-        expect.objectContaining({ headers: expect.any(Object) })
-      );
-      expect(result.id).toBe('report');
-    });
-  });
-
   describe('getArtifact', () => {
     it('should fetch artifact content', async () => {
       const mockArtifact = { content: 'Report content', status: 'ready' };
@@ -1085,21 +1039,6 @@ describe('ChittaAPIClient', () => {
     it('getTimeline should throw on failure', async () => {
       mockFetch({}, false);
       await expect(api.getTimeline('test_family')).rejects.toThrow('API error');
-    });
-
-    it('getChildSpace should throw on failure', async () => {
-      mockFetch({}, false);
-      await expect(api.getChildSpace('test_family')).rejects.toThrow('API error');
-    });
-
-    it('getChildSpaceHeader should throw on failure', async () => {
-      mockFetch({}, false);
-      await expect(api.getChildSpaceHeader('test_family')).rejects.toThrow('API error');
-    });
-
-    it('getSlotDetail should throw on failure', async () => {
-      mockFetch({}, false);
-      await expect(api.getSlotDetail('test_family', 'slot_1')).rejects.toThrow('API error');
     });
 
     it('getArtifact should throw on failure', async () => {

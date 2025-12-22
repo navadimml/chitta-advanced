@@ -107,94 +107,66 @@ class AppInformationService:
             upload_instructions = self._get_upload_instructions(context)
             template = template.replace("{upload_instructions}", upload_instructions)
 
-        # 7. Report location (state-aware)
+        # 7. Portrait location (state-aware)
+        if "{portrait_location}" in template:
+            portrait_location = self._get_portrait_location(context)
+            template = template.replace("{portrait_location}", portrait_location)
+
+        # 7b. Legacy report_location (backwards compat)
         if "{report_location}" in template:
-            report_location = self._get_report_location(context)
+            report_location = self._get_portrait_location(context)
             template = template.replace("{report_location}", report_location)
 
         return template
 
     def _build_locked_features_text(self, context: Dict[str, Any]) -> str:
-        """Build text describing locked features and when they unlock"""
+        """Build text describing features based on current understanding level"""
 
-        message_count = context.get("message_count", 0)
         knowledge_is_rich = context.get("knowledge_is_rich", False)
-        has_guidelines = context.get("baseline_video_guidelines.exists", False)
         has_videos = context.get("baseline_videos.exists", False)
-        has_report = context.get("baseline_professional_report.exists", False)
         child_name = context.get("child_name", "הילד/ה שלך")
 
-        locked_sections = []
-
-        # Video guidelines locked
+        # No locked features messaging - the app is always available
+        # Just provide context about current state
         if not knowledge_is_rich:
-            messages_needed = max(8 - message_count, 1)
-            locked_sections.append(f"""**יהיה זמין בקרוב:**
-• **הנחיות צילום** - אחרי שנכיר את {child_name} טוב יותר (עוד ~{messages_needed} הודעות)
-• **העלאת סרטונים** - אחרי ההנחיות""")
-
-        # Upload videos locked
-        elif knowledge_is_rich and not has_guidelines:
-            locked_sections.append("""**יהיה זמין בקרוב:**
-• **העלאת סרטונים** - אחרי שאכין הנחיות צילום מותאמות""")
-
-        # Analysis locked
-        elif has_guidelines and not has_videos:
-            locked_sections.append("""**יהיה זמין אחרי העלאת סרטונים:**
-• **ניתוח AI** - ניתוח דפוסי התפתחות (~24 שעות)
-• **דוח התפתחותי** - ממצאים והמלצות מפורטים""")
-
-        # Report locked
-        elif has_videos and not has_report:
-            locked_sections.append("""**בתהליך:**
-• **דוח התפתחותי** - אני מנתחת את הסרטונים עכשיו (~24 שעות)""")
-
-        # Everything unlocked
-        elif has_report:
-            locked_sections.append("""**זמין עכשיו:**
-• **דוח התפתחותי** - הדוח מוכן! אפשר לצפות, להוריד, או לשתף עם מומחים""")
-
-        return "\n\n".join(locked_sections) if locked_sections else ""
+            return f"""**ככל שנדבר יותר:**
+• הדיוקן של {child_name} יתעמק
+• אוכל להציע לראות סרטונים במצבים ספציפיים
+• תובנות והמלצות יהיו יותר ממוקדות"""
+        elif not has_videos:
+            return f"""**כרגע הדיוקן מבוסס על השיחות שלנו**
+• אפשר להעמיק עם סרטונים כשתרצי
+• אני אציע מתי זה יכול לעזור"""
+        else:
+            return ""  # Videos exist, full experience available
 
     def _get_current_state_description(self, context: Dict[str, Any]) -> str:
         """Get current state description based on session"""
 
         knowledge_is_rich = context.get("knowledge_is_rich", False)
-        has_guidelines = context.get("baseline_video_guidelines.exists", False)
         has_videos = context.get("baseline_videos.exists", False)
-        has_report = context.get("baseline_professional_report.exists", False)
         child_name = context.get("child_name", "הילד/ה שלך")
 
-        if has_report:
-            return f"יש לך דוח מוכן עבור {child_name}"
-        elif has_videos:
-            return "מנתחים את הסרטונים"
-        elif has_guidelines:
-            return "ממתינים להעלאת סרטונים"
+        if has_videos:
+            return f"הדיוקן של {child_name} מתעמק עם הסרטונים שהעלית"
         elif knowledge_is_rich:
-            return f"מוכנים להכין הנחיות צילום עבור {child_name}"
+            return f"אני מכירה את {child_name} די טוב מהשיחות שלנו"
         else:
-            return f"בשיחה להכרות עם {child_name}"
+            return f"אנחנו בתחילת ההכרות עם {child_name}"
 
     def _get_next_step(self, context: Dict[str, Any]) -> str:
         """Get next step based on current state"""
 
         knowledge_is_rich = context.get("knowledge_is_rich", False)
-        has_guidelines = context.get("baseline_video_guidelines.exists", False)
         has_videos = context.get("baseline_videos.exists", False)
-        has_report = context.get("baseline_professional_report.exists", False)
         child_name = context.get("child_name", "הילד/ה")
 
-        if has_report:
-            return "הדוח מוכן! תוכלי לצפות בו, להוריד אותו, או לשתף עם מומחים."
-        elif has_videos:
-            return "אני מנתחת את הסרטונים עכשיו - זה לוקח בערך 24 שעות. בינתיים תוכלי לשאול שאלות או לכתוב ביומן."
-        elif has_guidelines:
-            return "ההנחיות מוכנות! הצעד הבא הוא לצלם ולהעלות את הסרטונים (בזמנך החופשי)."
+        if has_videos:
+            return f"הדיוקן של {child_name} מתעדכן כל הזמן. ספרי לי עוד או שאלי שאלות."
         elif knowledge_is_rich:
-            return f"הצעד הבא הוא הכנת הנחיות צילום מותאמות אישית עבור {child_name}. רוצה שאכין אותן?"
+            return f"ככל שנדבר יותר, כך אבין טוב יותר את {child_name}. לפעמים אציע גם לראות סרטונים."
         else:
-            return f"הצעד הבא הוא להמשיך בשיחה - ככל שאני מכירה יותר את {child_name}, כך ההנחיות והניתוח יהיו מדויקים יותר."
+            return f"ספרי לי עוד על {child_name} - הכל עוזר לי לבנות תמונה מלאה יותר."
 
     def _get_upload_instructions(self, context: Dict[str, Any]) -> str:
         """Get video upload instructions based on state"""
@@ -213,22 +185,21 @@ class AppInformationService:
 
 צריכה עזרה נוספת?"""
 
-    def _get_report_location(self, context: Dict[str, Any]) -> str:
-        """Get report location info based on state"""
+    def _get_portrait_location(self, context: Dict[str, Any]) -> str:
+        """Get portrait/child space location info"""
+        child_name = context.get("child_name", "הילד/ה שלך")
 
-        has_report = context.get("baseline_professional_report.exists", False)
+        return f"""**איפה למצוא את הדיוקן החי?**
 
-        if not has_report:
-            return "הדוח יהיה זמין אחרי שאנתח את הסרטונים (~24 שעות). הוא יופיע בכרטיס למטה ותקבלי הודעה."
-        else:
-            return """הדוח מוכן!
+לחצי על האייקון למעלה כדי לפתוח את "החלל של {child_name}".
 
-**איפה למצוא:**
-• הדוח מופיע בכרטיס "דוח התפתחותי" למטה בצ'אט
-• לחצי על הכרטיס לצפייה בדוח המלא
-• יש אופציה להוריד כ-PDF או לשתף עם מומחים
+**מה יש שם?**
+• **הדיוקן** - מי {child_name}, מהות, דפוסים, חוזקות
+• **המסע** - תגליות שעשינו יחד
+• **מה ראינו** - תובנות מסרטונים
+• **שיתוף** - סיכומים לאנשי מקצוע
 
-רוצה שאסביר משהו מהדוח?"""
+הדיוקן מתעדכן ומתעמק ככל שאנחנו מדברות יותר ומעלים סרטונים."""
 
     def get_app_name_meaning(self) -> str:
         """Get explanation of Chitta name meaning"""

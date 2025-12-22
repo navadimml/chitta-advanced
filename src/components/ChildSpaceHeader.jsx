@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { ChevronDown, FileText, Video, Film, Loader2, Sparkles } from 'lucide-react';
-import { api } from '../api/client';
 
 /**
  * ChildSpaceHeader - Living Dashboard Phase 2
@@ -73,36 +72,8 @@ export default function ChildSpaceHeader({
   isExpanded = false,  // Controlled from parent
   className = ''
 }) {
-  const [badges, setBadges] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // 🌟 Living Gestalt: Use childSpace prop if available, otherwise fallback to API
-  useEffect(() => {
-    if (childSpace?.badges) {
-      // Use badges from prop (Living Gestalt data)
-      setBadges(childSpace.badges);
-      setIsLoading(false);
-      return;
-    }
-
-    // Fallback to old API for backward compatibility
-    async function fetchBadges() {
-      if (!familyId) return;
-
-      try {
-        setIsLoading(true);
-        const response = await api.getChildSpaceHeader(familyId);
-        setBadges(response.badges || []);
-      } catch (error) {
-        console.error('Error fetching child space header:', error);
-        setBadges([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchBadges();
-  }, [familyId, childSpace]);
+  // Use badges directly from childSpace prop
+  const badges = childSpace?.badges || [];
 
   // Handle badge click
   const handleBadgeClick = (badge) => {
@@ -148,7 +119,7 @@ export default function ChildSpaceHeader({
                 <span className="text-sm font-medium text-gray-700 hidden sm:inline">
                   {displayName}
                 </span>
-                {badges.length === 0 && !isLoading && (
+                {badges.length === 0 && (
                   <span className="text-[10px] text-gray-400 hidden sm:inline group-hover:text-purple-500 transition-colors">
                     לחצו לפרטים
                   </span>
@@ -159,12 +130,7 @@ export default function ChildSpaceHeader({
 
           {/* Badges */}
           <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar">
-            {isLoading ? (
-              <div className="flex items-center gap-1 text-gray-400 text-xs">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>טוען...</span>
-              </div>
-            ) : badges.length > 0 ? (
+            {badges.length > 0 ? (
               badges.map((badge) => (
                 <SlotBadge
                   key={badge.slot_id}

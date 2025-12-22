@@ -470,6 +470,12 @@ intents:
     topics:
       how_to_upload_video: "Label"
       where_to_find_report: "Label"
+      child_space: "Label"
+      living_portrait: "Label"
+      summaries: "Label"
+      sharing: "Label"
+      add_child: "Label"
+      switch_child: "Label"
       process_explanation: "Label"
       next_steps: "Label"
       app_features: "Label"

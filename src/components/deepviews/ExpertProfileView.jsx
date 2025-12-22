@@ -108,7 +108,7 @@ export default function ExpertProfileView({ viewKey, onClose }) {
               קביעת תור
             </button>
             <button className="bg-white border-2 border-teal-500 text-teal-600 py-3 px-4 rounded-xl font-bold hover:bg-teal-50 transition">
-              שליחת הדוח
+              שליחת סיכום
             </button>
           </div>
         </div>

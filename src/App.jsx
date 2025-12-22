@@ -707,7 +707,7 @@ function AuthenticatedApp({ userFamilyId, onLogout, onRefreshFamily }) {
       // Open as Living Document for threaded conversations
       setLivingDocumentArtifact({
         artifactId: 'baseline_parent_report',
-        title: 'דוח הורים'
+        title: 'הדיוקן'
       });
     } else if (action === 'view_guidelines') {
       setShowGuidelinesView(true);
@@ -728,11 +728,11 @@ function AuthenticatedApp({ userFamilyId, onLogout, onRefreshFamily }) {
       if (artifact_id) {
         // Determine title based on artifact type
         const titleMap = {
-          'baseline_parent_report': 'דוח הורים',
-          'baseline_parent_report_v0': 'דוח הורים (גרסה ראשונית)',
-          'baseline_parent_report_v1': 'דוח הורים (גרסה קודמת)',
+          'baseline_parent_report': 'הדיוקן',
+          'baseline_parent_report_v0': 'הדיוקן (גרסה ראשונית)',
+          'baseline_parent_report_v1': 'הדיוקן (גרסה קודמת)',
         };
-        const title = titleMap[artifact_id] || artifact_id.includes('report') ? 'דוח הורים' : 'מסמך';
+        const title = titleMap[artifact_id] || artifact_id.includes('report') ? 'הדיוקן' : 'מסמך';
         setLivingDocumentArtifact({
           artifactId: artifact_id,
           title: title
@@ -749,7 +749,7 @@ function AuthenticatedApp({ userFamilyId, onLogout, onRefreshFamily }) {
     if (slotId === 'current_report') {
       setLivingDocumentArtifact({
         artifactId: 'baseline_parent_report',
-        title: 'דוח הורים'
+        title: 'הדיוקן'
       });
     } else if (slotId === 'filming_guidelines') {
       setShowGuidelinesView(true);

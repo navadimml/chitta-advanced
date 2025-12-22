@@ -366,55 +366,6 @@ class ChittaAPIClient {
   }
 
   // ==========================================
-  // Living Dashboard Phase 2: Child's Space
-  // ==========================================
-
-  /**
-   * Get full child space with all slots
-   */
-  async getChildSpace(childId) {
-    const response = await fetch(`${API_BASE_URL}/family/${childId}/space`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  /**
-   * Get header badges only (lightweight)
-   */
-  async getChildSpaceHeader(childId) {
-    const response = await fetch(`${API_BASE_URL}/family/${childId}/space/header`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  /**
-   * Get slot detail with history
-   */
-  async getSlotDetail(childId, slotId) {
-    const response = await fetch(`${API_BASE_URL}/family/${childId}/space/slot/${slotId}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  // ==========================================
   // Living Dashboard Phase 3: Living Documents
   // ==========================================
 
