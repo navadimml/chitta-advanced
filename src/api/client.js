@@ -57,7 +57,14 @@ class ChittaAPIClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || 'שגיאה בהרשמה');
+      // Handle Pydantic validation errors (array of {loc, msg, type})
+      let message = 'שגיאה בהרשמה';
+      if (typeof error.detail === 'string') {
+        message = error.detail;
+      } else if (Array.isArray(error.detail) && error.detail.length > 0) {
+        message = error.detail[0].msg || message;
+      }
+      throw new Error(message);
     }
 
     return response.json();
@@ -80,7 +87,14 @@ class ChittaAPIClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || 'שגיאה בהתחברות');
+      // Handle Pydantic validation errors (array of {loc, msg, type})
+      let message = 'שגיאה בהתחברות';
+      if (typeof error.detail === 'string') {
+        message = error.detail;
+      } else if (Array.isArray(error.detail) && error.detail.length > 0) {
+        message = error.detail[0].msg || message;
+      }
+      throw new Error(message);
     }
 
     return response.json();
