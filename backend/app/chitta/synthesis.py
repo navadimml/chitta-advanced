@@ -864,7 +864,7 @@ The schema enforces the output structure. Focus on:
 - narrative: 2-3 sentences about who this child IS
 - temperament: everyday descriptions (רגיש לרעשים, not רגישות חושית)
 - patterns: cross-domain insights with domains tagged
-- intervention_pathways: connect what they love to what's hard
+- intervention_pathways: PARENT-FACING tips. Write TO parents, not ABOUT them. ❌ "ההורים מודאגים מ..." ✅ "כשרוצים לדעת מה עובר עליה"
 - open_questions: genuine questions in parent language (למה...? מה קורה כש...?)
 - expert_recommendations: ONLY if genuinely helpful, match by strengths
 
@@ -1261,7 +1261,7 @@ Remember:
 - narrative: 2-3 sentences about WHO this child IS
 - temperament: everyday descriptions (רגיש לרעשים, not רגישות חושית)
 - patterns: cross-domain insights with domains tagged
-- intervention_pathways: connect what they love to what's hard
+- intervention_pathways: PARENT-FACING tips. Write TO parents, not ABOUT them. ❌ "ההורים מודאגים מ..." ✅ "כשרוצים לדעת מה עובר עליה"
 - open_questions: genuine questions in parent language (למה...? מה קורה כש...?)
 - expert_recommendations: ONLY if genuinely helpful, match by strengths
 """

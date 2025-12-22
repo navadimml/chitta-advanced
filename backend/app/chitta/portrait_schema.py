@@ -40,10 +40,14 @@ class PatternSchema(BaseModel):
 
 
 class InterventionPathwaySchema(BaseModel):
-    """A pathway connecting strength to challenge."""
-    hook: str = Field(description="What the child loves/responds to")
-    concern: str = Field(description="The challenge in parent words")
-    suggestion: str = Field(description="Concrete actionable tip")
+    """
+    A pathway connecting strength to challenge - PARENT-FACING content.
+
+    This is shown directly to parents, so write TO them, not ABOUT them.
+    """
+    hook: str = Field(description="What the child loves/responds to (e.g., 'אהבה למילים וטקסטים כתובים')")
+    concern: str = Field(description="The situation this addresses - written TO parents, not ABOUT them. ❌ 'ההורים מודאגים מ...' ✅ 'כשרוצים לדעת מה עובר עליה'")
+    suggestion: str = Field(description="Concrete actionable tip the parent can try")
 
 
 class ProfessionalSummarySchema(BaseModel):
