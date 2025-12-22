@@ -352,6 +352,8 @@ class ChittaAPIClient {
   /**
    * Get artifact content
    * Fetches generated artifacts like video guidelines, reports, etc.
+   *
+   * Note: Backend uses child_id query parameter
    */
   async getArtifact(childId, artifactId) {
     const response = await fetch(`${API_BASE_URL}/artifacts/${artifactId}?child_id=${childId}`, {
@@ -670,6 +672,8 @@ class ChittaAPIClient {
   /**
    * Execute a card action (dismiss_reminder, reject_guidelines, etc.)
    * Used for actions that need backend processing but don't have dedicated endpoints
+   *
+   * Note: Backend CardActionRequest uses child_id field
    */
   async executeCardAction(childId, action, params = {}) {
     const response = await fetch(`${API_BASE_URL}/gestalt/card-action`, {

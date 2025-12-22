@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class GestaltCardsResponse(BaseModel):
     """Response model for gestalt cards"""
-    family_id: str
+    child_id: str
     cards: List[dict]
     has_active_cycles: bool
     pending_insights_count: int
@@ -31,7 +31,7 @@ class GestaltCardsResponse(BaseModel):
 
 class CardActionRequest(BaseModel):
     """Request model for card action"""
-    family_id: str
+    child_id: str
     action: str
     params: dict = {}
 
@@ -44,7 +44,7 @@ class CardActionResponse(BaseModel):
 
 class GestaltSummaryResponse(BaseModel):
     """Response model for gestalt summary"""
-    family_id: str
+    child_id: str
     child_name: Optional[str]
     child_age: Optional[float]
     completeness: float
@@ -79,7 +79,7 @@ class VideoScenarioInsights(BaseModel):
 
 class VideoInsightsResponse(BaseModel):
     """Response model for video insights"""
-    family_id: str
+    child_id: str
     cycle_id: str
     focus: str
     insights: List[VideoScenarioInsights]
@@ -88,20 +88,20 @@ class VideoInsightsResponse(BaseModel):
 
 # === Endpoints ===
 
-@router.get("/{family_id}/cards", response_model=GestaltCardsResponse)
-async def get_gestalt_cards(family_id: str, language: str = "he"):
+@router.get("/{child_id}/cards", response_model=GestaltCardsResponse)
+async def get_gestalt_cards(child_id: str, language: str = "he"):
     """
     Get cards derived from explorations and understanding.
     """
     try:
         chitta = get_chitta_service()
-        cards = await chitta.get_cards(family_id)
+        cards = await chitta.get_cards(child_id)
 
         unified = get_unified_state_service()
-        child = unified.get_child(family_id)
+        child = unified.get_child(child_id)
 
         return GestaltCardsResponse(
-            family_id=family_id,
+            child_id=child_id,
             cards=cards,
             has_active_cycles=len(child.active_exploration_cycles()) > 0,
             pending_insights_count=len(child.understanding.unshared_insights()),
@@ -123,23 +123,23 @@ async def execute_card_action(request: CardActionRequest):
         chitta = get_chitta_service()
         action = request.action
         params = request.params
-        family_id = request.family_id
+        child_id = request.child_id
         cycle_id = params.get("cycle_id")
 
         if action == "accept_video":
             if not cycle_id:
                 return CardActionResponse(success=False, result={"error": "cycle_id required"})
-            result = await chitta.accept_video_suggestion(family_id, cycle_id)
+            result = await chitta.accept_video_suggestion(child_id, cycle_id)
 
         elif action == "decline_video":
             if not cycle_id:
                 return CardActionResponse(success=False, result={"error": "cycle_id required"})
-            result = await chitta.decline_video_suggestion(family_id, cycle_id)
+            result = await chitta.decline_video_suggestion(child_id, cycle_id)
 
         elif action == "view_guidelines":
             if not cycle_id:
                 return CardActionResponse(success=False, result={"error": "cycle_id required"})
-            result = await chitta.get_video_guidelines(family_id, cycle_id)
+            result = await chitta.get_video_guidelines(child_id, cycle_id)
             result["action"] = "navigate"
             result["target"] = "guidelines_view"
 
@@ -154,7 +154,7 @@ async def execute_card_action(request: CardActionRequest):
             scenario_ids = params.get("scenario_ids", [])
 
             if card_type == "video_analyzed" and scenario_ids:
-                result = await chitta.acknowledge_video_insights(family_id, scenario_ids)
+                result = await chitta.acknowledge_video_insights(child_id, scenario_ids)
             else:
                 result = {"status": "dismissed"}
 
@@ -162,39 +162,39 @@ async def execute_card_action(request: CardActionRequest):
             scenario_id = params.get("scenario_id")
             if not scenario_id:
                 return CardActionResponse(success=False, result={"error": "scenario_id required"})
-            result = await chitta.confirm_video(family_id, scenario_id)
+            result = await chitta.confirm_video(child_id, scenario_id)
 
         elif action == "reject_video":
             scenario_id = params.get("scenario_id")
             if not scenario_id:
                 return CardActionResponse(success=False, result={"error": "scenario_id required"})
-            result = await chitta.reject_confirmed_video(family_id, scenario_id)
+            result = await chitta.reject_confirmed_video(child_id, scenario_id)
 
         elif action == "dismiss_reminder":
             scenario_ids = params.get("scenario_ids", [])
             if not scenario_ids:
                 return CardActionResponse(success=False, result={"error": "scenario_ids required"})
-            result = await chitta.dismiss_scenario_reminders(family_id, scenario_ids)
+            result = await chitta.dismiss_scenario_reminders(child_id, scenario_ids)
 
         elif action == "reject_guidelines":
             scenario_ids = params.get("scenario_ids", [])
             if not scenario_ids:
                 return CardActionResponse(success=False, result={"error": "scenario_ids required"})
-            result = await chitta.reject_scenarios(family_id, scenario_ids)
+            result = await chitta.reject_scenarios(child_id, scenario_ids)
 
         elif action == "accept_baseline_video":
-            result = await chitta.accept_baseline_video(family_id)
+            result = await chitta.accept_baseline_video(child_id)
 
         elif action == "dismiss_baseline_video":
-            result = await chitta.dismiss_baseline_video(family_id)
+            result = await chitta.dismiss_baseline_video(child_id)
 
         else:
             result = {"error": f"Unknown action: {action}"}
 
         # Send SSE to update cards
-        updated_cards = await chitta.get_cards(family_id)
+        updated_cards = await chitta.get_cards(child_id)
         if updated_cards:
-            await get_sse_notifier().notify_cards_updated(family_id, updated_cards)
+            await get_sse_notifier().notify_cards_updated(child_id, updated_cards)
 
         return CardActionResponse(
             success="error" not in result,
@@ -206,17 +206,17 @@ async def execute_card_action(request: CardActionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{family_id}/summary", response_model=GestaltSummaryResponse)
-async def get_gestalt_summary(family_id: str):
+@router.get("/{child_id}/summary", response_model=GestaltSummaryResponse)
+async def get_gestalt_summary(child_id: str):
     """
     Get high-level summary of understanding.
     """
     try:
         unified = get_unified_state_service()
-        child = unified.get_child(family_id)
+        child = unified.get_child(child_id)
 
         return GestaltSummaryResponse(
-            family_id=family_id,
+            child_id=child_id,
             child_name=child.name,
             child_age=child.age,
             completeness=len(child.understanding.active_hypotheses()) * 0.1,
@@ -231,18 +231,18 @@ async def get_gestalt_summary(family_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{family_id}/insights/{cycle_id}", response_model=VideoInsightsResponse)
-async def get_video_insights(family_id: str, cycle_id: str):
+@router.get("/{child_id}/insights/{cycle_id}", response_model=VideoInsightsResponse)
+async def get_video_insights(child_id: str, cycle_id: str):
     """
     Get video analysis insights for a specific exploration cycle.
     """
     try:
         from app.chitta.service import get_chitta_service
         chitta = get_chitta_service()
-        gestalt = await chitta.get_gestalt(family_id)
+        gestalt = await chitta.get_gestalt(child_id)
 
         if not gestalt:
-            raise HTTPException(status_code=404, detail=f"Family {family_id} not found")
+            raise HTTPException(status_code=404, detail=f"Child {child_id} not found")
 
         # Find the cycle
         cycle = None
@@ -303,7 +303,7 @@ async def get_video_insights(family_id: str, cycle_id: str):
                 ))
 
         return VideoInsightsResponse(
-            family_id=family_id,
+            child_id=child_id,
             cycle_id=cycle_id,
             focus=cycle.focus,
             insights=insights,

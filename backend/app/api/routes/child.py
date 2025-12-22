@@ -2,8 +2,8 @@
 Child API Routes - Child data and gestalt endpoints
 
 Includes:
-- /child/{family_id} - Child data for debugging/X-Ray
-- /child/{family_id}/gestalt - Complete gestalt for debugging/X-Ray
+- /child/{child_id} - Child data for debugging/X-Ray
+- /child/{child_id}/gestalt - Complete gestalt for debugging/X-Ray
 """
 
 from fastapi import APIRouter, HTTPException
@@ -15,8 +15,8 @@ router = APIRouter(prefix="/child", tags=["child"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/{family_id}")
-async def get_child_data(family_id: str):
+@router.get("/{child_id}")
+async def get_child_data(child_id: str):
     """
     Get complete child data including exploration cycles and hypotheses.
 
@@ -30,14 +30,14 @@ async def get_child_data(family_id: str):
     """
     try:
         unified = get_unified_state_service()
-        child = unified.get_child(family_id)
+        child = unified.get_child(child_id)
 
         cycles_data = [cycle.model_dump() for cycle in child.exploration_cycles]
         dev_data = child.developmental_data
         understanding_dict = child.understanding.model_dump()
 
         return {
-            "family_id": family_id,
+            "child_id": child_id,
             "name": child.name,
             "age": child.age,
             "gender": child.identity.gender,
@@ -51,8 +51,8 @@ async def get_child_data(family_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{family_id}/gestalt")
-async def get_child_gestalt(family_id: str):
+@router.get("/{child_id}/gestalt")
+async def get_child_gestalt(child_id: str):
     """
     Get complete child gestalt data for X-Ray testing.
 
@@ -68,11 +68,11 @@ async def get_child_gestalt(family_id: str):
     """
     try:
         unified = get_unified_state_service()
-        child = unified.get_child(family_id)
+        child = unified.get_child(child_id)
 
         return {
-            "family_id": family_id,
-            "child_id": child.id,
+            "child_id": child_id,
+            "child_internal_id": child.id,
 
             # Core identity
             "identity": child.identity.model_dump(),

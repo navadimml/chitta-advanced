@@ -485,8 +485,8 @@ async def get_xray_report(filename: str):
 # - POST /dev/seed/gestalt/{scenario} - Seed a scenario
 
 
-@router.get("/session/{family_id}/memory")
-async def get_session_memory(family_id: str):
+@router.get("/session/{child_id}/memory")
+async def get_session_memory(child_id: str):
     """
     🔧 DEV ONLY: Get session conversation memory (for X-Ray debugging)
 
@@ -497,10 +497,10 @@ async def get_session_memory(family_id: str):
     from app.services.unified_state_service import get_unified_state_service
 
     unified = get_unified_state_service()
-    session = unified.get_or_create_session(family_id)
+    session = unified.get_or_create_session(child_id)
 
     return {
-        "family_id": family_id,
+        "child_id": child_id,
         "memory": session.memory.model_dump(),
         "turn_count": session.turn_count,
         "last_reflection_turn": session.last_reflection_turn,
@@ -509,21 +509,21 @@ async def get_session_memory(family_id: str):
     }
 
 
-@router.delete("/reset/{family_id}")
-async def reset_session(family_id: str):
+@router.delete("/reset/{child_id}")
+async def reset_session(child_id: str):
     """
     🔧 DEV ONLY: Reset a session completely
     """
     session_service = get_session_service()
 
     # For in-memory mode, just recreate the session
-    session_service.sessions.pop(family_id, None)
+    session_service.sessions.pop(child_id, None)
 
-    logger.info(f"🗑️ Reset session for family '{family_id}'")
+    logger.info(f"🗑️ Reset session for child '{child_id}'")
 
     return {
         "success": True,
-        "family_id": family_id,
+        "child_id": child_id,
         "message": "Session reset"
     }
 
@@ -1235,14 +1235,14 @@ async def seed_gestalt_scenario(
     }
 
 
-@router.delete("/seed/gestalt/{family_id}")
-async def delete_gestalt_seed(family_id: str):
+@router.delete("/seed/gestalt/{child_id}")
+async def delete_gestalt_seed(child_id: str):
     """
-    🧪 Delete a seeded gestalt family
+    🧪 Delete a seeded gestalt for a child
 
     Removes both the gestalt file and clears any cached state.
     """
-    gestalt_file = Path("data/children") / f"{family_id}.json"
+    gestalt_file = Path("data/children") / f"{child_id}.json"
 
     if gestalt_file.exists():
         gestalt_file.unlink()
@@ -1252,12 +1252,12 @@ async def delete_gestalt_seed(family_id: str):
     try:
         from app.chitta import get_chitta_service
         chitta_service = get_chitta_service()
-        if family_id in chitta_service._gestalts:
-            del chitta_service._gestalts[family_id]
+        if child_id in chitta_service._gestalts:
+            del chitta_service._gestalts[child_id]
     except:
         pass
 
     return {
         "status": "deleted",
-        "family_id": family_id,
+        "child_id": child_id,
     }

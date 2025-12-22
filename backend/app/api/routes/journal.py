@@ -3,7 +3,7 @@ Journal API Routes - Journal entry endpoints
 
 Includes:
 - /journal/entry - Add journal entry
-- /journal/entries/{family_id} - Get journal entries
+- /journal/entries/{child_id} - Get journal entries
 """
 
 from fastapi import APIRouter, HTTPException
@@ -68,12 +68,12 @@ async def add_journal_entry(request: JournalEntryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/entries/{family_id}")
-async def get_journal_entries(family_id: str, limit: int = 10):
+@router.get("/entries/{child_id}")
+async def get_journal_entries(child_id: str, limit: int = 10):
     """
     Get recent journal entries.
     """
-    session = app_state.get_or_create_session(family_id)
+    session = app_state.get_or_create_session(child_id)
 
     entries = session.get("journal_entries", [])
     entries_sorted = sorted(entries, key=lambda x: x["timestamp"], reverse=True)

@@ -3,7 +3,7 @@ Timeline API Routes - Timeline generation and retrieval
 
 Includes:
 - /timeline/generate - Generate timeline infographic
-- /timeline/{family_id} - Get latest timeline artifact
+- /timeline/{child_id} - Get latest timeline artifact
 """
 
 from fastapi import APIRouter, HTTPException
@@ -137,14 +137,14 @@ async def generate_timeline(request: TimelineGenerateRequest):
         }
 
 
-@router.get("/{family_id}")
-async def get_timeline(family_id: str):
-    """Get the latest timeline artifact for a family."""
+@router.get("/{child_id}")
+async def get_timeline(child_id: str):
+    """Get the latest timeline artifact for a child."""
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
     session_service = get_session_service()
-    session = session_service.get_or_create_session(family_id)
+    session = session_service.get_or_create_session(child_id)
 
     timelines = [
         a for a in session.family_state.artifacts.values()

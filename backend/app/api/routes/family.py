@@ -2,8 +2,8 @@
 Family API Routes - Family management and child-space endpoints
 
 Includes:
-- /family/{family_id}/children (Family management)
-- /family/{family_id}/child-space/* (Living Portrait + Sharing)
+- /family/{family_id}/children (Family management - uses actual family_id)
+- /family/{child_id}/child-space/* (Living Portrait + Sharing - uses child_id)
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -57,9 +57,9 @@ async def add_child_to_family(
 
 # === Living Portrait (Child-Space) Endpoints ===
 
-@router.get("/{family_id}/child-space")
+@router.get("/{child_id}/child-space")
 async def get_child_space_full(
-    family_id: str,
+    child_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -67,22 +67,22 @@ async def get_child_space_full(
     """
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
-    gestalt = await chitta.get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(child_id)
 
     if not gestalt:
-        raise HTTPException(status_code=404, detail="Family not found")
+        raise HTTPException(status_code=404, detail="Child not found")
 
-    await chitta.ensure_crystal_fresh(family_id)
-    gestalt = await chitta.get_gestalt(family_id)
+    await chitta.ensure_crystal_fresh(child_id)
+    gestalt = await chitta.get_gestalt(child_id)
 
     return chitta.derive_child_space_full(gestalt)
 
 
 # === Summary Readiness & Guided Collection ===
 
-@router.get("/{family_id}/child-space/share/readiness/{recipient_type}")
+@router.get("/{child_id}/child-space/share/readiness/{recipient_type}")
 async def check_summary_readiness(
-    family_id: str,
+    child_id: str,
     recipient_type: str,
     current_user: User = Depends(get_current_user)
 ):
@@ -93,12 +93,12 @@ async def check_summary_readiness(
     from app.chitta.clinical_gaps import ClinicalGaps
 
     chitta = get_chitta_service()
-    gestalt = await chitta.get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(child_id)
 
     if not gestalt:
-        raise HTTPException(status_code=404, detail="Family not found")
+        raise HTTPException(status_code=404, detail="Child not found")
 
-    child = await chitta._child_service.get_or_create_child_async(family_id)
+    child = await chitta._child_service.get_or_create_child_async(child_id)
 
     gap_detector = ClinicalGaps()
     readiness = gap_detector.check_readiness(
@@ -127,9 +127,9 @@ class StartGuidedCollectionRequest(BaseModel):
     recipient_type: str
 
 
-@router.post("/{family_id}/child-space/share/guided-collection/start")
+@router.post("/{child_id}/child-space/share/guided-collection/start")
 async def start_guided_collection(
-    family_id: str,
+    child_id: str,
     request: StartGuidedCollectionRequest,
     current_user: User = Depends(get_current_user)
 ):
@@ -140,12 +140,12 @@ async def start_guided_collection(
     from app.chitta.clinical_gaps import ClinicalGaps
 
     chitta = get_chitta_service()
-    gestalt = await chitta.get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(child_id)
 
     if not gestalt:
-        raise HTTPException(status_code=404, detail="Family not found")
+        raise HTTPException(status_code=404, detail="Child not found")
 
-    child = await chitta._child_service.get_or_create_child_async(family_id)
+    child = await chitta._child_service.get_or_create_child_async(child_id)
 
     gap_detector = ClinicalGaps()
     readiness = gap_detector.check_readiness(
@@ -161,7 +161,7 @@ async def start_guided_collection(
     gestalt.session_flags["preparing_summary_for"] = request.recipient_type
     gestalt.session_flags["guided_collection_gaps"] = gaps_list
 
-    await chitta._persist_gestalt(family_id, gestalt)
+    await chitta._persist_gestalt(child_id, gestalt)
 
     first_gap = gaps_list[0] if gaps_list else None
     if first_gap:
@@ -189,9 +189,9 @@ async def start_guided_collection(
     }
 
 
-@router.post("/{family_id}/child-space/share/guided-collection/end")
+@router.post("/{child_id}/child-space/share/guided-collection/end")
 async def end_guided_collection(
-    family_id: str,
+    child_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -200,15 +200,15 @@ async def end_guided_collection(
     from app.chitta.service import get_chitta_service
 
     chitta = get_chitta_service()
-    gestalt = await chitta.get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(child_id)
 
     if not gestalt:
-        raise HTTPException(status_code=404, detail="Family not found")
+        raise HTTPException(status_code=404, detail="Child not found")
 
     gestalt.session_flags.pop("preparing_summary_for", None)
     gestalt.session_flags.pop("guided_collection_gaps", None)
 
-    await chitta._persist_gestalt(family_id, gestalt)
+    await chitta._persist_gestalt(child_id, gestalt)
 
     return {"status": "guided_collection_ended"}
 
@@ -226,22 +226,22 @@ class GenerateSummaryRequest(BaseModel):
     time_available: str = "standard"
 
 
-@router.post("/{family_id}/child-space/share/generate")
+@router.post("/{child_id}/child-space/share/generate")
 async def generate_shareable_summary(
-    family_id: str,
+    child_id: str,
     request: GenerateSummaryRequest,
     auth: RequireAuth = Depends(RequireAuth())
 ):
     """
     Generate a shareable summary adapted for the recipient.
     """
-    auth.verify_access(family_id)
+    auth.verify_access(child_id)
 
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
 
     result = await chitta.generate_shareable_summary(
-        family_id=family_id,
+        family_id=child_id,
         expert=request.expert,
         expert_description=request.expert_description,
         crystal_insights=request.crystal_insights,
@@ -256,9 +256,9 @@ async def generate_shareable_summary(
     return result
 
 
-@router.get("/{family_id}/child-space/share/summaries/{summary_id}")
+@router.get("/{child_id}/child-space/share/summaries/{summary_id}")
 async def get_saved_summary(
-    family_id: str,
+    child_id: str,
     summary_id: str,
     current_user: User = Depends(get_current_user)
 ):
@@ -268,9 +268,9 @@ async def get_saved_summary(
     from app.chitta.service import get_chitta_service
     chitta = get_chitta_service()
 
-    gestalt = await chitta.get_gestalt(family_id)
+    gestalt = await chitta.get_gestalt(child_id)
     if not gestalt:
-        raise HTTPException(status_code=404, detail="Family not found")
+        raise HTTPException(status_code=404, detail="Child not found")
 
     # Find the summary in shared_summaries
     for summary in getattr(gestalt, 'shared_summaries', []):

@@ -52,13 +52,13 @@ class ArtifactResponse(BaseModel):
 
 class SessionArtifactsResponse(BaseModel):
     """Response model for session artifacts list"""
-    family_id: str
+    child_id: str
     artifacts: List[dict]
 
 
 class ArtifactActionRequest(BaseModel):
     """Request model for artifact user actions"""
-    family_id: str
+    child_id: str
     action: str
 
 
@@ -286,19 +286,19 @@ async def resolve_thread(thread_id: str, artifact_id: str):
 
 # === Session Artifact Endpoints ===
 
-@router.get("/session/{family_id}/artifacts", response_model=SessionArtifactsResponse)
-async def get_session_artifacts(family_id: str):
+@router.get("/session/{child_id}/artifacts", response_model=SessionArtifactsResponse)
+async def get_session_artifacts(child_id: str):
     """
     Get all artifacts for a session.
 
     Returns list of all artifacts (guidelines, reports, etc.) that have been
-    generated for this family session.
+    generated for this child's session.
     """
     if not app_state.initialized:
         raise HTTPException(status_code=500, detail="App not initialized")
 
     session_service = get_session_service()
-    session = session_service.get_or_create_session(family_id)
+    session = session_service.get_or_create_session(child_id)
 
     artifacts_list = []
     for artifact_id, artifact in session.artifacts.items():
@@ -316,13 +316,13 @@ async def get_session_artifacts(family_id: str):
         })
 
     return SessionArtifactsResponse(
-        family_id=family_id,
+        child_id=child_id,
         artifacts=artifacts_list
     )
 
 
 @router.get("/artifacts/{artifact_id}", response_model=ArtifactResponse)
-async def get_artifact(artifact_id: str, family_id: str):
+async def get_artifact(artifact_id: str, child_id: str):
     """
     Get specific artifact content.
 
@@ -333,17 +333,17 @@ async def get_artifact(artifact_id: str, family_id: str):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     session_service = get_session_service()
-    session = session_service.get_or_create_session(family_id)
+    session = session_service.get_or_create_session(child_id)
 
     artifact = session.get_artifact(artifact_id)
     if not artifact:
         raise HTTPException(
             status_code=404,
-            detail=f"Artifact '{artifact_id}' not found for family {family_id}"
+            detail=f"Artifact '{artifact_id}' not found for child {child_id}"
         )
 
     logger.info(
-        f"API fetch artifact '{artifact_id}' for {family_id}: "
+        f"API fetch artifact '{artifact_id}' for {child_id}: "
         f"status={artifact.status}, is_ready={artifact.is_ready}, "
         f"has_content={artifact.content is not None}"
     )
@@ -372,7 +372,7 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
         raise HTTPException(status_code=500, detail="App not initialized")
 
     session_service = get_session_service()
-    session = session_service.get_or_create_session(request.family_id)
+    session = session_service.get_or_create_session(request.child_id)
 
     artifact = session.get_artifact(artifact_id)
     if not artifact:
@@ -393,7 +393,7 @@ async def artifact_action(artifact_id: str, request: ArtifactActionRequest):
 
     logger.info(
         f"Artifact action tracked: {request.action} on {artifact_id} "
-        f"for family {request.family_id}"
+        f"for child {request.child_id}"
     )
 
     return {
