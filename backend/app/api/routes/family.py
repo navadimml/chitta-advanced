@@ -154,29 +154,38 @@ async def start_guided_collection(
         child=child,
     )
 
+    # Convert gaps to list for storage
+    all_gaps = readiness.missing_critical + readiness.missing_important
     gaps_list = [
         {"field": g.field, "description": g.parent_description, "question": g.parent_question}
-        for g in readiness.missing_critical + readiness.missing_important
+        for g in all_gaps
     ]
     gestalt.session_flags["preparing_summary_for"] = request.recipient_type
     gestalt.session_flags["guided_collection_gaps"] = gaps_list
 
-    await chitta._persist_gestalt(child_id, gestalt)
+    await chitta._gestalt_manager.persist_darshan(child_id, gestalt)
 
-    first_gap = gaps_list[0] if gaps_list else None
-    if first_gap:
-        field = first_gap.get("field", "")
-        if field == "birth_history":
-            greeting = "הי! לפני שנכין את הסיכום, ספרי לי קצת על הלידה - איך היא הייתה?"
-        elif field == "milestones":
-            greeting = "הי! בואי נדבר רגע על ההתחלות שלו - זוכרת מתי התחיל ללכת? ומה עם מילים ראשונות?"
-        elif field == "family_developmental_history":
-            greeting = "הי! יש משהו שהייתי רוצה לשאול - יש במשפחה עוד מישהו שהוא קצת דומה לו?"
-        else:
-            question = first_gap.get("question", "")
-            greeting = f"הי! רציתי לשאול משהו לפני שנכין את הסיכום. {question}"
-    else:
-        greeting = "הי! יש משהו שתרצי לספר לי לפני שנכין את הסיכום?"
+    # Generate personalized opening question using LLM
+    from app.chitta.guided_questions import (
+        GuidedQuestionGenerator,
+        ChildContext,
+        calculate_age_months,
+    )
+
+    child_gender = gestalt.child_gender or (child.identity.gender if child and child.identity else None)
+    child_birth_date = gestalt.child_birth_date or (child.identity.birth_date if child and child.identity else None)
+
+    question_generator = GuidedQuestionGenerator()
+    greeting = await question_generator.generate_opening_question(
+        gaps=all_gaps,
+        child_context=ChildContext(
+            name=gestalt.child_name,
+            gender=child_gender,
+            age_months=calculate_age_months(child_birth_date),
+        ),
+        understanding=gestalt.understanding,
+        recipient_type=request.recipient_type,
+    )
 
     return {
         "status": "guided_collection_started",
@@ -208,7 +217,7 @@ async def end_guided_collection(
     gestalt.session_flags.pop("preparing_summary_for", None)
     gestalt.session_flags.pop("guided_collection_gaps", None)
 
-    await chitta._persist_gestalt(child_id, gestalt)
+    await chitta._gestalt_manager.persist_darshan(child_id, gestalt)
 
     return {"status": "guided_collection_ended"}
 

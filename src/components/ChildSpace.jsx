@@ -779,6 +779,15 @@ function DiscoveriesTab({ data, onVideoClick }) {
   const hasJourneyMilestones = journeyMilestones.length > 0;
   const hasAnyContent = hasDevelopmentalMilestones || hasJourneyMilestones;
 
+  // Auto-switch to 'development' view when developmental milestones are present
+  // This ensures parents see birth/pregnancy data they shared
+  // Prioritize developmental timeline since it contains explicit parent-shared data
+  useEffect(() => {
+    if (hasDevelopmentalMilestones) {
+      setActiveView('development');
+    }
+  }, [hasDevelopmentalMilestones]);
+
   // Milestone type configuration for developmental timeline
   const milestoneTypeConfig = {
     birth: {
@@ -2043,6 +2052,7 @@ function ShareTab({ data, familyId, onGenerateSummary, onStartGuidedCollection }
   const [showGapWarning, setShowGapWarning] = useState(false);
   const [gapData, setGapData] = useState(null);
   const [isCheckingReadiness, setIsCheckingReadiness] = useState(false);
+  const [isStartingChat, setIsStartingChat] = useState(false);
 
   const canGenerate = data?.can_generate !== false;
   // Combine new summaries (most recent first) with existing ones from server
@@ -2098,9 +2108,21 @@ function ShareTab({ data, familyId, onGenerateSummary, onStartGuidedCollection }
         try {
           const readiness = await api.checkSummaryReadiness(familyId, recipientType);
 
-          if (readiness.status === 'partial' && readiness.missing_critical?.length > 0) {
-            // Show gap warning modal
-            setGapData(readiness);
+          // Show warning if there are missing critical OR important items
+          const hasMissingItems =
+            (readiness.missing_critical?.length > 0) ||
+            (readiness.missing_important?.length > 0);
+
+          if (hasMissingItems) {
+            // Combine critical and important for display, critical first
+            const allMissing = [
+              ...(readiness.missing_critical || []),
+              ...(readiness.missing_important || [])
+            ];
+            setGapData({
+              ...readiness,
+              missing_critical: allMissing, // Use combined list for display
+            });
             setShowGapWarning(true);
             setIsCheckingReadiness(false);
             return; // Don't proceed - wait for user decision
@@ -2157,6 +2179,7 @@ function ShareTab({ data, familyId, onGenerateSummary, onStartGuidedCollection }
   const handleAddInChat = async () => {
     // User chose to add missing info in chat - start guided collection mode
     const recipientType = getRecipientType(selectedExpert);
+    setIsStartingChat(true);
     try {
       // Call API to set the guided collection session flag and get greeting
       const response = await api.startGuidedCollection(familyId, recipientType);
@@ -2168,12 +2191,14 @@ function ShareTab({ data, familyId, onGenerateSummary, onStartGuidedCollection }
         // Otherwise, show message and close the warning
         alert('עברו לשיחה כדי להשלים את המידע החסר. כשתסיימו, תוכלו לחזור לכאן ליצור את הסיכום.');
       }
+      setShowGapWarning(false);
+      setGapData(null);
     } catch (error) {
       console.error('Error starting guided collection:', error);
       alert('אירעה שגיאה. נסו שוב.');
+    } finally {
+      setIsStartingChat(false);
     }
-    setShowGapWarning(false);
-    setGapData(null);
   };
 
   const handleCopy = () => {
@@ -2369,10 +2394,20 @@ function ShareTab({ data, familyId, onGenerateSummary, onStartGuidedCollection }
         <div className="space-y-3">
           <button
             onClick={handleAddInChat}
-            className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+            disabled={isStartingChat}
+            className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:from-indigo-400 disabled:to-purple-400 text-white rounded-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
           >
-            <MessageSquare className="w-5 h-5" />
-            הוסף פרטים בשיחה
+            {isStartingChat ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                מכין שאלה...
+              </>
+            ) : (
+              <>
+                <MessageSquare className="w-5 h-5" />
+                הוסף פרטים בשיחה
+              </>
+            )}
           </button>
 
           <button

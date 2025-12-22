@@ -12,11 +12,47 @@ Features:
 - Backwards-compatible text format generation
 """
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Dict, Any, List, Optional, Callable, Awaitable
 import logging
 
 from .gestalt import Darshan
+
+
+def _format_age_hebrew(birth_date: Optional[date], gender: Optional[str] = None) -> Optional[str]:
+    """Format child's age in Hebrew from birth date."""
+    if not birth_date:
+        return None
+
+    today = date.today()
+    years = today.year - birth_date.year
+    months = today.month - birth_date.month
+
+    # Adjust for birthday not yet reached this year
+    if today.day < birth_date.day:
+        months -= 1
+    if months < 0:
+        years -= 1
+        months += 12
+
+    # Gender-aware prefix
+    if gender == "female":
+        prefix = "בת"
+    elif gender == "male":
+        prefix = "בן"
+    else:
+        prefix = "בן/בת"
+
+    if years == 0:
+        return f"{prefix} {months} חודשים"
+    elif months == 0:
+        if years == 1:
+            return f"{prefix} שנה"
+        return f"{prefix} {years} שנים"
+    else:
+        if years == 1:
+            return f"{prefix} שנה ו-{months} חודשים"
+        return f"{prefix} {years} שנים ו-{months} חודשים"
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +147,7 @@ You are Chitta - a child understanding system. Generate a professional summary.
 
 ## What We Know About the Child
 Name: {child_name}
+Age: {_format_age_hebrew(darshan.child_birth_date, darshan.child_gender) or 'לא צוין'}
 
 {child_summary}
 
@@ -196,6 +233,14 @@ Generate the structured summary now:
 
             # Add to darshan and persist
             darshan.shared_summaries.append(shared_summary)
+
+            # Clear guided collection mode - summary is complete!
+            # This allows the chat to return to normal conversation mode
+            if darshan.session_flags.get("preparing_summary_for"):
+                logger.info(f"Clearing guided collection mode after summary generation for {darshan.child_id}")
+                darshan.session_flags.pop("preparing_summary_for", None)
+                darshan.session_flags.pop("guided_collection_gaps", None)
+
             await persist_callback(darshan)
 
             logger.info(f"Saved structured summary for {darshan.child_id} to {expert_name}")
@@ -219,6 +264,19 @@ Generate the structured summary now:
             logger.error(f"Error generating structured summary: {e}")
             import traceback
             traceback.print_exc()
+
+            # Clear guided collection mode even on error - user explicitly triggered summary
+            # They can restart guided collection by clicking "Add in chat" again
+            if darshan.session_flags.get("preparing_summary_for"):
+                logger.info(f"Clearing guided collection mode after failed summary for {darshan.child_id}")
+                darshan.session_flags.pop("preparing_summary_for", None)
+                darshan.session_flags.pop("guided_collection_gaps", None)
+                # Persist the flag clearing
+                try:
+                    await persist_callback(darshan)
+                except Exception as persist_err:
+                    logger.warning(f"Could not persist flag clearing: {persist_err}")
+
             return {
                 "error": str(e),
                 "content": f"לצערנו לא הצלחנו ליצור סיכום. נסו שוב מאוחר יותר.",

@@ -52,6 +52,18 @@ class ClinicalGap:
 # IMPORTANT: domains_to_check is how we detect data - NO string matching!
 
 CLINICAL_VOCABULARY = {
+    "child_age": {
+        "clinical_term": "גיל כרונולוגי",
+        "parent_description": "הגיל של הילד/ה",
+        "parent_question": "בת/בן כמה?",
+        "domains_to_check": [],  # Special handling - checked via child identity
+    },
+    "school_status": {
+        "clinical_term": "מסגרת חינוכית",
+        "parent_description": "גן או בית ספר",
+        "parent_question": "באיזו מסגרת הילד/ה? גן? בית ספר?",
+        "domains_to_check": ["context"],  # Educational context
+    },
     "birth_history": {
         "clinical_term": "היסטוריית לידה",
         "parent_description": "איך עברה הלידה",
@@ -61,83 +73,83 @@ CLINICAL_VOCABULARY = {
     },
     "milestones": {
         "clinical_term": "אבני דרך התפתחותיות",
-        "parent_description": "מתי התחיל ללכת, לדבר",
-        "parent_question": "זוכרת מתי התחיל ללכת? ומה עם מילים ראשונות?",
+        "parent_description": "מתי התחילו ללכת, לדבר",
+        "parent_question": "זוכרת מתי התחילו ללכת? ומה עם מילים ראשונות?",
         # Note: LLM may use motor/language domains for milestone observations
         "domains_to_check": ["milestones", "motor", "language"],
     },
     "language_milestones": {
         "clinical_term": "אבני דרך בשפה",
-        "parent_description": "מתי התחיל לדבר",
-        "parent_question": "מתי התחיל לדבר? זוכרת את המילים הראשונות?",
+        "parent_description": "מתי התחילו לדבר",
+        "parent_question": "מתי התחילו לדבר? זוכרת את המילים הראשונות?",
         # Note: LLM primarily uses language domain for speech milestones
         "domains_to_check": ["language", "milestones"],
     },
     "motor_milestones": {
         "clinical_term": "אבני דרך מוטוריות",
-        "parent_description": "מתי התחיל לשבת, לזחול, ללכת",
-        "parent_question": "זוכרת מתי התחיל לזוז? לשבת, לזחול, ללכת?",
+        "parent_description": "מתי התחילו לשבת, לזחול, ללכת",
+        "parent_question": "זוכרת מתי התחילו לזוז? לשבת, לזחול, ללכת?",
         # Note: LLM primarily uses motor domain for physical milestones
         "domains_to_check": ["motor", "milestones"],
     },
     "family_developmental_history": {
         "clinical_term": "היסטוריה התפתחותית במשפחה",
         "parent_description": "האם יש דברים דומים במשפחה",
-        "parent_question": "יש עוד מישהו במשפחה שדומה לו בדברים האלה?",
+        "parent_question": "יש עוד מישהו במשפחה עם דברים דומים?",
         "domains_to_check": ["context"],  # Family history captured in context domain
     },
     "sleep": {
         "clinical_term": "דפוסי שינה",
-        "parent_description": "איך השינה שלו",
-        "parent_question": "איך הוא ישן? נרדם בקלות?",
+        "parent_description": "איך השינה",
+        "parent_question": "ספרי לי על השינה - נרדמים בקלות? ישנים טוב?",
         "domains_to_check": ["sleep"],
     },
     "social_markers": {
         "clinical_term": "סמנים חברתיים",
-        "parent_description": "איך הוא מתחבר עם אנשים",
-        "parent_question": "האם הוא מסתכל לך בעיניים כשאת מדברת איתו?",
+        "parent_description": "קשר עין ותקשורת",
+        "parent_question": "יש קשר עין כשמדברים? מסתכלים עליך?",
         "domains_to_check": ["social"],
     },
     "social_communication": {
         "clinical_term": "תקשורת חברתית",
-        "parent_description": "איך הוא משתף ומראה דברים",
-        "parent_question": "האם הוא מצביע על דברים כדי להראות לך?",
+        "parent_description": "שיתוף והצבעה על דברים",
+        "parent_question": "יש הצבעה על דברים כדי להראות לך?",
         "domains_to_check": ["social"],
     },
     "joint_attention": {
         "clinical_term": "תשומת לב משותפת",
         "parent_description": "להסתכל על דברים ביחד",
-        "parent_question": "כשאת מראה לו משהו מעניין, האם הוא מביט בזה ואז מסתכל עליך?",
+        "parent_question": "כשאת מראה משהו מעניין, יש מבט עליך ואז על הדבר?",
         "domains_to_check": ["social"],
     },
     "play_patterns": {
         "clinical_term": "דפוסי משחק",
-        "parent_description": "איך הוא משחק",
-        "parent_question": "האם הוא משחק משחקי דמיון? ומשחק עם ילדים אחרים?",
+        "parent_description": "איך המשחק",
+        "parent_question": "יש משחקי דמיון? משחק עם ילדים אחרים?",
         "domains_to_check": ["play"],
     },
     "sensory_patterns": {
         "clinical_term": "דפוסים חושיים",
         "parent_description": "רגישות לרעשים, מגע, אורות",
-        "parent_question": "האם יש דברים שמפריעים לו - רעשים חזקים, מגע מסוים, אורות?",
+        "parent_question": "יש דברים שמפריעים - רעשים חזקים, מגע מסוים, אורות?",
         "domains_to_check": ["sensory"],
     },
     "self_care": {
         "clinical_term": "עצמאות בתפקוד יומי",
-        "parent_description": "מה הוא עושה לבד",
-        "parent_question": "האם הוא אוכל לבד? מתלבש?",
+        "parent_description": "עצמאות בפעולות יומיות",
+        "parent_question": "יש אכילה עצמאית? התלבשות?",
         "domains_to_check": ["motor", "regulation"],
     },
     "feeding": {
         "clinical_term": "דפוסי אכילה",
-        "parent_description": "איך האוכל שלו",
-        "parent_question": "איך הוא אוכל? יש קשיים עם אוכל מסוים?",
+        "parent_description": "איך האכילה",
+        "parent_question": "ספרי לי על האכילה - יש קשיים עם אוכל מסוים?",
         "domains_to_check": ["feeding"],
     },
     "regression": {
         "clinical_term": "נסיגה התפתחותית",
-        "parent_description": "דברים שהפסיק לעשות",
-        "parent_question": "האם יש דברים שפעם עשה וכבר לא?",
+        "parent_description": "דברים שהפסיקו לעשות",
+        "parent_question": "יש דברים שפעם היו וכבר לא?",
         "domains_to_check": ["milestones"],  # Regressions are milestones with type="regression"
     },
 }
@@ -181,29 +193,30 @@ class ClinicalGaps:
     """
 
     # Requirements defined by field ID - gaps are created from vocabulary
+    # child_age is critical for ALL professionals - can't assess development without age
     REQUIREMENTS_BY_RECIPIENT = {
         "neurologist": {
-            "critical": ["birth_history", "milestones"],
-            "important": ["family_developmental_history", "sleep", "regression"],
+            "critical": ["child_age", "birth_history", "milestones"],
+            "important": ["family_developmental_history", "sleep", "regression", "school_status"],
             "nice_to_have": ["social_markers"],
         },
         "speech_therapist": {
-            "critical": ["language_milestones"],
-            "important": ["social_communication", "play_patterns", "joint_attention"],
+            "critical": ["child_age", "language_milestones"],
+            "important": ["social_communication", "play_patterns", "joint_attention", "school_status"],
             "nice_to_have": [],
         },
         "ot": {
-            "critical": ["sensory_patterns", "motor_milestones"],
-            "important": ["self_care", "play_patterns"],
+            "critical": ["child_age", "sensory_patterns", "motor_milestones"],
+            "important": ["self_care", "play_patterns", "school_status"],
             "nice_to_have": [],
         },
         "pediatrician": {
-            "critical": ["birth_history", "milestones"],
-            "important": ["sleep", "feeding", "social_markers"],
+            "critical": ["child_age", "birth_history", "milestones"],
+            "important": ["sleep", "feeding", "social_markers", "school_status"],
             "nice_to_have": [],
         },
         "default": {
-            "critical": [],
+            "critical": ["child_age"],
             "important": [],
             "nice_to_have": [],
         },
@@ -214,12 +227,17 @@ class ClinicalGaps:
         recipient_type: str,
         understanding: "Understanding",
         child: Optional["Child"] = None,
+        child_birth_date: Optional["date"] = None,
     ) -> LetterReadiness:
         """
         Check if we have enough data to generate a useful Letter.
 
+        Args:
+            child_birth_date: Optional birth date from Darshan (when child object not available)
+
         Returns readiness status with details about what's missing.
         """
+        self._child_birth_date = child_birth_date  # Store for _has_data_for
         reqs = self.REQUIREMENTS_BY_RECIPIENT.get(
             recipient_type,
             self.REQUIREMENTS_BY_RECIPIENT["default"]
@@ -243,7 +261,7 @@ class ClinicalGaps:
                 missing_critical=missing_critical,
                 missing_important=missing_important,
                 can_generate=True,  # Can still generate, just incomplete
-                guidance_message=self._build_guidance_message(missing_critical),
+                guidance_message=self._build_guidance_message(missing_critical, is_critical=True),
             )
         elif missing_important:
             return LetterReadiness(
@@ -251,7 +269,7 @@ class ClinicalGaps:
                 missing_critical=[],
                 missing_important=missing_important,
                 can_generate=True,
-                guidance_message=None,
+                guidance_message=self._build_guidance_message(missing_important, is_critical=False),
             )
         else:
             return LetterReadiness(
@@ -274,15 +292,27 @@ class ClinicalGaps:
         DOMAIN-BASED ONLY - no string matching!
         The LLM extracts observations with domains, we just check domains.
         """
+        # Special handling for child_age - check identity structure or Darshan birth_date
+        if field == "child_age":
+            if child and child.identity and child.identity.birth_date:
+                return True
+            # Also check birth_date passed from Darshan
+            if getattr(self, '_child_birth_date', None):
+                return True
+            return False
+
         vocab = CLINICAL_VOCABULARY.get(field, {})
         domains_to_check = vocab.get("domains_to_check", [])
 
-        # Check observations by domain
-        for domain in domains_to_check:
-            domain_observations = [f for f in understanding.observations
-                          if getattr(f, 'domain', None) == domain]
-            if domain_observations:
-                return True
+        # For milestone-related fields, skip observation check - handle in milestone section below
+        # Motor/language OBSERVATIONS are not the same as developmental MILESTONES
+        if field not in ["milestones", "language_milestones", "motor_milestones"]:
+            # Check observations by domain
+            for domain in domains_to_check:
+                domain_observations = [f for f in understanding.observations
+                              if getattr(f, 'domain', None) == domain]
+                if domain_observations:
+                    return True
 
         # Check structured milestones (for milestone-related fields)
         if field in ["milestones", "language_milestones", "motor_milestones", "regression"]:
@@ -300,14 +330,25 @@ class ClinicalGaps:
                     if motor_ms:
                         return True
                 elif field == "regression":
-                    # Check for regression-type milestones
+                    # Check for regression-type milestones OR regression domain observations
                     regressions = [m for m in understanding.milestones
                                   if getattr(m, 'milestone_type', None) == "regression"]
                     if regressions:
                         return True
+                    # Also check observations with regression domain (including "no regression" reports)
+                    regression_obs = [o for o in understanding.observations
+                                     if getattr(o, 'domain', None) == "regression"]
+                    if regression_obs:
+                        return True
                 else:
-                    # General milestones - any milestone counts
-                    return True
+                    # General milestones - need DEVELOPMENTAL milestones (motor, language, etc.)
+                    # NOT birth_history - those are tracked separately
+                    developmental_ms = [m for m in understanding.milestones
+                                       if getattr(m, 'domain', None) in ['motor', 'language', 'cognitive', 'social', 'adaptive']
+                                       or (getattr(m, 'milestone_type', None) == 'achievement'
+                                           and getattr(m, 'domain', None) not in ['birth_history', 'medical'])]
+                    if developmental_ms:
+                        return True
 
         # Check milestones for birth history
         if field == "birth_history":
@@ -337,7 +378,7 @@ class ClinicalGaps:
 
         return False
 
-    def _build_guidance_message(self, missing: List[ClinicalGap]) -> str:
+    def _build_guidance_message(self, missing: List[ClinicalGap], is_critical: bool = True) -> str:
         """
         Build Hebrew message for UI about what's missing.
 
@@ -348,7 +389,10 @@ class ClinicalGaps:
         if len(missing) > 3:
             items.append(f"ועוד {len(missing) - 3} פרטים")
 
-        return f"כדי שהסיכום יהיה שימושי יותר, היה עוזר לדעת על: {', '.join(items)}"
+        if is_critical:
+            return f"כדי שהסיכום יהיה שימושי יותר, היה עוזר לדעת על: {', '.join(items)}"
+        else:
+            return f"הסיכום יהיה עשיר יותר אם נדע גם על: {', '.join(items)}"
 
     def get_collection_context(
         self,
@@ -400,14 +444,24 @@ This info would make it more useful:
 4. Respond to emotion first, practical info second
 5. Be genuinely curious, not checking boxes
 
+**CRITICAL - RECORD ALL ANSWERS (including negative ones):**
+- When parent says "no" or "there wasn't" - STILL call notice() to record this!
+- Example: Asked about regression, parent says "לא" → notice("אין נסיגה התפתחותית מדווחת", domain="regression")
+- Example: Asked about sleep issues, parent says "ישן טוב" → notice("ההורה מדווח שהשינה תקינה", domain="sleep")
+- Negative findings are just as important as positive ones for professionals!
+
 **NATURAL FLOW:**
 - If they mention something, acknowledge briefly ("הבנתי") then explore naturally
 - Wait for them to share - don't push for the next item immediately
 - Only move to new topic when current one feels complete
 - If they gave key info, a simple "תודה" is enough - no need to label it as "חשוב"
 
-**When you have enough info:**
-"נראה לי שאספנו מספיק. תוכלי לחזור ללשונית השיתוף."
+**IMPORTANT - THIS OVERRIDES NORMAL PRINCIPLES:**
+- You ARE following a specific agenda during this mode
+- The items listed above are CURRENTLY still missing
+- After acknowledging what the parent shared, ASK about the NEXT missing item
+- Do NOT say "we're done" or "we covered everything" until this list is EMPTY
+- The system will tell you separately when all items are collected
 """
 
     def format_gaps_for_letter(

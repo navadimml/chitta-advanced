@@ -62,7 +62,7 @@ For CHANGE over time - use TWO notices:
 - regulation: self-calming, managing emotions, transitions
 - sleep/feeding: daily routines
 - context: family situation, living environment, childcare""",
-                "enum": ["motor", "social", "emotional", "cognitive", "language", "sensory", "regulation", "essence", "strengths", "context", "concerns", "general", "sleep", "feeding", "play", "birth_history", "milestones", "medical"]
+                "enum": ["motor", "social", "emotional", "cognitive", "language", "sensory", "regulation", "essence", "strengths", "context", "concerns", "general", "sleep", "feeding", "play", "birth_history", "milestones", "medical", "regression"]
             },
             "when_type": {
                 "type": "string",

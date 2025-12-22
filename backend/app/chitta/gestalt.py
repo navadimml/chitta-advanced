@@ -409,7 +409,7 @@ class Darshan:
                     elif field == "sleep":
                         gap_hints.append("sleep info → notice(domain='sleep')")
                     elif field == "regression":
-                        gap_hints.append("lost skills → record_milestone(domain=..., milestone_type='regression')")
+                        gap_hints.append("regression/lost skills → IF YES: record_milestone(milestone_type='regression'), IF NO: notice('אין נסיגה התפתחותית', domain='regression')")
                     elif field == "sensory_patterns":
                         gap_hints.append("sensory info → notice(domain='sensory')")
                 if gap_hints:
@@ -419,8 +419,11 @@ class Darshan:
 **Record any info about:**
 {chr(10).join(f'- {h}' for h in gap_hints)}
 
-Example: If parent says "הלידה הייתה קשה עם וואקום":
-→ Call record_milestone(description="לידה קשה עם וואקום", domain="birth_history", milestone_type="birth")
+**IMPORTANT: Record NEGATIVE answers too!**
+When parent says "לא", "אין", "לא היה" - this is ALSO valuable information to record:
+- "לא הייתה נסיגה" → notice("אין נסיגה התפתחותית מדווחת - לא איבדה כישורים", domain="regression")
+- "ישן טוב" / "אין בעיות שינה" → notice("שינה תקינה לפי דיווח ההורה", domain="sleep")
+- "התפתחות רגילה" → notice("התפתחות תקינה לפי דיווח ההורה", domain="milestones")
 
 **Use the correct tool - notice() for general observations, record_milestone() for developmental events with timing!**
 """
@@ -488,15 +491,42 @@ Read the parent's message and extract what's relevant:
 """
 
         # Check for guided collection mode
+        # IMPORTANT: Re-check gaps on EVERY message using actual data
+        # This ensures we always show only CURRENTLY missing gaps
         guided_collection_section = ""
         if self.session_flags.get("preparing_summary_for"):
             recipient_type = self.session_flags["preparing_summary_for"]
-            gaps = self.session_flags.get("guided_collection_gaps", [])
-            if gaps:
-                clinical_gaps_checker = ClinicalGaps()
+
+            # Re-run readiness check to get CURRENT missing gaps (not stale stored ones)
+            clinical_gaps_checker = ClinicalGaps()
+            current_readiness = clinical_gaps_checker.check_readiness(
+                recipient_type=recipient_type,
+                understanding=self.understanding,
+                child=None,
+                child_birth_date=self.child_birth_date,  # Pass birth date from Darshan
+            )
+
+            # Get currently missing gaps
+            current_gaps = current_readiness.missing_critical + current_readiness.missing_important
+
+            # Update session_flags with fresh gaps
+            self.session_flags["guided_collection_gaps"] = [
+                {"field": g.field, "description": g.parent_description, "question": g.parent_question}
+                for g in current_gaps
+            ]
+
+            if current_gaps:
                 guided_collection_section = clinical_gaps_checker.get_collection_context(
-                    recipient_type, gaps
+                    recipient_type, current_gaps
                 )
+            else:
+                # All gaps filled! Auto-end guided collection
+                guided_collection_section = """
+## ALL INFORMATION COLLECTED
+
+All the information needed for the summary has been collected.
+Tell the parent warmly: "מעולה! אספנו את כל המידע. אפשר לחזור ללשונית השיתוף וליצור את הסיכום."
+"""
 
         # Compute guidance from perception
         captured_story = any(tc.name == "capture_story" for tc in perception.tool_calls)
@@ -562,6 +592,7 @@ You are responding to what the parent shared.
 - One question at a time, if any
 - Follow the flow, don't force agenda
 - Use the holistic understanding (Crystal) to connect what's shared to patterns
+- **EXCEPTION**: If CONTEXT: PREPARING A SUMMARY section exists above, you ARE following an agenda - cover all listed items before ending
 
 ## COMMUNICATION STYLE - CRITICAL
 
