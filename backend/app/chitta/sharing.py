@@ -198,7 +198,7 @@ Generate the structured summary now:
             darshan.shared_summaries.append(shared_summary)
             await persist_callback(darshan)
 
-            logger.info(f"Saved structured summary for {darshan.family_id} to {expert_name}")
+            logger.info(f"Saved structured summary for {darshan.child_id} to {expert_name}")
 
             return {
                 "structured": structured_summary,  # New structured format
