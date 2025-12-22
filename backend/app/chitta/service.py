@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Optional
 
 from .gestalt import Darshan
 from .curiosity import Curiosity
-from .models import SynthesisReport, Crystal
+from .models import SynthesisReport, Crystal, ParentContext
 from .synthesis import get_synthesis_service
 from .child_space import get_child_space_service
 from .sharing import get_sharing_service
@@ -78,7 +78,12 @@ class ChittaService:
             get_cards_callback=self._cards_service.derive_cards,
         )
 
-    async def process_message(self, family_id: str, user_message: str) -> Dict[str, Any]:
+    async def process_message(
+        self,
+        family_id: str,
+        user_message: str,
+        parent_context: Optional[ParentContext] = None,
+    ) -> Dict[str, Any]:
         """
         Process a message through the Gestalt.
 
@@ -89,9 +94,18 @@ class ChittaService:
         4. Persist state
         5. Trigger background crystallization if important moment
         6. Return response with curiosity state
+
+        Args:
+            family_id: The child/family ID
+            user_message: The message from the parent
+            parent_context: Parent context for gender-appropriate responses
         """
         # 1. Get gestalt (handles session transition)
         gestalt = await self._gestalt_manager.get_darshan_with_transition_check(family_id)
+
+        # Set parent context for gender-appropriate responses
+        if parent_context:
+            gestalt.parent_context = parent_context
 
         # 2. Process through Gestalt (two-phase internally)
         response = await gestalt.process_message(user_message)

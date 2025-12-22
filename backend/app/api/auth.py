@@ -32,6 +32,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     display_name: str = Field(min_length=1, max_length=100)
+    parent_type: str = Field(pattern="^(mother|father)$", description="Parent type: 'mother' or 'father'")
 
 
 class LoginRequest(BaseModel):
@@ -87,6 +88,7 @@ class UserResponse(BaseModel):
     display_name: str
     email_verified: bool
     created_at: datetime
+    parent_type: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -137,6 +139,7 @@ async def register(
         email=data.email,
         password=data.password,
         display_name=data.display_name,
+        parent_type=data.parent_type,
         ip_address=get_client_ip(request),
         require_email_verification=True,
     )
@@ -158,6 +161,7 @@ async def register(
         display_name=result.user.display_name,
         email_verified=result.user.email_verified,
         created_at=result.user.created_at,
+        parent_type=result.user.parent_type,
     )
 
 
@@ -296,6 +300,7 @@ async def get_current_user_info(
         display_name=current_user.display_name,
         email_verified=current_user.email_verified,
         created_at=current_user.created_at,
+        parent_type=current_user.parent_type,
     )
 
 

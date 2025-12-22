@@ -80,6 +80,13 @@ class GestaltManager:
         if hasattr(child, 'identity') and child.identity and child.identity.birth_date:
             child_birth_date = child.identity.birth_date
 
+        # Get child's gender from identity or data
+        child_gender = None
+        if hasattr(child, 'identity') and child.identity and hasattr(child.identity, 'gender'):
+            child_gender = child.identity.gender
+        if not child_gender:
+            child_gender = child_data.get("child_gender")
+
         darshan = Darshan.from_child_data(
             child_id=family_id,
             child_name=child.name or child_data.get("name"),
@@ -95,6 +102,7 @@ class GestaltManager:
             shared_summaries_data=child_data.get("shared_summaries"),
             child_birth_date=child_birth_date,
             session_flags_data=child_data.get("session_flags"),
+            child_gender=child_gender,
         )
 
         # Cache it
@@ -124,6 +132,13 @@ class GestaltManager:
         if hasattr(child, 'identity') and child.identity and child.identity.birth_date:
             child_birth_date = child.identity.birth_date
 
+        # Get child's gender from identity or data
+        child_gender = None
+        if hasattr(child, 'identity') and child.identity and hasattr(child.identity, 'gender'):
+            child_gender = child.identity.gender
+        if not child_gender:
+            child_gender = child_data.get("child_gender")
+
         darshan = Darshan.from_child_data(
             child_id=family_id,
             child_name=child.name or child_data.get("name"),
@@ -139,6 +154,7 @@ class GestaltManager:
             shared_summaries_data=child_data.get("shared_summaries"),
             child_birth_date=child_birth_date,
             session_flags_data=child_data.get("session_flags"),
+            child_gender=child_gender,
         )
 
         # Cache it
@@ -237,11 +253,12 @@ class GestaltManager:
             "id": family_id,
             "child_id": family_id,  # Alias for Child model
             "name": darshan.child_name,
+            "child_gender": darshan.child_gender,  # Persist child gender for prompts
             # Identity structure for Child model compatibility
             "identity": {
                 "name": darshan.child_name,
                 "birth_date": darshan.child_birth_date.isoformat() if darshan.child_birth_date else None,
-                "gender": None,  # Will be populated from observations if set
+                "gender": darshan.child_gender,
             },
             "understanding": {
                 "observations": [

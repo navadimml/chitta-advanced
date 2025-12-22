@@ -36,8 +36,12 @@ class ChittaAPIClient {
 
   /**
    * Register a new user
+   * @param {string} email - User's email
+   * @param {string} password - User's password
+   * @param {string} displayName - Display name
+   * @param {string} parentType - "mother" or "father"
    */
-  async register(email, password, displayName) {
+  async register(email, password, displayName, parentType) {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: {
@@ -46,7 +50,8 @@ class ChittaAPIClient {
       body: JSON.stringify({
         email,
         password,
-        display_name: displayName
+        display_name: displayName,
+        parent_type: parentType
       })
     });
 

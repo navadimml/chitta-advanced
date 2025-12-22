@@ -229,12 +229,33 @@ async def send_message_v2(
 
     try:
         from app.chitta import get_chitta_service
+        from app.chitta.models import ParentContext
+        from app.services.family_service import get_family_service
 
         chitta = get_chitta_service()
+
+        # Get parent context for gender-appropriate responses
+        parent_context = None
+        if current_user.parent_type:
+            parent_context = ParentContext.from_role(
+                name=current_user.display_name,
+                role=current_user.parent_type
+            )
+        else:
+            # Try to get role from family membership
+            family_service = get_family_service()
+            family = await family_service.get_or_create_family_for_user(current_user.id)
+            role = await family_service.get_user_role_in_family(current_user.id, family.id)
+            if role in ("mother", "father"):
+                parent_context = ParentContext.from_role(
+                    name=current_user.display_name,
+                    role=role
+                )
 
         result = await chitta.process_message(
             family_id=request.child_id,
             user_message=request.message,
+            parent_context=parent_context,
         )
 
         ui_data = {

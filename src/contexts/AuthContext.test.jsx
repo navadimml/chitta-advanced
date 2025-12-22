@@ -172,13 +172,13 @@ describe('AuthContext', () => {
 
       let result;
       await act(async () => {
-        result = await authContext.register('new@example.com', 'password123', 'New User');
+        result = await authContext.register('new@example.com', 'password123', 'New User', 'mother');
       });
 
       // Register returns success but doesn't auto-login
       expect(result).toEqual({ success: true });
       expect(screen.getByTestId('authenticated').textContent).toBe('false');
-      expect(api.register).toHaveBeenCalledWith('new@example.com', 'password123', 'New User');
+      expect(api.register).toHaveBeenCalledWith('new@example.com', 'password123', 'New User', 'mother');
     });
   });
 

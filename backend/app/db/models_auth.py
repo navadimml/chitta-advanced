@@ -51,6 +51,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     preferred_language: Mapped[str] = mapped_column(String(5), default="he", nullable=False)
     timezone: Mapped[str] = mapped_column(String(50), default="Asia/Jerusalem", nullable=False)
+    parent_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # "mother" or "father"
 
     # Auth (nullable if OAuth-only user)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

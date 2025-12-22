@@ -47,6 +47,7 @@ from .models import (
     Crystal,
     SharedSummary,
     DevelopmentalMilestone,
+    ParentContext,
     parse_temporal,
     generate_id,
 )
@@ -57,6 +58,8 @@ from .formatting import (
     format_perception_summary,
     format_turn_guidance,
     format_crystal,
+    format_parent_context,
+    format_child_gender_context,
     build_identity_section,
     build_perception_tools_description,
     build_response_language_instruction,
@@ -99,6 +102,8 @@ class Darshan:
         crystal: Optional[Crystal] = None,
         shared_summaries: Optional[List[SharedSummary]] = None,
         child_birth_date: Optional["date"] = None,
+        child_gender: Optional[str] = None,
+        parent_context: Optional[ParentContext] = None,
     ):
         """
         Initialize Darshan.
@@ -115,6 +120,8 @@ class Darshan:
             crystal: Cached synthesis (patterns, essence, pathways)
             shared_summaries: Previously generated Letters for sharing
             child_birth_date: Child's birth date for age-based temporal calculations
+            child_gender: Child's gender for correct pronoun usage (male/female/unknown)
+            parent_context: Parent context for gender-appropriate verb forms
         """
         self.child_id = child_id
         self.child_name = child_name
@@ -127,6 +134,8 @@ class Darshan:
         self.crystal = crystal
         self.shared_summaries = shared_summaries or []
         self.child_birth_date = child_birth_date
+        self.child_gender = child_gender
+        self.parent_context = parent_context
 
         # Session-level flags (persisted to survive page reload)
         # Used for guided collection mode and other temporary states
@@ -416,12 +425,18 @@ Example: If parent says "הלידה הייתה קשה עם וואקום":
 **Use the correct tool - notice() for general observations, record_milestone() for developmental events with timing!**
 """
 
+        # Parent gender context for appropriate verb forms
+        parent_context_section = format_parent_context(self.parent_context)
+
+        # Child gender context for appropriate pronouns
+        child_gender_section = format_child_gender_context(self.child_gender, self.child_name)
+
         return f"""
 # CHITTA - Perception Phase
 
 You are Chitta, an expert developmental psychologist (0.5-18 years).
 You are perceiving what a parent shared and extracting relevant information.
-{crystal_section}{guided_extraction_section}
+{parent_context_section}{child_gender_section}{crystal_section}{guided_extraction_section}
 ## WHAT I KNOW ABOUT {child_name}
 
 {format_understanding(context.understanding)}
@@ -513,6 +528,12 @@ Read the parent's message and extract what's relevant:
             clinical_gaps=clinical_gaps,
         )
 
+        # Parent gender context for appropriate verb forms
+        parent_context_section = format_parent_context(self.parent_context)
+
+        # Child gender context for appropriate pronouns
+        child_gender_section = format_child_gender_context(self.child_gender, self.child_name)
+
         return f"""
 # CHITTA - Response Phase
 
@@ -520,7 +541,7 @@ You are Chitta, an expert developmental psychologist (0.5-18 years).
 You are responding to what the parent shared.
 
 {build_identity_section()}
-{crystal_section}
+{parent_context_section}{child_gender_section}{crystal_section}
 {guided_collection_section}
 ## WHAT I KNOW ABOUT {child_name}
 
@@ -812,6 +833,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             logger.info(f"📅 Child age set: {age_years} years (birth date: {self.child_birth_date})")
 
         if "gender" in args and args["gender"]:
+            self.child_gender = args["gender"]  # Update internal state for prompts
             update_data["gender"] = args["gender"]
             # Also store gender in understanding as an observation
             from app.chitta.models import TemporalFact
@@ -1003,6 +1025,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         shared_summaries_data: Optional[List[Dict]] = None,
         child_birth_date: Optional["date"] = None,
         session_flags_data: Optional[Dict] = None,
+        child_gender: Optional[str] = None,
     ) -> "Darshan":
         """
         Create Darshan from persisted child data.
@@ -1167,6 +1190,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             crystal=crystal,
             shared_summaries=shared_summaries,
             child_birth_date=child_birth_date,
+            child_gender=child_gender,
         )
 
         # Restore session flags (guided collection mode, etc.)

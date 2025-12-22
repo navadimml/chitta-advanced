@@ -12,7 +12,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .curiosity import Curiosity
-    from .models import Understanding, Exploration, PerceptionResult, ToolCall, Crystal
+    from .models import Understanding, Exploration, PerceptionResult, ToolCall, Crystal, ParentContext
 
 
 # Type icons for visual display
@@ -38,6 +38,86 @@ DOMAIN_NAMES_HE = {
     "concerns": "דאגות",
     "general": "כללי",
 }
+
+
+def format_parent_context(parent: Optional["ParentContext"]) -> str:
+    """
+    Format parent context for LLM prompt injection.
+
+    Instructs the LLM to use gender-appropriate Hebrew verb forms
+    when addressing the parent.
+
+    Returns English for LLM prompt context.
+    """
+    if not parent:
+        return ""
+
+    # Hebrew verb forms differ by gender
+    # Feminine: ספרי, צפי, נסי, לחצי
+    # Masculine: ספר, צפה, נסה, לחץ
+    if parent.gender == "female":
+        gender_instruction = """
+## PARENT GENDER: FEMALE (אמא)
+Address the parent using feminine Hebrew verb forms:
+- ספרי לי (tell me)
+- צפי (watch)
+- נסי (try)
+- לחצי (click/press)
+- תעשי, תאמרי, תספרי (feminine future imperatives)
+"""
+    else:
+        gender_instruction = """
+## PARENT GENDER: MALE (אבא)
+Address the parent using masculine Hebrew verb forms:
+- ספר לי (tell me)
+- צפה (watch)
+- נסה (try)
+- לחץ (click/press)
+- תעשה, תאמר, תספר (masculine future imperatives)
+"""
+
+    return f"""
+## CURRENT PARENT CONTEXT
+- Name: {parent.name}
+- Role: {parent.role}
+{gender_instruction}
+"""
+
+
+def format_child_gender_context(gender: Optional[str], name: Optional[str] = None) -> str:
+    """
+    Format child gender context for LLM prompt injection.
+
+    Instructs the LLM to use correct pronouns when referring to the child.
+
+    Args:
+        gender: "male", "female", or None/unknown
+        name: Child's name if known
+
+    Returns English for LLM prompt context.
+    """
+    if not gender or gender == "unknown":
+        return """
+## CHILD GENDER: Unknown
+Until we know the child's gender, use neutral references like "הילד/ה" or use the child's name.
+"""
+
+    if gender == "male":
+        return f"""
+## CHILD GENDER: Male (בן)
+Use masculine Hebrew when referring to {name or "the child"}:
+- הוא (he), שלו (his)
+- Masculine verbs: אוהב, רוצה, יכול, הולך
+- Example: "הוא אוהב לשחק", "זה עוזר לו"
+"""
+    else:  # female
+        return f"""
+## CHILD GENDER: Female (בת)
+Use feminine Hebrew when referring to {name or "the child"}:
+- היא (she), שלה (her)
+- Feminine verbs: אוהבת, רוצה, יכולה, הולכת
+- Example: "היא אוהבת לשחק", "זה עוזר לה"
+"""
 
 
 def format_understanding(understanding: Optional["Understanding"]) -> str:

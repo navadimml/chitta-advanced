@@ -20,6 +20,27 @@ def generate_id() -> str:
     return str(uuid.uuid4())[:8]
 
 
+# === Parent Context (for gender-appropriate responses) ===
+
+@dataclass
+class ParentContext:
+    """
+    Context about the current parent for gender-appropriate responses.
+
+    Used to inject parent gender into LLM prompts so Chitta uses
+    correct Hebrew verb forms (feminine/masculine).
+    """
+    name: str
+    gender: str  # "female" or "male" (derived from role: mother→female, father→male)
+    role: str    # "mother" or "father"
+
+    @classmethod
+    def from_role(cls, name: str, role: str) -> "ParentContext":
+        """Create ParentContext from name and role."""
+        gender = "female" if role == "mother" else "male"
+        return cls(name=name, gender=gender, role=role)
+
+
 # === Developmental Timeline (SKELETON - Future Feature) ===
 
 @dataclass

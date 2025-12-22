@@ -128,6 +128,7 @@ class AuthService:
         password: str,
         display_name: str,
         *,
+        parent_type: Optional[str] = None,
         require_email_verification: bool = True,
         ip_address: Optional[str] = None,
     ) -> RegistrationResult:
@@ -138,6 +139,7 @@ class AuthService:
             email: User's email address
             password: Plain text password
             display_name: Display name
+            parent_type: Parent type - "mother" or "father"
             require_email_verification: Whether to require email verification
             ip_address: IP address for audit log
 
@@ -161,6 +163,7 @@ class AuthService:
             display_name=display_name,
             password_hash=password_hash,
             email_verified=not require_email_verification,
+            parent_type=parent_type,
         )
 
         # Create verification token if needed

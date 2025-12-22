@@ -106,9 +106,13 @@ export function AuthProvider({ children }) {
   /**
    * Register a new user
    * Returns { success: true } on success, caller should switch to login mode
+   * @param {string} email - User's email
+   * @param {string} password - User's password
+   * @param {string} displayName - Display name
+   * @param {string} parentType - "mother" or "father"
    */
-  const register = useCallback(async (email, password, displayName) => {
-    await api.register(email, password, displayName);
+  const register = useCallback(async (email, password, displayName, parentType) => {
+    await api.register(email, password, displayName, parentType);
     // Registration successful - caller should switch to login mode
     return { success: true };
   }, []);

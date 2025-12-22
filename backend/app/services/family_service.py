@@ -91,14 +91,22 @@ class FamilyService:
 
     # === Core Operations ===
 
-    async def get_or_create_family_for_user(self, user_id: str) -> Family:
+    async def get_or_create_family_for_user(
+        self,
+        user_id: str,
+        parent_type: Optional[str] = None
+    ) -> Family:
         """
         Get user's family or create one if doesn't exist.
 
         For new users:
         1. Creates a new Family
-        2. Creates a user->family mapping
+        2. Creates a user->family mapping with parent_type as role
         3. Creates a child placeholder
+
+        Args:
+            user_id: User's ID
+            parent_type: "mother" or "father" - used as role in family
 
         Returns the family.
         """
@@ -128,11 +136,12 @@ class FamilyService:
             children=[],
         )
 
-        # Create user mapping
+        # Create user mapping - use parent_type as role if provided
+        role = parent_type if parent_type in ("mother", "father") else "owner"
         mapping = UserFamilyMapping(
             user_id=user_id,
             family_id=family_id,
-            role="owner",
+            role=role,
         )
 
         # Create first child placeholder
@@ -245,6 +254,37 @@ class FamilyService:
             return False
 
         return child_id in family.children
+
+    async def get_user_role_in_family(self, user_id: str, family_id: str) -> Optional[str]:
+        """
+        Get user's role in a family.
+
+        Returns role: "mother", "father", "owner", "caregiver", etc.
+        Returns None if user not in family.
+        """
+        mapping = self._user_mappings.get(user_id)
+        if not mapping:
+            mapping = await self._load_user_mapping(user_id)
+            if mapping:
+                self._user_mappings[user_id] = mapping
+
+        if not mapping or mapping.family_id != family_id:
+            return None
+
+        return mapping.role
+
+    async def get_user_family_mapping(self, user_id: str) -> Optional[UserFamilyMapping]:
+        """
+        Get the user's family mapping including role.
+
+        Returns the full UserFamilyMapping or None.
+        """
+        mapping = self._user_mappings.get(user_id)
+        if not mapping:
+            mapping = await self._load_user_mapping(user_id)
+            if mapping:
+                self._user_mappings[user_id] = mapping
+        return mapping
 
     # === Private Helpers ===
 

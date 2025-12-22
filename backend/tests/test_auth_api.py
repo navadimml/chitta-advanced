@@ -83,6 +83,7 @@ def registered_user(api_client):
             "email": "testuser@example.com",
             "password": "TestPassword123!",
             "display_name": "Test User",
+            "parent_type": "mother",
         }
     )
     assert response.status_code == 201, f"Registration failed: {response.text}"
@@ -91,6 +92,7 @@ def registered_user(api_client):
         "email": "testuser@example.com",
         "password": "TestPassword123!",
         "display_name": "Test User",
+        "parent_type": "mother",
         "user_id": response.json()["id"],
     }
 
@@ -130,6 +132,7 @@ class TestRegisterEndpoint:
                 "email": "newuser@example.com",
                 "password": "SecurePassword123!",
                 "display_name": "New User",
+                "parent_type": "father",
             }
         )
 
@@ -137,6 +140,7 @@ class TestRegisterEndpoint:
         data = response.json()
         assert data["email"] == "newuser@example.com"
         assert data["display_name"] == "New User"
+        assert data["parent_type"] == "father"
         assert "id" in data
         assert "created_at" in data
 
@@ -148,6 +152,7 @@ class TestRegisterEndpoint:
                 "email": registered_user["email"],
                 "password": "AnotherPassword123!",
                 "display_name": "Another User",
+                "parent_type": "mother",
             }
         )
 
@@ -162,6 +167,7 @@ class TestRegisterEndpoint:
                 "email": "not-an-email",
                 "password": "SecurePassword123!",
                 "display_name": "New User",
+                "parent_type": "mother",
             }
         )
 
@@ -175,6 +181,7 @@ class TestRegisterEndpoint:
                 "email": "user@example.com",
                 "password": "short",
                 "display_name": "New User",
+                "parent_type": "mother",
             }
         )
 
@@ -186,7 +193,21 @@ class TestRegisterEndpoint:
             "/api/auth/register",
             json={
                 "email": "user@example.com",
-                # Missing password and display_name
+                # Missing password, display_name, and parent_type
+            }
+        )
+
+        assert response.status_code == 422
+
+    def test_register_invalid_parent_type(self, api_client):
+        """Registration with invalid parent_type returns 422."""
+        response = api_client.post(
+            "/api/auth/register",
+            json={
+                "email": "user@example.com",
+                "password": "SecurePassword123!",
+                "display_name": "New User",
+                "parent_type": "invalid",  # Not "mother" or "father"
             }
         )
 
