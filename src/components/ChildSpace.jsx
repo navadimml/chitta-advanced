@@ -578,7 +578,7 @@ function PatternCard({ pattern, index = 0 }) {
 
 /**
  * InterventionPathwayCard - displays "what can help" suggestions
- * Shows the connection: strength → concern → practical suggestion
+ * Vertical layout: hook (strength) as header → concern as context → suggestion as content
  */
 function InterventionPathwayCard({ pathway, index = 0 }) {
   return (
@@ -591,12 +591,14 @@ function InterventionPathwayCard({ pathway, index = 0 }) {
           <Zap className="w-5 h-5 text-amber-600" />
         </div>
         <div className="flex-1">
-          {/* Connection header */}
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="px-2.5 py-1 bg-amber-100 text-amber-700 text-sm font-medium rounded-lg">{pathway.hook}</span>
-            <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <span className="text-gray-600 text-sm">{pathway.concern}</span>
+          {/* Strength as header badge */}
+          <div className="mb-2">
+            <span className="inline-block px-2.5 py-1 bg-amber-100 text-amber-700 text-sm font-medium rounded-lg">
+              {pathway.hook}
+            </span>
           </div>
+          {/* Concern as context */}
+          <p className="text-gray-500 text-sm mb-2">{pathway.concern}</p>
           {/* Practical suggestion */}
           <p className="text-gray-700 leading-relaxed">{pathway.suggestion}</p>
         </div>
