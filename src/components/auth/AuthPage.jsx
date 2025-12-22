@@ -23,10 +23,10 @@ export default function AuthPage() {
     }
   };
 
-  const handleRegister = async (email, password, displayName) => {
+  const handleRegister = async (email, password, displayName, parentType) => {
     setIsLoading(true);
     try {
-      await register(email, password, displayName);
+      await register(email, password, displayName, parentType);
       // Registration successful - switch to login mode
       setMode('login');
     } finally {
