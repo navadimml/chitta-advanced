@@ -51,6 +51,9 @@ from app.db.repositories.synthesis import (
     InterventionPathwayRepository,
 )
 
+# Darshan repository
+from app.db.repositories.darshan import DarshanRepository
+
 
 __all__ = [
     # Unit of Work
@@ -80,4 +83,6 @@ __all__ = [
     "CrystalRepository",
     "PortraitSectionRepository",
     "InterventionPathwayRepository",
+    # Darshan
+    "DarshanRepository",
 ]

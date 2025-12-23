@@ -44,6 +44,7 @@ from app.db.repositories.synthesis import (
     PortraitSectionRepository,
     InterventionPathwayRepository,
 )
+from app.db.repositories.darshan import DarshanRepository
 
 
 class UnitOfWork:
@@ -111,6 +112,8 @@ class UnitOfWork:
         self._crystals: Optional[CrystalRepository] = None
         self._portrait_sections: Optional[PortraitSectionRepository] = None
         self._intervention_pathways: Optional[InterventionPathwayRepository] = None
+
+        self._darshan: Optional[DarshanRepository] = None
 
     async def __aenter__(self) -> "UnitOfWork":
         """Enter async context - begin transaction."""
@@ -282,3 +285,13 @@ class UnitOfWork:
         if self._intervention_pathways is None:
             self._intervention_pathways = InterventionPathwayRepository(self.session)
         return self._intervention_pathways
+
+    # =========================================================================
+    # DARSHAN REPOSITORY
+    # =========================================================================
+
+    @property
+    def darshan(self) -> DarshanRepository:
+        if self._darshan is None:
+            self._darshan = DarshanRepository(self.session)
+        return self._darshan

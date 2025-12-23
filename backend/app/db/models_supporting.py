@@ -7,6 +7,13 @@ Additional models that support the core functionality:
 - DevelopmentalMilestone: Tracking milestone achievements
 - JournalEntry: Parent journal/diary entries
 - Curiosity: Active curiosity threads (what Darshan wonders about)
+- Investigation: Investigation context for curiosities
+- InvestigationEvidence: Evidence collected during investigations
+- DarshanJournal: Session-level journal entries
+- DarshanCrystal: Developmental portrait data
+- SessionHistory: Conversation history
+- SharedSummary: Professional summaries
+- SessionFlags: Session state flags
 """
 
 import uuid
@@ -29,6 +36,205 @@ from app.db.base import (
 if TYPE_CHECKING:
     from app.db.models_core import Child, Observation
     from app.db.models_auth import User
+
+
+# =============================================================================
+# Investigation Models (for Curiosity investigations)
+# =============================================================================
+
+class Investigation(Base, TimestampMixin):
+    """
+    Investigation - context for actively investigating a curiosity.
+
+    Contains evidence collection and video workflow state.
+    Linked to a Curiosity when actively investigating.
+    """
+
+    __tablename__ = "investigations"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    curiosity_id: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    # Status
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)  # active/complete/stale
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.now)
+
+    # Video workflow
+    video_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    video_declined: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    video_suggested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    guidelines_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # generating/ready/error
+
+    # Relationships
+    evidence: Mapped[List["InvestigationEvidence"]] = relationship(
+        "InvestigationEvidence", back_populates="investigation", cascade="all, delete-orphan"
+    )
+    video_scenarios: Mapped[List["VideoScenario"]] = relationship(
+        "VideoScenario", back_populates="investigation"
+    )
+
+    __table_args__ = (
+        Index("ix_investigations_curiosity", "curiosity_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Investigation {self.id} status={self.status}>"
+
+
+class InvestigationEvidence(Base):
+    """
+    InvestigationEvidence - evidence collected during an investigation.
+
+    Evidence can support, contradict, or transform the hypothesis.
+    """
+
+    __tablename__ = "investigation_evidence"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    investigation_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Content
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    effect: Mapped[str] = mapped_column(String(20), default="supports", nullable=False)  # supports/contradicts/transforms
+    source: Mapped[str] = mapped_column(String(50), default="conversation", nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+    # Relationships
+    investigation: Mapped["Investigation"] = relationship("Investigation", back_populates="evidence")
+
+    __table_args__ = (
+        Index("ix_evidence_investigation", "investigation_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<InvestigationEvidence {self.effect}: {self.content[:30]}...>"
+
+
+# =============================================================================
+# Darshan Persistence Models
+# =============================================================================
+
+class DarshanJournal(Base):
+    """
+    DarshanJournal - session-level journal entries.
+
+    What Darshan learned during a session.
+    """
+
+    __tablename__ = "darshan_journal"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    child_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+    # Content
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    learned: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    significance: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+    entry_type: Mapped[str] = mapped_column(String(30), default="observation", nullable=False)
+
+    # Temporal
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<DarshanJournal {self.entry_type}: {self.summary[:30]}...>"
+
+
+class DarshanCrystal(Base, TimestampMixin):
+    """
+    DarshanCrystal - developmental portrait for a child.
+
+    The crystallized understanding of who this child is.
+    """
+
+    __tablename__ = "darshan_crystals"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    child_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+
+    # Portrait data (JSON)
+    portrait_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<DarshanCrystal child={self.child_id}>"
+
+
+class SessionHistoryEntry(Base):
+    """
+    SessionHistoryEntry - conversation history entry.
+
+    Stores the conversation turns for a child.
+    """
+
+    __tablename__ = "session_history"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    child_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+    # Message content
+    role: Mapped[str] = mapped_column(String(20), nullable=False)  # user/assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    turn_number: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Temporal
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_session_history_child_turn", "child_id", "turn_number"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<SessionHistoryEntry {self.role} turn={self.turn_number}>"
+
+
+class SharedSummary(Base):
+    """
+    SharedSummary - professional summaries shared externally.
+
+    Stores professional and parent summaries.
+    """
+
+    __tablename__ = "shared_summaries"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    child_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+    # Content
+    summary_type: Mapped[str] = mapped_column(String(50), nullable=False)  # professional, parent, etc.
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    extra_metadata: Mapped[Optional[str]] = mapped_column("metadata", Text, nullable=True)  # JSON metadata
+
+    # Temporal
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<SharedSummary {self.summary_type} child={self.child_id}>"
+
+
+class SessionFlags(Base, TimestampMixin):
+    """
+    SessionFlags - session state flags.
+
+    Stores flags like guided collection mode, baseline video requested, etc.
+    """
+
+    __tablename__ = "session_flags"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    child_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+
+    # Flags
+    guided_collection_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    baseline_video_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    flags_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON for additional flags
+
+    def __repr__(self) -> str:
+        return f"<SessionFlags child={self.child_id}>"
 
 
 class VideoScenario(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -82,6 +288,11 @@ class VideoScenario(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     child_age_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Investigation link (for curiosity-driven video requests)
+    investigation_id: Mapped[Optional[str]] = mapped_column(
+        String(50), ForeignKey("investigations.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Relationships
     child: Mapped["Child"] = relationship("Child", back_populates="video_scenarios")
     uploader: Mapped[Optional["User"]] = relationship("User")
@@ -91,11 +302,15 @@ class VideoScenario(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     observations: Mapped[List["Observation"]] = relationship(
         "Observation", back_populates="source_video"
     )
+    investigation: Mapped[Optional["Investigation"]] = relationship(
+        "Investigation", back_populates="video_scenarios"
+    )
 
     __table_args__ = (
         Index("ix_video_child", "child_id"),
         Index("ix_video_status", "status"),
         Index("ix_video_scenario_type", "scenario_type"),
+        Index("ix_video_scenarios_investigation", "investigation_id"),
     )
 
     def __repr__(self) -> str:
@@ -291,8 +506,7 @@ class Curiosity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     What is Darshan curious about regarding this child?
     Curiosities guide conversation and video requests.
 
-    Note: This is simpler than Exploration - it's what we wonder about,
-    not a full hypothesis with evidence tracking.
+    Now unified with Investigation support for full hypothesis tracking.
     """
 
     __tablename__ = "curiosities"
@@ -320,6 +534,17 @@ class Curiosity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_activated: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     times_explored: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
+    # NEW: Status for lifecycle (added by migration d3a7b8f1e29c)
+    status: Mapped[str] = mapped_column(String(20), default="wondering", nullable=False)  # wondering/investigating/understood/dormant
+
+    # NEW: Hypothesis-specific fields
+    theory: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # For hypothesis: the theory to test
+    video_appropriate: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # Can video test this?
+    video_value: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # calibration/chain/discovery/reframe/relational
+    video_value_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Why video would help
+    question: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # For question type: the specific question
+    domains_involved: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array for pattern type
+
     # Relationships
     child: Mapped["Child"] = relationship("Child", back_populates="curiosities")
 
@@ -327,6 +552,7 @@ class Curiosity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Index("ix_curiosity_child_active", "child_id", "is_active"),
         Index("ix_curiosity_pull", "pull"),
         Index("ix_curiosity_type", "curiosity_type"),
+        Index("ix_curiosities_child_status", "child_id", "status"),
     )
 
     def __repr__(self) -> str:

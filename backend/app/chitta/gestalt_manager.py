@@ -2,10 +2,10 @@
 Gestalt Manager - Darshan Lifecycle & Persistence
 
 Manages the lifecycle of Darshan instances:
-- Loading from persistence (child files + session data)
+- Loading from persistence (database)
 - Detecting session transitions (>4 hour gaps)
 - Memory distillation on session transitions
-- Persisting state to files
+- Persisting state to database
 
 Philosophy:
 - Darshan is the observing intelligence
@@ -13,14 +13,13 @@ Philosophy:
 - Memory is distilled when sessions transition
 """
 
-import json
 import logging
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, Any, Optional
 
 from .gestalt import Darshan
 from .models import ConversationMemory
+from app.db.repositories import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +27,8 @@ logger = logging.getLogger(__name__)
 class GestaltManager:
     """
     Manages Darshan lifecycle: loading, caching, transition detection, persistence.
+
+    Uses database for persistence via UnitOfWork.
     """
 
     SESSION_GAP_HOURS = 4  # Hours that define a session transition
@@ -68,11 +69,10 @@ class GestaltManager:
         # Get or create session (using SessionService properly)
         session = await self._session_service.get_or_create_session_async(family_id)
 
-        # Build Darshan from persisted data
-        # Extract data from our own persistence (gestalt files)
-        child_data = self._extract_child_data_for_darshan(child, family_id)
+        # Build Darshan from persisted data (database)
+        child_data = await self._load_darshan_data_from_db(family_id)
 
-        # Session history from child_data (persisted with Darshan state)
+        # Session history from child_data
         session_history = child_data.get("session_history", [])
 
         # Get child's birth date for temporal calculations
@@ -118,10 +118,10 @@ class GestaltManager:
         # Get or create session
         session = await self._session_service.get_or_create_session_async(family_id)
 
-        # Extract data from our persistence
-        child_data = self._extract_child_data_for_darshan(child, family_id)
+        # Extract data from database
+        child_data = await self._load_darshan_data_from_db(family_id)
 
-        # Session history from child_data (persisted with Darshan state)
+        # Session history from child_data
         session_history = child_data.get("session_history", [])
 
         # Get child's birth date for temporal calculations
@@ -155,31 +155,18 @@ class GestaltManager:
         self._gestalts[family_id] = darshan
         return darshan
 
-    def _extract_child_data_for_darshan(self, child, family_id: str = None) -> Dict[str, Any]:
-        """Extract data from Child model or file in format expected by Darshan.
-
-        Args:
-            child: Child model (may be empty if gestalt file format differs)
-            family_id: The family_id to use for file lookup (fallback if child.id fails)
-        """
-        # Try to load from gestalt file using child.id first, then family_id as fallback
-        # This handles seeded gestalt data which doesn't have child_id field
-        file_id = getattr(child, 'id', None) or family_id
-        if not file_id:
-            logger.warning("No file_id available for gestalt loading")
-            return self._empty_darshan_data()
-
-        gestalt_file = Path("data/children") / f"{file_id}.json"
-        if gestalt_file.exists():
-            try:
-                with open(gestalt_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    logger.info(f"Loaded gestalt data for {file_id} from file")
+    async def _load_darshan_data_from_db(self, family_id: str) -> Dict[str, Any]:
+        """Load Darshan data from database."""
+        try:
+            async with UnitOfWork() as uow:
+                data = await uow.darshan.load_darshan_data(family_id)
+                if data and (data.get("curiosities") or data.get("journal") or data.get("crystal")):
+                    logger.info(f"Loaded darshan data for {family_id} from database")
                     return data
-            except Exception as e:
-                logger.warning(f"Failed to load gestalt file for {file_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to load darshan data from DB for {family_id}: {e}")
 
-        # Otherwise return empty state - will be built through conversation
+        # Return empty state - will be built through conversation
         return self._empty_darshan_data()
 
     def _empty_darshan_data(self) -> Dict[str, Any]:
@@ -236,100 +223,48 @@ class GestaltManager:
         )
 
     async def persist_darshan(self, family_id: str, darshan: Darshan):
-        """Persist child and session state."""
+        """Persist Darshan state to database."""
         # Get state for persistence
         darshan_state = darshan.get_state_for_persistence()
 
-        # Build child data
-        # Include both root-level "name" (for Darshan) and nested "identity" (for Child model)
-        child_data = {
-            "id": family_id,
-            "child_id": family_id,  # Alias for Child model
-            "name": darshan.child_name,
-            "child_gender": darshan.child_gender,  # Persist child gender for prompts
-            # Identity structure for Child model compatibility
-            "identity": {
-                "name": darshan.child_name,
-                "birth_date": darshan.child_birth_date.isoformat() if darshan.child_birth_date else None,
-                "gender": darshan.child_gender,
-            },
-            "understanding": {
-                "observations": [
-                    {
-                        "content": f.content,
-                        "domain": f.domain,
-                        "source": f.source,
-                        "confidence": f.confidence,
-                    }
-                    for f in darshan.understanding.observations
-                ],
-                "milestones": [
-                    {
-                        "id": m.id,
-                        "description": m.description,
-                        "age_months": m.age_months,
-                        "age_description": m.age_description,
-                        "domain": m.domain,
-                        "milestone_type": m.milestone_type,
-                        "source": m.source,
-                        "recorded_at": m.recorded_at.isoformat() if m.recorded_at else None,
-                        "notes": m.notes,
-                    }
-                    for m in darshan.understanding.milestones
-                ],
-            },
-            "stories": [
-                {
-                    "summary": s.summary,
-                    "reveals": s.reveals,
-                    "domains": s.domains,
-                    "significance": s.significance,
-                    "timestamp": s.timestamp.isoformat(),
-                }
-                for s in darshan.stories
-            ],
+        # Build the data structure for the repository
+        darshan_data = {
+            "curiosities": darshan_state.get("curiosities", {}),
             "journal": [
                 {
-                    "timestamp": e.timestamp.isoformat(),
                     "summary": e.summary,
                     "learned": e.learned,
                     "significance": e.significance,
                     "entry_type": e.entry_type,
+                    "timestamp": e.timestamp,
                 }
                 for e in darshan.journal
             ],
-            "curiosities": darshan_state["curiosities"],
+            "session_history": [
+                {
+                    "role": m.role,
+                    "content": m.content,
+                    "timestamp": m.timestamp,
+                }
+                for m in darshan.session_history
+            ],
+            "session_flags": darshan_state.get("session_flags", {}),
+            "shared_summaries": darshan_state.get("shared_summaries", {}),
         }
 
-        # Include crystal if present
-        if "crystal" in darshan_state:
-            child_data["crystal"] = darshan_state["crystal"]
+        # Add crystal if present
+        if darshan_state.get("crystal"):
+            darshan_data["crystal"] = darshan_state["crystal"]
 
-        # Include shared summaries
-        if "shared_summaries" in darshan_state:
-            child_data["shared_summaries"] = darshan_state["shared_summaries"]
-
-        # Include session flags (guided collection mode, etc.)
-        if "session_flags" in darshan_state:
-            child_data["session_flags"] = darshan_state["session_flags"]
-
-        # Include session history for conversation persistence
-        if "session_history" in darshan_state:
-            child_data["session_history"] = darshan_state["session_history"]
-
-        # Persist to our own file (Darshan's state)
-        # SessionService persists sessions automatically
-        await self._persist_darshan_to_file(family_id, child_data)
-
-    async def _persist_darshan_to_file(self, family_id: str, darshan_data: Dict[str, Any]):
-        """Persist Darshan state to JSON file."""
-        # Use a separate directory for gestalt data
-        gestalt_dir = Path("data/children")
-        gestalt_dir.mkdir(parents=True, exist_ok=True)
-
-        file_path = gestalt_dir / f"{family_id}.json"
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(darshan_data, f, ensure_ascii=False, indent=2, default=str)
+        # Save to database
+        try:
+            async with UnitOfWork() as uow:
+                await uow.darshan.save_darshan_data(family_id, darshan_data)
+                await uow.commit()
+                logger.info(f"Persisted darshan data for {family_id} to database")
+        except Exception as e:
+            logger.error(f"Failed to persist darshan data to DB for {family_id}: {e}")
+            raise
 
 
 # Singleton accessor
