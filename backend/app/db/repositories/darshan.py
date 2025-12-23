@@ -13,11 +13,11 @@ Handles all database operations for:
 """
 
 import json
-import uuid
+import uuid as uuid_module
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Sequence
+from typing import Optional, List, Dict, Any, Sequence, Union
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -31,6 +31,15 @@ from app.db.models_supporting import (
     SharedSummary,
     SessionFlags,
 )
+
+
+def _to_uuid(child_id: str) -> uuid_module.UUID:
+    """Convert child_id string to UUID, handling both UUID strings and regular strings."""
+    try:
+        return uuid_module.UUID(child_id)
+    except ValueError:
+        # For non-UUID strings (like seed data), create a deterministic UUID
+        return uuid_module.uuid5(uuid_module.NAMESPACE_DNS, child_id)
 
 
 class DarshanRepository:
@@ -49,16 +58,18 @@ class DarshanRepository:
 
     async def get_curiosities(self, child_id: str) -> Sequence[Curiosity]:
         """Get all curiosities for a child."""
+        child_uuid = _to_uuid(child_id)
         stmt = select(Curiosity).where(
-            Curiosity.child_id == child_id
+            Curiosity.child_id == child_uuid
         ).order_by(Curiosity.pull.desc())
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
     async def get_active_curiosities(self, child_id: str) -> Sequence[Curiosity]:
         """Get active curiosities for a child."""
+        child_uuid = _to_uuid(child_id)
         stmt = select(Curiosity).where(
-            Curiosity.child_id == child_id,
+            Curiosity.child_id == child_uuid,
             Curiosity.is_active == True
         ).order_by(Curiosity.pull.desc())
         result = await self.session.execute(stmt)
@@ -66,9 +77,10 @@ class DarshanRepository:
 
     async def save_curiosity(self, child_id: str, curiosity_data: Dict[str, Any]) -> Curiosity:
         """Save a curiosity (create or update)."""
+        child_uuid = _to_uuid(child_id)
         # Check if exists by focus
         stmt = select(Curiosity).where(
-            Curiosity.child_id == child_id,
+            Curiosity.child_id == child_uuid,
             Curiosity.focus == curiosity_data.get("focus")
         )
         result = await self.session.execute(stmt)
@@ -85,7 +97,7 @@ class DarshanRepository:
         else:
             # Create new
             curiosity = Curiosity(
-                child_id=child_id,
+                child_id=child_uuid,
                 opened_at=datetime.now(),
                 last_activated=datetime.now(),
                 **curiosity_data
@@ -102,7 +114,8 @@ class DarshanRepository:
 
     async def delete_child_curiosities(self, child_id: str):
         """Delete all curiosities for a child."""
-        stmt = delete(Curiosity).where(Curiosity.child_id == child_id)
+        child_uuid = _to_uuid(child_id)
+        stmt = delete(Curiosity).where(Curiosity.child_id == child_uuid)
         await self.session.execute(stmt)
 
     # =========================================================================
@@ -150,7 +163,7 @@ class DarshanRepository:
         # Add evidence
         for e_data in evidence_data:
             evidence = InvestigationEvidence(
-                id=e_data.get("id", f"evi_{uuid.uuid4().hex[:8]}"),
+                id=e_data.get("id", f"evi_{uuid_module.uuid4().hex[:8]}"),
                 investigation_id=investigation.id,
                 content=e_data["content"],
                 effect=e_data.get("effect", "supports"),
@@ -166,7 +179,7 @@ class DarshanRepository:
     async def add_evidence(self, investigation_id: str, evidence_data: Dict[str, Any]) -> InvestigationEvidence:
         """Add evidence to an investigation."""
         evidence = InvestigationEvidence(
-            id=evidence_data.get("id", f"evi_{uuid.uuid4().hex[:8]}"),
+            id=evidence_data.get("id", f"evi_{uuid_module.uuid4().hex[:8]}"),
             investigation_id=investigation_id,
             content=evidence_data["content"],
             effect=evidence_data.get("effect", "supports"),
@@ -193,7 +206,7 @@ class DarshanRepository:
     async def save_journal_entry(self, child_id: str, entry_data: Dict[str, Any]) -> DarshanJournal:
         """Save a journal entry."""
         entry = DarshanJournal(
-            id=entry_data.get("id", f"jrn_{uuid.uuid4().hex[:8]}"),
+            id=entry_data.get("id", f"jrn_{uuid_module.uuid4().hex[:8]}"),
             child_id=child_id,
             summary=entry_data["summary"],
             learned=entry_data.get("learned"),
@@ -235,7 +248,7 @@ class DarshanRepository:
             return existing
         else:
             crystal = DarshanCrystal(
-                id=f"cry_{uuid.uuid4().hex[:8]}",
+                id=f"cry_{uuid_module.uuid4().hex[:8]}",
                 child_id=child_id,
                 portrait_data=portrait_json,
                 generated_at=crystal_data.get("generated_at", datetime.now()),
@@ -273,7 +286,7 @@ class DarshanRepository:
         next_turn = (last_entry.turn_number + 1) if last_entry else 0
 
         entry = SessionHistoryEntry(
-            id=f"msg_{uuid.uuid4().hex[:8]}",
+            id=f"msg_{uuid_module.uuid4().hex[:8]}",
             child_id=child_id,
             role=message_data["role"],
             content=message_data["content"],
@@ -323,7 +336,7 @@ class DarshanRepository:
             return existing
         else:
             flags = SessionFlags(
-                id=f"flg_{uuid.uuid4().hex[:8]}",
+                id=f"flg_{uuid_module.uuid4().hex[:8]}",
                 child_id=child_id,
                 guided_collection_mode=flags_data.get("guided_collection_mode", False),
                 baseline_video_requested=flags_data.get("baseline_video_requested", False),
@@ -358,7 +371,7 @@ class DarshanRepository:
     async def save_shared_summary(self, child_id: str, summary_data: Dict[str, Any]) -> SharedSummary:
         """Save a shared summary."""
         summary = SharedSummary(
-            id=f"sum_{uuid.uuid4().hex[:8]}",
+            id=f"sum_{uuid_module.uuid4().hex[:8]}",
             child_id=child_id,
             summary_type=summary_data["summary_type"],
             content=summary_data["content"],
