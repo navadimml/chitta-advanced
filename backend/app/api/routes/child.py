@@ -58,14 +58,23 @@ async def get_child_data(child_id: str):
                 }
             curiosities_data.append(c_dict)
 
+        # Compute age from birth date if available
+        child_age = None
+        if gestalt.child_birth_date:
+            from datetime import date
+            today = date.today()
+            age_days = (today - gestalt.child_birth_date).days
+            child_age = round(age_days / 365.25, 1)
+
         return {
             "child_id": child_id,
-            "name": gestalt._child_name,
-            "age": gestalt._child_age,
+            "name": gestalt.child_name,
+            "age": child_age,
             "curiosities": curiosities_data,
             "understanding": {
-                "hypotheses": [h.to_dict() for h in gestalt._understanding._hypotheses],
-                "patterns": [p.to_dict() for p in gestalt._understanding._patterns],
+                "observations": [o.to_dict() for o in gestalt.understanding.observations],
+                "patterns": [p.to_dict() for p in gestalt.understanding.patterns],
+                "milestones": [m.to_dict() for m in gestalt.understanding.milestones],
             },
         }
 
@@ -100,40 +109,43 @@ async def get_child_gestalt(child_id: str):
             c_dict = c.to_dict()
             curiosities_data.append(c_dict)
 
+        # Compute age from birth date if available
+        child_age = None
+        if gestalt.child_birth_date:
+            from datetime import date
+            today = date.today()
+            age_days = (today - gestalt.child_birth_date).days
+            child_age = round(age_days / 365.25, 1)
+
         return {
             "child_id": child_id,
-            "child_name": gestalt._child_name,
-            "child_age": gestalt._child_age,
+            "child_name": gestalt.child_name,
+            "child_age": child_age,
 
             # Curiosities (the unified model)
             "curiosities": {
                 "dynamic": curiosities_data,
-                "baseline": [c.to_dict() for c in gestalt._curiosities._baseline],
+                "perpetual": [c.to_dict() for c in gestalt._curiosities._perpetual],
             },
 
-            # Understanding (hypotheses, patterns)
+            # Understanding (observations, patterns, milestones)
             "understanding": {
-                "hypotheses": [h.to_dict() for h in gestalt._understanding._hypotheses],
-                "patterns": [p.to_dict() for p in gestalt._understanding._patterns],
-                "pending_insights": [i.to_dict() for i in gestalt._understanding._pending_insights],
+                "observations": [o.to_dict() for o in gestalt.understanding.observations],
+                "patterns": [p.to_dict() for p in gestalt.understanding.patterns],
+                "milestones": [m.to_dict() for m in gestalt.understanding.milestones],
             },
 
             # Stories
-            "stories": [s.to_dict() for s in gestalt._stories],
+            "stories": [s.to_dict() for s in gestalt.stories],
 
-            # Observations
-            "observations": [o.to_dict() for o in gestalt._observations],
+            # Journal
+            "journal": [j.to_dict() for j in gestalt.journal],
 
-            # Video info
-            "video_count": gestalt._video_count,
-            "analyzed_videos": [v.to_dict() for v in gestalt.analyzed_videos()],
+            # Crystal (holistic understanding) if exists
+            "crystal": gestalt.crystal.to_dict() if gestalt.crystal else None,
 
-            # Portrait if exists
-            "portrait": gestalt._portrait.to_dict() if gestalt._portrait else None,
-
-            # Session info
-            "session_id": gestalt._session_id,
-            "last_activity": gestalt._last_activity.isoformat() if gestalt._last_activity else None,
+            # Session history
+            "session_history": [m.to_dict() for m in gestalt.session_history],
         }
 
     except HTTPException:

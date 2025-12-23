@@ -334,6 +334,28 @@ class Curiosity:
             self.certainty = 0.4
         self.last_activated = datetime.now()
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize for persistence and API responses."""
+        result = {
+            "focus": self.focus,
+            "type": self.type,
+            "pull": self.pull,
+            "certainty": self.certainty,
+            "theory": self.theory,
+            "video_appropriate": self.video_appropriate,
+            "question": self.question,
+            "domains_involved": self.domains_involved,
+            "video_value": self.video_value,
+            "video_value_reason": self.video_value_reason,
+            "domain": self.domain,
+            "last_activated": self.last_activated.isoformat(),
+            "times_explored": self.times_explored,
+            "status": self.status,
+        }
+        if self.investigation:
+            result["investigation"] = self.investigation.to_dict()
+        return result
+
 
 class Curiosities:
     """
