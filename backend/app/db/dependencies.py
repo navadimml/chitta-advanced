@@ -17,6 +17,7 @@ Usage in endpoints:
         ...
 """
 
+import os
 import uuid
 from typing import Optional, AsyncGenerator
 
@@ -29,6 +30,10 @@ from app.db.models_core import Child
 
 # Security scheme for JWT
 security = HTTPBearer(auto_error=False)
+
+# Dev mode bypass for testing (X-Ray, etc.)
+# Set CHITTA_DEV_MODE=1 to allow unauthenticated access
+DEV_MODE = os.getenv("CHITTA_DEV_MODE", "0") == "1"
 
 
 async def get_uow() -> AsyncGenerator[UnitOfWork, None]:
@@ -122,12 +127,31 @@ async def get_current_user(
 
     Use this for endpoints that require authentication.
 
+    In dev mode (CHITTA_DEV_MODE=1), returns a mock dev user for testing.
+
     Usage:
         @router.get("/me")
         async def get_me(current_user: User = Depends(get_current_user)):
             return current_user
     """
     if not user:
+        # Dev mode bypass for X-Ray testing
+        if DEV_MODE:
+            import logging
+            from types import SimpleNamespace
+            logger = logging.getLogger(__name__)
+            logger.debug("🔧 Dev mode: returning mock user for unauthenticated request")
+            # Return a mock user object for dev/testing (not a real SQLAlchemy model)
+            mock_user = SimpleNamespace(
+                id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                email="dev@chitta.test",
+                display_name="Dev User",
+                is_active=True,
+                is_admin=False,
+                parent_type=None,  # "mother" or "father" for gender-appropriate responses
+            )
+            return mock_user
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",

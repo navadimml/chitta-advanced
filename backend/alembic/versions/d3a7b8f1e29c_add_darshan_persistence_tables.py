@@ -96,7 +96,7 @@ def upgrade() -> None:
         sa.Column('child_id', sa.String(50), nullable=False, index=True),
         sa.Column('summary', sa.Text(), nullable=False),
         sa.Column('learned', sa.Text(), nullable=True),  # What was learned
-        sa.Column('significance', sa.Float(), default=0.5),
+        sa.Column('significance', sa.String(20), server_default='routine'),  # routine | notable | breakthrough
         sa.Column('entry_type', sa.String(30), default='observation'),
         sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),

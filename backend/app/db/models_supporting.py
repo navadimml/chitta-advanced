@@ -132,7 +132,7 @@ class DarshanJournal(Base):
     # Content
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     learned: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    significance: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+    significance: Mapped[str] = mapped_column(String(20), default="routine", nullable=False)  # routine | notable | breakthrough
     entry_type: Mapped[str] = mapped_column(String(30), default="observation", nullable=False)
 
     # Temporal

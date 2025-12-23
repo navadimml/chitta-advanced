@@ -511,7 +511,7 @@ class ChittaXRayTest:
         try:
             resp = requests.post(
                 f"{self.base_url}/api/chat/v2/send",
-                json={"family_id": self.family_id, "message": message},
+                json={"child_id": self.family_id, "message": message},
                 timeout=120
             )
 

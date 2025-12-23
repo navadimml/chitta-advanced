@@ -84,9 +84,11 @@ class FamilyService:
         safe_id = "".join(c if c.isalnum() or c in "_-" else "_" for c in family_id)
         return Path(DATA_DIR) / f"family_{safe_id}.json"
 
-    def _get_user_mapping_file_path(self, user_id: str) -> Path:
+    def _get_user_mapping_file_path(self, user_id) -> Path:
         """Get file path for user->family mapping."""
-        safe_id = "".join(c if c.isalnum() or c in "_-" else "_" for c in user_id)
+        # Convert UUID to string if necessary
+        user_id_str = str(user_id) if hasattr(user_id, 'hex') else user_id
+        safe_id = "".join(c if c.isalnum() or c in "_-" else "_" for c in user_id_str)
         return Path(DATA_DIR) / f"user_mapping_{safe_id}.json"
 
     # === Core Operations ===

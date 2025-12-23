@@ -95,12 +95,14 @@ class DarshanRepository:
             await self.session.refresh(existing)
             return existing
         else:
-            # Create new
+            # Create new - remove fields that we set explicitly to avoid duplicates
+            create_data = {k: v for k, v in curiosity_data.items()
+                          if k not in ("id", "child_id", "opened_at", "last_activated")}
             curiosity = Curiosity(
                 child_id=child_uuid,
-                opened_at=datetime.now(),
-                last_activated=datetime.now(),
-                **curiosity_data
+                opened_at=curiosity_data.get("opened_at") or datetime.now(),
+                last_activated=curiosity_data.get("last_activated") or datetime.now(),
+                **create_data
             )
             self.session.add(curiosity)
             await self.session.flush()
@@ -205,12 +207,17 @@ class DarshanRepository:
 
     async def save_journal_entry(self, child_id: str, entry_data: Dict[str, Any]) -> DarshanJournal:
         """Save a journal entry."""
+        # Serialize learned field if it's a list
+        learned = entry_data.get("learned")
+        if isinstance(learned, list):
+            learned = json.dumps(learned, ensure_ascii=False)
+
         entry = DarshanJournal(
             id=entry_data.get("id", f"jrn_{uuid_module.uuid4().hex[:8]}"),
             child_id=child_id,
             summary=entry_data["summary"],
-            learned=entry_data.get("learned"),
-            significance=entry_data.get("significance", 0.5),
+            learned=learned,
+            significance=entry_data.get("significance", "routine"),
             entry_type=entry_data.get("entry_type", "observation"),
             timestamp=entry_data.get("timestamp", datetime.now()),
         )
@@ -445,16 +452,25 @@ class DarshanRepository:
 
         # Load journal
         journal_entries = await self.get_journal_entries(child_id)
-        journal_data = [
-            {
+        journal_data = []
+        for e in journal_entries:
+            # Deserialize learned field if it's a JSON string
+            learned = e.learned
+            if learned:
+                try:
+                    learned = json.loads(learned)
+                except (json.JSONDecodeError, TypeError):
+                    learned = [learned] if learned else []
+            else:
+                learned = []
+
+            journal_data.append({
                 "summary": e.summary,
-                "learned": e.learned,
+                "learned": learned,
                 "significance": e.significance,
                 "entry_type": e.entry_type,
                 "timestamp": e.timestamp.isoformat() if e.timestamp else None,
-            }
-            for e in journal_entries
-        ]
+            })
 
         # Load crystal
         crystal = await self.get_crystal(child_id)
