@@ -25,6 +25,7 @@ from typing import List, Dict, Any, Optional
 from .curiosity import (
     Curiosity,
     Curiosities,
+    InvestigationContext,
     create_hypothesis,
     create_question,
     create_pattern,
@@ -35,7 +36,6 @@ from .models import (
     TemporalFact,
     Evidence,
     Story,
-    Exploration,
     JournalEntry,
     Pattern,
     ToolCall,
@@ -48,13 +48,13 @@ from .models import (
     SharedSummary,
     DevelopmentalMilestone,
     ParentContext,
+    VideoScenario,
     parse_temporal,
     generate_id,
 )
 from .formatting import (
     format_understanding,
     format_curiosities,
-    format_explorations,
     format_perception_summary,
     format_turn_guidance,
     format_crystal,
@@ -94,7 +94,6 @@ class Darshan:
         child_id: str,
         child_name: Optional[str],
         understanding: Understanding,
-        explorations: List[Exploration],
         stories: List[Story],
         journal: List[JournalEntry],
         curiosities: Curiosities,
@@ -112,10 +111,9 @@ class Darshan:
             child_id: Unique identifier for the child
             child_name: Child's name (if known)
             understanding: Current understanding of the child
-            explorations: Active and past explorations
             stories: Captured stories
             journal: Journal entries
-            curiosities: The curiosities manager
+            curiosities: The curiosities manager (includes investigations)
             session_history: Recent conversation history
             crystal: Cached synthesis (patterns, essence, pathways)
             shared_summaries: Previously generated Letters for sharing
@@ -126,7 +124,6 @@ class Darshan:
         self.child_id = child_id
         self.child_name = child_name
         self.understanding = understanding
-        self.explorations = explorations
         self.stories = stories
         self.journal = journal
         self._curiosities = curiosities
@@ -231,7 +228,7 @@ class Darshan:
         if not tool_calls:
             return False
 
-        important_tools = {"capture_story", "spawn_exploration"}
+        important_tools = {"capture_story"}
         has_important = any(tc.name in important_tools for tc in tool_calls)
 
         # Check for hypothesis creation via wonder
@@ -447,10 +444,6 @@ You are perceiving what a parent shared and extracting relevant information.
 ## WHAT I'M CURIOUS ABOUT
 
 {format_curiosities(context.curiosities)}
-
-## ACTIVE EXPLORATIONS
-
-{format_explorations(self.explorations)}
 
 ## YOUR TASK
 
@@ -703,8 +696,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     self._handle_capture_story(call.args)
                 elif call.name == "add_evidence":
                     self._handle_add_evidence(call.args)
-                elif call.name == "spawn_exploration":
-                    self._handle_spawn_exploration(call.args)
+                # spawn_exploration removed - investigations auto-start in _handle_wonder
                 elif call.name == "record_milestone":
                     self._handle_record_milestone(call.args)
                 elif call.name == "set_child_identity":
@@ -764,6 +756,14 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
         self._curiosities.add_curiosity(curiosity)
 
+        # Auto-start investigation for video-valuable hypotheses
+        # This enables video suggestion cards without needing spawn_exploration
+        if (curiosity.type == "hypothesis" and
+            curiosity.video_value is not None and
+            curiosity.video_appropriate):
+            curiosity.start_investigation()
+            logger.info(f"🔬 Auto-started investigation for video-valuable hypothesis: {curiosity.focus}")
+
     def _handle_capture_story(self, args: Dict[str, Any]):
         """Capture a story and its developmental signals."""
         story = Story.create(
@@ -807,13 +807,17 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         self.journal.append(entry)
 
     def _handle_add_evidence(self, args: Dict[str, Any]):
-        """Add evidence to an active exploration."""
-        exploration_id = args.get("cycle_id")  # Keep "cycle_id" in args for backwards compatibility
-        if not exploration_id:
+        """Add evidence to an active investigation."""
+        investigation_id = args.get("cycle_id")  # Keep "cycle_id" in args for tool compatibility
+        if not investigation_id:
             return
 
-        exploration = self._get_exploration(exploration_id)
-        if not exploration or exploration.status != "active":
+        # Find curiosity by investigation ID
+        curiosity = self._curiosities.get_curiosity_by_investigation_id(investigation_id)
+        if not curiosity or not curiosity.investigation:
+            return
+
+        if curiosity.investigation.status != "active":
             return
 
         evidence = Evidence.create(
@@ -821,55 +825,14 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             effect=args.get("effect", "supports"),
             source="conversation",
         )
-        exploration.add_evidence(evidence)
+        curiosity.add_evidence(evidence)
 
         # Update curiosity certainty
-        self._curiosities.on_evidence_added(exploration.focus, evidence.effect)
+        self._curiosities.on_evidence_added(curiosity.focus, evidence.effect)
 
-    def _handle_spawn_exploration(self, args: Dict[str, Any]):
-        """Spawn a new exploration."""
-        exploration_type = args.get("type", "question")
-
-        if exploration_type == "hypothesis":
-            exploration = Exploration.create_for_hypothesis(
-                focus=args["focus"],
-                theory=args.get("theory", args["focus"]),
-                domain=args.get("domain", "general"),
-                video_appropriate=args.get("video_appropriate", True),
-            )
-        elif exploration_type == "question":
-            exploration = Exploration.create_for_question(
-                focus=args["focus"],
-                question=args.get("question", args["focus"]),
-                domain=args.get("domain", "general"),
-            )
-        elif exploration_type == "pattern":
-            exploration = Exploration.create_for_pattern(
-                focus=args["focus"],
-                observation=args.get("observation", ""),
-                domains=[args.get("domain", "general")],
-            )
-        else:  # discovery
-            exploration = Exploration.create_for_discovery(
-                focus=args["focus"],
-                aspect=args.get("aspect", "essence"),
-                domain=args.get("domain", "general"),
-            )
-
-        self.explorations.append(exploration)
-
-        # Link curiosity to exploration
-        self._curiosities.link_to_cycle(args["focus"], exploration.id)
-
-        # Add journal entry for exploration start
-        entry = JournalEntry.create(
-            summary=args["focus"],
-            learned=[f"התחלנו לחקור: {args['focus']}"],
-            significance="notable",
-            entry_type="exploration_started",
-        )
-        self.journal.append(entry)
-        logger.info(f"🔍 Exploration spawned: {args['focus']} (type={exploration_type})")
+    # Note: spawn_exploration tool has been removed.
+    # Investigations are now started automatically in _handle_wonder
+    # when a hypothesis has video_value set.
 
     def _handle_record_milestone(self, args: Dict[str, Any]):
         """Record a developmental milestone."""
@@ -954,27 +917,24 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             child_service.update_developmental_data(self.child_id, update_data)
             logger.info(f"📝 Updated Child model with identity: {update_data}")
 
-    def _get_exploration(self, exploration_id: str) -> Optional[Exploration]:
-        """Get exploration by ID."""
-        for exploration in self.explorations:
-            if exploration.id == exploration_id:
-                return exploration
-        return None
-
     # ========================================
     # SYNTHESIS
     # ========================================
 
     def _should_synthesize(self) -> bool:
         """Check if conditions suggest synthesis is ready."""
-        completed_explorations = [e for e in self.explorations if e.status == "complete"]
+        # Count understood curiosities (completed investigations)
+        understood_count = sum(
+            1 for c in self._curiosities._dynamic
+            if c.status == "understood"
+        )
 
         # Conditions for synthesis readiness:
-        # - Multiple explorations have completed
+        # - Multiple curiosities have been understood
         # - Multiple stories captured
         # - Sufficient observations accumulated
         return (
-            len(completed_explorations) >= 2 or
+            understood_count >= 2 or
             len(self.stories) >= 5 or
             len(self.understanding.observations) >= 10
         )
@@ -1035,11 +995,12 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             if hasattr(story, 'timestamp') and story.timestamp:
                 timestamps.append(story.timestamp)
 
-        # Evidence in explorations
-        for exploration in self.explorations:
-            for evidence in exploration.evidence:
-                if hasattr(evidence, 'timestamp') and evidence.timestamp:
-                    timestamps.append(evidence.timestamp)
+        # Evidence in investigations (from curiosities)
+        for curiosity in self._curiosities._dynamic:
+            if curiosity.investigation:
+                for evidence in curiosity.investigation.evidence:
+                    if hasattr(evidence, 'timestamp') and evidence.timestamp:
+                        timestamps.append(evidence.timestamp)
 
         # Return the most recent, or now if no observations yet
         if timestamps:
@@ -1064,13 +1025,14 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         ]
 
         new_evidence = []
-        for exploration in self.explorations:
-            for evidence in exploration.evidence:
-                if hasattr(evidence, 'timestamp') and evidence.timestamp and evidence.timestamp > since:
-                    new_evidence.append({
-                        "exploration_focus": exploration.focus,
-                        "evidence": evidence,
-                    })
+        for curiosity in self._curiosities._dynamic:
+            if curiosity.investigation:
+                for evidence in curiosity.investigation.evidence:
+                    if hasattr(evidence, 'timestamp') and evidence.timestamp and evidence.timestamp > since:
+                        new_evidence.append({
+                            "curiosity_focus": curiosity.focus,
+                            "evidence": evidence,
+                        })
 
         return {
             "observations": new_observations,
@@ -1116,7 +1078,6 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         child_id: str,
         child_name: Optional[str],
         understanding_data: Optional[Dict] = None,
-        explorations_data: Optional[List[Dict]] = None,
         stories_data: Optional[List[Dict]] = None,
         journal_data: Optional[List[Dict]] = None,
         curiosities_data: Optional[Dict] = None,
@@ -1162,66 +1123,6 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     notes=m_data.get("notes"),
                 )
                 understanding.add_milestone(milestone)
-
-        # Build explorations
-        explorations = []
-        if explorations_data:
-            for exploration_data in explorations_data:
-                # Build video scenarios
-                video_scenarios = []
-                for scenario_data in exploration_data.get("video_scenarios", []):
-                    from .models import VideoScenario
-                    scenario = VideoScenario(
-                        id=scenario_data["id"],
-                        title=scenario_data["title"],
-                        what_to_film=scenario_data["what_to_film"],
-                        rationale_for_parent=scenario_data.get("rationale_for_parent", ""),
-                        duration_suggestion=scenario_data.get("duration_suggestion", "3-5 דקות"),
-                        example_situations=scenario_data.get("example_situations", []),
-                        target_hypothesis_id=scenario_data.get("target_hypothesis_id", ""),
-                        what_we_hope_to_learn=scenario_data.get("what_we_hope_to_learn", ""),
-                        focus_points=scenario_data.get("focus_points", []),
-                        category=scenario_data.get("category", "exploration"),
-                        status=scenario_data.get("status", "pending"),
-                        created_at=datetime.fromisoformat(scenario_data["created_at"]) if scenario_data.get("created_at") else None,
-                        reminder_dismissed=scenario_data.get("reminder_dismissed", False),
-                        video_path=scenario_data.get("video_path"),
-                        uploaded_at=datetime.fromisoformat(scenario_data["uploaded_at"]) if scenario_data.get("uploaded_at") else None,
-                        analysis_result=scenario_data.get("analysis_result"),
-                        analyzed_at=datetime.fromisoformat(scenario_data["analyzed_at"]) if scenario_data.get("analyzed_at") else None,
-                    )
-                    video_scenarios.append(scenario)
-
-                # Build evidence
-                evidence_list = []
-                for evidence_data in exploration_data.get("evidence", []):
-                    from .models import Evidence
-                    evidence = Evidence(
-                        content=evidence_data["content"],
-                        effect=evidence_data.get("effect", "supports"),
-                        source=evidence_data.get("source", "conversation"),
-                        timestamp=datetime.fromisoformat(evidence_data["timestamp"]) if evidence_data.get("timestamp") else datetime.now(),
-                    )
-                    evidence_list.append(evidence)
-
-                exploration = Exploration(
-                    id=exploration_data["id"],
-                    curiosity_type=exploration_data.get("curiosity_type", "question"),
-                    focus=exploration_data["focus"],
-                    focus_domain=exploration_data.get("focus_domain", "general"),
-                    status=exploration_data.get("status", "active"),
-                    theory=exploration_data.get("theory"),
-                    confidence=exploration_data.get("confidence"),
-                    video_appropriate=exploration_data.get("video_appropriate", False),
-                    question=exploration_data.get("question"),
-                    # Video consent fields
-                    video_accepted=exploration_data.get("video_accepted", False),
-                    video_declined=exploration_data.get("video_declined", False),
-                    video_suggested_at=datetime.fromisoformat(exploration_data["video_suggested_at"]) if exploration_data.get("video_suggested_at") else None,
-                    video_scenarios=video_scenarios,
-                    evidence=evidence_list,
-                )
-                explorations.append(exploration)
 
         # Build stories
         stories = []
@@ -1282,7 +1183,6 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             child_id=child_id,
             child_name=child_name,
             understanding=understanding,
-            explorations=explorations,
             stories=stories,
             journal=journal,
             curiosities=curiosities,

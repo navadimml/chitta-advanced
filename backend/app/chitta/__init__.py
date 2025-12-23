@@ -46,7 +46,6 @@ from .models import (
     TemporalFact,
     Evidence,
     Story,
-    Exploration,
     JournalEntry,
     Pattern,
     Response,
@@ -57,7 +56,6 @@ from .models import (
 from .formatting import (
     format_understanding,
     format_curiosities,
-    format_explorations,
     format_perception_summary,
 )
 
@@ -98,7 +96,6 @@ __all__ = [
     "TemporalFact",
     "Evidence",
     "Story",
-    "Exploration",
     "JournalEntry",
     "Pattern",
     "Response",
@@ -108,6 +105,5 @@ __all__ = [
     # Formatting
     "format_understanding",
     "format_curiosities",
-    "format_explorations",
     "format_perception_summary",
 ]

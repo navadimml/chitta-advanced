@@ -361,64 +361,6 @@ This updates the child's permanent identity record.""",
 }
 
 
-TOOL_SPAWN_EXPLORATION = {
-    "name": "spawn_exploration",
-    "description": """Start a focused exploration.
-
-Use this when:
-- A curiosity is ready for deeper investigation (strong pull, not yet explored)
-- You want to systematically explore a hypothesis
-- A pattern needs validation across domains
-
-This creates an exploration that can:
-- Gather evidence through conversation
-- Potentially use video observation (if hypothesis is video_appropriate)
-- Track progress toward understanding
-
-One domain per exploration - don't mix domains in a single exploration.
-""",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "focus": {
-                "type": "string",
-                "description": "What we're exploring"
-            },
-            "type": {
-                "type": "string",
-                "enum": ["discovery", "question", "hypothesis", "pattern"],
-                "description": "Type of exploration"
-            },
-            "domain": {
-                "type": "string",
-                "description": "Primary domain for this exploration"
-            },
-            "theory": {
-                "type": "string",
-                "description": "For hypothesis: the theory to test"
-            },
-            "video_appropriate": {
-                "type": "boolean",
-                "description": "For hypothesis: can video observation test this?"
-            },
-            "question": {
-                "type": "string",
-                "description": "For question: the specific question"
-            },
-            "aspect": {
-                "type": "string",
-                "description": "For discovery: what aspect (essence, strengths, context)"
-            },
-            "observation": {
-                "type": "string",
-                "description": "For pattern: the pattern observed"
-            }
-        },
-        "required": ["focus", "type"]
-    }
-}
-
-
 # === Tool Collections ===
 
 PERCEPTION_TOOLS = [
@@ -426,7 +368,6 @@ PERCEPTION_TOOLS = [
     TOOL_WONDER,
     TOOL_CAPTURE_STORY,
     TOOL_ADD_EVIDENCE,
-    TOOL_SPAWN_EXPLORATION,
     TOOL_RECORD_MILESTONE,
     TOOL_SET_CHILD_IDENTITY,
 ]

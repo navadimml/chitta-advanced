@@ -91,11 +91,8 @@ class GestaltManager:
             child_id=family_id,
             child_name=child.name or child_data.get("name"),
             understanding_data=child_data.get("understanding"),
-            # Read from old key for backwards compatibility with data files
-            explorations_data=child_data.get("exploration_cycles") or child_data.get("explorations"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
-            # Read from old key for backwards compatibility with data files
             curiosities_data=child_data.get("curiosity_engine") or child_data.get("curiosities"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
@@ -143,11 +140,8 @@ class GestaltManager:
             child_id=family_id,
             child_name=child.name or child_data.get("name"),
             understanding_data=child_data.get("understanding"),
-            # Read from old key for backwards compatibility with data files
-            explorations_data=child_data.get("exploration_cycles") or child_data.get("explorations"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
-            # Read from old key for backwards compatibility with data files
             curiosities_data=child_data.get("curiosity_engine") or child_data.get("curiosities"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
@@ -192,7 +186,6 @@ class GestaltManager:
         """Return empty Darshan state for new conversations."""
         return {
             "understanding": None,
-            "explorations": [],
             "stories": [],
             "journal": [],
             "curiosities": None,
@@ -285,57 +278,6 @@ class GestaltManager:
                     for m in darshan.understanding.milestones
                 ],
             },
-            "explorations": [
-                {
-                    "id": c.id,
-                    "curiosity_type": c.curiosity_type,
-                    "focus": c.focus,
-                    "focus_domain": c.focus_domain,
-                    "status": c.status,
-                    "theory": c.theory,
-                    "confidence": c.confidence,
-                    "video_appropriate": c.video_appropriate,
-                    "question": c.question,
-                    # Video consent fields
-                    "video_accepted": c.video_accepted,
-                    "video_declined": c.video_declined,
-                    "video_suggested_at": c.video_suggested_at.isoformat() if c.video_suggested_at else None,
-                    # Video scenarios
-                    "video_scenarios": [
-                        {
-                            "id": s.id,
-                            "title": s.title,
-                            "what_to_film": s.what_to_film,
-                            "rationale_for_parent": s.rationale_for_parent,
-                            "duration_suggestion": s.duration_suggestion,
-                            "example_situations": s.example_situations,
-                            "target_hypothesis_id": s.target_hypothesis_id,
-                            "what_we_hope_to_learn": s.what_we_hope_to_learn,
-                            "focus_points": s.focus_points,
-                            "category": s.category,
-                            "status": s.status,
-                            "created_at": s.created_at.isoformat() if s.created_at else None,
-                            "reminder_dismissed": s.reminder_dismissed,
-                            "video_path": s.video_path,
-                            "uploaded_at": s.uploaded_at.isoformat() if s.uploaded_at else None,
-                            "analysis_result": s.analysis_result,
-                            "analyzed_at": s.analyzed_at.isoformat() if s.analyzed_at else None,
-                        }
-                        for s in c.video_scenarios
-                    ],
-                    # Evidence
-                    "evidence": [
-                        {
-                            "content": e.content,
-                            "effect": e.effect,
-                            "source": e.source,
-                            "timestamp": e.timestamp.isoformat(),
-                        }
-                        for e in c.evidence
-                    ],
-                }
-                for c in darshan.explorations
-            ],
             "stories": [
                 {
                     "summary": s.summary,

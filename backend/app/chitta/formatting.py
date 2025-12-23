@@ -12,7 +12,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .curiosity import Curiosity
-    from .models import Understanding, Exploration, PerceptionResult, ToolCall, Crystal, ParentContext
+    from .models import Understanding, PerceptionResult, ToolCall, Crystal, ParentContext
 
 
 # Type icons for visual display
@@ -215,39 +215,6 @@ def format_curiosities(curiosities: List["Curiosity"]) -> str:
     return "\n".join(lines)
 
 
-def format_explorations(explorations: List["Exploration"]) -> str:
-    """
-    Format active explorations for prompt.
-
-    Shows what explorations are currently active.
-    Returns English for LLM prompt context.
-    """
-    active = [e for e in explorations if e.status == "active"]
-
-    if not active:
-        return "No active explorations."
-
-    lines = []
-
-    for e in active[:3]:
-        type_icon = TYPE_ICONS.get(e.curiosity_type, "")
-        lines.append(f"- [{type_icon} {e.curiosity_type}] {e.focus} (id: {e.id})")
-
-        if e.curiosity_type == "hypothesis":
-            lines.append(f"  Testing: {e.theory}")
-            conf_percent = int((e.confidence or 0.5) * 100)
-            lines.append(f"  Confidence: {conf_percent}%")
-            if e.video_appropriate:
-                lines.append("  Video appropriate: Yes")
-        elif e.curiosity_type == "question":
-            lines.append(f"  Question: {e.question}")
-
-        evidence_count = len(e.evidence)
-        lines.append(f"  Evidence collected: {evidence_count} pieces")
-
-    return "\n".join(lines)
-
-
 def format_perception_summary(perception: "PerceptionResult") -> str:
     """
     Format what was perceived in Phase 1 for Phase 2 context.
@@ -280,11 +247,7 @@ def format_perception_summary(perception: "PerceptionResult") -> str:
             lines.append(f"💭 New curiosity {type_icon}: {about}")
 
         elif tc.name == "add_evidence":
-            lines.append("📝 Evidence added to active exploration")
-
-        elif tc.name == "spawn_exploration":
-            focus = tc.args.get("focus", "exploration")
-            lines.append(f"🔬 Starting new exploration: {focus}")
+            lines.append("📝 Evidence added to active investigation")
 
     return "\n".join(lines) if lines else "Processing naturally."
 
@@ -572,9 +535,9 @@ Use these tools to perceive and record what you notice:
     - "C-section" / "Natural birth" → milestone_type="birth" (the birth moment)
     - "Born at 36 weeks" / "Difficult pregnancy" → milestone_type="concern" (pregnancy events)
 - **wonder**: Spawn a new curiosity (discovery/question/hypothesis/pattern)
+  - For hypotheses with video_value set, an investigation is automatically started
 - **capture_story**: When a meaningful story is shared - capture what it reveals
-- **add_evidence**: Add evidence to active exploration
-- **spawn_exploration**: Start focused investigation when curiosity pulls strongly
+- **add_evidence**: Add evidence to an active investigation
 
 **CRITICAL**:
 - When parent mentions child's NAME or AGE, use set_child_identity!

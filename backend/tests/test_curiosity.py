@@ -50,24 +50,26 @@ class TestCuriosityModel:
         )
         assert strong_disc.certainty == 0.9
 
-    def test_should_spawn_exploration(self):
-        """High pull, unexplored curiosity should spawn exploration."""
+    def test_start_investigation(self):
+        """start_investigation creates an InvestigationContext."""
         c = Curiosity(focus="test", type="question", pull=0.8, certainty=0.3)
-        assert c.should_spawn_exploration() is True
 
-        # Low pull should not spawn
-        c2 = Curiosity(focus="test", type="question", pull=0.5, certainty=0.3)
-        assert c2.should_spawn_exploration() is False
+        # Initially no investigation
+        assert c.investigation is None
+        assert c.status == "wondering"
 
-        # Already explored should not spawn
-        c3 = Curiosity(focus="test", type="question", pull=0.8, certainty=0.3)
-        c3.times_explored = 1
-        assert c3.should_spawn_exploration() is False
+        # Start investigation
+        c.start_investigation()
 
-        # Already linked to exploration should not spawn
-        c4 = Curiosity(focus="test", type="question", pull=0.8, certainty=0.3)
-        c4.cycle_id = "exploration_123"  # cycle_id is still used internally
-        assert c4.should_spawn_exploration() is False
+        assert c.investigation is not None
+        assert c.status == "investigating"
+        assert c.investigation.status == "active"
+        assert c.investigation.id is not None
+
+        # Calling again should not change the investigation
+        original_id = c.investigation.id
+        c.start_investigation()
+        assert c.investigation.id == original_id
 
     def test_update_certainty_supports(self):
         """Supporting evidence increases certainty."""
@@ -347,16 +349,21 @@ class TestCuriosities:
         assert len(video_hyps) == 1
         assert video_hyps[0].focus == "video_ok"
 
-    def test_link_to_cycle(self):
-        """link_to_cycle updates curiosity state."""
+    def test_get_investigating_returns_investigating_curiosities(self):
+        """get_investigating returns curiosities with active investigations."""
         engine = Curiosities()
-        engine.add_curiosity(Curiosity(focus="test", type="question", pull=0.5, certainty=0.3))
+        # Add curiosity and start investigation
+        c = Curiosity(focus="test", type="question", pull=0.5, certainty=0.3)
+        c.start_investigation()
+        engine.add_curiosity(c)
 
-        engine.link_to_cycle("test", "cycle_123")
+        # Add curiosity without investigation
+        engine.add_curiosity(Curiosity(focus="no_invest", type="question", pull=0.5, certainty=0.3))
 
-        curiosity = engine._dynamic[0]
-        assert curiosity.cycle_id == "cycle_123"  # cycle_id is still used internally
-        assert curiosity.times_explored == 1
+        investigating = engine.get_investigating()
+        assert len(investigating) == 1
+        assert investigating[0].focus == "test"
+        assert investigating[0].status == "investigating"
 
     def test_serialization_roundtrip(self):
         """Engine can be serialized and deserialized."""

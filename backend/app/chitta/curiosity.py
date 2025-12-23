@@ -20,10 +20,141 @@ TYPE AND CERTAINTY:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
+import uuid
 
 if TYPE_CHECKING:
-    from .models import TemporalFact, Understanding
+    from .models import TemporalFact, Understanding, Evidence, VideoScenario
+
+
+@dataclass
+class InvestigationContext:
+    """
+    Attached to Curiosity when actively investigating.
+
+    Contains all evidence collection and video workflow state.
+    This replaces the old Exploration class.
+    """
+    id: str
+    status: str  # "active" | "complete" | "stale"
+    started_at: datetime = field(default_factory=datetime.now)
+
+    # Evidence collection
+    evidence: List["Evidence"] = field(default_factory=list)
+
+    # Video workflow
+    video_accepted: bool = False
+    video_declined: bool = False
+    video_suggested_at: Optional[datetime] = None
+    video_scenarios: List["VideoScenario"] = field(default_factory=list)
+    guidelines_status: Optional[str] = None  # "generating" | "ready" | "error"
+
+    @classmethod
+    def create(cls) -> "InvestigationContext":
+        """Create a new investigation context."""
+        return cls(
+            id=f"inv_{uuid.uuid4().hex[:8]}",
+            status="active",
+            started_at=datetime.now(),
+        )
+
+    def add_evidence(self, evidence: "Evidence"):
+        """Add evidence to this investigation."""
+        self.evidence.append(evidence)
+
+    def accept_video(self):
+        """Mark video as accepted."""
+        self.video_accepted = True
+        self.video_declined = False
+
+    def decline_video(self):
+        """Mark video as declined."""
+        self.video_declined = True
+        self.video_accepted = False
+
+    def can_suggest_video(self, video_appropriate: bool) -> bool:
+        """Check if video can be suggested for this investigation."""
+        return (
+            video_appropriate and
+            not self.video_accepted and
+            not self.video_declined and
+            self.status == "active"
+        )
+
+    def get_scenario(self, scenario_id: str) -> Optional["VideoScenario"]:
+        """Get a video scenario by ID."""
+        for s in self.video_scenarios:
+            if s.id == scenario_id:
+                return s
+        return None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize for persistence."""
+        return {
+            "id": self.id,
+            "status": self.status,
+            "started_at": self.started_at.isoformat(),
+            "evidence": [
+                {
+                    "content": e.content,
+                    "effect": e.effect,
+                    "source": e.source,
+                    "timestamp": e.timestamp.isoformat(),
+                }
+                for e in self.evidence
+            ],
+            "video_accepted": self.video_accepted,
+            "video_declined": self.video_declined,
+            "video_suggested_at": self.video_suggested_at.isoformat() if self.video_suggested_at else None,
+            "video_scenarios": [s.to_dict() for s in self.video_scenarios],
+            "guidelines_status": self.guidelines_status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "InvestigationContext":
+        """Deserialize from persistence."""
+        from .models import Evidence, VideoScenario
+
+        started_at = data.get("started_at")
+        if isinstance(started_at, str):
+            started_at = datetime.fromisoformat(started_at)
+        else:
+            started_at = datetime.now()
+
+        video_suggested_at = data.get("video_suggested_at")
+        if isinstance(video_suggested_at, str):
+            video_suggested_at = datetime.fromisoformat(video_suggested_at)
+
+        evidence_list = []
+        for e_data in data.get("evidence", []):
+            timestamp = e_data.get("timestamp")
+            if isinstance(timestamp, str):
+                timestamp = datetime.fromisoformat(timestamp)
+            else:
+                timestamp = datetime.now()
+
+            evidence_list.append(Evidence(
+                content=e_data["content"],
+                effect=e_data.get("effect", "supports"),
+                source=e_data.get("source", "conversation"),
+                timestamp=timestamp,
+            ))
+
+        video_scenarios = []
+        for s_data in data.get("video_scenarios", []):
+            video_scenarios.append(VideoScenario.from_dict(s_data))
+
+        return cls(
+            id=data["id"],
+            status=data.get("status", "active"),
+            started_at=started_at,
+            evidence=evidence_list,
+            video_accepted=data.get("video_accepted", False),
+            video_declined=data.get("video_declined", False),
+            video_suggested_at=video_suggested_at,
+            video_scenarios=video_scenarios,
+            guidelines_status=data.get("guidelines_status"),
+        )
 
 
 @dataclass
@@ -63,8 +194,11 @@ class Curiosity:
     last_activated: datetime = field(default_factory=datetime.now)
     times_explored: int = 0
 
-    # Linkage to exploration cycles
-    cycle_id: Optional[str] = None      # If this spawned an exploration cycle
+    # Lifecycle status
+    status: str = "wondering"  # "wondering" | "investigating" | "understood" | "dormant"
+
+    # Investigation context (None = wondering, has value = investigating/understood)
+    investigation: Optional[InvestigationContext] = None
 
     def copy(self) -> "Curiosity":
         """Create a copy of this curiosity."""
@@ -82,17 +216,99 @@ class Curiosity:
             domain=self.domain,
             last_activated=self.last_activated,
             times_explored=self.times_explored,
-            cycle_id=self.cycle_id,
+            status=self.status,
+            investigation=self.investigation,  # Shallow copy - same investigation context
         )
 
-    def should_spawn_exploration(self) -> bool:
-        """Should this curiosity spawn an exploration?"""
-        return self.pull > 0.7 and self.times_explored == 0 and self.cycle_id is None
+    def should_start_investigation(self) -> bool:
+        """Should this curiosity start an investigation?"""
+        return (
+            self.status == "wondering" and
+            self.pull > 0.7 and
+            self.investigation is None
+        )
+
+    def start_investigation(self) -> InvestigationContext:
+        """Start investigating this curiosity."""
+        if self.investigation is not None:
+            return self.investigation
+
+        self.investigation = InvestigationContext.create()
+        self.status = "investigating"
+        self.last_activated = datetime.now()
+        self.times_explored += 1
+        return self.investigation
 
     def mark_explored(self):
         """Mark this curiosity as explored."""
         self.times_explored += 1
         self.last_activated = datetime.now()
+
+    def mark_understood(self):
+        """Mark this curiosity as understood (investigation complete)."""
+        self.status = "understood"
+        if self.investigation:
+            self.investigation.status = "complete"
+        self.last_activated = datetime.now()
+
+    def mark_dormant(self):
+        """Mark this curiosity as dormant (lost interest)."""
+        self.status = "dormant"
+        self.last_activated = datetime.now()
+
+    def add_evidence(self, evidence: "Evidence"):
+        """Add evidence to this curiosity's investigation."""
+        if self.investigation is None:
+            self.start_investigation()
+        self.investigation.add_evidence(evidence)
+        self.last_activated = datetime.now()
+
+    def can_suggest_video(self) -> bool:
+        """
+        Check if video can be suggested for this curiosity.
+
+        Video is suggestable when:
+        1. Investigating hypothesis with video_appropriate=True
+        2. Wondering with video_value set and high pull
+        3. Pattern with high pull and video_appropriate
+        """
+        # Already declined or accepted
+        if self.investigation:
+            if self.investigation.video_accepted or self.investigation.video_declined:
+                return False
+
+        # Investigating hypothesis
+        if self.status == "investigating" and self.video_appropriate:
+            return True
+
+        # Wondering with video value and high pull
+        if self.status == "wondering" and self.video_value is not None and self.pull > 0.7:
+            return True
+
+        # Pattern with high pull
+        if self.type == "pattern" and self.pull > 0.8 and self.video_appropriate:
+            return True
+
+        return False
+
+    def accept_video(self):
+        """Accept video suggestion for this curiosity."""
+        if self.investigation is None:
+            self.start_investigation()
+        self.investigation.accept_video()
+        self.last_activated = datetime.now()
+
+    def decline_video(self):
+        """Decline video suggestion for this curiosity."""
+        if self.investigation is None:
+            self.start_investigation()
+        self.investigation.decline_video()
+        self.last_activated = datetime.now()
+
+    @property
+    def investigation_id(self) -> Optional[str]:
+        """Get investigation ID if investigation exists."""
+        return self.investigation.id if self.investigation else None
 
     def boost_pull(self, amount: float = 0.1):
         """Boost pull (clamped to 1.0)."""
@@ -424,36 +640,55 @@ class Curiosities:
         """Mark that baseline video has been requested."""
         self._baseline_video_requested = True
 
-    def link_to_cycle(self, curiosity_focus: str, cycle_id: str):
-        """Link a curiosity to an exploration cycle."""
+    def start_investigation(self, curiosity_focus: str) -> Optional[InvestigationContext]:
+        """Start investigation for a curiosity by focus."""
         for c in self._dynamic:
             if c.focus == curiosity_focus:
-                c.cycle_id = cycle_id
-                c.mark_explored()
-                break
+                return c.start_investigation()
+        return None
+
+    def get_investigating(self) -> List[Curiosity]:
+        """Get all curiosities that are currently investigating."""
+        return [c for c in self._dynamic if c.status == "investigating"]
+
+    def get_curiosity_by_investigation_id(self, investigation_id: str) -> Optional[Curiosity]:
+        """Find curiosity by its investigation ID."""
+        for c in self._dynamic:
+            if c.investigation and c.investigation.id == investigation_id:
+                return c
+        return None
+
+    def get_video_suggestable(self) -> List[Curiosity]:
+        """Get curiosities where video can be suggested."""
+        return [c for c in self._dynamic if c.can_suggest_video()]
 
     def to_dict(self) -> dict:
         """Serialize for persistence."""
+        dynamic_list = []
+        for c in self._dynamic:
+            c_data = {
+                "focus": c.focus,
+                "type": c.type,
+                "pull": c.pull,
+                "certainty": c.certainty,
+                "theory": c.theory,
+                "video_appropriate": c.video_appropriate,
+                "video_value": c.video_value,
+                "video_value_reason": c.video_value_reason,
+                "question": c.question,
+                "domains_involved": c.domains_involved,
+                "domain": c.domain,
+                "last_activated": c.last_activated.isoformat(),
+                "times_explored": c.times_explored,
+                "status": c.status,
+            }
+            # Serialize investigation if present
+            if c.investigation:
+                c_data["investigation"] = c.investigation.to_dict()
+            dynamic_list.append(c_data)
+
         return {
-            "dynamic": [
-                {
-                    "focus": c.focus,
-                    "type": c.type,
-                    "pull": c.pull,
-                    "certainty": c.certainty,
-                    "theory": c.theory,
-                    "video_appropriate": c.video_appropriate,
-                    "video_value": c.video_value,
-                    "video_value_reason": c.video_value_reason,
-                    "question": c.question,
-                    "domains_involved": c.domains_involved,
-                    "domain": c.domain,
-                    "last_activated": c.last_activated.isoformat(),
-                    "times_explored": c.times_explored,
-                    "cycle_id": c.cycle_id,
-                }
-                for c in self._dynamic
-            ],
+            "dynamic": dynamic_list,
             "baseline_video_requested": self._baseline_video_requested,
         }
 
@@ -469,8 +704,13 @@ class Curiosities:
             else:
                 last_activated = datetime.now()
 
-            # Support both old "activation" and new "pull" keys for backwards compatibility
+            # Support both old "activation" and new "pull" keys
             pull_value = c_data.get("pull", c_data.get("activation", 0.5))
+
+            # Deserialize investigation if present
+            investigation = None
+            if c_data.get("investigation"):
+                investigation = InvestigationContext.from_dict(c_data["investigation"])
 
             curiosity = Curiosity(
                 focus=c_data["focus"],
@@ -486,7 +726,8 @@ class Curiosities:
                 domain=c_data.get("domain"),
                 last_activated=last_activated,
                 times_explored=c_data.get("times_explored", 0),
-                cycle_id=c_data.get("cycle_id"),
+                status=c_data.get("status", "wondering"),
+                investigation=investigation,
             )
             curiosities._dynamic.append(curiosity)
 

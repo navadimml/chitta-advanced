@@ -21,7 +21,8 @@ import json
 import os
 
 from .gestalt import Darshan
-from .models import Exploration, VideoScenario, Evidence, TemporalFact
+from .curiosity import Curiosity, InvestigationContext, create_discovery
+from .models import VideoScenario, Evidence, TemporalFact
 
 logger = logging.getLogger(__name__)
 
@@ -76,24 +77,22 @@ class VideoService:
         if not darshan:
             return {"error": "Family not found"}
 
-        # Find the cycle
-        cycle = None
-        for c in darshan.explorations:
-            if c.id == cycle_id:
-                cycle = c
-                break
+        # Find curiosity by investigation ID
+        curiosity = darshan._curiosities.get_curiosity_by_investigation_id(cycle_id)
 
-        if not cycle:
-            return {"error": "Exploration not found"}
+        if not curiosity or not curiosity.investigation:
+            return {"error": "Investigation not found"}
 
-        if not cycle.video_appropriate:
-            return {"error": "Video not appropriate for this exploration"}
+        if not curiosity.video_appropriate:
+            return {"error": "Video not appropriate for this investigation"}
+
+        investigation = curiosity.investigation
 
         # Mark as accepted
-        cycle.accept_video()
+        curiosity.accept_video()
 
         # Set generating status
-        cycle.guidelines_status = "generating"
+        investigation.guidelines_status = "generating"
 
         # Persist immediately so UI can show "generating" state
         await self._persist_darshan(family_id, darshan)
@@ -112,13 +111,13 @@ class VideoService:
             }
         else:
             # Synchronous generation (for testing)
-            scenarios = await self._generate_personalized_video_guidelines(darshan, cycle)
+            scenarios = await self._generate_personalized_video_guidelines(darshan, curiosity)
 
             if not scenarios:
                 return {"error": "Failed to generate video guidelines"}
 
-            cycle.video_scenarios = scenarios
-            cycle.guidelines_status = "ready"
+            investigation.video_scenarios = scenarios
+            investigation.guidelines_status = "ready"
             await self._persist_darshan(family_id, darshan)
 
             return {
@@ -135,23 +134,22 @@ class VideoService:
                 logger.error(f"Background guidelines: family {family_id} not found")
                 return
 
-            cycle = None
-            for c in darshan.explorations:
-                if c.id == cycle_id:
-                    cycle = c
-                    break
+            # Find curiosity by investigation ID
+            curiosity = darshan._curiosities.get_curiosity_by_investigation_id(cycle_id)
 
-            if not cycle:
-                logger.error(f"Background guidelines: cycle {cycle_id} not found")
+            if not curiosity or not curiosity.investigation:
+                logger.error(f"Background guidelines: investigation {cycle_id} not found")
                 return
+
+            investigation = curiosity.investigation
 
             # Generate guidelines
             logger.info(f"🎬 Background generating guidelines for {family_id}/{cycle_id}")
-            scenarios = await self._generate_personalized_video_guidelines(darshan, cycle)
+            scenarios = await self._generate_personalized_video_guidelines(darshan, curiosity)
 
             if scenarios:
-                cycle.video_scenarios = scenarios
-                cycle.guidelines_status = "ready"
+                investigation.video_scenarios = scenarios
+                investigation.guidelines_status = "ready"
                 await self._persist_darshan(family_id, darshan)
 
                 # Send SSE to update cards
@@ -161,7 +159,7 @@ class VideoService:
 
                 logger.info(f"✅ Background guidelines ready for {family_id}/{cycle_id}")
             else:
-                cycle.guidelines_status = "error"
+                investigation.guidelines_status = "error"
                 await self._persist_darshan(family_id, darshan)
                 logger.error(f"❌ Background guidelines failed for {family_id}/{cycle_id}")
 
@@ -172,24 +170,25 @@ class VideoService:
         """
         Parent declined video suggestion.
 
-        Respect their choice - don't ask again for this cycle.
+        Respect their choice - don't ask again for this investigation.
         Continue exploring via conversation.
         """
         darshan = await self._get_darshan(family_id)
         if not darshan:
             return {"error": "Family not found"}
 
-        for cycle in darshan.explorations:
-            if cycle.id == cycle_id:
-                cycle.decline_video()
-                await self._persist_darshan(family_id, darshan)
-                return {
-                    "status": "declined",
-                    "cycle_id": cycle_id,
-                    "message": "בסדר גמור! נמשיך להכיר דרך השיחה שלנו.",
-                }
+        # Find curiosity by investigation ID
+        curiosity = darshan._curiosities.get_curiosity_by_investigation_id(cycle_id)
+        if curiosity:
+            curiosity.decline_video()
+            await self._persist_darshan(family_id, darshan)
+            return {
+                "status": "declined",
+                "cycle_id": cycle_id,
+                "message": "בסדר גמור! נמשיך להכיר דרך השיחה שלנו.",
+            }
 
-        return {"error": "Exploration not found"}
+        return {"error": "Investigation not found"}
 
     async def accept_baseline_video(
         self,
@@ -199,7 +198,7 @@ class VideoService:
         """
         Parent accepted baseline video suggestion.
 
-        Creates a "discovery" exploration - not tied to a hypothesis,
+        Creates a "discovery" curiosity with investigation - not tied to a hypothesis,
         just curiosity about who this child is.
 
         Guidelines are simple: "film any everyday moment."
@@ -211,25 +210,29 @@ class VideoService:
         # Mark baseline video as requested (prevents re-suggestion)
         darshan._curiosities.mark_baseline_video_requested()
 
-        # Create a discovery exploration
+        # Create a discovery curiosity with investigation
         child_name = darshan.child_name or "הילד/ה"
 
-        exploration = Exploration.create_discovery(
+        curiosity = create_discovery(
             focus=f"להכיר את {child_name}",
-            aspect="essence",
             domain="essence",
         )
-        exploration.video_appropriate = True
-        exploration.video_value = "discovery"
-        exploration.video_value_reason = "baseline observation to see the child naturally"
-        exploration.accept_video()
+        curiosity.video_appropriate = True
+        curiosity.video_value = "discovery"
+        curiosity.video_value_reason = "baseline observation to see the child naturally"
+
+        # Start investigation and accept video
+        curiosity.start_investigation()
+        curiosity.accept_video()
+
+        investigation = curiosity.investigation
 
         # Create a simple baseline scenario (no LLM needed)
         scenario = VideoScenario.create(
             title="רגע יומיומי טבעי",
             what_to_film=f"צלמו סרטון קצר (3-5 דקות) של {child_name} ברגע יומיומי רגיל - משחק, ארוחה, או כל פעילות טבעית אחרת.",
             rationale_for_parent="זה יעזור לי להכיר אותו/ה בסביבה הטבעית שלו/ה, לראות את האופי, הסגנון, והאנרגיה. לא צריך להכין שום דבר מיוחד - ככל שהמצב יותר רגיל, יותר טוב!",
-            target_hypothesis_id=exploration.id,
+            target_hypothesis_id=investigation.id,
             what_we_hope_to_learn="Baseline observation of the child's natural behavior, temperament, regulation, and interaction style.",
             focus_points=[
                 "General demeanor and mood",
@@ -240,14 +243,14 @@ class VideoService:
             ],
             category="baseline",
         )
-        exploration.video_scenarios = [scenario]
+        investigation.video_scenarios = [scenario]
 
-        darshan.explorations.append(exploration)
+        darshan._curiosities.add_curiosity(curiosity)
         await self._persist_darshan(family_id, darshan)
 
         return {
             "status": "accepted",
-            "exploration_id": exploration.id,
+            "exploration_id": investigation.id,
             "scenarios": [
                 {
                     "id": scenario.id,
@@ -280,16 +283,16 @@ class VideoService:
         }
 
     async def get_video_guidelines(self, family_id: str, cycle_id: str) -> Dict[str, Any]:
-        """Get video guidelines for a cycle (parent-facing format only)."""
+        """Get video guidelines for an investigation (parent-facing format only)."""
         darshan = await self._get_darshan(family_id)
         if not darshan:
             return {"error": "Family not found"}
 
-        for cycle in darshan.explorations:
-            if cycle.id == cycle_id and cycle.video_scenarios:
-                return self._build_guidelines_response(darshan, cycle.video_scenarios)
+        curiosity = darshan._curiosities.get_curiosity_by_investigation_id(cycle_id)
+        if curiosity and curiosity.investigation and curiosity.investigation.video_scenarios:
+            return self._build_guidelines_response(darshan, curiosity.investigation.video_scenarios)
 
-        return {"error": "No video guidelines found for this cycle"}
+        return {"error": "No video guidelines found for this investigation"}
 
     async def dismiss_scenario_reminders(
         self, family_id: str, scenario_ids: List[str]
@@ -305,11 +308,12 @@ class VideoService:
             return {"error": "Family not found"}
 
         dismissed_count = 0
-        for cycle in darshan.explorations:
-            for scenario in cycle.video_scenarios:
-                if scenario.id in scenario_ids:
-                    scenario.dismiss_reminder()
-                    dismissed_count += 1
+        for curiosity in darshan._curiosities._dynamic:
+            if curiosity.investigation:
+                for scenario in curiosity.investigation.video_scenarios:
+                    if scenario.id in scenario_ids:
+                        scenario.dismiss_reminder()
+                        dismissed_count += 1
 
         if dismissed_count > 0:
             await self._persist_darshan(family_id, darshan)
@@ -335,11 +339,12 @@ class VideoService:
             return {"error": "Family not found"}
 
         rejected_count = 0
-        for cycle in darshan.explorations:
-            for scenario in cycle.video_scenarios:
-                if scenario.id in scenario_ids:
-                    scenario.reject()
-                    rejected_count += 1
+        for curiosity in darshan._curiosities._dynamic:
+            if curiosity.investigation:
+                for scenario in curiosity.investigation.video_scenarios:
+                    if scenario.id in scenario_ids:
+                        scenario.reject()
+                        rejected_count += 1
 
         if rejected_count > 0:
             await self._persist_darshan(family_id, darshan)
@@ -365,11 +370,12 @@ class VideoService:
             return {"error": "Family not found"}
 
         acknowledged_count = 0
-        for cycle in darshan.explorations:
-            for scenario in cycle.video_scenarios:
-                if scenario.id in scenario_ids and scenario.status == "analyzed":
-                    scenario.status = "acknowledged"
-                    acknowledged_count += 1
+        for curiosity in darshan._curiosities._dynamic:
+            if curiosity.investigation:
+                for scenario in curiosity.investigation.video_scenarios:
+                    if scenario.id in scenario_ids and scenario.status == "analyzed":
+                        scenario.status = "acknowledged"
+                        acknowledged_count += 1
 
         if acknowledged_count > 0:
             await self._persist_darshan(family_id, darshan)
@@ -392,8 +398,10 @@ class VideoService:
         if not darshan:
             return {"error": "Family not found"}
 
-        for cycle in darshan.explorations:
-            for scenario in cycle.video_scenarios:
+        for curiosity in darshan._curiosities._dynamic:
+            if not curiosity.investigation:
+                continue
+            for scenario in curiosity.investigation.video_scenarios:
                 if scenario.id == scenario_id and scenario.status == "needs_confirmation":
                     # Parent confirmed - proceed with the analysis result we already have
                     analysis_result = scenario.analysis_result
@@ -410,7 +418,7 @@ class VideoService:
                                 effect=observation.get("effect", "supports"),
                                 source="video",
                             )
-                            cycle.add_evidence(evidence)
+                            curiosity.add_evidence(evidence)
 
                         await self._persist_darshan(family_id, darshan)
                         return {
@@ -433,8 +441,10 @@ class VideoService:
         if not darshan:
             return {"error": "Family not found"}
 
-        for cycle in darshan.explorations:
-            for scenario in cycle.video_scenarios:
+        for curiosity in darshan._curiosities._dynamic:
+            if not curiosity.investigation:
+                continue
+            for scenario in curiosity.investigation.video_scenarios:
                 if scenario.id == scenario_id and scenario.status == "needs_confirmation":
                     # Reset to pending - parent will upload a new video
                     scenario.status = "pending"
@@ -472,9 +482,11 @@ class VideoService:
         if not darshan:
             return {"error": "Family not found"}
 
-        # Find the scenario across all cycles (by ID or title)
-        for cycle in darshan.explorations:
-            for scenario in cycle.video_scenarios:
+        # Find the scenario across all curiosities (by ID or title)
+        for curiosity in darshan._curiosities._dynamic:
+            if not curiosity.investigation:
+                continue
+            for scenario in curiosity.investigation.video_scenarios:
                 # Match by ID or title
                 if scenario.id == scenario_id or scenario.title == scenario_id:
                     scenario.status = "uploaded"
@@ -483,17 +495,18 @@ class VideoService:
 
                     await self._persist_darshan(family_id, darshan)
 
-                    logger.info(f"📹 Video uploaded for scenario '{scenario.title}' (id={scenario.id}) in cycle {cycle.id}")
+                    logger.info(f"📹 Video uploaded for scenario '{scenario.title}' (id={scenario.id}) in investigation {curiosity.investigation.id}")
                     return {
                         "status": "uploaded",
                         "scenario_id": scenario.id,
                         "scenario_title": scenario.title,
-                        "cycle_id": cycle.id,
+                        "cycle_id": curiosity.investigation.id,
                         "message": "הסרטון התקבל! אפשר לנתח אותו כשתהיו מוכנים.",
                     }
 
         logger.warning(f"⚠️ Scenario not found: '{scenario_id}' in family {family_id}")
-        logger.warning(f"   Available scenarios: {[(s.id, s.title) for c in darshan.explorations for s in c.video_scenarios]}")
+        available = [(s.id, s.title) for c in darshan._curiosities._dynamic if c.investigation for s in c.investigation.video_scenarios]
+        logger.warning(f"   Available scenarios: {available}")
         return {"error": f"Scenario '{scenario_id}' not found"}
 
     def _build_guidelines_response(self, darshan: Darshan, scenarios: List) -> Dict[str, Any]:
@@ -514,7 +527,7 @@ class VideoService:
     async def _generate_personalized_video_guidelines(
         self,
         darshan: Darshan,
-        cycle: "Exploration",
+        curiosity: "Curiosity",
     ) -> List["VideoScenario"]:
         """
         Generate PERSONALIZED video guidelines using LLM.
@@ -568,15 +581,15 @@ Extract from the stories and facts:
 {strengths_context}
 
 ## What We're Exploring (INTERNAL - DO NOT REVEAL TO PARENT)
-**Focus:** {cycle.focus}
-**Domain:** {cycle.focus_domain}
-**Theory (if hypothesis):** {cycle.theory or "N/A"}
-**Question (if question):** {cycle.question or "N/A"}
-**Video Value Type:** {cycle.video_value or "general"}
-**Why Video Helps:** {cycle.video_value_reason or "N/A"}
+**Focus:** {curiosity.focus}
+**Domain:** {curiosity.domain or "general"}
+**Theory (if hypothesis):** {curiosity.theory or "N/A"}
+**Question (if question):** {curiosity.question or "N/A"}
+**Video Value Type:** {curiosity.video_value or "general"}
+**Why Video Helps:** {curiosity.video_value_reason or "N/A"}
 
 ## VIDEO VALUE FRAMING (Use this to shape your approach!)
-{self._get_video_value_framing(cycle.video_value)}
+{self._get_video_value_framing(curiosity.video_value)}
 
 ## Generate ONE Video Scenario
 
@@ -630,25 +643,26 @@ Generate the scenario JSON now:
             scenario_data = json.loads(response_text)
 
             # Create VideoScenario from LLM response
+            investigation_id = curiosity.investigation.id if curiosity.investigation else curiosity.focus
             scenario = VideoScenario.create(
                 title=scenario_data.get("title", "תצפית"),
                 what_to_film=scenario_data.get("what_to_film", "צלמו מצב יומיומי טבעי"),
                 rationale_for_parent=scenario_data.get("rationale_for_parent", ""),
-                target_hypothesis_id=cycle.id,
-                what_we_hope_to_learn=scenario_data.get("what_we_hope_to_learn", cycle.focus),
+                target_hypothesis_id=investigation_id,
+                what_we_hope_to_learn=scenario_data.get("what_we_hope_to_learn", curiosity.focus),
                 focus_points=scenario_data.get("focus_points", []),
                 duration_suggestion=scenario_data.get("duration_suggestion", "3-5 דקות"),
                 example_situations=scenario_data.get("example_situations", []),
-                category="hypothesis_test" if cycle.curiosity_type == "hypothesis" else "exploration",
+                category="hypothesis_test" if curiosity.type == "hypothesis" else "exploration",
             )
 
-            logger.info(f"✅ Generated personalized video guidelines for cycle: {cycle.focus}")
+            logger.info(f"✅ Generated personalized video guidelines for curiosity: {curiosity.focus}")
             return [scenario]
 
         except Exception as e:
             logger.error(f"Error generating video guidelines: {e}")
             # Fallback to simple scenario
-            return [self._create_fallback_scenario(darshan, cycle)]
+            return [self._create_fallback_scenario(darshan, curiosity)]
 
     def _get_video_value_framing(self, video_value: Optional[str]) -> str:
         """
@@ -741,17 +755,18 @@ Generate the scenario JSON now:
             return "\n".join(f"- {s}" for s in strength_facts[:5])
         return "Not yet identified - explore through video."
 
-    def _create_fallback_scenario(self, darshan: Darshan, cycle) -> "VideoScenario":
+    def _create_fallback_scenario(self, darshan: Darshan, curiosity: "Curiosity") -> "VideoScenario":
         """Create a simple fallback scenario if LLM fails."""
         child_name = darshan.child_name or "הילד/ה"
+        investigation_id = curiosity.investigation.id if curiosity.investigation else curiosity.focus
 
         return VideoScenario.create(
             title="תצפית יומיומית",
             what_to_film=f"צלמו את {child_name} במצב יומיומי טבעי - משחק, אוכל, או אינטראקציה עם בני משפחה.",
             rationale_for_parent=f"לראות את {child_name} בסביבה הטבעית יעזור לי להבין אותו טוב יותר. אל תדאגו מ'לסדר' את המצב - אנחנו רוצים לראות את המציאות.",
-            target_hypothesis_id=cycle.id,
-            what_we_hope_to_learn=cycle.focus,
-            focus_points=[f"בדיקת: {cycle.focus}"],
+            target_hypothesis_id=investigation_id,
+            what_we_hope_to_learn=curiosity.focus,
+            focus_points=[f"בדיקת: {curiosity.focus}"],
             duration_suggestion="3-5 דקות",
             example_situations=["משחק בבית", "ארוחה משפחתית"],
             category="exploration",
@@ -777,22 +792,29 @@ Generate the scenario JSON now:
         if not darshan:
             return {"error": "Family not found"}
 
-        for cycle in darshan.explorations:
-            if cycle.id == cycle_id:
-                scenario = cycle.get_scenario(scenario_id)
-                if not scenario:
-                    return {"error": "Scenario not found"}
+        # Find curiosity by investigation ID
+        curiosity = darshan._curiosities.get_curiosity_by_investigation_id(cycle_id)
+        if curiosity and curiosity.investigation:
+            # Find the scenario
+            scenario = None
+            for s in curiosity.investigation.video_scenarios:
+                if s.id == scenario_id:
+                    scenario = s
+                    break
 
-                scenario.mark_uploaded(video_path)
-                await self._persist_darshan(family_id, darshan)
+            if not scenario:
+                return {"error": "Scenario not found"}
 
-                return {
-                    "status": "uploaded",
-                    "scenario_id": scenario_id,
-                    "video_path": video_path,
-                }
+            scenario.mark_uploaded(video_path)
+            await self._persist_darshan(family_id, darshan)
 
-        return {"error": "Exploration not found"}
+            return {
+                "status": "uploaded",
+                "scenario_id": scenario_id,
+                "video_path": video_path,
+            }
+
+        return {"error": "Investigation not found"}
 
     async def analyze_cycle_videos(
         self,
@@ -800,7 +822,7 @@ Generate the scenario JSON now:
         cycle_id: str,
     ) -> Dict[str, Any]:
         """
-        Analyze all uploaded videos for a cycle.
+        Analyze all uploaded videos for an investigation.
 
         Uses sophisticated video analysis to:
         1. Analyze video with hypothesis-driven prompt
@@ -817,30 +839,29 @@ Generate the scenario JSON now:
         if not darshan:
             return {"error": "Family not found"}
 
-        cycle = None
-        for c in darshan.explorations:
-            if c.id == cycle_id:
-                cycle = c
-                break
+        # Find curiosity by investigation ID
+        curiosity = darshan._curiosities.get_curiosity_by_investigation_id(cycle_id)
 
-        if not cycle:
-            return {"error": "Exploration not found"}
+        if not curiosity or not curiosity.investigation:
+            return {"error": "Investigation not found"}
+
+        investigation = curiosity.investigation
 
         # Get uploaded (not yet analyzed) videos
-        pending_scenarios = [s for s in cycle.video_scenarios if s.status == "uploaded"]
+        pending_scenarios = [s for s in investigation.video_scenarios if s.status == "uploaded"]
         if not pending_scenarios:
             return {"error": "No videos to analyze"}
 
         insights = []
         evidence_added = 0
         strengths_found = []
-        confidence_before = cycle.confidence
+        confidence_before = curiosity.certainty
         hypothesis_evidence = {}  # Initialize for return statement
         validation_failed_count = 0
 
         for scenario in pending_scenarios:
             # Analyze the video with sophisticated prompt
-            analysis_result = await self._analyze_video(darshan, cycle, scenario)
+            analysis_result = await self._analyze_video(darshan, curiosity, scenario)
 
             if analysis_result:
                 # Check if video validation failed
@@ -879,7 +900,7 @@ Generate the scenario JSON now:
                         effect=observation.get("effect", "supports"),
                         source="video",
                     )
-                    cycle.add_evidence(evidence)
+                    curiosity.add_evidence(evidence)
                     evidence_added += 1
 
                 # Update confidence based on hypothesis_evidence verdict
@@ -887,22 +908,22 @@ Generate the scenario JSON now:
                 verdict = hypothesis_evidence.get("overall_verdict", "inconclusive")
                 confidence_level = hypothesis_evidence.get("confidence_level", "Low")
 
-                if cycle.curiosity_type == "hypothesis" and cycle.confidence is not None:
+                if curiosity.type == "hypothesis" and curiosity.certainty is not None:
                     # More nuanced confidence update based on verdict
                     if verdict == "supports":
                         boost = 0.15 if confidence_level == "High" else 0.10 if confidence_level == "Moderate" else 0.05
-                        cycle.confidence = min(1.0, cycle.confidence + boost)
+                        curiosity.certainty = min(1.0, curiosity.certainty + boost)
                     elif verdict == "contradicts":
                         drop = 0.20 if confidence_level == "High" else 0.15 if confidence_level == "Moderate" else 0.10
-                        cycle.confidence = max(0.0, cycle.confidence - drop)
+                        curiosity.certainty = max(0.0, curiosity.certainty - drop)
                     elif verdict == "mixed":
                         # Mixed evidence - slight increase if more supports than contradicts
                         supporting = len(hypothesis_evidence.get("supporting_evidence", []))
                         contradicting = len(hypothesis_evidence.get("contradicting_evidence", []))
                         if supporting > contradicting:
-                            cycle.confidence = min(1.0, cycle.confidence + 0.05)
+                            curiosity.certainty = min(1.0, curiosity.certainty + 0.05)
                         elif contradicting > supporting:
-                            cycle.confidence = max(0.0, cycle.confidence - 0.05)
+                            curiosity.certainty = max(0.0, curiosity.certainty - 0.05)
                         # Equal: no change
 
                 # Capture strengths as facts (strengths are GOLD)
@@ -920,7 +941,7 @@ Generate the scenario JSON now:
 
                 # Also capture general observations as facts for understanding
                 for observation in analysis_result.get("observations", []):
-                    obs_domain = observation.get("domain", cycle.focus_domain or "general")
+                    obs_domain = observation.get("domain", curiosity.domain or "general")
                     obs_fact = TemporalFact.from_observation(
                         content=observation.get("content", ""),
                         domain=obs_domain,
@@ -958,7 +979,7 @@ Generate the scenario JSON now:
                     new_curiosity = create_question(
                         focus=question,
                         question=question,
-                        domain=cycle.focus_domain,  # Inherit domain from parent cycle
+                        domain=curiosity.domain,  # Inherit domain from parent curiosity
                         activation=0.6,  # Start moderately active
                     )
                     darshan._curiosities.add_curiosity(new_curiosity)
@@ -983,15 +1004,15 @@ Generate the scenario JSON now:
             "validation_failed_count": validation_failed_count,
             "confidence_update": {
                 "before": confidence_before,
-                "after": cycle.confidence,
+                "after": curiosity.certainty,
                 "verdict": hypothesis_evidence.get("overall_verdict", "unknown"),
-            } if cycle.curiosity_type == "hypothesis" and hypothesis_evidence else None,
+            } if curiosity.type == "hypothesis" and hypothesis_evidence else None,
         }
 
     async def _analyze_video(
         self,
         darshan: Darshan,
-        cycle,
+        curiosity: "Curiosity",
         scenario,
     ) -> Optional[Dict[str, Any]]:
         """
@@ -1089,7 +1110,7 @@ Examples of FAILED scenario match:
 
 ## Hypothesis Being Tested (CRITICAL)
 
-**Target Hypothesis:** {cycle.theory or cycle.focus}
+**Target Hypothesis:** {curiosity.theory or curiosity.focus}
 **What We Hope to Learn:** {scenario.what_we_hope_to_learn}
 **Focus Points (internal - what to look for):**
 {chr(10).join(f'  - {fp}' for fp in scenario.focus_points)}
@@ -1144,7 +1165,7 @@ Return a valid JSON object with this structure.
 
   "hypothesis_evidence": {{
     "// IMPORTANT": "If is_usable=false, set verdict=inconclusive, confidence=Low, and leave evidence arrays EMPTY",
-    "target_hypothesis": "{cycle.theory or cycle.focus}",
+    "target_hypothesis": "{curiosity.theory or curiosity.focus}",
     "overall_verdict": "<supports|contradicts|mixed|inconclusive>",
     "confidence_level": "<High|Moderate|Low>",
     "reasoning": "<2-3 sentences explaining what the video tells us about the hypothesis>",
@@ -1251,7 +1272,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             # Check if video file exists
             if not video_path or not os.path.exists(video_path):
                 logger.warning(f"Video file not found: {video_path} (original: {scenario.video_path})")
-                return self._create_simulated_analysis(child_name, cycle, scenario)
+                return self._create_simulated_analysis(child_name, curiosity, scenario)
 
             # Use Gemini's video analysis capability
             from google import genai
@@ -1260,7 +1281,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
             api_key = os.getenv("GEMINI_API_KEY")
             if not api_key:
                 logger.error("GEMINI_API_KEY not found")
-                return self._create_simulated_analysis(child_name, cycle, scenario)
+                return self._create_simulated_analysis(child_name, curiosity, scenario)
 
             client = genai.Client(api_key=api_key)
 
@@ -1280,7 +1301,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
             if uploaded_file.state != "ACTIVE":
                 logger.error(f"Video processing failed: {uploaded_file.state}")
-                return self._create_simulated_analysis(child_name, cycle, scenario)
+                return self._create_simulated_analysis(child_name, curiosity, scenario)
 
             logger.info("🤖 Analyzing video with Gemini...")
 
@@ -1316,7 +1337,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
             if not content:
                 logger.error("Empty response from Gemini")
-                return self._create_simulated_analysis(child_name, cycle, scenario)
+                return self._create_simulated_analysis(child_name, curiosity, scenario)
 
             # Parse JSON response
             result = json.loads(content)
@@ -1326,7 +1347,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
 
         except Exception as e:
             logger.error(f"Error analyzing video: {e}", exc_info=True)
-            return self._create_simulated_analysis(child_name, cycle, scenario)
+            return self._create_simulated_analysis(child_name, curiosity, scenario)
 
     def _extract_vocabulary_from_stories(self, stories: List) -> Dict[str, str]:
         """Extract vocabulary patterns from parent's stories."""
@@ -1407,7 +1428,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
     def _create_simulated_analysis(
         self,
         child_name: str,
-        cycle,
+        curiosity: "Curiosity",
         scenario,
     ) -> Dict[str, Any]:
         """Create simulated analysis when video cannot be processed."""
@@ -1423,7 +1444,7 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
                 f"קיבלתי את הסרטון של {child_name}. אעבור עליו בקרוב ואשתף תובנות.",
             ],
             "hypothesis_evidence": {
-                "target_hypothesis": cycle.theory or cycle.focus,
+                "target_hypothesis": curiosity.theory or curiosity.focus,
                 "overall_verdict": "inconclusive",
                 "confidence_level": "Low",
                 "reasoning": "ניתוח הסרטון בהמתנה",

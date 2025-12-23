@@ -52,18 +52,22 @@ class CardsService:
         Derive context cards from current gestalt state.
 
         Returns list of card dicts ready for frontend consumption.
+        Uses unified curiosity model - video suggestions come from curiosities
+        with active investigations.
         """
         cards = []
 
-        for cycle in gestalt.explorations:
-            if cycle.status != "active":
+        # Get curiosities that can suggest video (investigating with video_appropriate)
+        for curiosity in gestalt._curiosities.get_video_suggestable():
+            investigation = curiosity.investigation
+            if not investigation or investigation.status != "active":
                 continue
 
             # === VIDEO CARDS (consent-first) ===
 
             # Stage 1: Suggest video (parent hasn't decided yet)
             # Guidelines NOT generated - only after consent
-            if cycle.can_suggest_video() and (cycle.confidence or 0.5) < 0.7:
+            if curiosity.can_suggest_video() and curiosity.certainty < 0.7:
                 cards.append({
                     "type": "video_suggestion",
                     "title": "אפשר להבין את זה טוב יותר בסרטון",
@@ -73,28 +77,28 @@ class CardsService:
                         {"label": "כן, בבקשה", "action": "accept_video", "primary": True},
                         {"label": "לא עכשיו", "action": "decline_video"}
                     ],
-                    "cycle_id": cycle.id,
+                    "cycle_id": investigation.id,  # Keep cycle_id for API compatibility
                     "priority": "medium",
                 })
                 break  # One suggestion at a time
 
             # Stage 1.5: Guidelines generating (parent accepted, waiting for LLM)
-            if (cycle.video_accepted and
-                cycle.guidelines_status == "generating" and
-                not cycle.video_scenarios):
+            if (investigation.video_accepted and
+                investigation.guidelines_status == "generating" and
+                not investigation.video_scenarios):
                 cards.append({
                     "type": "video_guidelines_generating",
                     "title": "מכין הנחיות צילום...",
                     "description": "רק עוד רגע, מכין הנחיות מותאמות אישית",
                     "dismissible": False,
                     "loading": True,
-                    "cycle_id": cycle.id,
+                    "cycle_id": investigation.id,
                     "priority": "high",
                 })
                 break
 
             # Stage 2: Check for validation failures FIRST (takes priority)
-            failed_scenarios = [s for s in cycle.video_scenarios if s.status == "validation_failed"]
+            failed_scenarios = [s for s in investigation.video_scenarios if s.status == "validation_failed"]
             if failed_scenarios:
                 # Get the first failed scenario's validation message
                 failed = failed_scenarios[0]
@@ -109,7 +113,7 @@ class CardsService:
                         {"label": "ראה הנחיות", "action": "view_guidelines", "primary": True},
                         {"label": "העלה סרטון חדש", "action": "upload_video"}
                     ],
-                    "cycle_id": cycle.id,
+                    "cycle_id": investigation.id,
                     "scenario_id": failed.id,
                     "validation_issues": validation_result.get("validation_issues", []),
                     "priority": "high",
@@ -117,7 +121,7 @@ class CardsService:
                 break
 
             # Stage 2.1: Video needs confirmation (has concerns, parent should verify)
-            needs_confirmation = [s for s in cycle.video_scenarios if s.status == "needs_confirmation"]
+            needs_confirmation = [s for s in investigation.video_scenarios if s.status == "needs_confirmation"]
             if needs_confirmation:
                 scenario = needs_confirmation[0]
                 confirmation_reasons = scenario.analysis_result.get("_confirmation_reasons", []) if scenario.analysis_result else []
@@ -131,7 +135,7 @@ class CardsService:
                         {"label": "כן, זה נכון", "action": "confirm_video", "primary": True},
                         {"label": "לא, אעלה אחר", "action": "reject_video"}
                     ],
-                    "cycle_id": cycle.id,
+                    "cycle_id": investigation.id,
                     "scenario_id": scenario.id,
                     "confirmation_reasons": confirmation_reasons,
                     "priority": "high",
@@ -141,13 +145,15 @@ class CardsService:
             # Stage 2.5: Guidelines ready (parent accepted, guidelines generated, no uploads yet)
             # Only show if at least one scenario hasn't been dismissed or rejected
             pending_scenarios = [
-                s for s in cycle.video_scenarios
+                s for s in investigation.video_scenarios
                 if s.status == "pending" and not s.reminder_dismissed
             ]
-            if (cycle.video_accepted and
+            has_pending_videos = any(s.status == "uploaded" for s in investigation.video_scenarios)
+            has_analyzed_videos = any(s.status == "analyzed" for s in investigation.video_scenarios)
+            if (investigation.video_accepted and
                 pending_scenarios and
-                not cycle.has_pending_videos() and
-                not cycle.has_analyzed_videos()):
+                not has_pending_videos and
+                not has_analyzed_videos):
                 cards.append({
                     "type": "video_guidelines_ready",
                     "title": "הנחיות צילום מוכנות",
@@ -158,15 +164,15 @@ class CardsService:
                         {"label": "אל תזכיר", "action": "dismiss_reminder"},
                         {"label": "לא רלוונטי", "action": "reject_guidelines"},
                     ],
-                    "cycle_id": cycle.id,
+                    "cycle_id": investigation.id,
                     "scenario_ids": [s.id for s in pending_scenarios],
                     "priority": "high",
                 })
                 break
 
             # Stage 3: Video uploaded, waiting for analysis
-            if cycle.has_pending_videos():
-                pending_count = sum(1 for s in cycle.video_scenarios if s.status == "uploaded")
+            if has_pending_videos:
+                pending_count = sum(1 for s in investigation.video_scenarios if s.status == "uploaded")
                 cards.append({
                     "type": "video_uploaded",
                     "title": "סרטון מוכן לצפייה",
@@ -175,7 +181,7 @@ class CardsService:
                     "actions": [
                         {"label": "נתח את הסרטונים", "action": "analyze_videos", "primary": True}
                     ],
-                    "cycle_id": cycle.id,
+                    "cycle_id": investigation.id,
                     "priority": "high",
                 })
                 break
@@ -183,7 +189,7 @@ class CardsService:
             # Stage 4: Video analyzed - FEEDBACK card (not action card)
             # This acknowledges the parent's effort in filming and uploading.
             # Unlike action cards, this just needs dismissal - insights are woven into conversation.
-            analyzed_scenarios = [s for s in cycle.video_scenarios if s.status == "analyzed"]
+            analyzed_scenarios = [s for s in investigation.video_scenarios if s.status == "analyzed"]
             if analyzed_scenarios:
                 cards.append({
                     "type": "video_analyzed",
@@ -194,7 +200,7 @@ class CardsService:
                     "actions": [
                         {"label": "הבנתי", "action": "dismiss", "primary": True}
                     ],
-                    "cycle_id": cycle.id,
+                    "cycle_id": investigation.id,
                     "scenario_ids": [s.id for s in analyzed_scenarios],
                     "priority": "medium",  # Lower than action cards
                 })
@@ -208,12 +214,15 @@ class CardsService:
         # === BASELINE VIDEO SUGGESTION ===
         # Early in conversation, before hypotheses form, suggest baseline video
         # This is a "discovery" video - helps us see the child naturally
+        # NOTE: When a specific hypothesis video is suggested, baseline is superseded
         if not cards:  # Only if no other cards pending
             message_count = len(gestalt.session_history)
+            # Check if any curiosity has video (from investigation)
             has_any_video = any(
                 scenario.video_path
-                for cycle in gestalt.explorations
-                for scenario in cycle.video_scenarios
+                for curiosity in gestalt._curiosities._dynamic
+                if curiosity.investigation
+                for scenario in curiosity.investigation.video_scenarios
             )
             if not has_any_video and gestalt._curiosities.should_suggest_baseline_video(message_count):
                 cards.append({

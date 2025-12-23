@@ -22,10 +22,10 @@ async def test_crystallization_generates_all_fields():
 
     from app.chitta.synthesis import SynthesisService
     from app.chitta.models import (
-        Understanding, TemporalFact, Exploration,
+        Understanding, TemporalFact,
         Story, Evidence
     )
-    from app.chitta.curiosity import Curiosities
+    from app.chitta.curiosity import Curiosities, create_hypothesis
 
     # Create service
     synthesis = SynthesisService()
@@ -42,22 +42,18 @@ async def test_crystallization_generates_all_fields():
         ]
     )
 
-    # Build explorations
-    explorations = [
-        Exploration(
-            id="cycle_transitions",
-            curiosity_type="hypothesis",
-            focus="קושי במעברים",
-            focus_domain="behavioral",
-            status="active",
-            theory="יכול להיות שמעברים קשים לו כי השינוי מרגיש גדול",
-            confidence=0.6,
-            video_appropriate=True,
-            evidence=[
-                Evidence(content="מתפרץ כשצריך לצאת מהבית", effect="supports", source="conversation"),
-            ]
-        )
-    ]
+    # Build curiosities with an investigation
+    curiosities = Curiosities()
+    hypothesis = create_hypothesis(
+        focus="קושי במעברים",
+        theory="יכול להיות שמעברים קשים לו כי השינוי מרגיש גדול",
+        domain="behavioral",
+        video_appropriate=True,
+        certainty=0.6,
+    )
+    hypothesis.start_investigation()  # Start investigation for this hypothesis
+    hypothesis.add_evidence(Evidence(content="מתפרץ כשצריך לצאת מהבית", effect="supports", source="conversation"))
+    curiosities.add_curiosity(hypothesis)
 
     # Build stories
     stories = [
@@ -77,9 +73,6 @@ async def test_crystallization_generates_all_fields():
         )
     ]
 
-    # Curiosities (empty for test)
-    curiosities = Curiosities()
-
     print("\n" + "="*60)
     print("TRIGGERING CRYSTALLIZATION")
     print("="*60)
@@ -92,7 +85,6 @@ async def test_crystallization_generates_all_fields():
     crystal = await synthesis.crystallize(
         child_name="דניאל",
         understanding=understanding,
-        explorations=explorations,
         stories=stories,
         curiosities=curiosities,
         latest_observation_at=datetime.now(),

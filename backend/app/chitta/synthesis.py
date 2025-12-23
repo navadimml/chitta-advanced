@@ -24,7 +24,6 @@ from .models import (
     SynthesisReport,
     ConversationMemory,
     Story,
-    Exploration,
     Crystal,
     InterventionPathway,
     ExpertRecommendation,
@@ -86,7 +85,6 @@ class SynthesisService:
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        explorations: List[Exploration],
         stories: List[Story],
         curiosities: Curiosities,
     ) -> SynthesisReport:
@@ -97,13 +95,12 @@ class SynthesisService:
 
         Called:
         - When user requests a report
-        - When explorations complete
+        - When investigations complete
         - When conditions suggest crystallization is ready
         """
         prompt = self._build_synthesis_prompt(
             child_name,
             understanding,
-            explorations,
             stories,
             curiosities,
         )
@@ -175,22 +172,23 @@ class SynthesisService:
 
     def should_synthesize(
         self,
-        explorations: List[Exploration],
+        curiosities: Curiosities,
         stories: List[Story],
         understanding: Understanding,
         last_synthesis: Optional[datetime] = None,
     ) -> bool:
         """Check if conditions suggest synthesis is ready."""
-        completed_cycles = [c for c in explorations if c.status == "complete"]
+        # Get investigations that are complete (understood status)
+        understood_curiosities = [c for c in curiosities._dynamic if c.status == "understood"]
 
         # Conditions for synthesis readiness:
-        # - Multiple cycles have completed
+        # - Multiple investigations have completed
         # - Multiple stories captured
         # - Significant time has passed since last synthesis
         # - Sufficient facts accumulated
         conditions_met = 0
 
-        if len(completed_cycles) >= 2:
+        if len(understood_curiosities) >= 2:
             conditions_met += 1
 
         if len(stories) >= 5:
@@ -214,7 +212,6 @@ class SynthesisService:
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        explorations: List[Exploration],
         stories: List[Story],
         curiosities: Curiosities,
     ) -> str:
@@ -227,12 +224,13 @@ class SynthesisService:
             for f in understanding.observations[:20]
         ]) or "No facts recorded yet."
 
-        # Format explorations
+        # Format active investigations
+        investigating = curiosities.get_investigating()
         cycles_text = "\n".join([
-            f"- [{c.curiosity_type}] {c.focus}: {c.status}"
-            + (f" (confidence: {c.confidence})" if c.confidence else "")
-            for c in explorations[:10]
-        ]) or "No explorations yet."
+            f"- [{c.type}] {c.focus}: {c.status}"
+            + (f" (certainty: {c.certainty})" if c.certainty else "")
+            for c in investigating[:10]
+        ]) or "No active investigations yet."
 
         # Format stories
         stories_text = "\n".join([
@@ -464,7 +462,6 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        explorations: List[Exploration],
         stories: List[Story],
         curiosities: Curiosities,
         latest_observation_at: datetime,
@@ -482,7 +479,6 @@ Keep it to 2-3 sentences focusing on what matters most.
         Args:
             child_name: Name of the child
             understanding: Current understanding (facts, patterns)
-            explorations: Active and completed explorations
             stories: Captured stories
             curiosities: The curiosity engine for open questions
             latest_observation_at: Timestamp of most recent observation
@@ -501,7 +497,6 @@ Keep it to 2-3 sentences focusing on what matters most.
             return await self._incremental_crystallize(
                 child_name=child_name,
                 understanding=understanding,
-                explorations=explorations,
                 stories=stories,
                 curiosities=curiosities,
                 latest_observation_at=latest_observation_at,
@@ -511,7 +506,6 @@ Keep it to 2-3 sentences focusing on what matters most.
             return await self._fresh_crystallize(
                 child_name=child_name,
                 understanding=understanding,
-                explorations=explorations,
                 stories=stories,
                 curiosities=curiosities,
                 latest_observation_at=latest_observation_at,
@@ -521,7 +515,6 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        explorations: List[Exploration],
         stories: List[Story],
         curiosities: Curiosities,
         latest_observation_at: datetime,
@@ -530,7 +523,6 @@ Keep it to 2-3 sentences focusing on what matters most.
         prompt = self._build_crystallization_prompt(
             child_name=child_name,
             understanding=understanding,
-            explorations=explorations,
             stories=stories,
             curiosities=curiosities,
             is_incremental=False,
@@ -572,7 +564,6 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        explorations: List[Exploration],
         stories: List[Story],
         curiosities: Curiosities,
         latest_observation_at: datetime,
@@ -608,7 +599,6 @@ Keep it to 2-3 sentences focusing on what matters most.
         prompt = self._build_crystallization_prompt(
             child_name=child_name,
             understanding=understanding,
-            explorations=explorations,
             stories=stories,
             curiosities=curiosities,
             is_incremental=True,
@@ -648,7 +638,6 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         child_name: Optional[str],
         understanding: Understanding,
-        explorations: List[Exploration],
         stories: List[Story],
         curiosities: Curiosities,
         is_incremental: bool,
@@ -670,14 +659,14 @@ Keep it to 2-3 sentences focusing on what matters most.
             for s in stories[:15]
         ]) or "No stories captured yet."
 
-        # Format active explorations
-        active_cycles = [c for c in explorations if c.status == "active"]
+        # Format active investigations from curiosities
+        investigating = curiosities.get_investigating()
         cycles_text = "\n".join([
-            f"- [{c.curiosity_type}] {c.focus}"
+            f"- [{c.type}] {c.focus}"
             + (f" (theory: {c.theory})" if c.theory else "")
-            + (f" (confidence: {c.confidence})" if c.confidence else "")
-            for c in active_cycles[:10]
-        ]) or "No active explorations."
+            + (f" (certainty: {c.certainty})" if c.certainty else "")
+            for c in investigating[:10]
+        ]) or "No active investigations."
 
         # Format strengths and interests
         strengths = [f.content for f in understanding.observations if f.domain == "strengths"]
@@ -685,8 +674,8 @@ Keep it to 2-3 sentences focusing on what matters most.
         strengths_text = ", ".join(strengths[:5]) if strengths else "Not yet known"
         interests_text = ", ".join(interests[:5]) if interests else "Not yet known"
 
-        # Format concerns from explorations
-        concerns = [c.focus for c in active_cycles if c.curiosity_type in ("hypothesis", "question")]
+        # Format concerns from investigating curiosities
+        concerns = [c.focus for c in investigating if c.type in ("hypothesis", "question")]
         concerns_text = ", ".join(concerns[:5]) if concerns else "None defined"
 
         # Open questions
