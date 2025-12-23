@@ -1,7 +1,7 @@
 """
 Family Service - Manages Family and User-Family relationships.
 
-Follows the same file-storage pattern as ChildService.
+Note: Now uses in-memory storage only. Persistence is handled by Darshan.
 
 Design:
 - Auto-creates Family + Child placeholder for new users
@@ -10,23 +10,12 @@ Design:
 """
 
 import logging
-import json
-import os
-import asyncio
 import uuid
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
 logger = logging.getLogger(__name__)
-
-# Storage configuration
-STORAGE_TYPE = os.getenv("FAMILY_STORAGE_TYPE", os.getenv("SESSION_STORAGE_TYPE", "file"))
-DATA_DIR = os.getenv("FAMILY_DATA_DIR", "data/families")
-
-# Ensure data directory exists
-Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
 
 
 @dataclass
@@ -63,6 +52,8 @@ class FamilyService:
     """
     Manages Families and their relationships to users and children.
 
+    Note: Uses in-memory storage only. Persistence is handled by Darshan.
+
     Key operations:
     - get_or_create_family_for_user: Auto-create family on first access
     - get_family_with_children: Get family + child summaries
@@ -73,23 +64,7 @@ class FamilyService:
         # In-memory caches
         self._families: Dict[str, Family] = {}
         self._user_mappings: Dict[str, UserFamilyMapping] = {}  # user_id -> mapping
-
-        # Storage type
-        self._storage_type = STORAGE_TYPE
-
-        logger.info(f"FamilyService initialized with {self._storage_type} storage")
-
-    def _get_family_file_path(self, family_id: str) -> Path:
-        """Get file path for a family's data."""
-        safe_id = "".join(c if c.isalnum() or c in "_-" else "_" for c in family_id)
-        return Path(DATA_DIR) / f"family_{safe_id}.json"
-
-    def _get_user_mapping_file_path(self, user_id) -> Path:
-        """Get file path for user->family mapping."""
-        # Convert UUID to string if necessary
-        user_id_str = str(user_id) if hasattr(user_id, 'hex') else user_id
-        safe_id = "".join(c if c.isalnum() or c in "_-" else "_" for c in user_id_str)
-        return Path(DATA_DIR) / f"user_mapping_{safe_id}.json"
+        logger.info("FamilyService initialized (in-memory, Darshan handles persistence)")
 
     # === Core Operations ===
 
@@ -99,7 +74,7 @@ class FamilyService:
         parent_type: Optional[str] = None
     ) -> Family:
         """
-        Get user's family or create one if doesn't exist.
+        Get user's family or create one if doesn't exist (in-memory).
 
         For new users:
         1. Creates a new Family
@@ -112,36 +87,30 @@ class FamilyService:
 
         Returns the family.
         """
-        # Check cache first
-        if user_id in self._user_mappings:
-            mapping = self._user_mappings[user_id]
-            family = await self._get_family(mapping.family_id)
-            if family:
-                return family
+        # Convert UUID to string if necessary
+        user_id_str = str(user_id) if hasattr(user_id, 'hex') else user_id
 
-        # Try to load from storage
-        mapping = await self._load_user_mapping(user_id)
-        if mapping:
-            self._user_mappings[user_id] = mapping
-            family = await self._get_family(mapping.family_id)
-            if family:
-                return family
+        # Check cache first
+        if user_id_str in self._user_mappings:
+            mapping = self._user_mappings[user_id_str]
+            if mapping.family_id in self._families:
+                return self._families[mapping.family_id]
 
         # New user - create everything
-        logger.info(f"Creating new family for user: {user_id}")
+        logger.info(f"Creating new family for user: {user_id_str}")
 
         # Create family
         family_id = str(uuid.uuid4())
         family = Family(
             id=family_id,
-            owner_user_id=user_id,
+            owner_user_id=user_id_str,
             children=[],
         )
 
         # Create user mapping - use parent_type as role if provided
         role = parent_type if parent_type in ("mother", "father") else "owner"
         mapping = UserFamilyMapping(
-            user_id=user_id,
+            user_id=user_id_str,
             family_id=family_id,
             role=role,
         )
@@ -150,14 +119,11 @@ class FamilyService:
         child_id = await self._create_child_placeholder(family_id)
         family.children.append(child_id)
 
-        # Cache and persist
+        # Cache only (no file persistence)
         self._families[family_id] = family
-        self._user_mappings[user_id] = mapping
+        self._user_mappings[user_id_str] = mapping
 
-        await self._save_family(family)
-        await self._save_user_mapping(mapping)
-
-        logger.info(f"Created family {family_id} with child {child_id} for user {user_id}")
+        logger.info(f"Created family {family_id} with child {child_id} for user {user_id_str}")
 
         return family
 
@@ -171,7 +137,7 @@ class FamilyService:
             "children": [{ id, name, age_months, last_activity }]
         }
         """
-        family = await self._get_family(family_id)
+        family = self._families.get(family_id)
         if not family:
             raise ValueError(f"Family not found: {family_id}")
 
@@ -204,7 +170,7 @@ class FamilyService:
 
         Returns the new child_id.
         """
-        family = await self._get_family(family_id)
+        family = self._families.get(family_id)
         if not family:
             raise ValueError(f"Family not found: {family_id}")
 
@@ -213,45 +179,31 @@ class FamilyService:
         family.children.append(child_id)
         family.updated_at = datetime.now()
 
-        await self._save_family(family)
-
         logger.info(f"Added child {child_id} to family {family_id}")
 
         return child_id
 
     async def get_user_family_id(self, user_id: str) -> Optional[str]:
         """Get the family_id for a user, without auto-creating."""
-        # Check cache
-        if user_id in self._user_mappings:
-            return self._user_mappings[user_id].family_id
-
-        # Try to load
-        mapping = await self._load_user_mapping(user_id)
-        if mapping:
-            self._user_mappings[user_id] = mapping
-            return mapping.family_id
-
-        return None
+        user_id_str = str(user_id) if hasattr(user_id, 'hex') else user_id
+        mapping = self._user_mappings.get(user_id_str)
+        return mapping.family_id if mapping else None
 
     async def get_family_children_ids(self, family_id: str) -> List[str]:
         """Get list of child IDs in a family."""
-        family = await self._get_family(family_id)
+        family = self._families.get(family_id)
         if not family:
             return []
         return family.children.copy()
 
     async def user_has_access_to_child(self, user_id: str, child_id: str) -> bool:
         """Check if user has access to a specific child via family membership."""
-        mapping = self._user_mappings.get(user_id)
-        if not mapping:
-            mapping = await self._load_user_mapping(user_id)
-            if mapping:
-                self._user_mappings[user_id] = mapping
-
+        user_id_str = str(user_id) if hasattr(user_id, 'hex') else user_id
+        mapping = self._user_mappings.get(user_id_str)
         if not mapping:
             return False
 
-        family = await self._get_family(mapping.family_id)
+        family = self._families.get(mapping.family_id)
         if not family:
             return False
 
@@ -264,15 +216,10 @@ class FamilyService:
         Returns role: "mother", "father", "owner", "caregiver", etc.
         Returns None if user not in family.
         """
-        mapping = self._user_mappings.get(user_id)
-        if not mapping:
-            mapping = await self._load_user_mapping(user_id)
-            if mapping:
-                self._user_mappings[user_id] = mapping
-
+        user_id_str = str(user_id) if hasattr(user_id, 'hex') else user_id
+        mapping = self._user_mappings.get(user_id_str)
         if not mapping or mapping.family_id != family_id:
             return None
-
         return mapping.role
 
     async def get_user_family_mapping(self, user_id: str) -> Optional[UserFamilyMapping]:
@@ -281,25 +228,10 @@ class FamilyService:
 
         Returns the full UserFamilyMapping or None.
         """
-        mapping = self._user_mappings.get(user_id)
-        if not mapping:
-            mapping = await self._load_user_mapping(user_id)
-            if mapping:
-                self._user_mappings[user_id] = mapping
-        return mapping
+        user_id_str = str(user_id) if hasattr(user_id, 'hex') else user_id
+        return self._user_mappings.get(user_id_str)
 
     # === Private Helpers ===
-
-    async def _get_family(self, family_id: str) -> Optional[Family]:
-        """Get family from cache or load from storage."""
-        if family_id in self._families:
-            return self._families[family_id]
-
-        family = await self._load_family(family_id)
-        if family:
-            self._families[family_id] = family
-
-        return family
 
     async def _create_child_placeholder(self, family_id: str) -> str:
         """Create a new child with no identity (placeholder)."""
@@ -310,10 +242,7 @@ class FamilyService:
         child_id = str(uuid.uuid4())
 
         # Create child through child service
-        child = child_service.get_or_create_child(child_id)
-
-        # Save it
-        await child_service.save_child(child_id)
+        child_service.get_or_create_child(child_id)
 
         logger.info(f"Created child placeholder: {child_id} for family {family_id}")
 
@@ -331,86 +260,6 @@ class FamilyService:
         if today.day < birth.day:
             months -= 1
         return max(0, months)
-
-    # === Storage Operations ===
-
-    async def _load_family(self, family_id: str) -> Optional[Family]:
-        """Load family from file storage."""
-        file_path = self._get_family_file_path(family_id)
-        if not file_path.exists():
-            return None
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Convert datetime strings back
-            if "created_at" in data and isinstance(data["created_at"], str):
-                data["created_at"] = datetime.fromisoformat(data["created_at"])
-            if "updated_at" in data and isinstance(data["updated_at"], str):
-                data["updated_at"] = datetime.fromisoformat(data["updated_at"])
-
-            return Family(**data)
-        except Exception as e:
-            logger.error(f"Error loading family {family_id}: {e}")
-            return None
-
-    async def _save_family(self, family: Family) -> bool:
-        """Save family to file storage."""
-        file_path = self._get_family_file_path(family.id)
-        try:
-            data = asdict(family)
-            # Convert datetime to string for JSON
-            data["created_at"] = family.created_at.isoformat()
-            data["updated_at"] = family.updated_at.isoformat()
-
-            temp_path = file_path.with_suffix(".tmp")
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            temp_path.rename(file_path)
-
-            logger.debug(f"Saved family to {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving family {family.id}: {e}")
-            return False
-
-    async def _load_user_mapping(self, user_id: str) -> Optional[UserFamilyMapping]:
-        """Load user->family mapping from file."""
-        file_path = self._get_user_mapping_file_path(user_id)
-        if not file_path.exists():
-            return None
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Convert datetime
-            if "joined_at" in data and isinstance(data["joined_at"], str):
-                data["joined_at"] = datetime.fromisoformat(data["joined_at"])
-
-            return UserFamilyMapping(**data)
-        except Exception as e:
-            logger.error(f"Error loading user mapping {user_id}: {e}")
-            return None
-
-    async def _save_user_mapping(self, mapping: UserFamilyMapping) -> bool:
-        """Save user mapping to file."""
-        file_path = self._get_user_mapping_file_path(mapping.user_id)
-        try:
-            data = asdict(mapping)
-            data["joined_at"] = mapping.joined_at.isoformat()
-
-            temp_path = file_path.with_suffix(".tmp")
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            temp_path.rename(file_path)
-
-            logger.debug(f"Saved user mapping to {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving user mapping {mapping.user_id}: {e}")
-            return False
 
 
 # Singleton
