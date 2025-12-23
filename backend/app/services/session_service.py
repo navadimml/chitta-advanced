@@ -247,14 +247,10 @@ class SessionService:
         logger.info(f"SessionService initialized (persistence: {self._persistence_enabled})")
 
     def _init_persistence(self):
-        """Initialize persistence layer"""
-        try:
-            from app.services.session_persistence import get_session_persistence
-            self._persistence = get_session_persistence()
-            logger.info("Session persistence layer initialized")
-        except Exception as e:
-            logger.warning(f"Could not initialize persistence: {e}")
-            self._persistence = None
+        """Initialize persistence layer - now a no-op, Darshan handles persistence"""
+        # Session persistence is now handled by Darshan via database
+        self._persistence = None
+        logger.info("Session persistence disabled (using Darshan database persistence)")
 
     async def _persist_session(self, family_id: str):
         """Persist session to storage (non-blocking)"""

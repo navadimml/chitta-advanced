@@ -32,7 +32,6 @@ from app.models.family_state import (
     Video as FamilyVideo,
 )
 from app.services.child_service import get_child_service, ChildService
-from app.services.session_persistence import get_session_persistence, SessionPersistence
 from app.services.llm.factory import create_llm_provider
 from app.services.llm.base import Message
 from app.prompts.completeness_verification import build_completeness_verification_prompt
@@ -55,9 +54,9 @@ class UnifiedStateService:
     def __init__(self):
         # Services
         self._child_service = get_child_service()
-        self._persistence = get_session_persistence()
 
         # In-memory session cache: session_id -> UserSession
+        # Note: Session state is now managed by Darshan via database
         self._sessions: Dict[str, UserSession] = {}
 
         # LLM for semantic verification
@@ -547,87 +546,19 @@ class UnifiedStateService:
     # === Persistence Helpers ===
 
     def _load_session_sync(self, session_id: str) -> Optional[UserSession]:
-        """Synchronous load for initialization"""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self._load_session(session_id))
-                    return future.result(timeout=5)
-            else:
-                return loop.run_until_complete(self._load_session(session_id))
-        except Exception as e:
-            logger.warning(f"Could not load session synchronously: {e}")
-            return None
+        """Synchronous load - now in-memory only, Darshan handles persistence"""
+        # Sessions are cached in-memory; Darshan persists conversation state to database
+        return None
 
     async def _load_session(self, session_id: str) -> Optional[UserSession]:
-        """Load session from persistence"""
-        data = await self._persistence.load_session(session_id)
-        if not data:
-            return None
-
-        try:
-            # Reconstruct UserSession
-            session = UserSession(
-                session_id=session_id,
-                user_id=data.get("user_id", session_id.split(":")[0]),
-                child_id=data.get("child_id", session_id.split(":")[-1]),
-            )
-
-            # Restore messages
-            for msg_data in data.get("messages", []):
-                session.messages.append(ConversationMessage(**msg_data))
-
-            # Restore UI state
-            for card_data in data.get("active_cards", []):
-                session.active_cards.append(ActiveCard(**card_data))
-
-            session.dismissed_card_moments = data.get("dismissed_card_moments", {})
-            session.previous_context_snapshot = data.get("previous_context_snapshot")
-            session.last_triggered_moment = data.get("last_triggered_moment")
-            session.semantic_verification = data.get("semantic_verification")
-            session.semantic_verification_turn = data.get("semantic_verification_turn", 0)
-
-            # Restore timestamps
-            if data.get("created_at"):
-                session.created_at = datetime.fromisoformat(data["created_at"])
-            if data.get("updated_at"):
-                session.updated_at = datetime.fromisoformat(data["updated_at"])
-            if data.get("last_message_at"):
-                session.last_message_at = datetime.fromisoformat(data["last_message_at"])
-
-            return session
-
-        except Exception as e:
-            logger.error(f"Error reconstructing session {session_id}: {e}")
-            return None
+        """Load session - now in-memory only, Darshan handles persistence"""
+        # Sessions are cached in-memory; Darshan persists conversation state to database
+        return None
 
     async def _persist_session(self, session: UserSession):
-        """Persist session to storage"""
-        try:
-            session_data = {
-                "session_id": session.session_id,
-                "user_id": session.user_id,
-                "child_id": session.child_id,
-                "messages": [m.model_dump() for m in session.messages],
-                "active_cards": [c.model_dump() for c in session.active_cards],
-                "dismissed_card_moments": {
-                    k: v.isoformat() for k, v in session.dismissed_card_moments.items()
-                },
-                "previous_context_snapshot": session.previous_context_snapshot,
-                "last_triggered_moment": session.last_triggered_moment,
-                "semantic_verification": session.semantic_verification,
-                "semantic_verification_turn": session.semantic_verification_turn,
-                "created_at": session.created_at.isoformat(),
-                "updated_at": session.updated_at.isoformat(),
-                "last_message_at": session.last_message_at.isoformat() if session.last_message_at else None,
-            }
-
-            await self._persistence.save_session(session.session_id, session_data)
-
-        except Exception as e:
-            logger.warning(f"Failed to persist session: {e}")
+        """Persist session - now a no-op, Darshan handles persistence"""
+        # Session UI state is in-memory; conversation state is persisted by Darshan
+        pass
 
 
 # Singleton
