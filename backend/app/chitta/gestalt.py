@@ -520,12 +520,49 @@ Read the parent's message and extract what's relevant:
                     recipient_type, current_gaps
                 )
             else:
-                # All gaps filled! Auto-end guided collection
-                guided_collection_section = """
-## ALL INFORMATION COLLECTED
+                # All gaps filled! Transition back to regular conversation
+                logger.info(f"All guided collection gaps filled for {self.child_id}, switching to regular mode")
+
+                # Clear guided collection flags - state will be persisted after response
+                self.session_flags.pop("preparing_summary_for", None)
+                self.session_flags.pop("guided_collection_gaps", None)
+
+                # Get active curiosities for proactive lead
+                active_curiosities = self.get_active_curiosities()
+
+                # Build curiosity hint for proactive lead
+                curiosity_hint = ""
+                if active_curiosities:
+                    top_curiosity = active_curiosities[0]
+                    question_line = f"Question: {top_curiosity.question}" if getattr(top_curiosity, 'question', None) else ""
+                    theory_line = f"Theory: {top_curiosity.theory}" if getattr(top_curiosity, 'theory', None) else ""
+                    curiosity_hint = f"""
+**PROACTIVE LEAD - Pick up on this curiosity:**
+You're curious about: {top_curiosity.focus}
+{question_line}
+{theory_line}
+
+After acknowledging the summary is ready, naturally lead into this curiosity.
+Example: "...ובינתיים, קודם הזכרת ש... סיפרי לי עוד על זה?"
+"""
+
+                guided_collection_section = f"""
+## GUIDED COLLECTION COMPLETE - TRANSITION TO PROACTIVE CONVERSATION
 
 All the information needed for the summary has been collected.
-Tell the parent warmly: "מעולה! אספנו את כל המידע. אפשר לחזור ללשונית השיתוף וליצור את הסיכום."
+
+**YOUR RESPONSE MUST:**
+1. Warmly acknowledge completion: "מעולה! יש לי את כל מה שצריך לסיכום"
+2. Mention Child Space (חלל הילד): "כשתרצו, אפשר ללכת לחלל הילד וליצור את הסיכום"
+3. **PROACTIVELY lead** to the next topic - don't just wait!
+{curiosity_hint}
+If no specific curiosity, ask about something from what was shared:
+"ובינתיים, רציתי לשאול עוד על מה שסיפרת קודם..."
+
+**DO NOT:**
+- Say "go back" or "return to" anywhere
+- Just say "I'm here if you need" and wait passively
+- End with a closed statement
 """
 
         # Compute guidance from perception
