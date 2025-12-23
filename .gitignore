@@ -102,10 +102,8 @@ htmlcov/
 backend/.coverage
 
 # Test data (generated during development/testing)
-backend/data/children/seed_*.json
-backend/data/children/xray-test-*.json
-backend/data/children/video-*.json
-backend/data/children/*_test_*.json
-backend/data/sessions/*_*.json
+backend/data/children/
+backend/data/sessions/
+backend/data/families/
 backend/tests/xray_outputs/
 coverage/
