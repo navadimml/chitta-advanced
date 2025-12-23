@@ -1190,14 +1190,12 @@ async def seed_gestalt_scenario(
     # Build seed data
     seed_data = build_gestalt_seed_data(scenario, child_name)
 
-    # Persist to gestalt file
-    gestalt_file = Path("data/children") / f"{family_id}.json"
-    gestalt_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(gestalt_file, "w", encoding="utf-8") as f:
-        json.dump(seed_data, f, ensure_ascii=False, indent=2, default=str)
-
-    logger.info(f"✅ Saved gestalt data to {gestalt_file}")
+    # Persist to database via DarshanRepository
+    from app.db.repositories import UnitOfWork
+    async with UnitOfWork() as uow:
+        await uow.darshan.save_darshan_data(family_id, seed_data)
+        await uow.commit()
+        logger.info(f"✅ Saved gestalt data to database for {family_id}")
 
     # Get the derived cards to verify the scenario works
     try:
@@ -1240,13 +1238,17 @@ async def delete_gestalt_seed(child_id: str):
     """
     🧪 Delete a seeded gestalt for a child
 
-    Removes both the gestalt file and clears any cached state.
+    Removes from database and clears any cached state.
     """
-    gestalt_file = Path("data/children") / f"{child_id}.json"
-
-    if gestalt_file.exists():
-        gestalt_file.unlink()
-        logger.info(f"🗑️ Deleted gestalt file: {gestalt_file}")
+    # Delete from database
+    from app.db.repositories import UnitOfWork
+    try:
+        async with UnitOfWork() as uow:
+            await uow.darshan.delete_darshan_data(child_id)
+            await uow.commit()
+            logger.info(f"🗑️ Deleted gestalt data from database for {child_id}")
+    except Exception as e:
+        logger.warning(f"Could not delete from database: {e}")
 
     # Clear from cache if service is loaded
     try:

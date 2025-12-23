@@ -44,24 +44,23 @@ async def generate_timeline(request: TimelineGenerateRequest):
 
     try:
         from app.services.timeline_image_service import get_timeline_service
-        from pathlib import Path
-        import json
+        from app.chitta import get_chitta_service
 
         timeline_service = get_timeline_service()
         child_name = "הילד/ה"
         events = []
 
-        gestalt_file = Path("data/children") / f"{request.family_id}.json"
-        if gestalt_file.exists():
-            try:
-                with open(gestalt_file, "r", encoding="utf-8") as f:
-                    gestalt_data = json.load(f)
-
-                child_name = gestalt_data.get("name", "הילד/ה")
+        # Load gestalt data from database via ChittaService
+        try:
+            chitta = get_chitta_service()
+            gestalt = await chitta.get_gestalt(request.family_id)
+            if gestalt:
+                child_name = gestalt.child_name or "הילד/ה"
+                gestalt_data = gestalt.get_state_for_persistence()
                 events = timeline_service.build_events_from_gestalt(gestalt_data)
                 logger.info(f"Building timeline from gestalt data for {request.family_id}")
-            except Exception as e:
-                logger.warning(f"Failed to load gestalt data for timeline: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to load gestalt data for timeline: {e}")
 
         if not events:
             session_service = get_session_service()

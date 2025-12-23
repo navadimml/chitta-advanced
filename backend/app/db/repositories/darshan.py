@@ -639,3 +639,64 @@ class DarshanRepository:
                     "summary_type": summary_type,
                     "content": str(summary_content),
                 })
+
+    async def delete_darshan_data(self, child_id: str) -> None:
+        """Delete all Darshan data for a child."""
+        # Delete in order to respect foreign key constraints
+        await self.delete_child_journal(child_id)
+        await self.delete_session_history(child_id)
+
+        # Delete session flags
+        result = await self.session.execute(
+            select(SessionFlags).where(SessionFlags.child_id == child_id)
+        )
+        flags = result.scalar_one_or_none()
+        if flags:
+            await self.session.delete(flags)
+
+        # Delete crystal
+        result = await self.session.execute(
+            select(DarshanCrystal).where(DarshanCrystal.child_id == child_id)
+        )
+        crystal = result.scalar_one_or_none()
+        if crystal:
+            await self.session.delete(crystal)
+
+        # Delete shared summaries
+        await self.session.execute(
+            delete(SharedSummary).where(SharedSummary.child_id == child_id)
+        )
+
+        # Delete investigations and their evidence
+        result = await self.session.execute(
+            select(Curiosity).where(Curiosity.child_id == uuid_module.UUID(child_id) if len(child_id) == 36 else child_id)
+        )
+        curiosities = result.scalars().all()
+        for curiosity in curiosities:
+            if curiosity.investigation_id:
+                # Delete evidence first
+                await self.session.execute(
+                    delete(InvestigationEvidence).where(
+                        InvestigationEvidence.investigation_id == curiosity.investigation_id
+                    )
+                )
+                # Delete investigation
+                await self.session.execute(
+                    delete(Investigation).where(Investigation.id == curiosity.investigation_id)
+                )
+
+        # Delete curiosities
+        try:
+            child_uuid = uuid_module.UUID(child_id) if len(child_id) == 36 else None
+            if child_uuid:
+                await self.session.execute(
+                    delete(Curiosity).where(Curiosity.child_id == child_uuid)
+                )
+            else:
+                await self.session.execute(
+                    delete(Curiosity).where(Curiosity.child_id == child_id)
+                )
+        except Exception:
+            pass
+
+        await self.session.flush()
