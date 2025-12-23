@@ -421,7 +421,7 @@ class ChildService:
             "completeness": child.data_completeness,
             "video_count": child.video_count,
             "analyzed_video_count": child.analyzed_video_count,
-            "artifact_ids": [a.id for c in child.exploration_cycles for a in c.artifacts],
+            "artifact_ids": [],
             "journal_entry_count": len(child.journal_entries),
         }
 

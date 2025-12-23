@@ -186,8 +186,9 @@ class ChittaService:
         message_count = len(gestalt.session_history)
         has_any_video = any(
             scenario.video_path
-            for exploration in gestalt.explorations
-            for scenario in exploration.video_scenarios
+            for curiosity in gestalt._curiosities._dynamic
+            if curiosity.investigation
+            for scenario in curiosity.investigation.video_scenarios
         )
         suggest_baseline_video = (
             not has_any_video and
@@ -273,7 +274,6 @@ class ChittaService:
         crystal = await synthesis_service.crystallize(
             child_name=gestalt.child_name,
             understanding=gestalt.understanding,
-            explorations=gestalt.explorations,
             stories=gestalt.stories,
             curiosities=gestalt._curiosities,
             latest_observation_at=latest_observation_at,

@@ -516,18 +516,17 @@ What does this child respond to? How can they use that in treatment?"""
                 patterns_text.append(f"- {pattern.description} (מתחברים: {domains})")
             sections.append(f"**דפוסים שזיהינו:**\n" + "\n".join(patterns_text))
 
-        # Active explorations/concerns with temporal context
+        # Active investigations/concerns with temporal context
         concerns = []
-        for cycle in darshan.explorations:
-            if cycle.status == "active":
-                theory_text = f": {cycle.theory}" if cycle.theory else ""
-                confidence_text = ""
-                if cycle.confidence is not None:
-                    if cycle.confidence > 0.7:
-                        confidence_text = " (ביטחון גבוה)"
-                    elif cycle.confidence < 0.4:
-                        confidence_text = " (עדיין בבדיקה)"
-                concerns.append(f"- {cycle.focus}{theory_text}{confidence_text}")
+        for curiosity in darshan._curiosities.get_investigating():
+            theory_text = f": {curiosity.theory}" if curiosity.theory else ""
+            confidence_text = ""
+            if curiosity.certainty is not None:
+                if curiosity.certainty > 0.7:
+                    confidence_text = " (ביטחון גבוה)"
+                elif curiosity.certainty < 0.4:
+                    confidence_text = " (עדיין בבדיקה)"
+            concerns.append(f"- {curiosity.focus}{theory_text}{confidence_text}")
         if concerns:
             sections.append(f"**תחומים שאנחנו חוקרים:**\n" + "\n".join(concerns))
 
@@ -609,15 +608,19 @@ What does this child respond to? How can they use that in treatment?"""
                     if new_domains:
                         insights.append(f"- לאחרונה התחלנו לבחון גם: {', '.join(new_domains)}")
 
-        # === EXPLORATION CYCLE ANALYSIS ===
-        for cycle in gestalt.explorations:
+        # === INVESTIGATION ANALYSIS ===
+        for curiosity in gestalt._curiosities._dynamic:
+            if not curiosity.investigation:
+                continue
+            inv = curiosity.investigation
+
             # Check for evidence with temporal information
-            if not cycle.evidence:
+            if not inv.evidence:
                 continue
 
             supports = []
             contradicts = []
-            for ev in cycle.evidence:
+            for ev in inv.evidence:
                 if ev.effect == "supports":
                     supports.append(ev.content)
                 elif ev.effect == "contradicts":
@@ -625,25 +628,25 @@ What does this child respond to? How can they use that in treatment?"""
 
             # If we have both supporting and contradicting evidence, that's interesting
             if supports and contradicts:
-                insights.append(f"- לגבי {cycle.focus}: יש סימנים מעורבים - {supports[0]}, אבל גם {contradicts[0]}")
+                insights.append(f"- לגבי {curiosity.focus}: יש סימנים מעורבים - {supports[0]}, אבל גם {contradicts[0]}")
             elif len(supports) > 2:
                 # Multiple supporting evidence suggests consistent pattern
-                insights.append(f"- {cycle.focus}: דפוס עקבי שנראה במספר הקשרים")
+                insights.append(f"- {curiosity.focus}: דפוס עקבי שנראה במספר הקשרים")
 
-            # Check cycle age for timeline context
-            if cycle.created_at:
-                cycle_age_days = (datetime.now() - cycle.created_at).days
-                if cycle_age_days > 14 and cycle.status == "active":
-                    insights.append(f"- {cycle.focus}: בבדיקה כבר {cycle_age_days} ימים")
+            # Check investigation age for timeline context
+            if inv.started_at:
+                inv_age_days = (datetime.now() - inv.started_at).days
+                if inv_age_days > 14 and curiosity.status == "investigating":
+                    insights.append(f"- {curiosity.focus}: בבדיקה כבר {inv_age_days} ימים")
 
-            # Check cycle status for developmental trajectory
-            if cycle.status == "complete" and cycle.confidence and cycle.confidence > 0.7:
-                insights.append(f"- {cycle.focus}: הבנה מגובשת לאחר תקופת מעקב")
+            # Check status for developmental trajectory
+            if curiosity.status == "understood" and curiosity.certainty and curiosity.certainty > 0.7:
+                insights.append(f"- {curiosity.focus}: הבנה מגובשת לאחר תקופת מעקב")
 
-        # Check for completed cycles that might indicate progress
-        completed_cycles = [c for c in gestalt.explorations if c.status == "complete"]
-        if completed_cycles:
-            insights.append(f"- סיימנו לבחון {len(completed_cycles)} תחומים והגענו למסקנות")
+        # Check for understood curiosities that might indicate progress
+        understood = [c for c in gestalt._curiosities._dynamic if c.status == "understood"]
+        if understood:
+            insights.append(f"- סיימנו לבחון {len(understood)} תחומים והגענו למסקנות")
 
         # === STORY TIMESTAMP ANALYSIS ===
         if gestalt.stories:

@@ -38,12 +38,6 @@ from app.db.repositories.families import (
 from app.db.repositories.children import ChildRepository
 from app.db.repositories.sessions import SessionRepository, MessageRepository
 from app.db.repositories.observations import ObservationRepository
-from app.db.repositories.explorations import (
-    ExplorationRepository,
-    ExplorationHistoryRepository,
-    EvidenceRepository,
-    StoryRepository,
-)
 from app.db.repositories.synthesis import (
     PatternRepository,
     CrystalRepository,
@@ -112,10 +106,6 @@ class UnitOfWork:
         self._messages: Optional[MessageRepository] = None
         self._observations: Optional[ObservationRepository] = None
 
-        self._explorations: Optional[ExplorationRepository] = None
-        self._exploration_history: Optional[ExplorationHistoryRepository] = None
-        self._evidence: Optional[EvidenceRepository] = None
-        self._stories: Optional[StoryRepository] = None
 
         self._patterns: Optional[PatternRepository] = None
         self._crystals: Optional[CrystalRepository] = None
@@ -264,33 +254,6 @@ class UnitOfWork:
             self._observations = ObservationRepository(self.session)
         return self._observations
 
-    # =========================================================================
-    # EXPLORATION REPOSITORIES
-    # =========================================================================
-
-    @property
-    def explorations(self) -> ExplorationRepository:
-        if self._explorations is None:
-            self._explorations = ExplorationRepository(self.session)
-        return self._explorations
-
-    @property
-    def exploration_history(self) -> ExplorationHistoryRepository:
-        if self._exploration_history is None:
-            self._exploration_history = ExplorationHistoryRepository(self.session)
-        return self._exploration_history
-
-    @property
-    def evidence(self) -> EvidenceRepository:
-        if self._evidence is None:
-            self._evidence = EvidenceRepository(self.session)
-        return self._evidence
-
-    @property
-    def stories(self) -> StoryRepository:
-        if self._stories is None:
-            self._stories = StoryRepository(self.session)
-        return self._stories
 
     # =========================================================================
     # SYNTHESIS REPOSITORIES

@@ -9,7 +9,7 @@ Includes:
 from fastapi import APIRouter, HTTPException
 import logging
 
-from app.services.unified_state_service import get_unified_state_service
+from app.chitta import get_chitta_service
 
 router = APIRouter(prefix="/child", tags=["child"])
 logger = logging.getLogger(__name__)
@@ -18,34 +18,59 @@ logger = logging.getLogger(__name__)
 @router.get("/{child_id}")
 async def get_child_data(child_id: str):
     """
-    Get complete child data including exploration cycles and hypotheses.
+    Get complete child data including investigations and hypotheses.
 
-    This endpoint exposes the full Child model data for X-Ray testing
+    This endpoint exposes the full Darshan data for X-Ray testing
     and debugging the temporal design system.
 
     Returns:
-    - exploration_cycles: All cycles with their hypotheses
-    - developmental_data: Backward-compatible child profile
+    - investigations: All active investigations with their curiosities
+    - curiosities: All curiosities (wondering, investigating, understood)
     - understanding: Patterns and pending insights
     """
     try:
-        unified = get_unified_state_service()
-        child = unified.get_child(child_id)
+        chitta = get_chitta_service()
+        gestalt = await chitta.get_gestalt(child_id)
 
-        cycles_data = [cycle.model_dump() for cycle in child.exploration_cycles]
-        dev_data = child.developmental_data
-        understanding_dict = child.understanding.model_dump()
+        if not gestalt:
+            raise HTTPException(status_code=404, detail=f"Child {child_id} not found")
+
+        # Get curiosities with their investigations
+        curiosities_data = []
+        for c in gestalt._curiosities._dynamic:
+            c_dict = {
+                "focus": c.focus,
+                "type": c.type,
+                "status": c.status,
+                "pull": c.pull,
+                "certainty": c.certainty,
+                "theory": c.theory,
+                "video_appropriate": c.video_appropriate,
+                "video_value": c.video_value,
+            }
+            if c.investigation:
+                c_dict["investigation"] = {
+                    "id": c.investigation.id,
+                    "status": c.investigation.status,
+                    "video_accepted": c.investigation.video_accepted,
+                    "video_scenarios": [s.to_dict() for s in c.investigation.video_scenarios],
+                    "evidence_count": len(c.investigation.evidence),
+                }
+            curiosities_data.append(c_dict)
 
         return {
             "child_id": child_id,
-            "name": child.name,
-            "age": child.age,
-            "gender": child.identity.gender,
-            "exploration_cycles": cycles_data,
-            "developmental_data": dev_data,
-            "understanding": understanding_dict,
+            "name": gestalt._child_name,
+            "age": gestalt._child_age,
+            "curiosities": curiosities_data,
+            "understanding": {
+                "hypotheses": [h.to_dict() for h in gestalt._understanding._hypotheses],
+                "patterns": [p.to_dict() for p in gestalt._understanding._patterns],
+            },
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting child data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -57,56 +82,62 @@ async def get_child_gestalt(child_id: str):
     Get complete child gestalt data for X-Ray testing.
 
     Returns the full Darshan structure including:
-    - identity: name, birth_date, gender
-    - essence: temperament, energy, core qualities
-    - strengths: abilities, interests, what lights them up
-    - concerns: primary areas, details, parent narrative
-    - history: birth, early development, milestones
-    - family: structure, siblings, languages
+    - curiosities: all curiosities with their investigations
     - understanding: hypotheses, patterns, insights
-    - exploration_cycles: full cycle data with hypotheses and artifacts
+    - stories: captured developmental stories
+    - observations: what we've noticed
     """
     try:
-        unified = get_unified_state_service()
-        child = unified.get_child(child_id)
+        chitta = get_chitta_service()
+        gestalt = await chitta.get_gestalt(child_id)
+
+        if not gestalt:
+            raise HTTPException(status_code=404, detail=f"Child {child_id} not found")
+
+        # Build curiosities with full investigation data
+        curiosities_data = []
+        for c in gestalt._curiosities._dynamic:
+            c_dict = c.to_dict()
+            curiosities_data.append(c_dict)
 
         return {
             "child_id": child_id,
-            "child_internal_id": child.id,
+            "child_name": gestalt._child_name,
+            "child_age": gestalt._child_age,
 
-            # Core identity
-            "identity": child.identity.model_dump(),
-
-            # The Darshan
-            "essence": child.essence.model_dump(),
-            "strengths": child.strengths.model_dump(),
-            "concerns": child.concerns.model_dump(),
-            "history": child.history.model_dump(),
-            "family": child.family.model_dump(),
+            # Curiosities (the unified model)
+            "curiosities": {
+                "dynamic": curiosities_data,
+                "baseline": [c.to_dict() for c in gestalt._curiosities._baseline],
+            },
 
             # Understanding (hypotheses, patterns)
-            "understanding": child.understanding.model_dump(),
+            "understanding": {
+                "hypotheses": [h.to_dict() for h in gestalt._understanding._hypotheses],
+                "patterns": [p.to_dict() for p in gestalt._understanding._patterns],
+                "pending_insights": [i.to_dict() for i in gestalt._understanding._pending_insights],
+            },
 
-            # Exploration cycles with full data
-            "exploration_cycles": [c.model_dump() for c in child.exploration_cycles],
+            # Stories
+            "stories": [s.to_dict() for s in gestalt._stories],
 
-            # Synthesis reports
-            "synthesis_reports": [r.model_dump() for r in child.synthesis_reports],
+            # Observations
+            "observations": [o.to_dict() for o in gestalt._observations],
 
-            # Videos and journal
-            "videos": [v.model_dump() for v in child.videos],
-            "journal_entries": [j.model_dump() for j in child.journal_entries],
+            # Video info
+            "video_count": gestalt._video_count,
+            "analyzed_videos": [v.to_dict() for v in gestalt.analyzed_videos()],
 
-            # Metadata
-            "created_at": child.created_at.isoformat() if child.created_at else None,
-            "updated_at": child.updated_at.isoformat() if child.updated_at else None,
+            # Portrait if exists
+            "portrait": gestalt._portrait.to_dict() if gestalt._portrait else None,
 
-            # Convenience properties
-            "name": child.name,
-            "age": child.age,
-            "profile_summary": child.profile_summary,
+            # Session info
+            "session_id": gestalt._session_id,
+            "last_activity": gestalt._last_activity.isoformat() if gestalt._last_activity else None,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting child gestalt: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -42,13 +42,6 @@ from app.db.repositories.children import ChildRepository
 from app.db.repositories.sessions import SessionRepository, MessageRepository
 from app.db.repositories.observations import ObservationRepository
 
-# Exploration repositories
-from app.db.repositories.explorations import (
-    ExplorationRepository,
-    ExplorationHistoryRepository,
-    EvidenceRepository,
-    StoryRepository,
-)
 
 # Synthesis repositories
 from app.db.repositories.synthesis import (
@@ -82,11 +75,6 @@ __all__ = [
     "SessionRepository",
     "MessageRepository",
     "ObservationRepository",
-    # Exploration
-    "ExplorationRepository",
-    "ExplorationHistoryRepository",
-    "EvidenceRepository",
-    "StoryRepository",
     # Synthesis
     "PatternRepository",
     "CrystalRepository",

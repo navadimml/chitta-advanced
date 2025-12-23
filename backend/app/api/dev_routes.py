@@ -1229,7 +1229,7 @@ async def seed_gestalt_scenario(
         "data_summary": {
             "facts_count": len(seed_data.get("understanding", {}).get("facts", [])),
             "stories_count": len(seed_data.get("stories", [])),
-            "cycles_count": len(seed_data.get("exploration_cycles", [])),
+            "curiosities_count": len(seed_data.get("curiosities", {}).get("dynamic", [])),
             "session_history_count": len(seed_data.get("session_history", [])),
         }
     }

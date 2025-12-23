@@ -355,15 +355,8 @@ class UnifiedStateService:
                 except Exception as e:
                     logger.warning(f"Failed to load session_history from gestalt: {e}")
 
-        # Convert artifacts from exploration cycles
+        # Artifacts - no longer stored in exploration cycles
         artifacts = {}
-        for cycle in child.exploration_cycles:
-            for artifact in cycle.artifacts:
-                artifacts[artifact.id] = FamilyArtifact(
-                    type=artifact.type,
-                    content=artifact.content,
-                    created_at=artifact.created_at
-                )
 
         # Convert videos
         videos = []
@@ -554,13 +547,9 @@ class UnifiedStateService:
             },
             # Completeness
             "completeness": child.data_completeness,
-            # Artifacts - built from exploration cycles
-            "artifacts": {
-                artifact.id: artifact.model_dump()
-                for cycle in child.exploration_cycles
-                for artifact in cycle.artifacts
-            },
-            "has_video_guidelines": child.has_artifact("baseline_video_guidelines"),
+            # Artifacts - no longer stored in exploration cycles
+            "artifacts": {},
+            "has_video_guidelines": False,
             # Videos
             "videos": [v.model_dump() for v in child.videos],
             "video_count": child.video_count,

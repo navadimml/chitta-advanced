@@ -10,9 +10,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import logging
 
-from app.core.app_state import app_state
 from app.chitta import get_chitta_service
-from app.services.unified_state_service import get_unified_state_service
 from app.services.sse_notifier import get_sse_notifier
 
 router = APIRouter(prefix="/gestalt", tags=["darshan"])
@@ -96,15 +94,17 @@ async def get_gestalt_cards(child_id: str, language: str = "he"):
     try:
         chitta = get_chitta_service()
         cards = await chitta.get_cards(child_id)
+        gestalt = await chitta.get_gestalt(child_id)
 
-        unified = get_unified_state_service()
-        child = unified.get_child(child_id)
+        # Get investigation count from chitta's curiosities
+        investigating_count = len(gestalt._curiosities.get_investigating()) if gestalt else 0
+        pending_insights = len(gestalt._understanding.unshared_insights()) if gestalt else 0
 
         return GestaltCardsResponse(
             child_id=child_id,
             cards=cards,
-            has_active_cycles=len(child.active_exploration_cycles()) > 0,
-            pending_insights_count=len(child.understanding.unshared_insights()),
+            has_active_cycles=investigating_count > 0,
+            pending_insights_count=pending_insights,
         )
 
     except Exception as e:
@@ -212,18 +212,27 @@ async def get_gestalt_summary(child_id: str):
     Get high-level summary of understanding.
     """
     try:
-        unified = get_unified_state_service()
-        child = unified.get_child(child_id)
+        chitta = get_chitta_service()
+        gestalt = await chitta.get_gestalt(child_id)
+
+        if not gestalt:
+            raise HTTPException(status_code=404, detail=f"Child {child_id} not found")
+
+        # Count artifacts from investigations
+        artifacts_count = sum(
+            len(c.investigation.video_scenarios) if c.investigation else 0
+            for c in gestalt._curiosities._dynamic
+        )
 
         return GestaltSummaryResponse(
             child_id=child_id,
-            child_name=child.name,
-            child_age=child.age,
-            completeness=len(child.understanding.active_hypotheses()) * 0.1,
-            active_cycles_count=len(child.active_exploration_cycles()),
-            videos_total=child.video_count,
-            videos_analyzed=len(child.analyzed_videos()),
-            artifacts_count=sum(len(c.artifacts) for c in child.exploration_cycles),
+            child_name=gestalt._child_name,
+            child_age=gestalt._child_age,
+            completeness=len(gestalt._understanding.active_hypotheses()) * 0.1,
+            active_cycles_count=len(gestalt._curiosities.get_investigating()),
+            videos_total=gestalt._video_count,
+            videos_analyzed=len(gestalt.analyzed_videos()),
+            artifacts_count=artifacts_count,
         )
 
     except Exception as e:
@@ -244,15 +253,13 @@ async def get_video_insights(child_id: str, cycle_id: str):
         if not gestalt:
             raise HTTPException(status_code=404, detail=f"Child {child_id} not found")
 
-        # Find the cycle
-        cycle = None
-        for c in gestalt.explorations:
-            if c.id == cycle_id:
-                cycle = c
-                break
+        # Find the curiosity by investigation ID
+        curiosity = gestalt._curiosities.get_curiosity_by_investigation_id(cycle_id)
 
-        if not cycle:
-            raise HTTPException(status_code=404, detail=f"Cycle {cycle_id} not found")
+        if not curiosity or not curiosity.investigation:
+            raise HTTPException(status_code=404, detail=f"Investigation {cycle_id} not found")
+
+        inv = curiosity.investigation
 
         def normalize_list(items: list, key: str = None) -> List[str]:
             """Convert list items to strings, handling dict format."""
@@ -274,7 +281,7 @@ async def get_video_insights(child_id: str, cycle_id: str):
 
         # Extract insights from analyzed video scenarios
         insights = []
-        for scenario in cycle.video_scenarios:
+        for scenario in inv.video_scenarios:
             if scenario.status == "analyzed" and scenario.analysis_result:
                 result = scenario.analysis_result
 
@@ -305,7 +312,7 @@ async def get_video_insights(child_id: str, cycle_id: str):
         return VideoInsightsResponse(
             child_id=child_id,
             cycle_id=cycle_id,
-            focus=cycle.focus,
+            focus=curiosity.focus,
             insights=insights,
             total_analyzed=len(insights),
         )

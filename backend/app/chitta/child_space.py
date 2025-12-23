@@ -112,18 +112,19 @@ class ChildSpaceService:
                 })
 
         # Add strengths from video observations
-        for cycle in gestalt.explorations:
-            for scenario in cycle.video_scenarios:
-                if scenario.analysis_result and scenario.status == "analyzed":
-                    for strength in scenario.analysis_result.get("strengths_observed", []):
-                        strength_text = strength.get("strength", "") if isinstance(strength, dict) else strength
-                        if strength_text:
-                            strengths.append({
-                                "domain": "observed",
-                                "title_he": strength_text,
-                                "content": f"נצפה בסרטון: {scenario.title}",
-                                "source": "video",
-                            })
+        for curiosity in gestalt._curiosities._dynamic:
+            if curiosity.investigation:
+                for scenario in curiosity.investigation.video_scenarios:
+                    if scenario.analysis_result and scenario.status == "analyzed":
+                        for strength in scenario.analysis_result.get("strengths_observed", []):
+                            strength_text = strength.get("strength", "") if isinstance(strength, dict) else strength
+                            if strength_text:
+                                strengths.append({
+                                    "domain": "observed",
+                                    "title_he": strength_text,
+                                    "content": f"נצפה בסרטון: {scenario.title}",
+                                    "source": "video",
+                                })
 
         # === 4. INTERVENTION PATHWAYS ===
         intervention_pathways = []
@@ -137,30 +138,31 @@ class ChildSpaceService:
                     "confidence": pathway.confidence,
                 })
 
-        # === 5. ACTIVE EXPLORATIONS ===
+        # === 5. ACTIVE INVESTIGATIONS ===
         active_explorations = []
-        for cycle in gestalt.explorations:
-            if cycle.status == "active":
+        for curiosity in gestalt._curiosities.get_investigating():
+            if curiosity.investigation:
+                inv = curiosity.investigation
                 evidence_list = [
                     {"content": ev.content, "effect": ev.effect, "source": ev.source}
-                    for ev in cycle.evidence
+                    for ev in inv.evidence
                 ]
                 has_video_pending = any(
                     s.status in ("pending", "uploaded") and s.video_path
-                    for s in cycle.video_scenarios
+                    for s in inv.video_scenarios
                 )
-                has_video_analyzed = any(s.status == "analyzed" for s in cycle.video_scenarios)
+                has_video_analyzed = any(s.status == "analyzed" for s in inv.video_scenarios)
 
                 active_explorations.append({
-                    "id": cycle.id,
-                    "question": cycle.focus,
-                    "theory": cycle.theory,
-                    "confidence": cycle.confidence or 0.5,
-                    "evidence_count": len(cycle.evidence),
+                    "id": inv.id,
+                    "question": curiosity.focus,
+                    "theory": curiosity.theory,
+                    "confidence": curiosity.certainty or 0.5,
+                    "evidence_count": len(inv.evidence),
                     "evidence": evidence_list,
                     "has_video_pending": has_video_pending,
                     "has_video_analyzed": has_video_analyzed,
-                    "video_appropriate": cycle.video_appropriate,
+                    "video_appropriate": curiosity.video_appropriate,
                 })
 
         # === 6. FACTS BY DOMAIN ===
@@ -309,24 +311,26 @@ class ChildSpaceService:
                 "significance": "major" if entry.significance == "notable" else "normal",
             })
 
-        for cycle in gestalt.explorations:
-            for scenario in cycle.video_scenarios:
-                if scenario.status == "analyzed" and scenario.analyzed_at:
-                    insights = []
-                    if scenario.analysis_result:
-                        insights = scenario.analysis_result.get("insights", [])
-                    description = insights[0] if insights else "ניתוח הסרטון הושלם"
+        for curiosity in gestalt._curiosities._dynamic:
+            if curiosity.investigation:
+                inv = curiosity.investigation
+                for scenario in inv.video_scenarios:
+                    if scenario.status == "analyzed" and scenario.analyzed_at:
+                        insights = []
+                        if scenario.analysis_result:
+                            insights = scenario.analysis_result.get("insights", [])
+                        description = insights[0] if insights else "ניתוח הסרטון הושלם"
 
-                    milestones.append({
-                        "id": f"video_{scenario.id}",
-                        "timestamp": scenario.analyzed_at.isoformat(),
-                        "type": "video_analyzed",
-                        "title_he": f"צפינו: {scenario.title}",
-                        "description_he": description if isinstance(description, str) else "",
-                        "video_id": scenario.id,
-                        "exploration_id": cycle.id,
-                        "significance": "major",
-                    })
+                        milestones.append({
+                            "id": f"video_{scenario.id}",
+                            "timestamp": scenario.analyzed_at.isoformat(),
+                            "type": "video_analyzed",
+                            "title_he": f"צפינו: {scenario.title}",
+                            "description_he": description if isinstance(description, str) else "",
+                            "video_id": scenario.id,
+                            "investigation_id": inv.id,
+                            "significance": "major",
+                        })
 
         milestones.sort(key=lambda m: m["timestamp"] or "", reverse=True)
 
@@ -336,13 +340,15 @@ class ChildSpaceService:
             days_since_start = (datetime.now() - first_entry.timestamp).days
 
         total_videos = sum(
-            len([s for s in c.video_scenarios if s.video_path])
-            for c in gestalt.explorations
+            len([s for s in c.investigation.video_scenarios if s.video_path])
+            for c in gestalt._curiosities._dynamic
+            if c.investigation
         )
 
         insights_count = len([
-            s for c in gestalt.explorations
-            for s in c.video_scenarios
+            s for c in gestalt._curiosities._dynamic
+            if c.investigation
+            for s in c.investigation.video_scenarios
             if s.status == "analyzed"
         ])
 
@@ -359,8 +365,11 @@ class ChildSpaceService:
         videos = []
         pending_scenarios = []
 
-        for cycle in gestalt.explorations:
-            for scenario in cycle.video_scenarios:
+        for curiosity in gestalt._curiosities._dynamic:
+            if not curiosity.investigation:
+                continue
+            inv = curiosity.investigation
+            for scenario in inv.video_scenarios:
                 if scenario.video_path:
                     observations = []
                     strengths = []
@@ -400,8 +409,8 @@ class ChildSpaceService:
                         "uploaded_at": scenario.uploaded_at.isoformat() if scenario.uploaded_at else None,
                         "status": scenario.status,
                         "analyzed_at": scenario.analyzed_at.isoformat() if scenario.analyzed_at else None,
-                        "hypothesis_title": cycle.theory or cycle.focus,
-                        "hypothesis_id": cycle.id,
+                        "hypothesis_title": curiosity.theory or curiosity.focus,
+                        "hypothesis_id": inv.id,
                         "observations": observations,
                         "strengths_observed": strengths,
                         "insights": insights,
@@ -417,9 +426,9 @@ class ChildSpaceService:
                         "rationale_for_parent": scenario.rationale_for_parent,
                         "duration_suggestion": scenario.duration_suggestion,
                         "example_situations": scenario.example_situations or [],
-                        "hypothesis_title": cycle.theory or cycle.focus,
-                        "hypothesis_id": cycle.id,
-                        "cycle_focus": cycle.focus,
+                        "hypothesis_title": curiosity.theory or curiosity.focus,
+                        "hypothesis_id": inv.id,
+                        "curiosity_focus": curiosity.focus,
                         "created_at": scenario.created_at.isoformat() if scenario.created_at else None,
                         "reminder_dismissed": scenario.reminder_dismissed,
                     })
@@ -448,8 +457,8 @@ class ChildSpaceService:
         that appear in Crystal also appear here, making it feel like one unified experience.
         """
         has_observations = len(gestalt.understanding.observations) >= 3
-        has_exploration = len(gestalt.explorations) > 0
-        can_generate = has_observations and has_exploration
+        has_investigation = any(c.investigation for c in gestalt._curiosities._dynamic)
+        can_generate = has_observations and has_investigation
 
         not_ready_reason = None
         if not can_generate:

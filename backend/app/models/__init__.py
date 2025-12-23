@@ -33,14 +33,6 @@ from .understanding import (
     PendingInsight,
     DevelopmentalUnderstanding,
 )
-from .exploration import (
-    ExplorationCycle,
-    CycleArtifact,
-    VideoScenario,
-    ConversationMethod,
-    ConversationQuestion,
-    VideoMethod,
-)
 from .memory import ConversationMemory, TopicCovered
 from .user_session import UserSession, ConversationMessage, create_session_id
 from .active_card import ActiveCard, CardDisplayMode, create_active_card
@@ -67,13 +59,6 @@ __all__ = [
     "Pattern",
     "PendingInsight",
     "DevelopmentalUnderstanding",
-    # Exploration
-    "ExplorationCycle",
-    "CycleArtifact",
-    "VideoScenario",
-    "ConversationMethod",
-    "ConversationQuestion",
-    "VideoMethod",
     # Memory
     "ConversationMemory",
     "TopicCovered",

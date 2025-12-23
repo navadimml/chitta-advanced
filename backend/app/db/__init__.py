@@ -69,15 +69,6 @@ from app.db.models_core import (
     Observation,
 )
 
-# Exploration models
-from app.db.models_exploration import (
-    Exploration,
-    ExplorationHistory,
-    Evidence,
-    Story,
-    StoryDomain,
-    StoryReveal,
-)
 
 # Synthesis models
 from app.db.models_synthesis import (
@@ -160,13 +151,6 @@ __all__ = [
     "Session",
     "Message",
     "Observation",
-    # Exploration
-    "Exploration",
-    "ExplorationHistory",
-    "Evidence",
-    "Story",
-    "StoryDomain",
-    "StoryReveal",
     # Synthesis
     "Pattern",
     "PatternDomain",

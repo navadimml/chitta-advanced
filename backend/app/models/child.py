@@ -30,13 +30,6 @@ from .understanding import (
     SynthesisReport,
     CycleSnapshot,
 )
-from .exploration import (
-    ExplorationCycle,
-    CycleArtifact,
-    VideoScenario,
-    ConversationMethod,
-    VideoMethod,
-)
 
 
 # === Identity Models ===
@@ -245,16 +238,8 @@ class Child(BaseModel):
     # === UNDERSTANDING (the Living Gestalt) ===
     understanding: DevelopmentalUnderstanding = Field(default_factory=DevelopmentalUnderstanding)
 
-    # === EXPLORATION CYCLES ===
-    exploration_cycles: List[ExplorationCycle] = Field(default_factory=list)
-
-    # === SYNTHESIS REPORTS (Cross-Cycle) ===
-    # Unlike cycle artifacts, synthesis reports span multiple cycles
-    # and tell the longitudinal story of development
+    # === SYNTHESIS REPORTS ===
     synthesis_reports: List[SynthesisReport] = Field(default_factory=list)
-
-    # Artifacts are now stored ONLY in exploration cycles.
-    # Access them via the `artifacts` computed property below.
 
     # === VIDEOS ===
     videos: List[Video] = Field(default_factory=list)
@@ -351,102 +336,19 @@ class Child(BaseModel):
             score += 0.1
         return min(score, 1.0)
 
-    # === Exploration Cycle Management ===
-
-    def active_exploration_cycles(self) -> List[ExplorationCycle]:
-        """Get cycles that are not complete."""
-        return [c for c in self.exploration_cycles if c.status != "complete"]
-
-    def get_cycle(self, cycle_id: str) -> Optional[ExplorationCycle]:
-        return next((c for c in self.exploration_cycles if c.id == cycle_id), None)
-
-    def current_cycle(self) -> Optional[ExplorationCycle]:
-        """The most recent active cycle."""
-        active = self.active_exploration_cycles()
-        return active[-1] if active else None
-
-    def add_cycle(self, cycle: ExplorationCycle):
-        self.exploration_cycles.append(cycle)
-        self.updated_at = datetime.now()
-
     # === Artifact Management ===
-    # Artifacts now live in exploration cycles. These methods provide
-    # backwards-compatible access by aggregating from all cycles.
-
-    @computed_field
-    @property
-    def artifacts(self) -> Dict[str, Artifact]:
-        """
-        Aggregate all artifacts from exploration cycles.
-        Returns a dict for backwards compatibility with existing code.
-        This is a computed field so it gets serialized with the model.
-        """
-        import json
-        result = {}
-        for cycle in self.exploration_cycles:
-            for cycle_artifact in cycle.artifacts:
-                # Convert content dict to JSON string for Artifact compatibility
-                content_str = json.dumps(cycle_artifact.content, ensure_ascii=False) if isinstance(cycle_artifact.content, dict) else str(cycle_artifact.content)
-                # Convert CycleArtifact to Artifact for backwards compatibility
-                artifact = Artifact(
-                    artifact_id=cycle_artifact.id,
-                    artifact_type=cycle_artifact.type,
-                    status=cycle_artifact.status,
-                    content=content_str,
-                    content_format=cycle_artifact.content_format,
-                    metadata={"cycle_id": cycle.id},
-                    created_at=cycle_artifact.created_at,
-                    updated_at=cycle_artifact.updated_at,
-                    ready_at=cycle_artifact.ready_at,
-                )
-                result[cycle_artifact.id] = artifact
-        return result
+    # Artifacts are now managed by chitta layer, not here
 
     def get_artifact(self, artifact_id: str) -> Optional[Artifact]:
-        """Get artifact by ID, searching across all cycles."""
-        return self.artifacts.get(artifact_id)
+        """Get artifact by ID - no longer stored here."""
+        return None
 
     def has_artifact(self, artifact_id: str) -> bool:
-        """Check if artifact exists in any cycle."""
-        return self.get_artifact(artifact_id) is not None
+        """Check if artifact exists - no longer stored here."""
+        return False
 
     def add_artifact(self, artifact: Artifact):
-        """
-        Add artifact to current exploration cycle.
-        Creates a new cycle if none exists.
-        """
-        import json
-        current_cycle = self.current_cycle()
-        if not current_cycle:
-            # Create a general-purpose cycle
-            current_cycle = ExplorationCycle(
-                focus_description="General exploration",
-                status="active",
-            )
-            self.add_cycle(current_cycle)
-
-        # Convert content from string to dict for CycleArtifact
-        content_dict = {}
-        if artifact.content:
-            if isinstance(artifact.content, dict):
-                content_dict = artifact.content
-            elif isinstance(artifact.content, str):
-                try:
-                    content_dict = json.loads(artifact.content)
-                except json.JSONDecodeError:
-                    content_dict = {"text": artifact.content}
-
-        # Convert Artifact to CycleArtifact
-        cycle_artifact = CycleArtifact(
-            id=artifact.artifact_id,
-            type=artifact.artifact_type,
-            content=content_dict,
-            content_format=artifact.content_format,
-            status=artifact.status,
-        )
-        if artifact.ready_at:
-            cycle_artifact.ready_at = artifact.ready_at
-        current_cycle.add_artifact(cycle_artifact)
+        """Add artifact - no longer stored here."""
         self.updated_at = datetime.now()
 
     # === Video Management ===
@@ -482,85 +384,24 @@ class Child(BaseModel):
         )
         return sorted_entries[:limit]
 
-    # === Hypothesis Management (Cycle-Owned) ===
-    # With the temporal design, hypotheses are OWNED by exploration cycles.
-    # These methods aggregate from cycles for convenience, with backward
-    # compatibility for legacy understanding.hypotheses.
+    # === Hypothesis Management ===
+    # Hypotheses are now managed by chitta layer (Darshan/Curiosities)
 
     def active_hypotheses(self) -> List[Hypothesis]:
-        """
-        Get all active hypotheses across all active cycles.
-
-        TEMPORAL DESIGN: Hypotheses are owned by cycles. This aggregates
-        from all active exploration cycles. Also checks legacy
-        understanding.hypotheses for backward compatibility.
-        """
-        result = []
-        # Primary: get from active exploration cycles
-        for cycle in self.active_exploration_cycles():
-            result.extend(cycle.active_hypotheses())
-        # Backward compat: also check legacy understanding.hypotheses
-        result.extend(self.understanding.active_hypotheses())
-        return result
+        """Get all active hypotheses from understanding."""
+        return self.understanding.active_hypotheses()
 
     def get_hypothesis(self, hypothesis_id: str) -> Optional[Hypothesis]:
-        """
-        Find a hypothesis by ID across all cycles.
-
-        Searches exploration cycles first (new model), then falls back
-        to understanding.hypotheses (legacy).
-        """
-        # Search in exploration cycles first
-        for cycle in self.exploration_cycles:
-            hypothesis = cycle.get_hypothesis(hypothesis_id)
-            if hypothesis:
-                return hypothesis
-        # Fall back to legacy understanding
+        """Find a hypothesis by ID."""
         return self.understanding.get_hypothesis(hypothesis_id)
 
-    def add_hypothesis(self, hypothesis: Hypothesis, cycle: Optional[ExplorationCycle] = None):
-        """
-        Add a hypothesis to a cycle.
-
-        TEMPORAL DESIGN (One Domain = One Cycle):
-        - Each domain gets its own cycle
-        - Never mix domains in one cycle
-        - If cycle is specified, use it (caller is responsible for domain)
-        - If no cycle specified, find/create cycle for this hypothesis's domain
-        """
-        if cycle is None:
-            # === TEMPORAL DESIGN: One Domain = One Cycle ===
-            # Find an active cycle for THIS domain
-            matching_cycle = None
-            for c in self.active_exploration_cycles():
-                if c.focus_domain == hypothesis.domain:
-                    matching_cycle = c
-                    break
-
-            if matching_cycle:
-                cycle = matching_cycle
-            else:
-                # Create a NEW cycle for this domain
-                cycle = ExplorationCycle(
-                    focus_description=f"Exploring: {hypothesis.theory[:80]}",
-                    focus_domain=hypothesis.domain,
-                    status="active",
-                )
-                self.add_cycle(cycle)
-
-        # Add to cycle (primary ownership)
-        cycle.add_hypothesis(hypothesis)
-        # Also add to understanding for backward compatibility
+    def add_hypothesis(self, hypothesis: Hypothesis):
+        """Add a hypothesis to understanding."""
         self.understanding.add_hypothesis(hypothesis)
         self.updated_at = datetime.now()
 
     def add_pattern(self, pattern: Pattern):
-        """
-        Add a cross-cycle pattern.
-
-        TEMPORAL DESIGN: Patterns are observations ACROSS cycles, so they
-        live in understanding (not owned by a single cycle).
-        """
+        """Add a pattern to understanding."""
         self.understanding.add_pattern(pattern)
         self.updated_at = datetime.now()
 
@@ -570,50 +411,19 @@ class Child(BaseModel):
         evidence: Evidence,
         effect: str = "neutral"
     ):
-        """
-        Add evidence to a hypothesis.
-
-        Searches for the hypothesis across all cycles and legacy understanding.
-        """
-        # First try to find in cycles
-        for cycle in self.exploration_cycles:
-            hypothesis = cycle.get_hypothesis(hypothesis_id)
-            if hypothesis:
-                hypothesis.add_evidence(evidence, effect)
-                cycle.updated_at = datetime.now()
-                self.updated_at = datetime.now()
-                return
-
-        # Fall back to legacy understanding
+        """Add evidence to a hypothesis."""
         hypothesis = self.understanding.get_hypothesis(hypothesis_id)
         if hypothesis:
             hypothesis.add_evidence(evidence, effect)
             self.updated_at = datetime.now()
 
     def hypotheses_for_domain(self, domain: str) -> List[Hypothesis]:
-        """
-        Get all hypotheses for a domain across all cycles.
-
-        Useful for cross-cycle analysis of a specific developmental area.
-        """
-        result = []
-        for cycle in self.exploration_cycles:
-            result.extend(cycle.hypotheses_for_domain(domain))
-        # Also check legacy
-        result.extend(self.understanding.hypotheses_for_domain(domain))
-        return result
+        """Get all hypotheses for a domain."""
+        return self.understanding.hypotheses_for_domain(domain)
 
     def all_hypotheses(self) -> List[Hypothesis]:
-        """
-        Get ALL hypotheses across all cycles and statuses.
-
-        Includes completed cycles (historical record) and legacy hypotheses.
-        """
-        result = []
-        for cycle in self.exploration_cycles:
-            result.extend(cycle.hypotheses)
-        result.extend(self.understanding.hypotheses)
-        return result
+        """Get ALL hypotheses."""
+        return self.understanding.hypotheses
 
 
 # === Backward Compatibility Layer ===
@@ -777,25 +587,11 @@ class SynthesisSnapshot(BaseModel):
 
 
 class ExplorationActivity(BaseModel):
-    """DEPRECATED: Exploration activity tracking."""
-    cycles: List[ExplorationCycle] = Field(default_factory=list)
+    """DEPRECATED: Exploration activity tracking - no longer used."""
     syntheses: List[SynthesisSnapshot] = Field(default_factory=list)
     current_focus: Optional[CurrentFocus] = None
-
-    @property
-    def active_cycles(self) -> List[ExplorationCycle]:
-        return [c for c in self.cycles if c.status != "complete"]
 
     @property
     def current_synthesis(self) -> Optional[SynthesisSnapshot]:
         current = [s for s in self.syntheses if s.is_current]
         return current[-1] if current else None
-
-
-# Re-export exploration classes for backward compatibility
-from .exploration import (
-    VideoScenario,
-    ConversationMethod,
-    ConversationQuestion,
-    VideoMethod,
-)

@@ -28,7 +28,6 @@ from app.db.base import (
 if TYPE_CHECKING:
     from app.db.models_access import Family, ChildAccess, SharedArtifact, Invitation
     from app.db.models_auth import User
-    from app.db.models_exploration import Exploration, Story, Evidence
     from app.db.models_synthesis import Crystal, Pattern, PortraitSection
     from app.db.models_supporting import (
         DevelopmentalMilestone, JournalEntry, VideoScenario,
@@ -82,12 +81,6 @@ class Child(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     )
     observations: Mapped[List["Observation"]] = relationship(
         "Observation", back_populates="child", cascade="all, delete-orphan"
-    )
-    explorations: Mapped[List["Exploration"]] = relationship(
-        "Exploration", back_populates="child", cascade="all, delete-orphan"
-    )
-    stories: Mapped[List["Story"]] = relationship(
-        "Story", back_populates="child", cascade="all, delete-orphan"
     )
     patterns: Mapped[List["Pattern"]] = relationship(
         "Pattern", back_populates="child", cascade="all, delete-orphan"
@@ -315,9 +308,6 @@ class Observation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     source_video: Mapped[Optional["VideoScenario"]] = relationship("VideoScenario", back_populates="observations")
     source_journal: Mapped[Optional["JournalEntry"]] = relationship("JournalEntry", back_populates="observations")
     recorder: Mapped[Optional["User"]] = relationship("User")
-    evidence_links: Mapped[List["Evidence"]] = relationship(
-        "Evidence", back_populates="observation", cascade="all, delete-orphan"
-    )
 
     __table_args__ = (
         Index("ix_observation_child_domain", "child_id", "domain"),
