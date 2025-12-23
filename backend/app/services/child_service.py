@@ -1,11 +1,13 @@
 """
-Child Service - Manages Child entities with persistence
+Child Service - Manages Child entities in memory
 
 The Child is the invariant core of Chitta. This service:
-1. Stores and retrieves Child data
+1. Stores and retrieves Child data (in-memory cache)
 2. Updates developmental understanding from conversation extractions
 3. Manages artifacts, videos, and journal entries
-4. Persists to file/Redis (like session_persistence)
+
+Note: Persistence is now handled by Darshan via database.
+This service provides in-memory caching only.
 
 Design principles:
 - Child data is shared across all users with access
@@ -14,26 +16,15 @@ Design principles:
 """
 
 import logging
-import json
-import os
 import asyncio
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from pathlib import Path
 
 from app.models.child import Child, DevelopmentalData, Video, JournalEntry
 from app.models.artifact import Artifact
 from app.config.schema_registry import calculate_completeness as config_calculate_completeness
 
 logger = logging.getLogger(__name__)
-
-# Storage configuration
-STORAGE_TYPE = os.getenv("CHILD_STORAGE_TYPE", os.getenv("SESSION_STORAGE_TYPE", "file"))
-DATA_DIR = os.getenv("CHILD_DATA_DIR", "data/children")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-
-# Ensure data directory exists
-Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
 
 
 class ChildService:
@@ -45,89 +36,37 @@ class ChildService:
     - Artifacts (generated reports, guidelines)
     - Videos (behavioral observations)
     - Journal entries (extracted meaningful moments)
+
+    Note: Persistence is handled by Darshan via database.
+    This service provides in-memory caching only.
     """
 
     def __init__(self):
         # In-memory cache: child_id -> Child
         self._children: Dict[str, Child] = {}
-
-        # Persistence configuration
-        self._storage_type = STORAGE_TYPE
-        self._redis_client = None
-
-        if self._storage_type == "redis":
-            self._init_redis()
-
-        logger.info(f"ChildService initialized with {self._storage_type} storage")
-
-    def _init_redis(self):
-        """Initialize Redis connection if using Redis storage"""
-        try:
-            import redis
-            self._redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-            self._redis_client.ping()
-            logger.info(f"ChildService connected to Redis at {REDIS_URL}")
-        except ImportError:
-            logger.warning("Redis not installed, falling back to file storage")
-            self._storage_type = "file"
-        except Exception as e:
-            logger.warning(f"Could not connect to Redis: {e}, falling back to file storage")
-            self._storage_type = "file"
-
-    def _get_file_path(self, child_id: str) -> Path:
-        """Get file path for a child's data"""
-        safe_id = "".join(c if c.isalnum() or c in "_-" else "_" for c in child_id)
-        return Path(DATA_DIR) / f"{safe_id}.json"
+        logger.info("ChildService initialized (in-memory, Darshan handles persistence)")
 
     # === Core CRUD Operations ===
 
     def get_or_create_child(self, child_id: str) -> Child:
-        """Get existing child or create new one"""
+        """Get existing child or create new one (in-memory only)"""
         if child_id not in self._children:
-            # Try to load from persistence
-            child = self._load_child_sync(child_id)
-            if child:
-                self._children[child_id] = child
-                logger.info(f"Loaded child {child_id} from persistence")
-            else:
-                # Create new child
-                self._children[child_id] = Child(child_id=child_id)
-                logger.info(f"Created new child: {child_id}")
-
+            self._children[child_id] = Child(child_id=child_id)
+            logger.info(f"Created new child: {child_id}")
         return self._children[child_id]
 
     async def get_or_create_child_async(self, child_id: str) -> Child:
-        """Async version: Get existing child or create new one"""
+        """Async version: Get existing child or create new one (in-memory only)"""
         if child_id not in self._children:
-            child = await self._load_child(child_id)
-            if child:
-                self._children[child_id] = child
-                logger.info(f"Loaded child {child_id} from persistence")
-            else:
-                self._children[child_id] = Child(child_id=child_id)
-                logger.info(f"Created new child: {child_id}")
-
+            self._children[child_id] = Child(child_id=child_id)
+            logger.info(f"Created new child: {child_id}")
         return self._children[child_id]
 
     async def save_child(self, child_id: str) -> bool:
-        """Persist child data to storage"""
-        if child_id not in self._children:
-            return False
-
-        child = self._children[child_id]
-        child.updated_at = datetime.now()
-
-        try:
-            child_data = self._child_to_dict(child)
-
-            if self._storage_type == "redis":
-                return await self._save_to_redis(child_id, child_data)
-            else:
-                return await self._save_to_file(child_id, child_data)
-
-        except Exception as e:
-            logger.error(f"Error saving child {child_id}: {e}")
-            return False
+        """Save child - now a no-op, Darshan handles persistence via database"""
+        if child_id in self._children:
+            self._children[child_id].updated_at = datetime.now()
+        return True
 
     # === Developmental Data Management ===
 
@@ -429,153 +368,6 @@ class ChildService:
         """Get brief profile for display"""
         child = self.get_or_create_child(child_id)
         return child.profile_summary
-
-    # === Persistence Helpers ===
-
-    def _load_child_sync(self, child_id: str) -> Optional[Child]:
-        """Synchronous load for initialization"""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self._load_child(child_id))
-                    return future.result(timeout=5)
-            else:
-                return loop.run_until_complete(self._load_child(child_id))
-        except Exception as e:
-            logger.warning(f"Could not load child synchronously: {e}")
-            return None
-
-    async def _load_child(self, child_id: str) -> Optional[Child]:
-        """Load child from persistent storage"""
-        try:
-            if self._storage_type == "redis":
-                data = await self._load_from_redis(child_id)
-            else:
-                data = await self._load_from_file(child_id)
-
-            if not data:
-                return None
-
-            return self._dict_to_child(data)
-
-        except Exception as e:
-            logger.error(f"Error loading child {child_id}: {e}")
-            return None
-
-    async def _load_from_file(self, child_id: str) -> Optional[Dict[str, Any]]:
-        """Load child from JSON file"""
-        file_path = self._get_file_path(child_id)
-        if not file_path.exists():
-            return None
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return self._restore_datetimes(data)
-        except Exception as e:
-            logger.error(f"Error loading from file {file_path}: {e}")
-            return None
-
-    async def _load_from_redis(self, child_id: str) -> Optional[Dict[str, Any]]:
-        """Load child from Redis"""
-        try:
-            key = f"chitta:child:{child_id}"
-            data_str = self._redis_client.get(key)
-            if not data_str:
-                return None
-            data = json.loads(data_str)
-            return self._restore_datetimes(data)
-        except Exception as e:
-            logger.error(f"Error loading from Redis: {e}")
-            return None
-
-    async def _save_to_file(self, child_id: str, data: Dict[str, Any]) -> bool:
-        """Save child to JSON file"""
-        file_path = self._get_file_path(child_id)
-        try:
-            serializable_data = self._make_serializable(data)
-            temp_path = file_path.with_suffix(".tmp")
-
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(serializable_data, f, ensure_ascii=False, indent=2)
-
-            temp_path.rename(file_path)
-            logger.debug(f"Saved child to {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving to file {file_path}: {e}")
-            return False
-
-    async def _save_to_redis(self, child_id: str, data: Dict[str, Any]) -> bool:
-        """Save child to Redis"""
-        try:
-            serializable_data = self._make_serializable(data)
-            key = f"chitta:child:{child_id}"
-            self._redis_client.setex(
-                key,
-                90 * 24 * 60 * 60,  # 90 days TTL
-                json.dumps(serializable_data, ensure_ascii=False)
-            )
-            logger.debug(f"Saved child to Redis: {key}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving to Redis: {e}")
-            return False
-
-    def _child_to_dict(self, child: Child) -> Dict[str, Any]:
-        """Convert Child to dict for persistence"""
-        # Use Pydantic's model_dump for proper serialization
-        # by_alias=True will use "child_id" instead of "id"
-        return child.model_dump(
-            by_alias=True,
-            mode="json",  # JSON-serializable format (datetimes as ISO strings)
-            exclude_none=False,
-        )
-
-    def _dict_to_child(self, data: Dict[str, Any]) -> Child:
-        """Convert dict to Child.
-
-        Handles both old gestalt format (name at root) and new format (name in identity).
-        """
-        # Backward compatibility: if identity is missing or empty but name exists at root,
-        # create the identity structure from root-level fields
-        if data.get("name") and (not data.get("identity") or not data.get("identity", {}).get("name")):
-            if "identity" not in data:
-                data["identity"] = {}
-            data["identity"]["name"] = data["name"]
-            logger.debug(f"Migrated root-level name to identity.name: {data['name']}")
-
-        # Use Pydantic's model_validate for proper deserialization
-        # This handles aliases (child_id -> id), nested models, datetime parsing
-        return Child.model_validate(data)
-
-    def _make_serializable(self, obj: Any) -> Any:
-        """Convert object to JSON-serializable format"""
-        if isinstance(obj, datetime):
-            return {"_type": "datetime", "_value": obj.isoformat()}
-        elif isinstance(obj, dict):
-            return {k: self._make_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [self._make_serializable(v) for v in obj]
-        elif hasattr(obj, "model_dump"):
-            return self._make_serializable(obj.model_dump())
-        elif hasattr(obj, "__dict__"):
-            return self._make_serializable(obj.__dict__)
-        else:
-            return obj
-
-    def _restore_datetimes(self, obj: Any) -> Any:
-        """Restore datetime objects from serialized format"""
-        if isinstance(obj, dict):
-            if obj.get("_type") == "datetime":
-                return datetime.fromisoformat(obj["_value"])
-            return {k: self._restore_datetimes(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [self._restore_datetimes(v) for v in obj]
-        else:
-            return obj
 
 
 # Singleton
