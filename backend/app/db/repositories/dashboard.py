@@ -206,6 +206,83 @@ class ExpertCorrectionRepository(BaseRepository[ExpertCorrection]):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def get_correction_stats(self) -> Dict[str, Any]:
+        """Get aggregated statistics on all corrections for analysis."""
+        # Count by correction type
+        type_stmt = (
+            select(
+                self.model.correction_type,
+                func.count().label("count"),
+            )
+            .group_by(self.model.correction_type)
+        )
+        type_result = await self.session.execute(type_stmt)
+        by_type = {row.correction_type: row.count for row in type_result}
+
+        # Count by severity
+        severity_stmt = (
+            select(
+                self.model.severity,
+                func.count().label("count"),
+            )
+            .group_by(self.model.severity)
+        )
+        severity_result = await self.session.execute(severity_stmt)
+        by_severity = {row.severity: row.count for row in severity_result}
+
+        # Count by target type
+        target_stmt = (
+            select(
+                self.model.target_type,
+                func.count().label("count"),
+            )
+            .group_by(self.model.target_type)
+        )
+        target_result = await self.session.execute(target_stmt)
+        by_target = {row.target_type: row.count for row in target_result}
+
+        # Total count
+        total_stmt = select(func.count()).select_from(self.model)
+        total_result = await self.session.execute(total_stmt)
+        total = total_result.scalar_one()
+
+        # Unused count
+        unused_stmt = (
+            select(func.count())
+            .select_from(self.model)
+            .where(self.model.used_in_training == False)
+        )
+        unused_result = await self.session.execute(unused_stmt)
+        unused = unused_result.scalar_one()
+
+        return {
+            "total": total,
+            "unused_for_training": unused,
+            "by_type": by_type,
+            "by_severity": by_severity,
+            "by_target_type": by_target,
+        }
+
+    async def get_all_with_context(
+        self,
+        used_in_training: Optional[bool] = None,
+        correction_type: Optional[str] = None,
+        severity: Optional[str] = None,
+    ) -> Sequence[ExpertCorrection]:
+        """Get all corrections with optional filters for analysis."""
+        stmt = select(self.model)
+
+        if used_in_training is not None:
+            stmt = stmt.where(self.model.used_in_training == used_in_training)
+        if correction_type:
+            stmt = stmt.where(self.model.correction_type == correction_type)
+        if severity:
+            stmt = stmt.where(self.model.severity == severity)
+
+        stmt = stmt.order_by(desc(self.model.created_at))
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
 
 class MissedSignalRepository(BaseRepository[MissedSignal]):
     """Repository for missed signals."""
@@ -265,6 +342,48 @@ class MissedSignalRepository(BaseRepository[MissedSignal]):
             expert_id=expert_id,
             expert_name=expert_name,
         )
+
+    async def get_signal_stats(self) -> Dict[str, Any]:
+        """Get aggregated statistics on missed signals."""
+        # Count by signal type
+        type_stmt = (
+            select(
+                self.model.signal_type,
+                func.count().label("count"),
+            )
+            .group_by(self.model.signal_type)
+        )
+        type_result = await self.session.execute(type_stmt)
+        by_type = {row.signal_type: row.count for row in type_result}
+
+        # Count by domain
+        domain_stmt = (
+            select(
+                self.model.domain,
+                func.count().label("count"),
+            )
+            .where(self.model.domain.isnot(None))
+            .group_by(self.model.domain)
+        )
+        domain_result = await self.session.execute(domain_stmt)
+        by_domain = {row.domain: row.count for row in domain_result}
+
+        # Total count
+        total_stmt = select(func.count()).select_from(self.model)
+        total_result = await self.session.execute(total_stmt)
+        total = total_result.scalar_one()
+
+        return {
+            "total": total,
+            "by_signal_type": by_type,
+            "by_domain": by_domain,
+        }
+
+    async def get_all(self) -> Sequence[MissedSignal]:
+        """Get all missed signals for analysis."""
+        stmt = select(self.model).order_by(desc(self.model.created_at))
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
 
 
 # =============================================================================

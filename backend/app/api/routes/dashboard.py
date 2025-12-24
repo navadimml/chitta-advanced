@@ -1041,6 +1041,118 @@ async def get_analytics_overview(
 
 
 # =============================================================================
+# TRAINING PIPELINE - PROMPT IMPROVEMENT
+# =============================================================================
+
+
+class PromptSuggestionResponse(BaseModel):
+    """Response for a single prompt improvement suggestion."""
+    priority: int
+    section: str
+    issue: str
+    suggestion: str
+    examples: List[Dict[str, Any]]
+    correction_count: int
+    severity_score: float
+
+
+class PromptImprovementResponse(BaseModel):
+    """Response for prompt improvement suggestions endpoint."""
+    generated_at: datetime
+    total_corrections: int
+    total_missed_signals: int
+    suggestion_count: int
+    suggestions: List[PromptSuggestionResponse]
+    stats: Dict[str, Any]
+
+
+@router.get("/training/prompt-suggestions", response_model=PromptImprovementResponse)
+async def get_prompt_suggestions(
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+    unused_only: bool = Query(True, description="Only analyze corrections not used in training"),
+    min_corrections: int = Query(1, description="Minimum corrections to generate a suggestion"),
+):
+    """
+    Generate prompt improvement suggestions based on expert corrections.
+
+    Analyzes patterns in corrections to identify:
+    - Which prompt sections need improvement
+    - What specific issues are occurring
+    - Expert reasoning examples for reference
+
+    Suggestions are ranked by priority (severity × frequency).
+    """
+    from app.services.prompt_improvement import PromptImprovementService
+
+    service = PromptImprovementService(uow)
+    report = await service.generate_suggestions(
+        unused_only=unused_only,
+        min_corrections=min_corrections,
+    )
+
+    return report.to_dict()
+
+
+@router.get("/training/correction-examples/{correction_type}")
+async def get_correction_examples(
+    correction_type: str,
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+    limit: int = Query(10, description="Maximum examples to return"),
+):
+    """
+    Get detailed examples for a specific correction type.
+
+    Useful for understanding patterns and creating training data.
+    """
+    from app.services.prompt_improvement import PromptImprovementService
+
+    valid_types = [
+        "domain_change", "extraction_error", "missed_signal", "hallucination",
+        "evidence_reclassify", "timing_issue", "certainty_adjustment", "response_issue"
+    ]
+
+    if correction_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid correction type. Valid types: {valid_types}"
+        )
+
+    service = PromptImprovementService(uow)
+    examples = await service.get_correction_examples_for_type(correction_type, limit)
+
+    return {
+        "correction_type": correction_type,
+        "count": len(examples),
+        "examples": examples,
+    }
+
+
+@router.get("/training/stats")
+async def get_training_stats(
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """
+    Get training data statistics.
+
+    Shows correction and missed signal counts by type, severity, etc.
+    """
+    correction_stats = await uow.dashboard.corrections.get_correction_stats()
+    signal_stats = await uow.dashboard.missed_signals.get_signal_stats()
+
+    return {
+        "corrections": correction_stats,
+        "missed_signals": signal_stats,
+        "training_readiness": {
+            "unused_corrections": correction_stats.get("unused_for_training", 0),
+            "total_training_samples": correction_stats.get("total", 0) + signal_stats.get("total", 0),
+        }
+    }
+
+
+# =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 

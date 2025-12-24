@@ -1129,6 +1129,78 @@ class ChittaAPIClient {
     return response.json();
   }
 
+  // ==========================================
+  // Training Pipeline - Prompt Improvement
+  // ==========================================
+
+  /**
+   * Get prompt improvement suggestions based on corrections
+   * @param {boolean} unusedOnly - Only analyze corrections not used in training
+   * @param {number} minCorrections - Minimum corrections to generate a suggestion
+   */
+  async getPromptSuggestions(unusedOnly = true, minCorrections = 1) {
+    const params = new URLSearchParams({
+      unused_only: unusedOnly,
+      min_corrections: minCorrections,
+    });
+
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/training/prompt-suggestions?${params}`,
+      {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get detailed correction examples for a specific type
+   * @param {string} correctionType - The correction type to get examples for
+   * @param {number} limit - Maximum examples to return
+   */
+  async getCorrectionExamples(correctionType, limit = 10) {
+    const params = new URLSearchParams({ limit });
+
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/training/correction-examples/${correctionType}?${params}`,
+      {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get training data statistics
+   */
+  async getTrainingStats() {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/training/stats`,
+      {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
 }
 
 // Singleton instance
