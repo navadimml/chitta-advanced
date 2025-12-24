@@ -32,6 +32,7 @@ from .video import router as video_router
 from .journal import router as journal_router
 from .timeline import router as timeline_router
 from .user import router as user_router
+from .dashboard import router as dashboard_router
 
 # Import legacy router (endpoints not yet migrated)
 from ..legacy_routes import router as legacy_router
@@ -52,6 +53,7 @@ router.include_router(video_router)
 router.include_router(journal_router)
 router.include_router(timeline_router)
 router.include_router(user_router)
+router.include_router(dashboard_router)
 
 # Include legacy routes (endpoints not yet in modular files)
 router.include_router(legacy_router)
@@ -61,5 +63,5 @@ __all__ = [
     "router", "chat_router", "darshan_router", "family_router",
     "child_router", "artifacts_router", "test_router", "state_router",
     "views_router", "video_router", "journal_router", "timeline_router",
-    "user_router"
+    "user_router", "dashboard_router"
 ]

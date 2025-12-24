@@ -128,6 +128,7 @@ class AuthService:
         password: str,
         display_name: str,
         *,
+        role: str = "parent",
         parent_type: Optional[str] = None,
         require_email_verification: bool = True,
         ip_address: Optional[str] = None,
@@ -139,7 +140,8 @@ class AuthService:
             email: User's email address
             password: Plain text password
             display_name: Display name
-            parent_type: Parent type - "mother" or "father"
+            role: User role - "parent", "clinician", "researcher", or "admin"
+            parent_type: Parent type - "אמא" or "אבא" (only for parent role)
             require_email_verification: Whether to require email verification
             ip_address: IP address for audit log
 
@@ -163,6 +165,7 @@ class AuthService:
             display_name=display_name,
             password_hash=password_hash,
             email_verified=not require_email_verification,
+            role=role,
             parent_type=parent_type,
         )
 

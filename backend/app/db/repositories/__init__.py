@@ -54,6 +54,19 @@ from app.db.repositories.synthesis import (
 # Darshan repository
 from app.db.repositories.darshan import DarshanRepository
 
+# Dashboard repositories
+from app.db.repositories.dashboard import (
+    DashboardRepository,
+    ClinicalNoteRepository,
+    InferenceFlagRepository,
+    CertaintyAdjustmentRepository,
+    ExpertEvidenceRepository,
+    # Cognitive trace repositories
+    CognitiveTurnRepository,
+    ExpertCorrectionRepository,
+    MissedSignalRepository,
+)
+
 
 __all__ = [
     # Unit of Work
@@ -85,4 +98,14 @@ __all__ = [
     "InterventionPathwayRepository",
     # Darshan
     "DarshanRepository",
+    # Dashboard
+    "DashboardRepository",
+    "ClinicalNoteRepository",
+    "InferenceFlagRepository",
+    "CertaintyAdjustmentRepository",
+    "ExpertEvidenceRepository",
+    # Cognitive trace
+    "CognitiveTurnRepository",
+    "ExpertCorrectionRepository",
+    "MissedSignalRepository",
 ]

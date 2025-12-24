@@ -830,6 +830,305 @@ class ChittaAPIClient {
     return response.json();
   }
 
+  // =========================================================================
+  // DASHBOARD API METHODS (Admin Only)
+  // =========================================================================
+
+  /**
+   * Get all children with stats (admin only)
+   */
+  async getDashboardChildren(search = '', limit = 50, offset = 0) {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    params.append('limit', limit);
+    params.append('offset', offset);
+
+    const response = await fetch(`${API_BASE_URL}/dashboard/children?${params}`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get full Darshan state for a child (admin only)
+   */
+  async getChildFull(childId) {
+    const response = await fetch(`${API_BASE_URL}/dashboard/children/${childId}/full`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get analytics overview (admin only)
+   */
+  async getDashboardAnalytics() {
+    const response = await fetch(`${API_BASE_URL}/dashboard/analytics/overview`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Adjust curiosity certainty (admin only)
+   */
+  async adjustCertainty(childId, curiosityFocus, newCertainty, reason) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/curiosities/${encodeURIComponent(curiosityFocus)}/adjust-certainty`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          new_certainty: newCertainty,
+          reason,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Add expert evidence to a curiosity (admin only)
+   */
+  async addExpertEvidence(childId, curiosityFocus, content, effect) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/curiosities/${encodeURIComponent(curiosityFocus)}/add-evidence`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          content,
+          effect,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Create an inference flag (admin only)
+   */
+  async createFlag(childId, targetType, targetId, flagType, reason, suggestedCorrection = null) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/flags`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          target_type: targetType,
+          target_id: targetId,
+          flag_type: flagType,
+          reason,
+          suggested_correction: suggestedCorrection,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get clinical notes for a child (admin only)
+   */
+  async getChildNotes(childId, targetType = null, targetId = null) {
+    const params = new URLSearchParams();
+    if (targetType) params.append('target_type', targetType);
+    if (targetId) params.append('target_id', targetId);
+
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/notes?${params}`,
+      {
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Create a clinical note (admin only)
+   */
+  async createNote(childId, targetType, targetId, content, noteType = 'annotation') {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/notes`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          target_type: targetType,
+          target_id: targetId,
+          content,
+          note_type: noteType,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get flags for a child (admin only)
+   */
+  async getChildFlags(childId, includeResolved = false) {
+    const params = new URLSearchParams();
+    params.append('include_resolved', includeResolved);
+
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/flags?${params}`,
+      {
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Resolve a flag (admin only)
+   */
+  async resolveFlag(flagId, resolutionNotes) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/flags/${flagId}/resolve`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          resolution_notes: resolutionNotes,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // =========================================================================
+  // COGNITIVE DASHBOARD API METHODS (Admin Only)
+  // Timeline view for expert review of AI cognitive traces
+  // =========================================================================
+
+  /**
+   * Get cognitive timeline for a child (admin only)
+   * Returns all cognitive turns with their full traces
+   */
+  async getCognitiveTimeline(childId, limit = 50, offset = 0) {
+    const params = new URLSearchParams();
+    params.append('limit', limit);
+    params.append('offset', offset);
+
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/timeline?${params}`,
+      { headers: this.getAuthHeaders() }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get single cognitive turn with full details (admin only)
+   * Includes all corrections and missed signals
+   */
+  async getCognitiveTurn(childId, turnId) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/turns/${turnId}`,
+      { headers: this.getAuthHeaders() }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Create an expert correction on a cognitive turn (admin only)
+   */
+  async createCorrection(childId, turnId, correction) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/turns/${turnId}/corrections`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(correction),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Report a missed signal on a cognitive turn (admin only)
+   */
+  async createMissedSignal(childId, turnId, missedSignal) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/turns/${turnId}/missed-signals`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(missedSignal),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
 }
 
 // Singleton instance

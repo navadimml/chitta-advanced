@@ -358,6 +358,82 @@ class Understanding:
 
         return "\n".join(sections) if sections else "עדיין מתחילים להכיר."
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "observations": [obs.to_dict() for obs in self.observations],
+            "essence": {
+                "narrative": self.essence.narrative,
+                "strengths": self.essence.strengths,
+                "temperament": self.essence.temperament,
+                "core_qualities": self.essence.core_qualities,
+            } if self.essence else None,
+            "patterns": [p.to_dict() for p in self.patterns],
+            "milestones": [m.to_dict() for m in self.milestones],
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Understanding":
+        """Create Understanding from dict."""
+        if not data:
+            return cls()
+
+        observations = [
+            TemporalFact(
+                content=o.get("content", ""),
+                domain=o.get("domain"),
+                source=o.get("source", "conversation"),
+                t_valid=datetime.fromisoformat(o["t_valid"]) if o.get("t_valid") else None,
+                t_created=datetime.fromisoformat(o["t_created"]) if o.get("t_created") else datetime.now(),
+                confidence=o.get("confidence", 0.7),
+            )
+            for o in data.get("observations", [])
+        ]
+
+        essence = None
+        if data.get("essence"):
+            e = data["essence"]
+            essence = Essence(
+                narrative=e.get("narrative", ""),
+                strengths=e.get("strengths", []),
+                temperament=e.get("temperament", []),
+                core_qualities=e.get("core_qualities", []),
+            )
+
+        patterns = [
+            Pattern(
+                description=p.get("description", ""),
+                domains_involved=p.get("domains_involved", p.get("domains", [])),
+                confidence=p.get("confidence", 0.5),
+                detected_at=datetime.fromisoformat(p["detected_at"]) if p.get("detected_at") else datetime.now(),
+                title=p.get("title"),
+            )
+            for p in data.get("patterns", [])
+        ]
+
+        milestones = [
+            DevelopmentalMilestone(
+                id=m.get("id", ""),
+                description=m.get("description", ""),
+                age_months=m.get("age_months"),
+                age_description=m.get("age_description"),
+                domain=m.get("domain", ""),
+                milestone_type=m.get("milestone_type", "observation"),
+                source=m.get("source", "conversation"),
+                recorded_at=datetime.fromisoformat(m["recorded_at"]) if m.get("recorded_at") else datetime.now(),
+                occurred_at=datetime.fromisoformat(m["occurred_at"]) if m.get("occurred_at") else None,
+                notes=m.get("notes"),
+            )
+            for m in data.get("milestones", [])
+        ]
+
+        return cls(
+            observations=observations,
+            essence=essence,
+            patterns=patterns,
+            milestones=milestones,
+        )
+
 
 @dataclass
 class Pattern:
@@ -652,6 +728,21 @@ class ToolCall:
     name: str
     args: Dict[str, Any]
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "name": self.name,
+            "args": self.args,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ToolCall":
+        """Create from dict."""
+        return cls(
+            name=data.get("name", ""),
+            args=data.get("args", {}),
+        )
+
 
 @dataclass
 class PerceptionResult:
@@ -687,6 +778,186 @@ class Response:
     open_questions: List[str]
     # Signals that important learning occurred - triggers background crystallization
     should_crystallize: bool = False
+
+
+# === Cognitive Trace (Dashboard Support) ===
+
+@dataclass
+class ToolCallRecord:
+    """
+    Enhanced record of a tool call with results.
+
+    Used for cognitive trace - captures what tool was called,
+    with what arguments, and what element it created.
+    """
+    tool_name: str
+    arguments: Dict[str, Any]
+    # What was created (if any)
+    created_element_id: Optional[str] = None
+    created_element_type: Optional[str] = None  # observation, curiosity, evidence
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "tool_name": self.tool_name,
+            "arguments": self.arguments,
+            "created_element_id": self.created_element_id,
+            "created_element_type": self.created_element_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ToolCallRecord":
+        """Create from dict."""
+        return cls(
+            tool_name=data.get("tool_name", ""),
+            arguments=data.get("arguments", {}),
+            created_element_id=data.get("created_element_id"),
+            created_element_type=data.get("created_element_type"),
+        )
+
+
+@dataclass
+class StateDelta:
+    """
+    Changes to Darshan state from a single turn.
+
+    Captures what changed - observations added, curiosities spawned, etc.
+    """
+    observations_added: List[str] = field(default_factory=list)  # Content of observations
+    curiosities_spawned: List[str] = field(default_factory=list)  # Focus of new curiosities
+    curiosities_updated: List[Dict[str, Any]] = field(default_factory=list)  # {focus, field, old, new}
+    evidence_added: List[Dict[str, Any]] = field(default_factory=list)  # {curiosity_focus, content, effect}
+    child_identity_set: Dict[str, Any] = field(default_factory=dict)  # {name, age, gender}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "observations_added": self.observations_added,
+            "curiosities_spawned": self.curiosities_spawned,
+            "curiosities_updated": self.curiosities_updated,
+            "evidence_added": self.evidence_added,
+            "child_identity_set": self.child_identity_set,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "StateDelta":
+        """Create from dict."""
+        return cls(
+            observations_added=data.get("observations_added", []),
+            curiosities_spawned=data.get("curiosities_spawned", []),
+            curiosities_updated=data.get("curiosities_updated", []),
+            evidence_added=data.get("evidence_added", []),
+            child_identity_set=data.get("child_identity_set", {}),
+        )
+
+    def is_empty(self) -> bool:
+        """Check if no changes occurred."""
+        return (
+            not self.observations_added
+            and not self.curiosities_spawned
+            and not self.curiosities_updated
+            and not self.evidence_added
+            and not self.child_identity_set
+        )
+
+
+@dataclass
+class CognitiveTurn:
+    """
+    Complete cognitive trace for one conversation turn.
+
+    This is the core data structure for the Cognitive Dashboard.
+    It captures the AI's full "thinking" for a single turn:
+    - What was the input
+    - What did the AI perceive (tool calls)
+    - What changed in state
+    - How did the AI respond
+
+    Experts can review and annotate each turn.
+    """
+    turn_id: str
+    turn_number: int
+    child_id: str
+    timestamp: datetime
+
+    # Input
+    parent_message: str
+    parent_role: Optional[str] = None  # mother, father, clinician
+
+    # Phase 1: Perception
+    tool_calls: List[ToolCallRecord] = field(default_factory=list)
+    perceived_intent: Optional[str] = None
+
+    # State changes
+    state_delta: Optional[StateDelta] = None
+
+    # Phase 2: Response
+    turn_guidance: Optional[str] = None
+    active_curiosities: List[str] = field(default_factory=list)  # Focus strings
+    response_text: Optional[str] = None
+
+    @classmethod
+    def create(
+        cls,
+        child_id: str,
+        turn_number: int,
+        parent_message: str,
+        parent_role: Optional[str] = None,
+    ) -> "CognitiveTurn":
+        """Create a new cognitive turn with generated ID."""
+        return cls(
+            turn_id=f"turn_{generate_id()}",
+            turn_number=turn_number,
+            child_id=child_id,
+            timestamp=datetime.now(),
+            parent_message=parent_message,
+            parent_role=parent_role,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "turn_id": self.turn_id,
+            "turn_number": self.turn_number,
+            "child_id": self.child_id,
+            "timestamp": self.timestamp.isoformat(),
+            "parent_message": self.parent_message,
+            "parent_role": self.parent_role,
+            "tool_calls": [tc.to_dict() for tc in self.tool_calls],
+            "perceived_intent": self.perceived_intent,
+            "state_delta": self.state_delta.to_dict() if self.state_delta else None,
+            "turn_guidance": self.turn_guidance,
+            "active_curiosities": self.active_curiosities,
+            "response_text": self.response_text,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CognitiveTurn":
+        """Create from dict."""
+        timestamp = data.get("timestamp")
+        if isinstance(timestamp, str):
+            timestamp = datetime.fromisoformat(timestamp)
+        else:
+            timestamp = datetime.now()
+
+        state_delta = None
+        if data.get("state_delta"):
+            state_delta = StateDelta.from_dict(data["state_delta"])
+
+        return cls(
+            turn_id=data.get("turn_id", ""),
+            turn_number=data.get("turn_number", 0),
+            child_id=data.get("child_id", ""),
+            timestamp=timestamp,
+            parent_message=data.get("parent_message", ""),
+            parent_role=data.get("parent_role"),
+            tool_calls=[ToolCallRecord.from_dict(tc) for tc in data.get("tool_calls", [])],
+            perceived_intent=data.get("perceived_intent"),
+            state_delta=state_delta,
+            turn_guidance=data.get("turn_guidance"),
+            active_curiosities=data.get("active_curiosities", []),
+            response_text=data.get("response_text"),
+        )
 
 
 # === Memory & Synthesis ===

@@ -11,6 +11,7 @@ Includes:
 
 import uuid
 from datetime import datetime
+from enum import Enum
 from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, Index, func
@@ -24,6 +25,14 @@ from app.db.base import (
     UUIDPrimaryKeyMixin,
     AuditAction,
 )
+
+
+class UserRole(str, Enum):
+    """User roles in the system."""
+    PARENT = "parent"           # Primary user - parents of children
+    CLINICIAN = "clinician"     # Clinical professionals (therapists, pediatricians)
+    RESEARCHER = "researcher"   # Research team members
+    ADMIN = "admin"             # System administrators
 
 if TYPE_CHECKING:
     from app.db.models_access import FamilyMember, ChildAccess
@@ -51,7 +60,10 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     preferred_language: Mapped[str] = mapped_column(String(5), default="he", nullable=False)
     timezone: Mapped[str] = mapped_column(String(50), default="Asia/Jerusalem", nullable=False)
-    parent_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # "mother" or "father"
+
+    # Role-based access
+    role: Mapped[str] = mapped_column(String(20), default=UserRole.PARENT.value, nullable=False)
+    parent_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # "אמא" or "אבא" (only for parent role)
 
     # Auth (nullable if OAuth-only user)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -91,6 +103,16 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
+
+    @property
+    def can_access_dashboard(self) -> bool:
+        """Check if user can access the team dashboard."""
+        return self.role in [UserRole.CLINICIAN.value, UserRole.RESEARCHER.value, UserRole.ADMIN.value] or self.is_admin
+
+    @property
+    def is_clinical_expert(self) -> bool:
+        """Check if user is a clinical expert (clinician or researcher)."""
+        return self.role in [UserRole.CLINICIAN.value, UserRole.RESEARCHER.value]
 
 
 class OAuthAccount(Base, UUIDPrimaryKeyMixin, TimestampMixin):

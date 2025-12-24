@@ -252,6 +252,18 @@ class GestaltManager:
             "shared_summaries": darshan_state.get("shared_summaries", {}),
         }
 
+        # Add child identity (name, gender, birth_date)
+        if darshan_state.get("name"):
+            darshan_data["name"] = darshan_state["name"]
+        if darshan_state.get("child_gender"):
+            darshan_data["child_gender"] = darshan_state["child_gender"]
+        if darshan_state.get("child_birth_date"):
+            darshan_data["child_birth_date"] = darshan_state["child_birth_date"]
+
+        # Add understanding (observations, patterns, milestones)
+        if darshan_state.get("understanding"):
+            darshan_data["understanding"] = darshan_state["understanding"]
+
         # Add crystal if present
         if darshan_state.get("crystal"):
             darshan_data["crystal"] = darshan_state["crystal"]
@@ -260,11 +272,67 @@ class GestaltManager:
         try:
             async with UnitOfWork() as uow:
                 await uow.darshan.save_darshan_data(family_id, darshan_data)
+
+                # Persist cognitive turns for dashboard (separate table)
+                latest_turn = darshan.get_latest_cognitive_turn()
+                if latest_turn:
+                    await self._persist_cognitive_turn(uow, latest_turn)
+
                 await uow.commit()
                 logger.info(f"Persisted darshan data for {family_id} to database")
         except Exception as e:
             logger.error(f"Failed to persist darshan data to DB for {family_id}: {e}")
             raise
+
+    async def _persist_cognitive_turn(self, uow: UnitOfWork, turn):
+        """
+        Persist a cognitive turn to the database for dashboard review.
+
+        Cognitive turns are stored separately from the main Darshan state
+        to support the expert review dashboard.
+        """
+        from .models import CognitiveTurn as CognitiveTurnModel
+
+        # Check if this turn already exists (idempotency)
+        existing = await uow.dashboard.cognitive_turns.get_by_turn_id(turn.turn_id)
+        if existing:
+            logger.debug(f"Cognitive turn {turn.turn_id} already persisted, skipping")
+            return
+
+        # Convert tool calls to serializable format
+        tool_calls_data = None
+        if turn.tool_calls:
+            tool_calls_data = [
+                {"tool_name": tc.tool_name, "arguments": tc.arguments}
+                for tc in turn.tool_calls
+            ]
+
+        # Convert state delta to serializable format
+        state_delta_data = None
+        if turn.state_delta:
+            state_delta_data = {
+                "observations_added": turn.state_delta.observations_added,
+                "curiosities_spawned": turn.state_delta.curiosities_spawned,
+                "evidence_added": turn.state_delta.evidence_added,
+                "child_identity_set": turn.state_delta.child_identity_set,
+            }
+
+        # Create the database record
+        await uow.dashboard.cognitive_turns.create_turn(
+            turn_id=turn.turn_id,
+            turn_number=turn.turn_number,
+            child_id=turn.child_id,
+            timestamp=turn.timestamp,
+            parent_message=turn.parent_message,
+            parent_role=turn.parent_role,
+            tool_calls=tool_calls_data,
+            perceived_intent=turn.perceived_intent,
+            state_delta=state_delta_data,
+            turn_guidance=turn.turn_guidance,
+            active_curiosities=turn.active_curiosities,
+            response_text=turn.response_text,
+        )
+        logger.info(f"Persisted cognitive turn {turn.turn_id} for dashboard")
 
 
 # Singleton accessor

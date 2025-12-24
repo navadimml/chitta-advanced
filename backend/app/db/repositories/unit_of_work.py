@@ -45,6 +45,7 @@ from app.db.repositories.synthesis import (
     InterventionPathwayRepository,
 )
 from app.db.repositories.darshan import DarshanRepository
+from app.db.repositories.dashboard import DashboardRepository
 
 
 class UnitOfWork:
@@ -114,6 +115,7 @@ class UnitOfWork:
         self._intervention_pathways: Optional[InterventionPathwayRepository] = None
 
         self._darshan: Optional[DarshanRepository] = None
+        self._dashboard: Optional[DashboardRepository] = None
 
     async def __aenter__(self) -> "UnitOfWork":
         """Enter async context - begin transaction."""
@@ -295,3 +297,13 @@ class UnitOfWork:
         if self._darshan is None:
             self._darshan = DarshanRepository(self.session)
         return self._darshan
+
+    # =========================================================================
+    # DASHBOARD REPOSITORY
+    # =========================================================================
+
+    @property
+    def dashboard(self) -> DashboardRepository:
+        if self._dashboard is None:
+            self._dashboard = DashboardRepository(self.session)
+        return self._dashboard

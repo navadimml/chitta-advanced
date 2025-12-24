@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Menu, MessageCircle, LogOut } from 'lucide-react';
 
 // API Client
@@ -34,9 +35,12 @@ import GestaltCards from './components/GestaltCards';
 // Family Components
 import ChildSwitcher from './components/family/ChildSwitcher';
 
+// Dashboard (Team Internal)
+import Dashboard from './components/dashboard';
+
 function App() {
   // Auth state
-  const { isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, logout, user } = useAuth();
 
   // Show loading screen while auth is being checked
   if (authLoading) {
@@ -48,11 +52,29 @@ function App() {
     return <AuthPage />;
   }
 
-  // Wrap authenticated app with FamilyProvider
+  // Authenticated user - use routing
   return (
-    <FamilyProvider>
-      <AuthenticatedAppWithFamily onLogout={logout} />
-    </FamilyProvider>
+    <Routes>
+      {/* Dashboard route - admin only */}
+      <Route
+        path="/dashboard/*"
+        element={
+          user?.is_admin
+            ? <Dashboard onLogout={logout} />
+            : <Navigate to="/" replace />
+        }
+      />
+
+      {/* Main app route */}
+      <Route
+        path="/*"
+        element={
+          <FamilyProvider>
+            <AuthenticatedAppWithFamily onLogout={logout} />
+          </FamilyProvider>
+        }
+      />
+    </Routes>
   );
 }
 

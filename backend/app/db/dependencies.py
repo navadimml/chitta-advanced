@@ -182,7 +182,10 @@ async def get_current_admin_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
     """
-    Get current user and verify they are an admin.
+    Get current user and verify they can access the dashboard.
+
+    Allows users with roles: clinician, researcher, admin
+    Also allows users with the is_admin flag set.
 
     Usage:
         @router.delete("/users/{user_id}")
@@ -192,10 +195,10 @@ async def get_current_admin_user(
         ):
             ...
     """
-    if not current_user.is_admin:
+    if not current_user.can_access_dashboard:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
+            detail="Dashboard access required. Only clinicians, researchers, and admins can access this resource.",
         )
     return current_user
 

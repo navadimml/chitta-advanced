@@ -38,6 +38,7 @@ from .models import (
     Story,
     JournalEntry,
     Pattern,
+    Essence,
     ToolCall,
     PerceptionResult,
     TurnContext,
@@ -51,6 +52,10 @@ from .models import (
     VideoScenario,
     parse_temporal,
     generate_id,
+    # Cognitive trace models for dashboard
+    CognitiveTurn,
+    ToolCallRecord,
+    StateDelta,
 )
 from .formatting import (
     format_understanding,
@@ -103,6 +108,7 @@ class Darshan:
         child_birth_date: Optional["date"] = None,
         child_gender: Optional[str] = None,
         parent_context: Optional[ParentContext] = None,
+        cognitive_turns: Optional[List[CognitiveTurn]] = None,
     ):
         """
         Initialize Darshan.
@@ -120,6 +126,7 @@ class Darshan:
             child_birth_date: Child's birth date for age-based temporal calculations
             child_gender: Child's gender for correct pronoun usage (male/female/unknown)
             parent_context: Parent context for gender-appropriate verb forms
+            cognitive_turns: Cognitive traces for dashboard (optional, persisted separately)
         """
         self.child_id = child_id
         self.child_name = child_name
@@ -133,6 +140,9 @@ class Darshan:
         self.child_birth_date = child_birth_date
         self.child_gender = child_gender
         self.parent_context = parent_context
+
+        # Cognitive traces for dashboard (not persisted with darshan - separate table)
+        self.cognitive_turns: List[CognitiveTurn] = cognitive_turns or []
 
         # Session-level flags (persisted to survive page reload)
         # Used for guided collection mode and other temporary states
@@ -170,7 +180,11 @@ class Darshan:
     # THREE PUBLIC METHODS - The Surface
     # ========================================
 
-    async def process_message(self, message: str) -> Response:
+    async def process_message(
+        self,
+        message: str,
+        parent_role: Optional[str] = None,
+    ) -> Response:
         """
         Process a parent message with TWO-PHASE architecture.
 
@@ -183,18 +197,51 @@ class Darshan:
           - LLM has perception context
           - LLM generates natural Hebrew response
           - Returns: text only
+
+        Also creates a CognitiveTurn for dashboard review.
         """
+        # Calculate turn number
+        turn_number = len(self.cognitive_turns) + 1
+
+        # Create cognitive turn to track this interaction
+        cognitive_turn = CognitiveTurn.create(
+            child_id=self.child_id,
+            turn_number=turn_number,
+            parent_message=message,
+            parent_role=parent_role,
+        )
+
         # Build context for this turn
         turn_context = self._build_turn_context(message)
 
         # PHASE 1: Perception with tools
         perception_result = await self._phase1_perceive(turn_context)
 
-        # Apply learnings from tool calls
-        self._apply_learnings(perception_result.tool_calls)
+        # Record tool calls in cognitive turn
+        cognitive_turn.tool_calls = [
+            ToolCallRecord(
+                tool_name=tc.name,
+                arguments=tc.args,
+            )
+            for tc in perception_result.tool_calls
+        ]
+        cognitive_turn.perceived_intent = perception_result.perceived_intent
+
+        # Apply learnings from tool calls (returns StateDelta)
+        state_delta = self._apply_learnings(perception_result.tool_calls)
+        cognitive_turn.state_delta = state_delta
 
         # PHASE 2: Response without tools
         response_text = await self._phase2_respond(turn_context, perception_result)
+
+        # Record response in cognitive turn
+        cognitive_turn.response_text = response_text
+        cognitive_turn.active_curiosities = [
+            c.focus for c in self.get_active_curiosities()[:5]  # Top 5 active
+        ]
+
+        # Store cognitive turn
+        self.cognitive_turns.append(cognitive_turn)
 
         # Update session history
         self.session_history.append(Message(role="user", content=message))
@@ -248,6 +295,16 @@ class Darshan:
     def get_active_curiosities(self) -> List[Curiosity]:
         """What am I curious about right now?"""
         return self._curiosities.get_active(self.understanding)
+
+    def get_latest_cognitive_turn(self) -> Optional[CognitiveTurn]:
+        """Get the most recent cognitive turn for persistence."""
+        if self.cognitive_turns:
+            return self.cognitive_turns[-1]
+        return None
+
+    def get_cognitive_turns(self) -> List[CognitiveTurn]:
+        """Get all cognitive turns for this session."""
+        return self.cognitive_turns
 
     def synthesize(self) -> Optional[SynthesisReport]:
         """
@@ -679,30 +736,54 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
     # TOOL CALL HANDLERS
     # ========================================
 
-    def _apply_learnings(self, tool_calls: List[ToolCall]):
-        """Apply what LLM learned to child state."""
+    def _apply_learnings(self, tool_calls: List[ToolCall]) -> StateDelta:
+        """
+        Apply what LLM learned to child state.
+
+        Returns a StateDelta capturing all changes made.
+        """
         # Debug: Log what tool calls we received from Phase 1
         logger.info(f"📊 Phase 1 returned {len(tool_calls)} tool calls")
         for call in tool_calls:
             logger.info(f"  🔧 Tool: {call.name}, args: {call.args}")
 
+        # Track state changes for cognitive trace
+        state_delta = StateDelta()
+
         for call in tool_calls:
             try:
                 if call.name == "notice":
                     self._handle_notice(call.args)
+                    # Track observation added
+                    state_delta.observations_added.append(call.args.get("observation", ""))
                 elif call.name == "wonder":
                     self._handle_wonder(call.args)
+                    # Track curiosity spawned
+                    state_delta.curiosities_spawned.append(call.args.get("about", ""))
                 elif call.name == "capture_story":
                     self._handle_capture_story(call.args)
+                    # Stories spawn observations internally, tracked separately
                 elif call.name == "add_evidence":
                     self._handle_add_evidence(call.args)
+                    # Track evidence added
+                    state_delta.evidence_added.append({
+                        "curiosity_focus": call.args.get("cycle_id", ""),  # investigation_id in args
+                        "content": call.args.get("evidence", ""),
+                        "effect": call.args.get("effect", "supports"),
+                    })
                 # spawn_exploration removed - investigations auto-start in _handle_wonder
                 elif call.name == "record_milestone":
                     self._handle_record_milestone(call.args)
                 elif call.name == "set_child_identity":
                     self._handle_set_child_identity(call.args)
+                    # Track identity changes
+                    state_delta.child_identity_set = {
+                        k: v for k, v in call.args.items() if v is not None
+                    }
             except Exception as e:
                 logger.error(f"Error handling tool call {call.name}: {e}")
+
+        return state_delta
 
     def _handle_notice(self, args: Dict[str, Any]):
         """Notice an observation about the child."""
@@ -1057,6 +1138,18 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             ],
         }
 
+        # Include child identity (name, gender, birth_date)
+        if self.child_name:
+            state["name"] = self.child_name
+        if self.child_gender:
+            state["child_gender"] = self.child_gender
+        if self.child_birth_date:
+            state["child_birth_date"] = self.child_birth_date.isoformat() if hasattr(self.child_birth_date, 'isoformat') else str(self.child_birth_date)
+
+        # Include understanding (observations, patterns, milestones)
+        if self.understanding:
+            state["understanding"] = self.understanding.to_dict()
+
         # Include crystal if present
         if self.crystal:
             state["crystal"] = self.crystal.to_dict()
@@ -1123,6 +1216,28 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     notes=m_data.get("notes"),
                 )
                 understanding.add_milestone(milestone)
+
+            # Load patterns
+            patterns_list = understanding_data.get("patterns", [])
+            for p_data in patterns_list:
+                pattern = Pattern(
+                    description=p_data.get("description", ""),
+                    domains_involved=p_data.get("domains_involved", p_data.get("domains", [])),
+                    confidence=p_data.get("confidence", 0.5),
+                    detected_at=datetime.fromisoformat(p_data["detected_at"]) if p_data.get("detected_at") else datetime.now(),
+                    title=p_data.get("title"),
+                )
+                understanding.add_pattern(pattern)
+
+            # Load essence
+            if understanding_data.get("essence"):
+                e = understanding_data["essence"]
+                understanding.essence = Essence(
+                    narrative=e.get("narrative", ""),
+                    strengths=e.get("strengths", []),
+                    temperament=e.get("temperament", []),
+                    core_qualities=e.get("core_qualities", []),
+                )
 
         # Build stories
         stories = []

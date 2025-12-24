@@ -9,14 +9,14 @@ Provides REST endpoints for:
 - Email verification
 """
 
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
 
 from app.db import UnitOfWork, get_uow, get_current_user
-from app.db.models_auth import User
+from app.db.models_auth import User, UserRole
 from app.services.auth import AuthService
 
 
@@ -32,7 +32,25 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     display_name: str = Field(min_length=1, max_length=100)
-    parent_type: str = Field(pattern="^(mother|father)$", description="Parent type: 'mother' or 'father'")
+    role: Literal["parent", "clinician", "researcher", "admin"] = Field(
+        default="parent",
+        description="User role: parent, clinician, researcher, or admin"
+    )
+    parent_type: Optional[str] = Field(
+        default=None,
+        description="Parent type (required for parent role): 'אמא', 'אבא', 'mother', or 'father'"
+    )
+
+    @model_validator(mode='after')
+    def validate_parent_type(self):
+        """Validate that parent_type is provided for parent role and has valid value."""
+        if self.role == "parent":
+            if not self.parent_type:
+                raise ValueError("parent_type is required when role is 'parent'")
+            valid_types = {"אמא", "אבא", "mother", "father"}
+            if self.parent_type not in valid_types:
+                raise ValueError(f"parent_type must be one of: {valid_types}")
+        return self
 
 
 class LoginRequest(BaseModel):
@@ -88,7 +106,10 @@ class UserResponse(BaseModel):
     display_name: str
     email_verified: bool
     created_at: datetime
+    role: str
     parent_type: Optional[str] = None
+    is_admin: bool = False
+    can_access_dashboard: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -139,6 +160,7 @@ async def register(
         email=data.email,
         password=data.password,
         display_name=data.display_name,
+        role=data.role,
         parent_type=data.parent_type,
         ip_address=get_client_ip(request),
         require_email_verification=True,
@@ -161,7 +183,10 @@ async def register(
         display_name=result.user.display_name,
         email_verified=result.user.email_verified,
         created_at=result.user.created_at,
+        role=result.user.role,
         parent_type=result.user.parent_type,
+        is_admin=result.user.is_admin,
+        can_access_dashboard=result.user.can_access_dashboard,
     )
 
 
@@ -300,7 +325,10 @@ async def get_current_user_info(
         display_name=current_user.display_name,
         email_verified=current_user.email_verified,
         created_at=current_user.created_at,
+        role=current_user.role,
         parent_type=current_user.parent_type,
+        is_admin=current_user.is_admin,
+        can_access_dashboard=current_user.can_access_dashboard,
     )
 
 
