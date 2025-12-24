@@ -16,6 +16,7 @@ import {
 import { api } from '../../api/client';
 import CuriosityExplorer from './CuriosityExplorer';
 import CognitiveTimeline from './CognitiveTimeline';
+import ConversationReplay from './ConversationReplay';
 
 /**
  * Child Detail Component
@@ -147,27 +148,27 @@ export default function ChildDetail() {
 
         {/* Tab Navigation */}
         <nav className="flex items-center gap-1 mt-4 -mb-px">
-          <TabLink to="" end>
+          <TabLink to={`/dashboard/children/${childId}`} end>
             <Lightbulb className="w-4 h-4" />
             Curiosities
           </TabLink>
-          <TabLink to="understanding">
+          <TabLink to={`/dashboard/children/${childId}/understanding`}>
             <Eye className="w-4 h-4" />
             Understanding
           </TabLink>
-          <TabLink to="crystal">
+          <TabLink to={`/dashboard/children/${childId}/crystal`}>
             <Sparkles className="w-4 h-4" />
             Crystal
           </TabLink>
-          <TabLink to="timeline">
+          <TabLink to={`/dashboard/children/${childId}/timeline`}>
             <Clock className="w-4 h-4" />
             Timeline
           </TabLink>
-          <TabLink to="conversation">
+          <TabLink to={`/dashboard/children/${childId}/conversation`}>
             <MessageSquare className="w-4 h-4" />
             Conversation
           </TabLink>
-          <TabLink to="notes">
+          <TabLink to={`/dashboard/children/${childId}/notes`}>
             <FileText className="w-4 h-4" />
             Notes & Flags
           </TabLink>
@@ -201,7 +202,7 @@ export default function ChildDetail() {
           />
           <Route
             path="conversation"
-            element={<ConversationPlaceholder />}
+            element={<ConversationReplay childId={childId} />}
           />
           <Route
             path="notes"
@@ -446,17 +447,8 @@ function CrystalView({ crystal }) {
 }
 
 /**
- * Placeholder components for routes not yet fully implemented
+ * Placeholder component for Notes (not yet fully implemented)
  */
-function ConversationPlaceholder() {
-  return (
-    <div className="p-8 text-center text-gray-500">
-      <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-      <p>Conversation Replay coming soon...</p>
-    </div>
-  );
-}
-
 function NotesPlaceholder({ childId, feedback }) {
   return (
     <div className="p-8">
