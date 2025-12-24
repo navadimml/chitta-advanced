@@ -11,8 +11,9 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
 
-from app.db.dependencies import get_current_user, RequireAuth
+from app.db.dependencies import get_current_user, get_uow, RequireAuth
 from app.db.models_auth import User
+from app.db.repositories import UnitOfWork
 
 router = APIRouter(prefix="/family", tags=["family"])
 logger = logging.getLogger(__name__)
@@ -28,7 +29,8 @@ class AddChildResponse(BaseModel):
 @router.post("/{family_id}/children", response_model=AddChildResponse)
 async def add_child_to_family(
     family_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow)
 ):
     """
     Add a new child placeholder to family.
@@ -42,7 +44,7 @@ async def add_child_to_family(
     family_service = get_family_service()
 
     # Verify user has access to this family
-    user_family_id = await family_service.get_user_family_id(str(current_user.id))
+    user_family_id = await family_service.get_user_family_id(str(current_user.id), uow)
     if user_family_id != family_id:
         raise HTTPException(
             status_code=403,
@@ -50,7 +52,7 @@ async def add_child_to_family(
         )
 
     # Create new child placeholder
-    child_id = await family_service.add_child_to_family(family_id)
+    child_id = await family_service.add_child_to_family(family_id, uow)
 
     return AddChildResponse(child_id=child_id)
 

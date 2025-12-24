@@ -11,8 +11,9 @@ from typing import Optional, List
 from datetime import datetime
 import logging
 
-from app.db.dependencies import get_current_user
+from app.db.dependencies import get_current_user, get_uow
 from app.db.models_auth import User
+from app.db.repositories import UnitOfWork
 from app.services.family_service import get_family_service
 
 router = APIRouter(prefix="/user", tags=["user"])
@@ -45,7 +46,8 @@ class FamilyWithChildrenResponse(BaseModel):
 
 @router.get("/me/family", response_model=FamilyWithChildrenResponse)
 async def get_my_family(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow)
 ):
     """
     Get current user's family with all children.
@@ -57,10 +59,10 @@ async def get_my_family(
     family_service = get_family_service()
 
     # Get or create family (auto-creates for new users)
-    family = await family_service.get_or_create_family_for_user(str(current_user.id))
+    family = await family_service.get_or_create_family_for_user(str(current_user.id), uow)
 
     # Get family with children summaries
-    data = await family_service.get_family_with_children(family.id)
+    data = await family_service.get_family_with_children(family.id, uow)
 
     # Convert last_activity datetime to string
     children = []

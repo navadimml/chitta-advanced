@@ -17,8 +17,9 @@ from pathlib import Path
 import logging
 
 from app.core.app_state import app_state
-from app.db.dependencies import get_current_user_optional, get_current_user, RequireAuth
+from app.db.dependencies import get_current_user_optional, get_current_user, get_uow, RequireAuth
 from app.db.models_auth import User
+from app.db.repositories import UnitOfWork
 from app.services.unified_state_service import get_unified_state_service
 from app.config.config_loader import load_app_messages
 
@@ -65,7 +66,8 @@ class VideoDeclineRequest(BaseModel):
 async def chat_v2_init(
     child_id: str,
     language: str = "he",
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow)
 ):
     """
     V2 Chat Init - Get Chitta's opening message
@@ -115,7 +117,7 @@ async def chat_v2_init(
             family_service = get_family_service()
 
             # Get the family for current user
-            family = await family_service.get_or_create_family_for_user(current_user.id)
+            family = await family_service.get_or_create_family_for_user(current_user.id, uow)
 
             # If family has more than 1 child, use additional_child greeting
             if len(family.children) > 1:
@@ -217,7 +219,8 @@ async def request_synthesis_v2(
 @router.post("/v2/send", response_model=SendMessageResponse)
 async def send_message_v2(
     request: SendMessageRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow)
 ):
     """
     V2 Chat Endpoint - Uses ChittaService with Darshan architecture
@@ -244,8 +247,8 @@ async def send_message_v2(
         else:
             # Try to get role from family membership
             family_service = get_family_service()
-            family = await family_service.get_or_create_family_for_user(current_user.id)
-            role = await family_service.get_user_role_in_family(current_user.id, family.id)
+            family = await family_service.get_or_create_family_for_user(current_user.id, uow)
+            role = await family_service.get_user_role_in_family(current_user.id, family.id, uow)
             if role in ("mother", "father"):
                 parent_context = ParentContext.from_role(
                     name=current_user.display_name,
