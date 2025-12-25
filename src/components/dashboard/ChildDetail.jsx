@@ -157,6 +157,10 @@ export default function ChildDetail() {
               <Sparkles className="w-4 h-4" />
               קריסטל
             </TabLink>
+            <TabLink to={`/dashboard/children/${childId}/videos`}>
+              <Video className="w-4 h-4" />
+              סרטונים
+            </TabLink>
             <TabLink to={`/dashboard/children/${childId}/analytics`}>
               <BarChart3 className="w-4 h-4" />
               אנליטיקה
@@ -189,6 +193,12 @@ export default function ChildDetail() {
           <Route
             path="crystal"
             element={<CrystalView crystal={child?.crystal} />}
+          />
+
+          {/* Videos */}
+          <Route
+            path="videos"
+            element={<VideosView childId={childId} />}
           />
 
           {/* Analytics */}
@@ -1017,6 +1027,406 @@ function AnalyticsView({ childId }) {
           כאן יוצגו דפוסי תיקונים, מדדי שיפור, והמלצות לאימון.
         </p>
       </div>
+    </div>
+  );
+}
+
+// Video status translations
+const VIDEO_STATUS_HE = {
+  pending: 'ממתין',
+  uploaded: 'הועלה',
+  analyzed: 'נותח',
+  validation_failed: 'נכשל',
+  needs_confirmation: 'ממתין לאישור',
+  acknowledged: 'אושר',
+  rejected: 'נדחה',
+};
+
+/**
+ * Videos View - Video gallery with analysis (plan 6.5, 9)
+ */
+function VideosView({ childId }) {
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [statusFilter, setStatusFilter] = useState(null);
+
+  useEffect(() => {
+    loadVideos();
+  }, [childId, statusFilter]);
+
+  async function loadVideos() {
+    setLoading(true);
+    try {
+      const data = await api.getChildVideos(childId, statusFilter);
+      setVideos(data.videos || []);
+    } catch (err) {
+      console.error('Error loading videos:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-violet-200 border-t-violet-600" />
+      </div>
+    );
+  }
+
+  if (videos.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center" dir="rtl">
+        <Video className="w-12 h-12 text-gray-200 mb-4" />
+        <h3 className="text-gray-400 text-lg mb-2">אין סרטונים עדיין</h3>
+        <p className="text-gray-300 text-sm max-w-md">
+          סרטונים יופיעו כאן כאשר ההורה יעלה סרטונים בעקבות המלצות וידאו.
+        </p>
+      </div>
+    );
+  }
+
+  // Group videos by status
+  const analyzed = videos.filter(v => v.status === 'analyzed');
+  const uploaded = videos.filter(v => v.status === 'uploaded');
+  const pending = videos.filter(v => v.status === 'pending');
+  const failed = videos.filter(v => v.status === 'validation_failed');
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto" dir="rtl">
+      {/* Header with filter */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-medium text-gray-800">
+          סרטונים ({videos.length})
+        </h2>
+        <div className="flex items-center gap-2 text-sm">
+          {analyzed.length > 0 && (
+            <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg">
+              ✓ {analyzed.length} נותחו
+            </span>
+          )}
+          {uploaded.length > 0 && (
+            <span className="px-2 py-1 bg-violet-50 text-violet-600 rounded-lg">
+              ⬆ {uploaded.length} הועלו
+            </span>
+          )}
+          {pending.length > 0 && (
+            <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">
+              ○ {pending.length} ממתינים
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Video grid or detail view */}
+      {selectedVideo ? (
+        <VideoAnalysisView
+          video={selectedVideo}
+          onBack={() => setSelectedVideo(null)}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {videos.map((video) => (
+            <VideoCard
+              key={video.id}
+              video={video}
+              onClick={() => setSelectedVideo(video)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Video Card - Thumbnail card in gallery
+ */
+function VideoCard({ video, onClick }) {
+  const statusColors = {
+    pending: 'bg-gray-100 text-gray-600',
+    uploaded: 'bg-violet-50 text-violet-600',
+    analyzed: 'bg-emerald-50 text-emerald-600',
+    validation_failed: 'bg-red-50 text-red-600',
+    needs_confirmation: 'bg-amber-50 text-amber-600',
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden text-right hover:border-violet-200 hover:shadow-md transition"
+    >
+      {/* Thumbnail placeholder */}
+      <div className="aspect-video bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
+        <Video className="w-12 h-12 text-violet-300" />
+      </div>
+
+      {/* Info */}
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-2">
+          <h3 className="font-medium text-gray-800 text-sm line-clamp-2">
+            {video.title}
+          </h3>
+          <span className={`px-2 py-0.5 rounded text-xs flex-shrink-0 mr-2 ${statusColors[video.status] || 'bg-gray-100'}`}>
+            {VIDEO_STATUS_HE[video.status] || video.status}
+          </span>
+        </div>
+
+        {/* Hypothesis link */}
+        {video.target_hypothesis_focus && (
+          <p className="text-xs text-purple-600 mb-2 line-clamp-1">
+            ◆ {video.target_hypothesis_focus}
+          </p>
+        )}
+
+        {/* Analysis stats */}
+        {video.status === 'analyzed' && (
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span>📍 {video.observations?.length || 0} תצפיות</span>
+            {video.strengths_observed?.length > 0 && (
+              <span>💪 {video.strengths_observed.length} חוזקות</span>
+            )}
+          </div>
+        )}
+
+        {/* Upload date */}
+        {video.uploaded_at && (
+          <p className="text-xs text-gray-300 mt-2">
+            הועלה: {new Date(video.uploaded_at).toLocaleDateString('he-IL')}
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
+/**
+ * Video Analysis View - Detailed view with player and observations (plan 6.5)
+ */
+function VideoAnalysisView({ video, onBack }) {
+  const [activeTab, setActiveTab] = useState('observations');
+
+  return (
+    <div className="space-y-6">
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 text-gray-500 hover:text-gray-700"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        חזרה לגלריה
+      </button>
+
+      {/* Video header */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-medium text-gray-800 mb-1">{video.title}</h2>
+            {video.target_hypothesis_focus && (
+              <p className="text-purple-600 text-sm">
+                ◆ קשור להשערה: {video.target_hypothesis_focus}
+              </p>
+            )}
+          </div>
+          <span className={`px-3 py-1 rounded-lg text-sm ${
+            video.status === 'analyzed' ? 'bg-emerald-50 text-emerald-600' :
+            video.status === 'uploaded' ? 'bg-violet-50 text-violet-600' :
+            'bg-gray-100 text-gray-600'
+          }`}>
+            {VIDEO_STATUS_HE[video.status] || video.status}
+          </span>
+        </div>
+
+        {/* Video player placeholder */}
+        <div className="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center mb-4">
+          {video.video_path ? (
+            <video
+              src={`/uploads/${video.video_path.split('/').slice(-2).join('/')}`}
+              controls
+              className="w-full h-full rounded-xl"
+            />
+          ) : (
+            <div className="text-center">
+              <Video className="w-16 h-16 text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-500">סרטון לא זמין</p>
+            </div>
+          )}
+        </div>
+
+        {/* Video meta */}
+        <div className="flex items-center gap-4 text-sm text-gray-400">
+          {video.duration_suggestion && (
+            <span>⏱ {video.duration_suggestion}</span>
+          )}
+          {video.uploaded_at && (
+            <span>📅 הועלה: {new Date(video.uploaded_at).toLocaleDateString('he-IL')}</span>
+          )}
+          {video.analyzed_at && (
+            <span>✓ נותח: {new Date(video.analyzed_at).toLocaleDateString('he-IL')}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Analysis tabs */}
+      {video.status === 'analyzed' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Tab buttons */}
+          <div className="flex border-b border-gray-100">
+            {[
+              { id: 'observations', label: `📍 תצפיות (${video.observations?.length || 0})` },
+              { id: 'strengths', label: `💪 חוזקות (${video.strengths_observed?.length || 0})` },
+              { id: 'insights', label: `💡 תובנות (${video.insights?.length || 0})` },
+              { id: 'details', label: '🔧 פרטים' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 py-3 text-sm font-medium transition ${
+                  activeTab === tab.id
+                    ? 'text-violet-600 border-b-2 border-violet-500'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="p-6">
+            {activeTab === 'observations' && (
+              <VideoObservationsList observations={video.observations || []} />
+            )}
+            {activeTab === 'strengths' && (
+              <div className="space-y-2">
+                {video.strengths_observed?.length > 0 ? (
+                  video.strengths_observed.map((strength, i) => (
+                    <div key={i} className="p-3 bg-emerald-50 rounded-xl text-emerald-700">
+                      💪 {strength}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-400 text-center py-8">לא זוהו חוזקות</p>
+                )}
+              </div>
+            )}
+            {activeTab === 'insights' && (
+              <div className="space-y-2">
+                {video.insights?.length > 0 ? (
+                  video.insights.map((insight, i) => (
+                    <div key={i} className="p-3 bg-amber-50 rounded-xl text-amber-700">
+                      💡 {insight}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-400 text-center py-8">לא זוהו תובנות</p>
+                )}
+              </div>
+            )}
+            {activeTab === 'details' && (
+              <div className="space-y-4">
+                {video.what_to_film && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-1">מה לצלם:</h4>
+                    <p className="text-gray-800">{video.what_to_film}</p>
+                  </div>
+                )}
+                {video.what_we_hope_to_learn && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-1">מטרת הניתוח:</h4>
+                    <p className="text-gray-800">{video.what_we_hope_to_learn}</p>
+                  </div>
+                )}
+                {video.focus_points?.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">נקודות מיקוד:</h4>
+                    <ul className="list-disc list-inside text-gray-700 space-y-1">
+                      {video.focus_points.map((point, i) => (
+                        <li key={i}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {video.certainty_after !== null && (
+                  <div className="p-3 bg-purple-50 rounded-xl">
+                    <span className="text-sm text-purple-600">
+                      ודאות ההשערה לאחר הניתוח: {Math.round((video.certainty_after || 0) * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pending/uploaded state */}
+      {video.status !== 'analyzed' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          {video.status === 'uploaded' && (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-violet-200 border-t-violet-600 mx-auto mb-4" />
+              <h3 className="text-gray-600 mb-2">הסרטון ממתין לניתוח</h3>
+              <p className="text-gray-400 text-sm">הניתוח יתבצע אוטומטית</p>
+            </div>
+          )}
+          {video.status === 'pending' && (
+            <div className="text-center py-8">
+              <Video className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-gray-600 mb-2">ממתין להעלאת סרטון</h3>
+              {video.what_to_film && (
+                <p className="text-gray-500 text-sm max-w-md mx-auto">
+                  {video.what_to_film}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Video Observations List - Timeline of observations with timestamps
+ */
+function VideoObservationsList({ observations }) {
+  if (observations.length === 0) {
+    return (
+      <p className="text-gray-400 text-center py-8">לא זוהו תצפיות</p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {observations.map((obs, i) => (
+        <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+          <div className="flex items-start justify-between mb-2">
+            <span className="text-sm text-violet-600">
+              📍 {obs.timestamp_start || '—'}
+              {obs.timestamp_end && obs.timestamp_end !== obs.timestamp_start && (
+                <span> - {obs.timestamp_end}</span>
+              )}
+            </span>
+            {obs.domain && (
+              <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
+                {DOMAIN_HE[obs.domain] || obs.domain}
+              </span>
+            )}
+          </div>
+          <p className="text-gray-700">{obs.content}</p>
+          {obs.effect && obs.effect !== 'neutral' && (
+            <span className={`mt-2 inline-block px-2 py-0.5 rounded text-xs ${
+              obs.effect === 'supports' ? 'bg-emerald-100 text-emerald-700' :
+              obs.effect === 'contradicts' ? 'bg-red-100 text-red-700' :
+              'bg-blue-100 text-blue-700'
+            }`}>
+              {EFFECT_HE[obs.effect] || obs.effect}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

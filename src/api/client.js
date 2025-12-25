@@ -870,6 +870,44 @@ class ChittaAPIClient {
   }
 
   /**
+   * Get all videos for a child (admin only)
+   */
+  async getChildVideos(childId, status = null) {
+    let url = `${API_BASE_URL}/dashboard/children/${childId}/videos`;
+    if (status) {
+      url += `?status=${encodeURIComponent(status)}`;
+    }
+
+    const response = await fetch(url, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get video detail (admin only)
+   */
+  async getVideoDetail(childId, videoId) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/videos/${encodeURIComponent(videoId)}`,
+      {
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Get analytics overview (admin only)
    */
   async getDashboardAnalytics() {

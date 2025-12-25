@@ -476,6 +476,208 @@ async def add_expert_evidence(
 
 
 # =============================================================================
+# VIDEOS ENDPOINTS
+# =============================================================================
+
+class VideoObservation(BaseModel):
+    """An observation from video analysis."""
+    content: str
+    timestamp_start: Optional[str] = None
+    timestamp_end: Optional[str] = None
+    domain: Optional[str] = None
+    effect: Optional[str] = None
+
+
+class VideoScenarioResponse(BaseModel):
+    """Full video scenario details."""
+    id: str
+    title: str
+    status: str  # pending, uploaded, analyzed, validation_failed
+    what_to_film: Optional[str] = None
+    rationale_for_parent: Optional[str] = None
+    duration_suggestion: Optional[str] = None
+    target_hypothesis_id: Optional[str] = None
+    target_hypothesis_focus: Optional[str] = None
+    what_we_hope_to_learn: Optional[str] = None
+    focus_points: List[str] = []
+    video_path: Optional[str] = None
+    created_at: Optional[datetime] = None
+    uploaded_at: Optional[datetime] = None
+    analyzed_at: Optional[datetime] = None
+    # Analysis results
+    observations: List[VideoObservation] = []
+    strengths_observed: List[str] = []
+    insights: List[str] = []
+    certainty_before: Optional[float] = None
+    certainty_after: Optional[float] = None
+
+
+class VideosResponse(BaseModel):
+    """Response for videos list endpoint."""
+    videos: List[VideoScenarioResponse]
+    total: int
+
+
+@router.get("/children/{child_id}/videos", response_model=VideosResponse)
+async def get_child_videos(
+    child_id: str,
+    status: Optional[str] = Query(None, description="Filter by status"),
+    admin: User = Depends(get_current_admin_user),
+):
+    """
+    Get all video scenarios for a child.
+
+    Extracts videos from all curiosities' investigation contexts.
+    """
+    from app.chitta.service import get_chitta_service
+
+    logger.info(f"Dashboard: Admin {admin.email} getting videos for child {child_id}")
+
+    chitta = get_chitta_service()
+    darshan = await chitta._gestalt_manager.get_darshan(child_id)
+
+    if not darshan:
+        raise HTTPException(status_code=404, detail="Child not found")
+
+    videos = []
+
+    # Extract videos from all curiosities with investigations
+    for curiosity in darshan._curiosities._dynamic:
+        if not curiosity.investigation:
+            continue
+
+        for scenario in curiosity.investigation.video_scenarios:
+            # Apply status filter
+            if status and scenario.status != status:
+                continue
+
+            # Extract observations from analysis
+            observations = []
+            strengths = []
+            insights = []
+
+            if scenario.analysis_result and scenario.status == "analyzed":
+                for obs in scenario.analysis_result.get("observations", []):
+                    observations.append(VideoObservation(
+                        content=obs.get("content", ""),
+                        timestamp_start=obs.get("timestamp_start", obs.get("timestamp", "")),
+                        timestamp_end=obs.get("timestamp_end", ""),
+                        domain=obs.get("domain", "general"),
+                        effect=obs.get("effect", "neutral"),
+                    ))
+
+                for s in scenario.analysis_result.get("strengths_observed", []):
+                    if isinstance(s, dict):
+                        strengths.append(s.get("strength", ""))
+                    elif isinstance(s, str):
+                        strengths.append(s)
+
+                insights = scenario.analysis_result.get("insights", [])
+
+            videos.append(VideoScenarioResponse(
+                id=scenario.id,
+                title=scenario.title,
+                status=scenario.status,
+                what_to_film=scenario.what_to_film,
+                rationale_for_parent=scenario.rationale_for_parent,
+                duration_suggestion=scenario.duration_suggestion,
+                target_hypothesis_id=scenario.target_hypothesis_id,
+                target_hypothesis_focus=curiosity.focus,
+                what_we_hope_to_learn=scenario.what_we_hope_to_learn,
+                focus_points=scenario.focus_points or [],
+                video_path=scenario.video_path,
+                created_at=scenario.created_at,
+                uploaded_at=scenario.uploaded_at,
+                analyzed_at=scenario.analyzed_at,
+                observations=observations,
+                strengths_observed=strengths,
+                insights=insights,
+                certainty_before=None,  # TODO: Track this
+                certainty_after=curiosity.certainty if scenario.status == "analyzed" else None,
+            ))
+
+    # Sort by most recent first
+    videos.sort(key=lambda v: v.uploaded_at or v.created_at or datetime.min, reverse=True)
+
+    return VideosResponse(videos=videos, total=len(videos))
+
+
+@router.get("/children/{child_id}/videos/{video_id}")
+async def get_video_detail(
+    child_id: str,
+    video_id: str,
+    admin: User = Depends(get_current_admin_user),
+):
+    """Get detailed video scenario with analysis."""
+    from app.chitta.service import get_chitta_service
+
+    chitta = get_chitta_service()
+    darshan = await chitta._gestalt_manager.get_darshan(child_id)
+
+    if not darshan:
+        raise HTTPException(status_code=404, detail="Child not found")
+
+    # Find the video
+    for curiosity in darshan._curiosities._dynamic:
+        if not curiosity.investigation:
+            continue
+
+        for scenario in curiosity.investigation.video_scenarios:
+            if scenario.id == video_id:
+                # Build full response
+                observations = []
+                strengths = []
+                insights = []
+
+                if scenario.analysis_result and scenario.status == "analyzed":
+                    for obs in scenario.analysis_result.get("observations", []):
+                        observations.append({
+                            "content": obs.get("content", ""),
+                            "timestamp_start": obs.get("timestamp_start", obs.get("timestamp", "")),
+                            "timestamp_end": obs.get("timestamp_end", ""),
+                            "domain": obs.get("domain", "general"),
+                            "effect": obs.get("effect", "neutral"),
+                        })
+
+                    for s in scenario.analysis_result.get("strengths_observed", []):
+                        if isinstance(s, dict):
+                            strengths.append(s.get("strength", ""))
+                        elif isinstance(s, str):
+                            strengths.append(s)
+
+                    insights = scenario.analysis_result.get("insights", [])
+
+                return {
+                    "id": scenario.id,
+                    "title": scenario.title,
+                    "status": scenario.status,
+                    "what_to_film": scenario.what_to_film,
+                    "rationale_for_parent": scenario.rationale_for_parent,
+                    "duration_suggestion": scenario.duration_suggestion,
+                    "target_hypothesis_id": scenario.target_hypothesis_id,
+                    "target_hypothesis_focus": curiosity.focus,
+                    "what_we_hope_to_learn": scenario.what_we_hope_to_learn,
+                    "focus_points": scenario.focus_points or [],
+                    "video_path": scenario.video_path,
+                    "created_at": scenario.created_at.isoformat() if scenario.created_at else None,
+                    "uploaded_at": scenario.uploaded_at.isoformat() if scenario.uploaded_at else None,
+                    "analyzed_at": scenario.analyzed_at.isoformat() if scenario.analyzed_at else None,
+                    "observations": observations,
+                    "strengths_observed": strengths,
+                    "insights": insights,
+                    "analysis_result": scenario.analysis_result,
+                    "hypothesis": {
+                        "focus": curiosity.focus,
+                        "theory": curiosity.theory,
+                        "certainty": curiosity.certainty,
+                        "domain": curiosity.domain,
+                    },
+                }
+
+    raise HTTPException(status_code=404, detail="Video not found")
+
+
+# =============================================================================
 # NOTES ENDPOINTS
 # =============================================================================
 
