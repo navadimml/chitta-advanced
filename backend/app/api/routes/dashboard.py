@@ -130,12 +130,14 @@ class ResolveFlagRequest(BaseModel):
 
 class AdjustCertaintyRequest(BaseModel):
     """Request to adjust curiosity certainty."""
+    curiosity_focus: str  # Moved to body to avoid URL encoding issues with Hebrew
     new_certainty: float = Field(ge=0.0, le=1.0)
     reason: str
 
 
 class AddEvidenceRequest(BaseModel):
     """Request to add expert evidence."""
+    curiosity_focus: str  # Moved to body to avoid URL encoding issues with Hebrew
     content: str
     effect: str  # supports, contradicts, transforms
 
@@ -342,10 +344,9 @@ async def get_child_curiosities(
     )
 
 
-@router.post("/children/{child_id}/curiosities/{curiosity_focus}/adjust-certainty")
+@router.post("/children/{child_id}/adjust-certainty")
 async def adjust_curiosity_certainty(
     child_id: str,
-    curiosity_focus: str,
     request: AdjustCertaintyRequest,
     admin: User = Depends(get_current_admin_user),
     uow: UnitOfWork = Depends(get_uow),
@@ -354,9 +355,11 @@ async def adjust_curiosity_certainty(
     Adjust the certainty of a curiosity.
 
     Creates an audit record and updates Darshan state.
+    Note: curiosity_focus is in request body to avoid URL encoding issues with Hebrew.
     """
     from app.chitta.service import get_chitta_service
 
+    curiosity_focus = request.curiosity_focus
     logger.info(f"Dashboard: Admin {admin.email} adjusting certainty for '{curiosity_focus}' in child {child_id}")
 
     chitta = get_chitta_service()
@@ -398,10 +401,9 @@ async def adjust_curiosity_certainty(
     }
 
 
-@router.post("/children/{child_id}/curiosities/{curiosity_focus}/add-evidence")
+@router.post("/children/{child_id}/add-evidence")
 async def add_expert_evidence(
     child_id: str,
-    curiosity_focus: str,
     request: AddEvidenceRequest,
     admin: User = Depends(get_current_admin_user),
     uow: UnitOfWork = Depends(get_uow),
@@ -410,10 +412,12 @@ async def add_expert_evidence(
     Add expert evidence to a curiosity.
 
     Updates certainty based on effect and records the evidence.
+    Note: curiosity_focus is in request body to avoid URL encoding issues with Hebrew.
     """
     from app.chitta.service import get_chitta_service
     from app.chitta.models import Evidence
 
+    curiosity_focus = request.curiosity_focus
     logger.info(f"Dashboard: Admin {admin.email} adding evidence to '{curiosity_focus}' in child {child_id}")
 
     chitta = get_chitta_service()

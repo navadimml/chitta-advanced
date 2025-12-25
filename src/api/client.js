@@ -978,12 +978,14 @@ class ChittaAPIClient {
    * Adjust curiosity certainty (admin only)
    */
   async adjustCertainty(childId, curiosityFocus, newCertainty, reason) {
+    // curiosity_focus is in body to avoid URL encoding issues with Hebrew
     const response = await fetch(
-      `${API_BASE_URL}/dashboard/children/${childId}/curiosities/${encodeURIComponent(curiosityFocus)}/adjust-certainty`,
+      `${API_BASE_URL}/dashboard/children/${childId}/adjust-certainty`,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
+          curiosity_focus: curiosityFocus,
           new_certainty: newCertainty,
           reason,
         }),
@@ -1025,12 +1027,14 @@ class ChittaAPIClient {
    * Add expert evidence to a curiosity (admin only)
    */
   async addExpertEvidence(childId, curiosityFocus, content, effect) {
+    // curiosity_focus is in body to avoid URL encoding issues with Hebrew
     const response = await fetch(
-      `${API_BASE_URL}/dashboard/children/${childId}/curiosities/${encodeURIComponent(curiosityFocus)}/add-evidence`,
+      `${API_BASE_URL}/dashboard/children/${childId}/add-evidence`,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
+          curiosity_focus: curiosityFocus,
           content,
           effect,
         }),
