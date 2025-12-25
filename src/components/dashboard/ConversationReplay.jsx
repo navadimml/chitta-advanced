@@ -405,7 +405,7 @@ function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
   const certaintyPercent = Math.round(certainty * 100);
 
   return (
-    <div className="relative border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50/50 to-white overflow-hidden">
+    <div className="relative border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50/50 to-white">
       {/* Title badge */}
       <div className="absolute -top-2.5 right-4 px-2 bg-white">
         <span className="text-xs text-purple-600 font-medium flex items-center gap-1">
@@ -498,8 +498,19 @@ function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
         {/* Expanded details */}
         {expanded && (
           <div className="mt-4 pt-4 border-t border-purple-100 space-y-3">
+            {/* Close button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setExpanded(false)}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition"
+              >
+                סגור
+                <ChevronUp className="w-4 h-4" />
+              </button>
+            </div>
+
             {/* Raw arguments for debugging/full info */}
-            <div className="text-sm">
+            <div className="text-sm max-h-64 overflow-y-auto">
               <p className="text-gray-400 mb-1">פרטים מלאים:</p>
               <div className="p-3 bg-white rounded-lg border border-gray-100">
                 {args.about && (
