@@ -707,6 +707,60 @@ class VideoScenario:
         """
         self.status = "rejected"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "what_to_film": self.what_to_film,
+            "rationale_for_parent": self.rationale_for_parent,
+            "duration_suggestion": self.duration_suggestion,
+            "example_situations": self.example_situations,
+            "target_hypothesis_id": self.target_hypothesis_id,
+            "what_we_hope_to_learn": self.what_we_hope_to_learn,
+            "focus_points": self.focus_points,
+            "category": self.category,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "reminder_dismissed": self.reminder_dismissed,
+            "video_path": self.video_path,
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+            "analysis_result": self.analysis_result,
+            "analyzed_at": self.analyzed_at.isoformat() if self.analyzed_at else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "VideoScenario":
+        """Create from dict (for loading from persistence)."""
+        from datetime import datetime
+
+        def parse_dt(val):
+            if val is None:
+                return None
+            if isinstance(val, datetime):
+                return val
+            return datetime.fromisoformat(val) if val else None
+
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            what_to_film=data["what_to_film"],
+            rationale_for_parent=data.get("rationale_for_parent", ""),
+            duration_suggestion=data.get("duration_suggestion", ""),
+            example_situations=data.get("example_situations", []),
+            target_hypothesis_id=data.get("target_hypothesis_id", ""),
+            what_we_hope_to_learn=data.get("what_we_hope_to_learn", ""),
+            focus_points=data.get("focus_points", []),
+            category=data.get("category", "hypothesis_test"),
+            status=data.get("status", "pending"),
+            created_at=parse_dt(data.get("created_at")),
+            reminder_dismissed=data.get("reminder_dismissed", False),
+            video_path=data.get("video_path"),
+            uploaded_at=parse_dt(data.get("uploaded_at")),
+            analysis_result=data.get("analysis_result"),
+            analyzed_at=parse_dt(data.get("analyzed_at")),
+        )
+
     def to_parent_facing_dict(self) -> Dict[str, Any]:
         """Return only parent-facing fields (no hypothesis details)."""
         return {
