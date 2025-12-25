@@ -522,11 +522,30 @@ async def update_observation_domain(
     if not observation_found:
         raise HTTPException(status_code=404, detail="Observation not found")
 
-    # Update the domain
+    # Update the domain in Darshan state
     observation_found.domain = request.new_domain
 
     # Save Darshan state
     await chitta._gestalt_manager.persist_darshan(child_id, darshan)
+
+    # Also update the cognitive_turns table so timeline reflects the change
+    try:
+        turns = await uow.dashboard.cognitive_turns.get_turns(child_id, limit=200)
+        for turn in turns:
+            if not turn.tool_calls:
+                continue
+            import json
+            tool_calls = json.loads(turn.tool_calls) if isinstance(turn.tool_calls, str) else turn.tool_calls
+            updated = False
+            for tc in tool_calls:
+                if tc.get("name") == "notice" and tc.get("arguments", {}).get("observation") == request.observation_content:
+                    tc["arguments"]["domain"] = request.new_domain
+                    updated = True
+            if updated:
+                turn.tool_calls = json.dumps(tool_calls, ensure_ascii=False)
+                await uow.session.flush()
+    except Exception as e:
+        logger.warning(f"Could not update cognitive_turns: {e}")
 
     # Create audit record
     await uow.dashboard.corrections.create_correction(
