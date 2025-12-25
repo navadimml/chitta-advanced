@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, NavLink, Routes, Route, useNavigate, Navigate, Link } from 'react-router-dom';
 import {
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   MessageSquare,
   Lightbulb,
   Sparkles,
@@ -476,6 +478,18 @@ function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, on
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-t border-gray-100 p-5 space-y-4">
+          {/* Close button row */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-400">פרטי השערה</span>
+            <button
+              onClick={onToggle}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
+            >
+              סגור
+              <ChevronUp className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* Action tabs */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -528,20 +542,23 @@ function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, on
             </button>
           </div>
 
-          {/* Evidence Section */}
-          {activeSection === 'evidence' && (
-            <EvidenceTrail evidence={evidence} />
-          )}
+          {/* Section content with scroll */}
+          <div className="max-h-96 overflow-y-auto">
+            {/* Evidence Section */}
+            {activeSection === 'evidence' && (
+              <EvidenceTrail evidence={evidence} />
+            )}
 
-          {/* Video Section */}
-          {activeSection === 'video' && (
-            <VideoWorkflowSection hypothesis={hypothesis} />
-          )}
+            {/* Video Section */}
+            {activeSection === 'video' && (
+              <VideoWorkflowSection hypothesis={hypothesis} />
+            )}
 
-          {/* Lifecycle Section */}
-          {activeSection === 'lifecycle' && (
-            <LifecycleSection hypothesis={hypothesis} evidence={evidence} />
-          )}
+            {/* Lifecycle Section */}
+            {activeSection === 'lifecycle' && (
+              <LifecycleSection hypothesis={hypothesis} evidence={evidence} />
+            )}
+          </div>
 
           {/* Add Evidence Modal */}
           {showAddEvidence && (

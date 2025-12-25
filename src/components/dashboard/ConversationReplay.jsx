@@ -337,7 +337,7 @@ function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
               )}
               <div>
                 <p className="text-gray-400 mb-1">קריאות כלים:</p>
-                <pre className="text-xs text-gray-500 bg-white p-3 rounded-lg border border-gray-100 overflow-x-auto" dir="ltr">
+                <pre className="text-xs text-gray-500 bg-white p-3 rounded-lg border border-gray-100 overflow-x-auto text-left" dir="ltr">
                   {JSON.stringify(turn.tool_calls, null, 2)}
                 </pre>
               </div>
