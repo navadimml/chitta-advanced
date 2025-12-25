@@ -1051,7 +1051,7 @@ class ChittaAPIClient {
   /**
    * Create an inference flag (admin only)
    */
-  async createFlag(childId, targetType, targetId, flagType, reason, suggestedCorrection = null) {
+  async createFlag(childId, targetType, targetId, targetLabel, flagType, reason, suggestedCorrection = null) {
     const response = await fetch(
       `${API_BASE_URL}/dashboard/children/${childId}/flags`,
       {
@@ -1060,6 +1060,7 @@ class ChittaAPIClient {
         body: JSON.stringify({
           target_type: targetType,
           target_id: targetId,
+          target_label: targetLabel,
           flag_type: flagType,
           reason,
           suggested_correction: suggestedCorrection,

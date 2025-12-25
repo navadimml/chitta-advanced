@@ -1174,7 +1174,7 @@ function FlagModal({ childId, targetType, targetId, targetLabel, onClose, onSucc
 
     setSubmitting(true);
     try {
-      await api.createFlag(childId, targetType, targetId, flagType, reason, suggestedCorrection || null);
+      await api.createFlag(childId, targetType, targetId, targetLabel, flagType, reason, suggestedCorrection || null);
       onSuccess();
     } catch (err) {
       console.error('Error:', err);
@@ -1512,7 +1512,7 @@ function FlagsView({ childId, onFlagChange }) {
 
                 {/* Target */}
                 <p className="text-gray-800 font-medium mb-2">
-                  "{flag.target_id}"
+                  "{flag.target_label || flag.target_id}"
                 </p>
 
                 {/* Reason */}

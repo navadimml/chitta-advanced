@@ -1293,7 +1293,7 @@ function FlagModal({ childId, targetType, targetId, targetLabel, onClose, onSucc
 
     setSubmitting(true);
     try {
-      await api.createFlag(childId, targetType, targetId, flagType, reason, suggestedCorrection || null);
+      await api.createFlag(childId, targetType, targetId, targetLabel, flagType, reason, suggestedCorrection || null);
       onSuccess();
     } catch (err) {
       console.error('Error:', err);

@@ -101,6 +101,7 @@ class CreateFlagRequest(BaseModel):
     """Request to create an inference flag."""
     target_type: str
     target_id: str
+    target_label: Optional[str] = None  # Human-readable content of the flagged item
     flag_type: str
     reason: str
     suggested_correction: Optional[str] = None
@@ -112,6 +113,7 @@ class FlagResponse(BaseModel):
     child_id: str
     target_type: str
     target_id: str
+    target_label: Optional[str] = None  # Human-readable content
     flag_type: str
     reason: str
     suggested_correction: Optional[str] = None
@@ -920,6 +922,7 @@ async def get_child_flags(
             child_id=f.child_id,
             target_type=f.target_type,
             target_id=f.target_id,
+            target_label=f.target_label,
             flag_type=f.flag_type,
             reason=f.reason,
             suggested_correction=f.suggested_correction,
@@ -946,6 +949,7 @@ async def create_flag(
         child_id=child_id,
         target_type=request.target_type,
         target_id=request.target_id,
+        target_label=request.target_label,
         flag_type=request.flag_type,
         reason=request.reason,
         suggested_correction=request.suggested_correction,
@@ -959,6 +963,7 @@ async def create_flag(
         child_id=flag.child_id,
         target_type=flag.target_type,
         target_id=flag.target_id,
+        target_label=flag.target_label,
         flag_type=flag.flag_type,
         reason=flag.reason,
         suggested_correction=flag.suggested_correction,
@@ -993,6 +998,7 @@ async def resolve_flag(
         child_id=flag.child_id,
         target_type=flag.target_type,
         target_id=flag.target_id,
+        target_label=flag.target_label,
         flag_type=flag.flag_type,
         reason=flag.reason,
         suggested_correction=flag.suggested_correction,

@@ -280,6 +280,7 @@ class InferenceFlag(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     child_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     target_type: Mapped[str] = mapped_column(String(50), nullable=False)
     target_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    target_label: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Human-readable content
 
     # Flag details
     flag_type: Mapped[str] = mapped_column(String(20), nullable=False)

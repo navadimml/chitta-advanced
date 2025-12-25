@@ -493,12 +493,14 @@ class InferenceFlagRepository(BaseRepository[InferenceFlag]):
         author_id: uuid.UUID,
         author_name: str,
         suggested_correction: Optional[str] = None,
+        target_label: Optional[str] = None,
     ) -> InferenceFlag:
         """Create a new inference flag."""
         return await self.create(
             child_id=child_id,
             target_type=target_type,
             target_id=target_id,
+            target_label=target_label,
             flag_type=flag_type,
             reason=reason,
             suggested_correction=suggested_correction,
