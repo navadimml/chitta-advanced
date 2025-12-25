@@ -18,6 +18,7 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  Flag,
 } from 'lucide-react';
 
 import { api } from '../../api/client';
@@ -178,6 +179,10 @@ export default function ChildDetail() {
               <Video className="w-4 h-4" />
               סרטונים
             </TabLink>
+            <TabLink to={`/dashboard/children/${childId}/flags`}>
+              <Flag className="w-4 h-4" />
+              סימונים
+            </TabLink>
             <TabLink to={`/dashboard/children/${childId}/analytics`}>
               <BarChart3 className="w-4 h-4" />
               אנליטיקה
@@ -216,6 +221,12 @@ export default function ChildDetail() {
           <Route
             path="videos"
             element={<VideosView childId={childId} />}
+          />
+
+          {/* Flags */}
+          <Route
+            path="flags"
+            element={<FlagsView childId={childId} />}
           />
 
           {/* Analytics */}
@@ -1325,6 +1336,220 @@ const SEVERITY_HE = {
   medium: 'בינונית',
   high: 'גבוהה',
 };
+
+const FLAG_TYPE_HE = {
+  incorrect_inference: 'מסקנה שגויה',
+  needs_review: 'דורש בדיקה',
+  potentially_harmful: 'עלול להזיק',
+  premature: 'מוקדם מדי',
+  outdated: 'לא עדכני',
+};
+
+const FLAG_STATUS_HE = {
+  pending: 'ממתין',
+  resolved: 'נפתר',
+  dismissed: 'נדחה',
+};
+
+/**
+ * Flags View - View and manage flagged items
+ */
+function FlagsView({ childId }) {
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showResolved, setShowResolved] = useState(false);
+  const [resolvingId, setResolvingId] = useState(null);
+  const [resolution, setResolution] = useState('');
+
+  useEffect(() => {
+    loadFlags();
+  }, [showResolved]);
+
+  const loadFlags = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getChildFlags(childId, showResolved);
+      setFlags(data || []);
+    } catch (err) {
+      console.error('Error loading flags:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResolve = async (flagId) => {
+    if (!resolution.trim()) return;
+
+    try {
+      await api.resolveFlag(flagId, resolution);
+      setResolvingId(null);
+      setResolution('');
+      loadFlags();
+    } catch (err) {
+      console.error('Error resolving flag:', err);
+    }
+  };
+
+  const pendingFlags = flags.filter(f => f.status === 'pending');
+  const resolvedFlags = flags.filter(f => f.status !== 'pending');
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <RefreshCw className="w-6 h-6 text-gray-300 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 space-y-6" dir="rtl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">סימונים</h2>
+          <p className="text-sm text-gray-500">
+            {pendingFlags.length} ממתינים לטיפול
+            {resolvedFlags.length > 0 && ` • ${resolvedFlags.length} נפתרו`}
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showResolved}
+            onChange={(e) => setShowResolved(e.target.checked)}
+            className="rounded"
+          />
+          הצג גם נפתרים
+        </label>
+      </div>
+
+      {/* Pending Flags */}
+      {pendingFlags.length === 0 && !showResolved ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+          <Flag className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+          <h3 className="text-gray-400 text-lg mb-2">אין סימונים פתוחים</h3>
+          <p className="text-gray-300 text-sm">
+            כל הסימונים טופלו או שעדיין לא נוספו סימונים
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {flags.map((flag) => (
+            <div
+              key={flag.id}
+              className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
+                flag.status === 'pending' ? 'border-red-100' : 'border-gray-100 opacity-75'
+              }`}
+            >
+              {/* Flag header */}
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                      flag.status === 'pending'
+                        ? 'bg-red-50 text-red-600'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      🚩 {FLAG_TYPE_HE[flag.flag_type] || flag.flag_type}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {flag.target_type === 'hypothesis' ? 'השערה' : flag.target_type}
+                    </span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    flag.status === 'pending'
+                      ? 'bg-amber-50 text-amber-600'
+                      : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    {FLAG_STATUS_HE[flag.status] || flag.status}
+                  </span>
+                </div>
+
+                {/* Target */}
+                <p className="text-gray-800 font-medium mb-2">
+                  "{flag.target_id}"
+                </p>
+
+                {/* Reason */}
+                <p className="text-gray-600 text-sm mb-3">
+                  {flag.reason}
+                </p>
+
+                {/* Suggested correction */}
+                {flag.suggested_correction && (
+                  <div className="p-3 bg-blue-50 rounded-xl text-sm text-blue-700 mb-3">
+                    <span className="font-medium">הצעה לתיקון: </span>
+                    {flag.suggested_correction}
+                  </div>
+                )}
+
+                {/* Meta */}
+                <div className="flex items-center gap-4 text-xs text-gray-400">
+                  <span>נוצר: {new Date(flag.created_at).toLocaleDateString('he-IL')}</span>
+                  {flag.expert_name && <span>ע"י {flag.expert_name}</span>}
+                </div>
+
+                {/* Resolution */}
+                {flag.status !== 'pending' && flag.resolution_notes && (
+                  <div className="mt-3 p-3 bg-emerald-50 rounded-xl">
+                    <p className="text-sm text-emerald-700">
+                      <span className="font-medium">פתרון: </span>
+                      {flag.resolution_notes}
+                    </p>
+                    {flag.resolved_at && (
+                      <p className="text-xs text-emerald-500 mt-1">
+                        נפתר: {new Date(flag.resolved_at).toLocaleDateString('he-IL')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Resolve action */}
+                {flag.status === 'pending' && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    {resolvingId === flag.id ? (
+                      <div className="space-y-3">
+                        <textarea
+                          value={resolution}
+                          onChange={(e) => setResolution(e.target.value)}
+                          placeholder="תאר את הפתרון..."
+                          className="w-full p-3 border border-gray-200 rounded-xl text-sm resize-none h-20"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setResolvingId(null); setResolution(''); }}
+                            className="px-3 py-1.5 text-gray-500 text-sm hover:text-gray-700"
+                          >
+                            ביטול
+                          </button>
+                          <button
+                            onClick={() => handleResolve(flag.id)}
+                            disabled={!resolution.trim()}
+                            className="px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600 disabled:opacity-40"
+                          >
+                            סמן כנפתר
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setResolvingId(flag.id)}
+                        className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-sm hover:bg-emerald-100 transition"
+                      >
+                        <CheckCircle className="w-4 h-4 inline-block ml-1" />
+                        סמן כנפתר
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Analytics View - Correction patterns and improvement metrics (plan section 11)
