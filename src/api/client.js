@@ -842,6 +842,8 @@ class ChittaAPIClient {
     if (search) params.append('search', search);
     params.append('limit', limit);
     params.append('offset', offset);
+    // Add cache-busting timestamp to ensure fresh data after updates
+    params.append('_t', Date.now());
 
     const response = await fetch(`${API_BASE_URL}/dashboard/children?${params}`, {
       headers: this.getAuthHeaders(),
@@ -858,7 +860,8 @@ class ChittaAPIClient {
    * Get full Darshan state for a child (admin only)
    */
   async getChildFull(childId) {
-    const response = await fetch(`${API_BASE_URL}/dashboard/children/${childId}/full`, {
+    // Add cache-busting timestamp to ensure fresh data after updates
+    const response = await fetch(`${API_BASE_URL}/dashboard/children/${childId}/full?_t=${Date.now()}`, {
       headers: this.getAuthHeaders(),
     });
 
@@ -873,9 +876,10 @@ class ChittaAPIClient {
    * Get all videos for a child (admin only)
    */
   async getChildVideos(childId, status = null) {
-    let url = `${API_BASE_URL}/dashboard/children/${childId}/videos`;
+    // Add cache-busting timestamp to ensure fresh data after updates
+    let url = `${API_BASE_URL}/dashboard/children/${childId}/videos?_t=${Date.now()}`;
     if (status) {
-      url += `?status=${encodeURIComponent(status)}`;
+      url += `&status=${encodeURIComponent(status)}`;
     }
 
     const response = await fetch(url, {
@@ -1169,6 +1173,8 @@ class ChittaAPIClient {
     const params = new URLSearchParams();
     params.append('limit', limit);
     params.append('offset', offset);
+    // Add cache-busting timestamp to ensure fresh data after updates
+    params.append('_t', Date.now());
 
     const response = await fetch(
       `${API_BASE_URL}/dashboard/children/${childId}/timeline?${params}`,
