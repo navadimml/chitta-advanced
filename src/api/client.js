@@ -1127,6 +1127,8 @@ class ChittaAPIClient {
   async getChildFlags(childId, includeResolved = false) {
     const params = new URLSearchParams();
     params.append('include_resolved', includeResolved);
+    // Add cache-busting timestamp
+    params.append('_t', Date.now());
 
     const response = await fetch(
       `${API_BASE_URL}/dashboard/children/${childId}/flags?${params}`,

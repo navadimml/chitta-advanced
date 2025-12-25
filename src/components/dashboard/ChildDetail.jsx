@@ -1397,8 +1397,8 @@ function FlagsView({ childId }) {
     }
   };
 
-  const pendingFlags = flags.filter(f => f.status === 'pending');
-  const resolvedFlags = flags.filter(f => f.status !== 'pending');
+  const pendingFlags = flags.filter(f => !f.is_resolved);
+  const resolvedFlags = flags.filter(f => f.is_resolved);
 
   if (loading) {
     return (
@@ -1445,7 +1445,7 @@ function FlagsView({ childId }) {
             <div
               key={flag.id}
               className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
-                flag.status === 'pending' ? 'border-red-100' : 'border-gray-100 opacity-75'
+                !flag.is_resolved ? 'border-red-100' : 'border-gray-100 opacity-75'
               }`}
             >
               {/* Flag header */}
@@ -1453,7 +1453,7 @@ function FlagsView({ childId }) {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-                      flag.status === 'pending'
+                      !flag.is_resolved
                         ? 'bg-red-50 text-red-600'
                         : 'bg-gray-100 text-gray-500'
                     }`}>
@@ -1464,11 +1464,11 @@ function FlagsView({ childId }) {
                     </span>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded ${
-                    flag.status === 'pending'
+                    !flag.is_resolved
                       ? 'bg-amber-50 text-amber-600'
                       : 'bg-emerald-50 text-emerald-600'
                   }`}>
-                    {FLAG_STATUS_HE[flag.status] || flag.status}
+                    {flag.is_resolved ? 'נפתר' : 'ממתין'}
                   </span>
                 </div>
 
@@ -1497,7 +1497,7 @@ function FlagsView({ childId }) {
                 </div>
 
                 {/* Resolution */}
-                {flag.status !== 'pending' && flag.resolution_notes && (
+                {flag.is_resolved && flag.resolution_notes && (
                   <div className="mt-3 p-3 bg-emerald-50 rounded-xl">
                     <p className="text-sm text-emerald-700">
                       <span className="font-medium">פתרון: </span>
@@ -1512,7 +1512,7 @@ function FlagsView({ childId }) {
                 )}
 
                 {/* Resolve action */}
-                {flag.status === 'pending' && (
+                {!flag.is_resolved && (
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     {resolvingId === flag.id ? (
                       <div className="space-y-3">
