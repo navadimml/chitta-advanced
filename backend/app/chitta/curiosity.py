@@ -680,6 +680,18 @@ class Curiosities:
                 return c
         return None
 
+    def get_by_focus(self, focus: str) -> Optional[Curiosity]:
+        """Find curiosity by its focus text."""
+        # Check dynamic curiosities first (most common case)
+        for c in self._dynamic:
+            if c.focus == focus:
+                return c
+        # Also check perpetual curiosities
+        for c in self._perpetual:
+            if c.focus == focus:
+                return c
+        return None
+
     def get_video_suggestable(self) -> List[Curiosity]:
         """Get curiosities where video can be suggested."""
         return [c for c in self._dynamic if c.can_suggest_video()]
