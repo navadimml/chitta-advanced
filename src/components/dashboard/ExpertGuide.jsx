@@ -78,32 +78,39 @@ export default function ExpertGuide() {
         expanded={expandedSections.intro}
         onToggle={() => toggleSection('intro')}
       >
-        <div className="space-y-4">
-          <p>
-            <strong>צ'יטה מנחה מסע גילוי להבנת עולם הילד.</strong>{' '}
-            היא משתמשת בידע התפתחותי עמוק כדי לדעת לאן לכוון את המבט, אילו שאלות לשאול, ומה כדאי לבדוק.
-            צ'יטה לא מאבחנת ולא מסיקה מסקנות קליניות - היא מובילה תהליך גילוי משותף
-            שבסופו <em>ההבנה נשארת בידי ההורים והמומחים</em>.
+        <div className="space-y-5">
+          {/* Main definition */}
+          <p className="text-gray-700 leading-relaxed">
+            <strong>צ'יטה היא מלווה התבוננות התפתחותית</strong>, המסייעת להורים ולאנשי מקצוע
+            להבין את עולמו של הילד דרך סקרנות, הקשבה ושאלות מכוונות.
           </p>
 
-          <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-            <p className="text-amber-800">
-              <strong>עיקרון מנחה:</strong> צ'יטה מתבוננת בסקרנות, לא בביקורתיות.
-              היא אומרת "שמתי לב ש..." ולא "המערכת זיהתה ש...".
+          <p className="text-gray-700 leading-relaxed">
+            היא נשענת על ידע התפתחותי מבוסס כדי לכוון את תשומת הלב: להציע נקודות מבט רלוונטיות,
+            לעורר שאלות מקצועיות, ולהדגיש היבטים שכדאי לבחון לעומק.
+            צ'יטה <strong>אינה כלי אבחוני</strong> ואינה מסיקה מסקנות קליניות — היא יוצרת מסגרת של גילוי משותף,
+            שבה האחריות לפרשנות, לאינטגרציה מקצועית ולמתן פידבק נשארת בידי אנשי המקצוע.
+          </p>
+
+          {/* Ethical principle */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
+            <p className="text-amber-800 font-medium mb-2">
+              עיקרון אתי מנחה: צ'יטה פועלת מתוך סקרנות, זהירות וכבוד.
+            </p>
+            <p className="text-amber-700 leading-relaxed">
+              היא מציגה ניסוחים תצפיתיים ופתוחים (כגון "שמתי לב ש…", "ייתכן שכדאי להתבונן ב…")
+              ונמנעת משפה אבחנתית, שיפוטית או קובעת. מטרתה היא לאפשר הבנה עמוקה ומדויקת יותר —
+              מבלי לצמצם את הילד לכדי תוצאה, ציון או אבחנה.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <FeatureCard
-              icon={<Compass className="w-5 h-5 text-indigo-600" />}
-              title="מכוונת, לא מחליטה"
-              description="מציגה תובנות ושאלות, לא מסקנות סופיות"
-            />
-            <FeatureCard
-              icon={<Target className="w-5 h-5 text-emerald-600" />}
-              title="סקרנות, לא רשימות"
-              description="בונה הבנה דרך שאלות פתוחות, לא צ'קליסטים"
-            />
+          {/* Professional support */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5">
+            <p className="text-indigo-800 leading-relaxed">
+              צ'יטה נועדה <strong>לתמוך בעבודה מקצועית</strong>, להעמיק שיח בין-מקצועי,
+              ולחזק תהליכי קבלת החלטות אחראיים סביב הילד —
+              מבלי להחליף אחריות, סמכות או שיקול דעת אנושי.
+            </p>
           </div>
         </div>
       </GuideSection>
