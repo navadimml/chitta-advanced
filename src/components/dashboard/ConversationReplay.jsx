@@ -56,6 +56,14 @@ const VIDEO_VALUE_HE = {
   relational: 'יחסי',
 };
 
+const FLAG_TYPE_HE = {
+  incorrect_inference: 'מסקנה שגויה',
+  needs_review: 'דורש בדיקה',
+  potentially_harmful: 'עלול להזיק',
+  premature: 'מוקדם מדי',
+  outdated: 'לא עדכני',
+};
+
 export default function ConversationReplay({ childId, curiosities, onDataChange, flags = [], onFlagChange }) {
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -184,6 +192,16 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
   const [showTechnical, setShowTechnical] = useState(false);
   const [modal, setModal] = useState(null);
 
+  // Handle flag resolution
+  const handleResolveFlag = async (flagId, resolutionNotes) => {
+    try {
+      await api.resolveFlag(flagId, resolutionNotes);
+      if (onFlagChange) onFlagChange();
+    } catch (err) {
+      console.error('Error resolving flag:', err);
+    }
+  };
+
   // Extract and categorize perceptions
   const observations = turn.tool_calls?.filter(tc => tc.tool_name === 'notice') || [];
   const allCuriosities = turn.tool_calls?.filter(tc => tc.tool_name === 'wonder') || [];
@@ -292,6 +310,7 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                       targetLabel: obs.arguments?.observation || obs.arguments?.content
                     })}
                     flag={obsFlag}
+                    onResolveFlag={handleResolveFlag}
                   />
                 );
               })}
@@ -321,6 +340,7 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                       targetLabel: args.theory || args.about
                     })}
                     flag={hypFlag}
+                    onResolveFlag={handleResolveFlag}
                   />
                 );
               })}
@@ -345,6 +365,7 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                       targetLabel: cur.arguments?.about
                     })}
                     flag={curFlag}
+                    onResolveFlag={handleResolveFlag}
                   />
                 );
               })}
@@ -504,11 +525,20 @@ const EVIDENCE_TYPE_HE = {
  * Design: ◆ diamond icon, certainty bar, video recommendation
  * Shows both initial state (from tool call) and current state (from curiosities)
  */
-function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject, onFlag, flag }) {
+function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject, onFlag, flag, onResolveFlag }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [showLifecycle, setShowLifecycle] = useState(false);
+  const [showFlagDetails, setShowFlagDetails] = useState(false);
   const args = hypothesis.arguments || {};
+
+  // Handle approve - if flagged, resolve the flag as confirmed correct
+  const handleApprove = async () => {
+    if (flag && onResolveFlag) {
+      await onResolveFlag(flag.id, 'אושר כנכון על ידי מומחה');
+    }
+    onApprove?.();
+  };
 
   // Get hypothesis focus for filtering videos
   const hypothesisFocus = currentHypothesis?.focus || args.about || args.theory;
@@ -528,10 +558,13 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
     <div className={`relative border-2 rounded-xl bg-gradient-to-br from-purple-50/50 to-white ${flag ? 'border-orange-300 ring-2 ring-orange-100' : 'border-purple-200'}`}>
       {/* Flag banner if flagged */}
       {flag && (
-        <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 flex items-center gap-2 text-orange-700 text-sm rounded-t-xl">
+        <button
+          onClick={() => setShowFlagDetails(true)}
+          className="w-full bg-orange-50 border-b border-orange-200 px-4 py-2 flex items-center gap-2 text-orange-700 text-sm rounded-t-xl hover:bg-orange-100 transition cursor-pointer text-right"
+        >
           <Flag className="w-4 h-4" />
-          <span>סומן לבדיקה</span>
-        </div>
+          <span>סומן לבדיקה - לחץ לפרטים</span>
+        </button>
       )}
       {/* Title badge with status */}
       <div className={`absolute -top-2.5 right-4 px-2 bg-white flex items-center gap-2 ${flag ? 'top-[calc(-0.625rem+2.25rem)]' : ''}`}>
@@ -671,9 +704,9 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
           {/* Approve/Reject/Flag */}
           <div className="flex items-center gap-1 text-sm">
             <button
-              onClick={onApprove}
-              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-emerald-500 transition"
-              title="השערה נכונה"
+              onClick={handleApprove}
+              className={`w-7 h-7 flex items-center justify-center transition ${flag ? 'text-emerald-500 hover:text-emerald-600' : 'text-gray-300 hover:text-emerald-500'}`}
+              title={flag ? 'אשר כנכון (יפתור את הסימון)' : 'השערה נכונה'}
             >
               ✓
             </button>
@@ -684,7 +717,7 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
             >
               ✗
             </button>
-            {onFlag && (
+            {onFlag && !flag && (
               <button
                 onClick={onFlag}
                 className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-orange-500 transition"
@@ -773,6 +806,15 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
           hypothesis={currentHypothesis}
           initialArgs={args}
           onClose={() => setShowLifecycle(false)}
+        />
+      )}
+
+      {/* Flag Details Modal */}
+      {showFlagDetails && flag && (
+        <FlagDetailsModal
+          flag={flag}
+          onClose={() => setShowFlagDetails(false)}
+          onResolve={onResolveFlag}
         />
       )}
     </div>
@@ -913,17 +955,30 @@ function HypothesisLifecycleModal({ hypothesis, initialArgs, onClose }) {
 /**
  * PerceptionCard - Observation or regular Curiosity card
  */
-function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject, onFlag, flag }) {
+function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject, onFlag, flag, onResolveFlag }) {
+  const [showFlagDetails, setShowFlagDetails] = useState(false);
+
+  // Handle approve - if flagged, resolve the flag as confirmed correct
+  const handleApprove = async () => {
+    if (flag && onResolveFlag) {
+      await onResolveFlag(flag.id, 'אושר כנכון על ידי מומחה');
+    }
+    onApprove?.();
+  };
+
   return (
     <div className={`relative border rounded-xl bg-white ${flag ? 'border-orange-300 ring-2 ring-orange-100' : 'border-gray-200'}`}>
       {/* Title in border line effect */}
       <div className="absolute -top-2.5 right-4 px-2 bg-white flex items-center gap-2">
         <span className="text-xs text-gray-400">{type}</span>
         {flag && (
-          <span className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">
+          <button
+            onClick={() => setShowFlagDetails(true)}
+            className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded hover:bg-orange-100 transition cursor-pointer"
+          >
             <Flag className="w-3 h-3" />
-            סומן
-          </span>
+            סומן - לחץ לפרטים
+          </button>
         )}
       </div>
 
@@ -950,9 +1005,9 @@ function PerceptionCard({ type, content, domain, curiosityType, theory, onApprov
           {/* Tiny approve/reject/flag buttons */}
           <div className="flex items-center gap-1 text-sm">
             <button
-              onClick={onApprove}
-              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-emerald-500 transition"
-              title="נכון"
+              onClick={handleApprove}
+              className={`w-7 h-7 flex items-center justify-center transition ${flag ? 'text-emerald-500 hover:text-emerald-600' : 'text-gray-300 hover:text-emerald-500'}`}
+              title={flag ? 'אשר כנכון (יפתור את הסימון)' : 'נכון'}
             >
               ✓
             </button>
@@ -963,7 +1018,7 @@ function PerceptionCard({ type, content, domain, curiosityType, theory, onApprov
             >
               ✗
             </button>
-            {onFlag && (
+            {onFlag && !flag && (
               <button
                 onClick={onFlag}
                 className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-orange-500 transition"
@@ -974,6 +1029,15 @@ function PerceptionCard({ type, content, domain, curiosityType, theory, onApprov
             )}
           </div>
         </div>
+
+        {/* Flag Details Modal */}
+        {showFlagDetails && flag && (
+          <FlagDetailsModal
+            flag={flag}
+            onClose={() => setShowFlagDetails(false)}
+            onResolve={onResolveFlag}
+          />
+        )}
 
         {/* Theory for non-hypothesis curiosities that might have a theory */}
         {theory && (
@@ -1381,6 +1445,121 @@ function FlagModal({ childId, targetType, targetId, targetLabel, onClose, onSucc
             </button>
           </div>
         </form>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * FlagDetailsModal - Show flag details and allow resolving
+ */
+function FlagDetailsModal({ flag, onClose, onResolve }) {
+  const [resolution, setResolution] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleResolve = async () => {
+    if (!resolution.trim()) return;
+    setSubmitting(true);
+    try {
+      await onResolve(flag.id, resolution);
+      onClose();
+    } catch (err) {
+      console.error('Error resolving flag:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleConfirmCorrect = async () => {
+    setSubmitting(true);
+    try {
+      await onResolve(flag.id, 'אושר כנכון על ידי מומחה');
+      onClose();
+    } catch (err) {
+      console.error('Error resolving flag:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6" dir="rtl">
+        <div className="flex items-center gap-2 mb-4">
+          <Flag className="w-5 h-5 text-orange-500" />
+          <h2 className="text-lg font-medium text-gray-800">פרטי הסימון</h2>
+        </div>
+
+        {/* Flag info */}
+        <div className="space-y-3 mb-6">
+          <div className="flex items-start gap-2">
+            <span className="text-sm text-gray-500 w-20">תוכן:</span>
+            <span className="text-sm text-gray-800">"{flag.target_label || flag.target_id}"</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-sm text-gray-500 w-20">סוג בעיה:</span>
+            <span className="text-sm text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+              {FLAG_TYPE_HE[flag.flag_type] || flag.flag_type}
+            </span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-sm text-gray-500 w-20">סיבה:</span>
+            <span className="text-sm text-gray-800">{flag.reason}</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-sm text-gray-500 w-20">סומן ע"י:</span>
+            <span className="text-sm text-gray-800">{flag.author_name}</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-sm text-gray-500 w-20">תאריך:</span>
+            <span className="text-sm text-gray-800">
+              {new Date(flag.created_at).toLocaleDateString('he-IL')} {new Date(flag.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          {flag.suggested_correction && (
+            <div className="flex items-start gap-2">
+              <span className="text-sm text-gray-500 w-20">הצעה:</span>
+              <span className="text-sm text-gray-800">{flag.suggested_correction}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Quick actions */}
+        <div className="border-t border-gray-100 pt-4 mb-4">
+          <p className="text-sm text-gray-600 mb-3">פעולות מהירות:</p>
+          <button
+            onClick={handleConfirmCorrect}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 transition disabled:opacity-50"
+          >
+            <span className="text-lg">✓</span>
+            <span>זה בעצם נכון - סגור את הסימון</span>
+          </button>
+        </div>
+
+        {/* Manual resolution */}
+        <div className="border-t border-gray-100 pt-4">
+          <p className="text-sm text-gray-600 mb-2">או הוסף הערת פתרון:</p>
+          <textarea
+            value={resolution}
+            onChange={(e) => setResolution(e.target.value)}
+            placeholder="מה נעשה לגבי הסימון הזה..."
+            className="w-full p-3 border border-gray-200 rounded-xl text-sm resize-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+            rows={2}
+          />
+          <div className="flex justify-end gap-3 mt-3">
+            <button onClick={onClose} className="px-4 py-2 text-gray-500 hover:text-gray-700">
+              סגור
+            </button>
+            <button
+              onClick={handleResolve}
+              disabled={submitting || !resolution.trim()}
+              className="px-5 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 disabled:opacity-40"
+            >
+              {submitting ? 'שומר...' : 'סמן כנפתר'}
+            </button>
+          </div>
+        </div>
       </div>
     </Modal>
   );
