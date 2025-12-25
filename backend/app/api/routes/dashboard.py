@@ -1519,7 +1519,7 @@ async def get_training_stats(
     Shows correction and missed signal counts by type, severity, etc.
     """
     correction_stats = await uow.dashboard.corrections.get_correction_stats()
-    signal_stats = await uow.dashboard.missed_signals.get_signal_stats()
+    signal_stats = await uow.dashboard.missed_signals.get_missed_signal_stats()
 
     return {
         "corrections": correction_stats,
@@ -1528,6 +1528,100 @@ async def get_training_stats(
             "unused_corrections": correction_stats.get("unused_for_training", 0),
             "total_training_samples": correction_stats.get("total", 0) + signal_stats.get("total", 0),
         }
+    }
+
+
+class MarkUsedRequest(BaseModel):
+    """Request to mark corrections as used in training."""
+    correction_ids: List[str]
+    batch_id: str
+
+
+@router.post("/training/mark-used")
+async def mark_corrections_used(
+    request: MarkUsedRequest,
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """
+    Mark corrections as used in training.
+
+    Creates a training batch record.
+    """
+    marked = []
+    for cid in request.correction_ids:
+        try:
+            correction = await uow.dashboard.corrections.mark_used_in_training(
+                uuid.UUID(cid),
+                request.batch_id,
+            )
+            if correction:
+                marked.append(str(correction.id))
+        except Exception as e:
+            logger.warning(f"Failed to mark correction {cid}: {e}")
+
+    await uow.commit()
+
+    return {
+        "batch_id": request.batch_id,
+        "marked_count": len(marked),
+        "marked_ids": marked,
+    }
+
+
+@router.get("/training/export")
+async def export_training_data(
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+    unused_only: bool = Query(True, description="Only export unused corrections"),
+    include_missed_signals: bool = Query(True, description="Include missed signals"),
+):
+    """
+    Export training data as JSON.
+
+    Returns corrections and missed signals in a format suitable for fine-tuning.
+    """
+    # Get corrections
+    corrections = await uow.dashboard.corrections.get_all_with_context(
+        used_in_training=False if unused_only else None
+    )
+
+    correction_data = []
+    for c in corrections:
+        correction_data.append({
+            "id": str(c.id),
+            "type": "correction",
+            "correction_type": c.correction_type,
+            "target_type": c.target_type,
+            "original_value": c.original_value,
+            "corrected_value": c.corrected_value,
+            "expert_reasoning": c.expert_reasoning,
+            "severity": c.severity,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+
+    # Get missed signals
+    missed_signal_data = []
+    if include_missed_signals:
+        missed = await uow.dashboard.missed_signals.get_all()
+        for s in missed:
+            missed_signal_data.append({
+                "id": str(s.id),
+                "type": "missed_signal",
+                "signal_type": s.signal_type,
+                "domain": s.domain,
+                "content": s.content,
+                "why_important": s.why_important,
+                "context": s.context,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            })
+
+    return {
+        "exported_at": datetime.utcnow().isoformat(),
+        "corrections_count": len(correction_data),
+        "missed_signals_count": len(missed_signal_data),
+        "corrections": correction_data,
+        "missed_signals": missed_signal_data,
     }
 
 

@@ -1287,6 +1287,53 @@ class ChittaAPIClient {
     return response.json();
   }
 
+  /**
+   * Export training data
+   */
+  async exportTrainingData(unusedOnly = true, includeMissedSignals = true) {
+    const params = new URLSearchParams({
+      unused_only: unusedOnly,
+      include_missed_signals: includeMissedSignals,
+    });
+
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/training/export?${params}`,
+      {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Mark corrections as used in training
+   */
+  async markCorrectionsUsed(correctionIds, batchId) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/training/mark-used`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          correction_ids: correctionIds,
+          batch_id: batchId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
 }
 
 // Singleton instance
