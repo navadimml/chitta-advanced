@@ -39,9 +39,11 @@ export default function ChildDetail() {
   const [child, setChild] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [flags, setFlags] = useState([]);
 
   useEffect(() => {
     loadChild();
+    loadFlags();
   }, [childId]);
 
   async function loadChild() {
@@ -55,6 +57,21 @@ export default function ChildDetail() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadFlags() {
+    try {
+      // Load both pending and resolved flags for display indicators
+      const data = await api.getChildFlags(childId, true);
+      setFlags(data || []);
+    } catch (err) {
+      console.error('Error loading flags:', err);
+    }
+  }
+
+  // Helper to check if an item is flagged
+  function getFlagForTarget(targetId) {
+    return flags.find(f => f.target_id === targetId && !f.is_resolved);
   }
 
   if (loading) {
@@ -197,7 +214,7 @@ export default function ChildDetail() {
           {/* Default: Conversation/Timeline */}
           <Route
             index
-            element={<ConversationReplay childId={childId} curiosities={child?.curiosities} onDataChange={loadChild} />}
+            element={<ConversationReplay childId={childId} curiosities={child?.curiosities} onDataChange={loadChild} flags={flags} />}
           />
 
           {/* Hypotheses */}
@@ -208,6 +225,8 @@ export default function ChildDetail() {
                 childId={childId}
                 curiosities={child?.curiosities}
                 onDataChange={loadChild}
+                flags={flags}
+                onFlagChange={loadFlags}
               />
             }
           />
@@ -221,13 +240,13 @@ export default function ChildDetail() {
           {/* Videos */}
           <Route
             path="videos"
-            element={<VideosView childId={childId} />}
+            element={<VideosView childId={childId} flags={flags} onFlagChange={loadFlags} />}
           />
 
           {/* Flags */}
           <Route
             path="flags"
-            element={<FlagsView childId={childId} />}
+            element={<FlagsView childId={childId} onFlagChange={loadFlags} />}
           />
 
           {/* Analytics */}
@@ -310,11 +329,16 @@ function TabLink({ to, children, end = false }) {
  * Hypotheses View - Overview of all hypotheses with lifecycle (plan sections 6.2, 6.3, 6.4, 7)
  * This is an overview page - full hypothesis details appear in the Conversation timeline
  */
-function HypothesesView({ childId, curiosities, onDataChange }) {
+function HypothesesView({ childId, curiosities, onDataChange, flags = [], onFlagChange }) {
   const navigate = useNavigate();
   const [expandedHypothesis, setExpandedHypothesis] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [videos, setVideos] = useState([]);
+
+  // Helper to check if a hypothesis is flagged
+  const getFlagForHypothesis = (focus) => {
+    return flags.find(f => f.target_id === focus && !f.is_resolved);
+  };
 
   // Refresh handler - reloads both local videos and parent data
   const handleRefresh = () => {
@@ -425,6 +449,8 @@ function HypothesesView({ childId, curiosities, onDataChange }) {
             )}
             onRefresh={handleRefresh}
             onGoToConversation={goToConversation}
+            flag={getFlagForHypothesis(h.focus)}
+            onFlagChange={onFlagChange}
           />
         ))}
       </div>
@@ -463,7 +489,7 @@ const EFFECT_HE = {
 /**
  * Hypothesis Lifecycle Card - Full view with evidence, video, lifecycle (plan 6.2, 6.3, 6.4, 7)
  */
-function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded, onToggle, onRefresh, onGoToConversation }) {
+function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded, onToggle, onRefresh, onGoToConversation, flag, onFlagChange }) {
   const [activeSection, setActiveSection] = useState(null); // 'evidence' | 'video' | 'lifecycle' | null
   const [showAddEvidence, setShowAddEvidence] = useState(false);
   const [showAdjustCertainty, setShowAdjustCertainty] = useState(false);
@@ -499,7 +525,17 @@ function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded,
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${flag ? 'border-orange-300 ring-2 ring-orange-100' : 'border-gray-100'}`}>
+      {/* Flag indicator banner */}
+      {flag && (
+        <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 flex items-center gap-2 text-orange-700 text-sm">
+          <Flag className="w-4 h-4" />
+          <span>סומן לבדיקה: {FLAG_TYPE_HE[flag.flag_type] || flag.flag_type}</span>
+          <span className="text-orange-400 text-xs mr-auto">
+            {new Date(flag.created_at).toLocaleDateString('he-IL')}
+          </span>
+        </div>
+      )}
       {/* Header - Always visible */}
       <div
         onClick={onToggle}
@@ -1361,7 +1397,7 @@ const FLAG_STATUS_HE = {
 /**
  * Flags View - View and manage flagged items
  */
-function FlagsView({ childId }) {
+function FlagsView({ childId, onFlagChange }) {
   const [flags, setFlags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
@@ -1392,6 +1428,8 @@ function FlagsView({ childId }) {
       setResolvingId(null);
       setResolution('');
       loadFlags();
+      // Notify parent to refresh flags in other views
+      if (onFlagChange) onFlagChange();
     } catch (err) {
       console.error('Error resolving flag:', err);
     }
@@ -2053,7 +2091,7 @@ const VIDEO_CATEGORY_HE = {
  * Videos View - Video gallery with analysis (plan 6.5, 9)
  * Supports filtering by hypothesis via URL query parameter
  */
-function VideosView({ childId }) {
+function VideosView({ childId, flags = [], onFlagChange }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
@@ -2063,6 +2101,11 @@ function VideosView({ childId }) {
 
   // Get hypothesis filter from URL
   const hypothesisFilter = searchParams.get('hypothesis');
+
+  // Helper to check if a video item is flagged
+  const getFlagForTarget = (targetId) => {
+    return flags.find(f => f.target_id === targetId && !f.is_resolved);
+  };
 
   useEffect(() => {
     loadVideos();
@@ -2188,6 +2231,8 @@ function VideosView({ childId }) {
               childId={childId}
               hypothesisFocus={hypothesisFilter}
               onBack={() => setSelectedVideo(null)}
+              flags={flags}
+              onFlagChange={onFlagChange}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2196,6 +2241,7 @@ function VideosView({ childId }) {
                   key={video.id}
                   video={video}
                   onClick={() => setSelectedVideo(video)}
+                  hasFlag={flags.some(f => f.target_id.includes(`video-`) && f.target_id.includes(video.id) && !f.is_resolved)}
                 />
               ))}
             </div>
@@ -2209,7 +2255,7 @@ function VideosView({ childId }) {
 /**
  * Video Card - Thumbnail card in gallery
  */
-function VideoCard({ video, onClick }) {
+function VideoCard({ video, onClick, hasFlag = false }) {
   const statusColors = {
     pending: 'bg-gray-100 text-gray-600',
     uploaded: 'bg-violet-50 text-violet-600',
@@ -2221,11 +2267,18 @@ function VideoCard({ video, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden text-right hover:border-violet-200 hover:shadow-md transition"
+      className={`bg-white rounded-2xl border shadow-sm overflow-hidden text-right hover:shadow-md transition ${
+        hasFlag ? 'border-orange-300 ring-2 ring-orange-100' : 'border-gray-100 hover:border-violet-200'
+      }`}
     >
       {/* Thumbnail placeholder */}
-      <div className="aspect-video bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
+      <div className="aspect-video bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center relative">
         <Video className="w-12 h-12 text-violet-300" />
+        {hasFlag && (
+          <div className="absolute top-2 left-2 bg-orange-500 text-white p-1.5 rounded-full" title="יש סימון לבדיקה">
+            <Flag className="w-3 h-3" />
+          </div>
+        )}
       </div>
 
       {/* Info */}
@@ -2294,11 +2347,16 @@ function parseTimestamp(timestamp) {
  * Video Analysis View - Detailed view with player and observations (plan 6.5)
  * Now with clickable timestamps and expert feedback capabilities
  */
-function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
+function VideoAnalysisView({ video, childId, hypothesisFocus, onBack, flags = [], onFlagChange }) {
   const videoRef = useRef(null);
   const [activeTab, setActiveTab] = useState('observations');
   const [currentTime, setCurrentTime] = useState(0);
   const [flagModal, setFlagModal] = useState(null);
+
+  // Helper to check if an item is flagged
+  const getFlagForTarget = (targetId) => {
+    return flags.find(f => f.target_id === targetId && !f.is_resolved);
+  };
 
   // Open flag modal
   const openFlagModal = (targetType, targetId, targetLabel) => {
@@ -2422,23 +2480,39 @@ function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
                 onSeek={seekToTimestamp}
                 currentTime={currentTime}
                 onFlag={openFlagModal}
+                videoId={video.id}
+                getFlagForTarget={getFlagForTarget}
               />
             )}
             {activeTab === 'strengths' && (
               <div className="space-y-2">
                 {video.strengths_observed?.length > 0 ? (
-                  video.strengths_observed.map((strength, i) => (
-                    <div key={i} className="p-3 bg-emerald-50 rounded-xl text-emerald-700 flex items-start justify-between group">
-                      <span>💪 {strength}</span>
-                      <button
-                        onClick={() => openFlagModal('video_strength', `video-strength-${video.id}-${i}`, strength)}
-                        className="w-6 h-6 flex items-center justify-center text-emerald-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition rounded"
-                        title="סמן בעיה"
+                  video.strengths_observed.map((strength, i) => {
+                    const targetId = `video-strength-${video.id}-${i}`;
+                    const itemFlag = getFlagForTarget(targetId);
+                    return (
+                      <div
+                        key={i}
+                        className={`p-3 rounded-xl flex items-start justify-between group ${
+                          itemFlag
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                            : 'bg-emerald-50 text-emerald-700'
+                        }`}
                       >
-                        <Flag className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))
+                        <div className="flex items-center gap-2">
+                          {itemFlag && <Flag className="w-4 h-4 text-orange-500" />}
+                          <span>💪 {strength}</span>
+                        </div>
+                        <button
+                          onClick={() => openFlagModal('video_strength', targetId, strength)}
+                          className="w-6 h-6 flex items-center justify-center text-emerald-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition rounded"
+                          title="סמן בעיה"
+                        >
+                          <Flag className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className="text-gray-400 text-center py-8">לא זוהו חוזקות</p>
                 )}
@@ -2447,18 +2521,32 @@ function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
             {activeTab === 'insights' && (
               <div className="space-y-2">
                 {video.insights?.length > 0 ? (
-                  video.insights.map((insight, i) => (
-                    <div key={i} className="p-3 bg-amber-50 rounded-xl text-amber-700 flex items-start justify-between group">
-                      <span>💡 {insight}</span>
-                      <button
-                        onClick={() => openFlagModal('video_insight', `video-insight-${video.id}-${i}`, insight)}
-                        className="w-6 h-6 flex items-center justify-center text-amber-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition rounded"
-                        title="סמן בעיה"
+                  video.insights.map((insight, i) => {
+                    const targetId = `video-insight-${video.id}-${i}`;
+                    const itemFlag = getFlagForTarget(targetId);
+                    return (
+                      <div
+                        key={i}
+                        className={`p-3 rounded-xl flex items-start justify-between group ${
+                          itemFlag
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                            : 'bg-amber-50 text-amber-700'
+                        }`}
                       >
-                        <Flag className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))
+                        <div className="flex items-center gap-2">
+                          {itemFlag && <Flag className="w-4 h-4 text-orange-500" />}
+                          <span>💡 {insight}</span>
+                        </div>
+                        <button
+                          onClick={() => openFlagModal('video_insight', targetId, insight)}
+                          className="w-6 h-6 flex items-center justify-center text-amber-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition rounded"
+                          title="סמן בעיה"
+                        >
+                          <Flag className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className="text-gray-400 text-center py-8">לא זוהו תובנות</p>
                 )}
@@ -2766,7 +2854,7 @@ function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
 /**
  * Video Observations List - Timeline of observations with clickable timestamps
  */
-function VideoObservationsList({ observations, onSeek, currentTime, onFlag }) {
+function VideoObservationsList({ observations, onSeek, currentTime, onFlag, videoId, getFlagForTarget }) {
   if (observations.length === 0) {
     return (
       <p className="text-gray-400 text-center py-8">לא זוהו תצפיות</p>
@@ -2793,13 +2881,17 @@ function VideoObservationsList({ observations, onSeek, currentTime, onFlag }) {
 
       {observations.map((obs, i) => {
         const active = isActive(obs);
+        const targetId = `video-obs-${videoId}-${i}`;
+        const itemFlag = getFlagForTarget ? getFlagForTarget(targetId) : null;
         return (
           <div
             key={i}
             className={`p-4 rounded-xl border transition-all ${
-              active
-                ? 'bg-violet-50 border-violet-200 shadow-sm'
-                : 'bg-gray-50 border-gray-100'
+              itemFlag
+                ? 'bg-orange-50 border-orange-200'
+                : active
+                  ? 'bg-violet-50 border-violet-200 shadow-sm'
+                  : 'bg-gray-50 border-gray-100'
             }`}
           >
             <div className="flex items-start justify-between mb-2">
@@ -2824,6 +2916,12 @@ function VideoObservationsList({ observations, onSeek, currentTime, onFlag }) {
                 </span>
               )}
               <div className="flex items-center gap-2">
+                {itemFlag && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-xs">
+                    <Flag className="w-3 h-3" />
+                    סומן
+                  </span>
+                )}
                 {obs.domain && (
                   <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
                     {DOMAIN_HE[obs.domain] || obs.domain}
@@ -2831,7 +2929,7 @@ function VideoObservationsList({ observations, onSeek, currentTime, onFlag }) {
                 )}
                 {onFlag && (
                   <button
-                    onClick={() => onFlag('video_observation', `video-obs-${i}`, obs.content)}
+                    onClick={() => onFlag('video_observation', targetId, obs.content)}
                     className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-orange-500 transition rounded"
                     title="סמן בעיה"
                   >

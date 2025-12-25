@@ -56,11 +56,16 @@ const VIDEO_VALUE_HE = {
   relational: 'יחסי',
 };
 
-export default function ConversationReplay({ childId, curiosities, onDataChange }) {
+export default function ConversationReplay({ childId, curiosities, onDataChange, flags = [] }) {
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedTurns, setExpandedTurns] = useState(new Set());
+
+  // Helper to check if an item is flagged
+  const getFlagForTarget = (targetId) => {
+    return flags.find(f => f.target_id === targetId && !f.is_resolved);
+  };
 
   // Combined refresh handler - reloads timeline and notifies parent
   const handleRefresh = () => {
@@ -155,6 +160,7 @@ export default function ConversationReplay({ childId, curiosities, onDataChange 
             isExpanded={expandedTurns.has(turn.turn_id)}
             onToggle={() => toggleTurn(turn.turn_id)}
             onRefresh={handleRefresh}
+            getFlagForTarget={getFlagForTarget}
           />
         ))}
       </div>
@@ -168,7 +174,7 @@ export default function ConversationReplay({ childId, curiosities, onDataChange 
  * Collapsed: 3 lines (turn#, message, summary with special icons)
  * Expanded: Full details with clean sections and special cards
  */
-function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefresh }) {
+function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefresh, getFlagForTarget }) {
   const [showTechnical, setShowTechnical] = useState(false);
   const [modal, setModal] = useState(null);
 
@@ -262,22 +268,27 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
           <Section emoji="🧠" title="מה הבינה צ'יטה:">
             <div className="space-y-4">
               {/* Regular Observations */}
-              {observations.map((obs, i) => (
-                <PerceptionCard
-                  key={`obs-${i}`}
-                  type="תצפית"
-                  content={obs.arguments?.observation || obs.arguments?.content}
-                  domain={obs.arguments?.domain}
-                  onApprove={() => console.log('approved')}
-                  onReject={() => setModal({ type: 'correction', target: 'observation', data: obs })}
-                  onFlag={() => setModal({
-                    type: 'flag',
-                    targetType: 'observation',
-                    targetId: `obs-${turn.turn_id}-${i}`,
-                    targetLabel: obs.arguments?.observation || obs.arguments?.content
-                  })}
-                />
-              ))}
+              {observations.map((obs, i) => {
+                const obsTargetId = `obs-${turn.turn_id}-${i}`;
+                const obsFlag = getFlagForTarget ? getFlagForTarget(obsTargetId) : null;
+                return (
+                  <PerceptionCard
+                    key={`obs-${i}`}
+                    type="תצפית"
+                    content={obs.arguments?.observation || obs.arguments?.content}
+                    domain={obs.arguments?.domain}
+                    onApprove={() => console.log('approved')}
+                    onReject={() => setModal({ type: 'correction', target: 'observation', data: obs })}
+                    onFlag={() => setModal({
+                      type: 'flag',
+                      targetType: 'observation',
+                      targetId: obsTargetId,
+                      targetLabel: obs.arguments?.observation || obs.arguments?.content
+                    })}
+                    flag={obsFlag}
+                  />
+                );
+              })}
 
               {/* Hypotheses - Special Card with current state */}
               {hypotheses.map((hyp, i) => {
@@ -285,6 +296,8 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                 const args = hyp.arguments || {};
                 const matchKey = args.about || args.theory;
                 const currentHypothesis = matchKey ? hypothesesMap.get(matchKey) : null;
+                const hypTargetId = currentHypothesis?.focus || args.about || args.theory;
+                const hypFlag = getFlagForTarget ? getFlagForTarget(hypTargetId) : null;
 
                 return (
                   <HypothesisCard
@@ -298,31 +311,37 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                     onFlag={() => setModal({
                       type: 'flag',
                       targetType: 'hypothesis',
-                      targetId: currentHypothesis?.focus || args.about || args.theory,
+                      targetId: hypTargetId,
                       targetLabel: args.theory || args.about
                     })}
+                    flag={hypFlag}
                   />
                 );
               })}
 
               {/* Other Curiosities */}
-              {otherCuriosities.map((cur, i) => (
-                <PerceptionCard
-                  key={`cur-${i}`}
-                  type="סקרנות חדשה"
-                  content={cur.arguments?.about}
-                  domain={cur.arguments?.domain}
-                  curiosityType={cur.arguments?.type}
-                  onApprove={() => console.log('approved')}
-                  onReject={() => setModal({ type: 'correction', target: 'curiosity', data: cur })}
-                  onFlag={() => setModal({
-                    type: 'flag',
-                    targetType: 'curiosity',
-                    targetId: `cur-${turn.turn_id}-${i}`,
-                    targetLabel: cur.arguments?.about
-                  })}
-                />
-              ))}
+              {otherCuriosities.map((cur, i) => {
+                const curTargetId = `cur-${turn.turn_id}-${i}`;
+                const curFlag = getFlagForTarget ? getFlagForTarget(curTargetId) : null;
+                return (
+                  <PerceptionCard
+                    key={`cur-${i}`}
+                    type="סקרנות חדשה"
+                    content={cur.arguments?.about}
+                    domain={cur.arguments?.domain}
+                    curiosityType={cur.arguments?.type}
+                    onApprove={() => console.log('approved')}
+                    onReject={() => setModal({ type: 'correction', target: 'curiosity', data: cur })}
+                    onFlag={() => setModal({
+                      type: 'flag',
+                      targetType: 'curiosity',
+                      targetId: curTargetId,
+                      targetLabel: cur.arguments?.about
+                    })}
+                    flag={curFlag}
+                  />
+                );
+              })}
 
               {observations.length === 0 && allCuriosities.length === 0 && (
                 <p className="text-gray-300 py-4">לא זוהו תובנות בתור זה</p>
@@ -479,7 +498,7 @@ const EVIDENCE_TYPE_HE = {
  * Design: ◆ diamond icon, certainty bar, video recommendation
  * Shows both initial state (from tool call) and current state (from curiosities)
  */
-function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject, onFlag }) {
+function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject, onFlag, flag }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [showLifecycle, setShowLifecycle] = useState(false);
@@ -500,9 +519,16 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
   const evidenceCount = currentHypothesis?.evidence?.length || 0;
 
   return (
-    <div className="relative border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50/50 to-white">
+    <div className={`relative border-2 rounded-xl bg-gradient-to-br from-purple-50/50 to-white ${flag ? 'border-orange-300 ring-2 ring-orange-100' : 'border-purple-200'}`}>
+      {/* Flag banner if flagged */}
+      {flag && (
+        <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 flex items-center gap-2 text-orange-700 text-sm rounded-t-xl">
+          <Flag className="w-4 h-4" />
+          <span>סומן לבדיקה</span>
+        </div>
+      )}
       {/* Title badge with status */}
-      <div className="absolute -top-2.5 right-4 px-2 bg-white flex items-center gap-2">
+      <div className={`absolute -top-2.5 right-4 px-2 bg-white flex items-center gap-2 ${flag ? 'top-[calc(-0.625rem+2.25rem)]' : ''}`}>
         <span className="text-xs text-purple-600 font-medium flex items-center gap-1">
           <span>◆</span> השערה
         </span>
@@ -881,12 +907,18 @@ function HypothesisLifecycleModal({ hypothesis, initialArgs, onClose }) {
 /**
  * PerceptionCard - Observation or regular Curiosity card
  */
-function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject, onFlag }) {
+function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject, onFlag, flag }) {
   return (
-    <div className="relative border border-gray-200 rounded-xl bg-white">
+    <div className={`relative border rounded-xl bg-white ${flag ? 'border-orange-300 ring-2 ring-orange-100' : 'border-gray-200'}`}>
       {/* Title in border line effect */}
-      <div className="absolute -top-2.5 right-4 px-2 bg-white">
+      <div className="absolute -top-2.5 right-4 px-2 bg-white flex items-center gap-2">
         <span className="text-xs text-gray-400">{type}</span>
+        {flag && (
+          <span className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">
+            <Flag className="w-3 h-3" />
+            סומן
+          </span>
+        )}
       </div>
 
       <div className="p-4 pt-5">
