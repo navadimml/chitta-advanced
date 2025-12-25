@@ -516,17 +516,29 @@ async def update_observation_domain(
     if not darshan:
         raise HTTPException(status_code=404, detail="Child not found")
 
-    # Find the observation by content
+    # Find the observation by content (try exact match first, then normalized)
     observation_found = None
     original_domain = None
+    normalized_content = request.observation_content.strip()
+
     for obs in darshan.understanding.observations:
-        if obs.content == request.observation_content:
+        obs_content = obs.content.strip() if obs.content else ""
+        if obs_content == normalized_content or normalized_content in obs_content or obs_content in normalized_content:
             observation_found = obs
             original_domain = obs.domain
             break
 
+    # If observation not in darshan.understanding (legacy data), add it
     if not observation_found:
-        raise HTTPException(status_code=404, detail="Observation not found")
+        from app.chitta.models import TemporalFact
+        observation_found = TemporalFact(
+            content=normalized_content,
+            domain=request.new_domain,  # Will be set to new domain
+            source="conversation",
+        )
+        original_domain = "unknown"
+        darshan.understanding.add_observation(observation_found)
+        logger.info(f"Added missing observation to understanding: '{normalized_content[:50]}...'")
 
     # Update the domain in Darshan state
     observation_found.domain = request.new_domain
@@ -780,6 +792,124 @@ async def get_video_detail(
                 }
 
     raise HTTPException(status_code=404, detail="Video not found")
+
+
+# =============================================================================
+# VIDEO FEEDBACK ENDPOINTS
+# =============================================================================
+
+class VideoFeedbackRequest(BaseModel):
+    """Request to save video feedback."""
+    quality: str  # adequate, inadequate
+    notes: Optional[str] = None
+
+
+class VideoFeedbackResponse(BaseModel):
+    """Response for video feedback."""
+    id: str
+    child_id: str
+    video_id: str
+    quality: str
+    notes: Optional[str]
+    author_name: str
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+@router.get("/children/{child_id}/videos/{video_id}/feedback", response_model=Optional[VideoFeedbackResponse])
+async def get_video_feedback(
+    child_id: str,
+    video_id: str,
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """Get existing feedback for a video."""
+    from app.db.models_dashboard import VideoFeedback
+    from sqlalchemy import select
+
+    async with uow:
+        result = await uow.session.execute(
+            select(VideoFeedback).where(
+                VideoFeedback.child_id == child_id,
+                VideoFeedback.video_id == video_id
+            )
+        )
+        feedback = result.scalar_one_or_none()
+
+        if not feedback:
+            return None
+
+        return VideoFeedbackResponse(
+            id=str(feedback.id),
+            child_id=feedback.child_id,
+            video_id=feedback.video_id,
+            quality=feedback.quality,
+            notes=feedback.notes,
+            author_name=feedback.author_name,
+            created_at=feedback.created_at,
+            updated_at=feedback.updated_at,
+        )
+
+
+@router.post("/children/{child_id}/videos/{video_id}/feedback", response_model=VideoFeedbackResponse)
+async def save_video_feedback(
+    child_id: str,
+    video_id: str,
+    request: VideoFeedbackRequest,
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """Save or update feedback for a video."""
+    from app.db.models_dashboard import VideoFeedback
+    from sqlalchemy import select
+    import uuid
+
+    logger.info(f"Dashboard: Admin {admin.email} saving feedback for video {video_id}")
+
+    async with uow:
+        # Check if feedback already exists
+        result = await uow.session.execute(
+            select(VideoFeedback).where(
+                VideoFeedback.child_id == child_id,
+                VideoFeedback.video_id == video_id
+            )
+        )
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            # Update existing feedback
+            existing.quality = request.quality
+            existing.notes = request.notes
+            existing.author_name = admin.display_name or admin.email
+            existing.author_id = admin.id
+            await uow.commit()
+            await uow.session.refresh(existing)
+            feedback = existing
+        else:
+            # Create new feedback
+            feedback = VideoFeedback(
+                id=uuid.uuid4(),
+                child_id=child_id,
+                video_id=video_id,
+                quality=request.quality,
+                notes=request.notes,
+                author_id=admin.id,
+                author_name=admin.display_name or admin.email,
+            )
+            uow.session.add(feedback)
+            await uow.commit()
+            await uow.session.refresh(feedback)
+
+        return VideoFeedbackResponse(
+            id=str(feedback.id),
+            child_id=feedback.child_id,
+            video_id=feedback.video_id,
+            quality=feedback.quality,
+            notes=feedback.notes,
+            author_name=feedback.author_name,
+            created_at=feedback.created_at,
+            updated_at=feedback.updated_at,
+        )
 
 
 # =============================================================================

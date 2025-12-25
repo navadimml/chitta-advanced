@@ -912,6 +912,45 @@ class ChittaAPIClient {
   }
 
   /**
+   * Get video feedback (admin only)
+   */
+  async getVideoFeedback(childId, videoId) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/videos/${encodeURIComponent(videoId)}/feedback`,
+      {
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Save video feedback (admin only)
+   */
+  async saveVideoFeedback(childId, videoId, quality, notes = null) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/videos/${encodeURIComponent(videoId)}/feedback`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ quality, notes }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Get analytics overview (admin only)
    */
   async getDashboardAnalytics() {

@@ -2646,7 +2646,27 @@ function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
   const [newCertainty, setNewCertainty] = useState(0.5);
   const [certaintyReason, setCertaintyReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load existing feedback on mount
+  useEffect(() => {
+    loadExistingFeedback();
+  }, [childId, video.id]);
+
+  async function loadExistingFeedback() {
+    setLoading(true);
+    try {
+      const existingFeedback = await api.getVideoFeedback(childId, video.id);
+      if (existingFeedback) {
+        setVideoQuality(existingFeedback.quality);
+        setFeedback(existingFeedback.notes || '');
+      }
+    } catch (err) {
+      console.error('Error loading feedback:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Only show for analyzed videos
   if (video.status !== 'analyzed') {
@@ -2654,19 +2674,13 @@ function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
   }
 
   const handleSubmitFeedback = async () => {
-    if (!feedback.trim() && !videoQuality) return;
+    if (!videoQuality) return;
 
     setSubmitting(true);
     try {
-      // In a real implementation, this would call an API to save the feedback
-      console.log('Expert feedback:', {
-        videoId: video.id,
-        childId,
-        hypothesisFocus,
-        videoQuality,
-        feedback,
-      });
-      setSubmitted(true);
+      await api.saveVideoFeedback(childId, video.id, videoQuality, feedback.trim() || null);
+      // Show brief success indication then reset to normal view
+      // (Instead of permanent success state, allow editing)
     } catch (err) {
       console.error('Error submitting feedback:', err);
     } finally {
@@ -2681,7 +2695,6 @@ function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
     try {
       await api.adjustCertainty(childId, hypothesisFocus, newCertainty, certaintyReason);
       setShowCertaintyModal(false);
-      setSubmitted(true);
     } catch (err) {
       console.error('Error updating certainty:', err);
     } finally {
@@ -2689,12 +2702,12 @@ function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
     }
   };
 
-  if (submitted) {
+  if (loading) {
     return (
-      <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 text-center">
-        <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-        <h3 className="text-emerald-700 font-medium mb-1">המשוב נשמר בהצלחה</h3>
-        <p className="text-emerald-600 text-sm">תודה על הסקירה</p>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center justify-center py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-200 border-t-indigo-600" />
+        </div>
       </div>
     );
   }
@@ -2776,7 +2789,7 @@ function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
       {/* Submit button */}
       <button
         onClick={handleSubmitFeedback}
-        disabled={submitting || (!feedback.trim() && !videoQuality)}
+        disabled={submitting || !videoQuality}
         className="w-full py-2.5 bg-indigo-500 text-white rounded-xl font-medium hover:bg-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {submitting ? 'שומר...' : 'שמור משוב'}

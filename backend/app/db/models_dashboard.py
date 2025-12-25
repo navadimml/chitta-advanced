@@ -412,3 +412,37 @@ class ExpertEvidence(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<ExpertEvidence {self.effect} for '{self.curiosity_focus[:30]}...'>"
+
+
+class VideoFeedback(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """
+    Expert feedback on video quality and content.
+
+    Records whether a video adequately provides the needed information
+    for hypothesis testing.
+    """
+
+    __tablename__ = "video_feedback"
+
+    # Target reference
+    child_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    video_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+
+    # Feedback
+    quality: Mapped[str] = mapped_column(String(20), nullable=False)  # adequate, inadequate
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Author
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    author_name: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("ix_video_feedback_child", "child_id"),
+        Index("ix_video_feedback_video", "video_id"),
+        Index("ix_video_feedback_child_video", "child_id", "video_id", unique=True),
+    )
