@@ -214,7 +214,7 @@ export default function ChildDetail() {
           {/* Default: Conversation/Timeline */}
           <Route
             index
-            element={<ConversationReplay childId={childId} curiosities={child?.curiosities} onDataChange={loadChild} flags={flags} />}
+            element={<ConversationReplay childId={childId} curiosities={child?.curiosities} onDataChange={loadChild} flags={flags} onFlagChange={loadFlags} />}
           />
 
           {/* Hypotheses */}

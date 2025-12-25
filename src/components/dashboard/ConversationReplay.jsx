@@ -56,7 +56,7 @@ const VIDEO_VALUE_HE = {
   relational: 'יחסי',
 };
 
-export default function ConversationReplay({ childId, curiosities, onDataChange, flags = [] }) {
+export default function ConversationReplay({ childId, curiosities, onDataChange, flags = [], onFlagChange }) {
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,6 +71,11 @@ export default function ConversationReplay({ childId, curiosities, onDataChange,
   const handleRefresh = () => {
     loadTimeline();
     if (onDataChange) onDataChange();
+  };
+
+  // Handler for when a flag is created - refresh flags
+  const handleFlagCreated = () => {
+    if (onFlagChange) onFlagChange();
   };
 
   // Build a map of current hypotheses by their "about" field for quick lookup
@@ -161,6 +166,7 @@ export default function ConversationReplay({ childId, curiosities, onDataChange,
             onToggle={() => toggleTurn(turn.turn_id)}
             onRefresh={handleRefresh}
             getFlagForTarget={getFlagForTarget}
+            onFlagChange={onFlagChange}
           />
         ))}
       </div>
@@ -174,7 +180,7 @@ export default function ConversationReplay({ childId, curiosities, onDataChange,
  * Collapsed: 3 lines (turn#, message, summary with special icons)
  * Expanded: Full details with clean sections and special cards
  */
-function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefresh, getFlagForTarget }) {
+function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefresh, getFlagForTarget, onFlagChange }) {
   const [showTechnical, setShowTechnical] = useState(false);
   const [modal, setModal] = useState(null);
 
@@ -440,7 +446,7 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
           targetId={modal.targetId}
           targetLabel={modal.targetLabel}
           onClose={() => setModal(null)}
-          onSuccess={() => { setModal(null); onRefresh(); }}
+          onSuccess={() => { setModal(null); onRefresh(); onFlagChange && onFlagChange(); }}
         />
       )}
     </div>
