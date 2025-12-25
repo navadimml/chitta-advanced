@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, NavLink, Routes, Route, useNavigate, Navigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, NavLink, Routes, Route, useNavigate, Navigate, Link, useSearchParams } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronUp,
@@ -13,6 +13,11 @@ import {
   Video,
   FileText,
   HelpCircle,
+  X,
+  Play,
+  Clock,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 
 import { api } from '../../api/client';
@@ -297,6 +302,20 @@ function HypothesesView({ childId, curiosities }) {
   const navigate = useNavigate();
   const [expandedHypothesis, setExpandedHypothesis] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [videos, setVideos] = useState([]);
+
+  // Load videos for this child
+  useEffect(() => {
+    async function loadVideos() {
+      try {
+        const data = await api.getChildVideos(childId);
+        setVideos(data.videos || []);
+      } catch (err) {
+        console.error('Error loading videos:', err);
+      }
+    }
+    loadVideos();
+  }, [childId, refreshKey]);
 
   // Filter hypotheses from curiosities
   const hypotheses = [
@@ -307,6 +326,11 @@ function HypothesesView({ childId, curiosities }) {
   const investigating = hypotheses.filter(h => (h.certainty || 0) < 0.7 && (h.certainty || 0) >= 0.3);
   const confirmed = hypotheses.filter(h => (h.certainty || 0) >= 0.7);
   const wondering = hypotheses.filter(h => (h.certainty || 0) < 0.3);
+
+  // Get videos for a specific hypothesis
+  const getVideosForHypothesis = (hypothesisFocus) => {
+    return videos.filter(v => v.target_hypothesis_focus === hypothesisFocus);
+  };
 
   // Navigate to conversation (default tab)
   const goToConversation = () => {
@@ -376,6 +400,7 @@ function HypothesesView({ childId, curiosities }) {
             key={h.focus}
             hypothesis={h}
             childId={childId}
+            videos={getVideosForHypothesis(h.focus)}
             isExpanded={expandedHypothesis === h.focus}
             onToggle={() => setExpandedHypothesis(
               expandedHypothesis === h.focus ? null : h.focus
@@ -420,7 +445,7 @@ const EFFECT_HE = {
 /**
  * Hypothesis Lifecycle Card - Full view with evidence, video, lifecycle (plan 6.2, 6.3, 6.4, 7)
  */
-function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, onRefresh, onGoToConversation }) {
+function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded, onToggle, onRefresh, onGoToConversation }) {
   const [activeSection, setActiveSection] = useState(null); // 'evidence' | 'video' | 'lifecycle' | null
   const [showAddEvidence, setShowAddEvidence] = useState(false);
   const [showAdjustCertainty, setShowAdjustCertainty] = useState(false);
@@ -429,6 +454,12 @@ function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, on
   const certaintyPercent = Math.round(certainty * 100);
   const evidence = hypothesis.evidence || [];
   const hasVideoRec = hypothesis.video_appropriate || hypothesis.video_value;
+
+  // Check video workflow status
+  const hasVideos = videos.length > 0;
+  const analyzedVideos = videos.filter(v => v.status === 'analyzed');
+  const uploadedVideos = videos.filter(v => v.status === 'uploaded');
+  const pendingVideos = videos.filter(v => v.status === 'pending');
 
   // Status based on certainty
   const getStatus = () => {
@@ -591,7 +622,7 @@ function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, on
 
             {/* Video Section */}
             {activeSection === 'video' && (
-              <VideoWorkflowSection hypothesis={hypothesis} />
+              <VideoWorkflowSection hypothesis={hypothesis} videos={videos} childId={childId} />
             )}
 
             {/* Lifecycle Section */}
@@ -670,51 +701,83 @@ function EvidenceTrail({ evidence }) {
 /**
  * Video Workflow Section - Shows video recommendation status (plan 6.4)
  */
-function VideoWorkflowSection({ hypothesis }) {
+function VideoWorkflowSection({ hypothesis, videos = [], childId }) {
+  const navigate = useNavigate();
+
+  // Determine status for each step based on real data
+  const hasRecommendation = hypothesis.video_appropriate || hypothesis.video_value;
+  const analyzedVideos = videos.filter(v => v.status === 'analyzed');
+  const uploadedVideos = videos.filter(v => v.status === 'uploaded' || v.status === 'analyzed');
+  const hasGuidelines = videos.some(v => v.what_to_film); // Guidelines were generated if any video has filming instructions
+
   const steps = [
     {
       num: '1️⃣',
       title: 'הצעה',
-      status: hypothesis.video_appropriate ? 'done' : 'pending',
+      status: hasRecommendation ? 'done' : 'pending',
       content: hypothesis.video_value_reason || 'וידאו יכול לעזור לאמת את ההשערה',
     },
     {
       num: '2️⃣',
       title: 'הנחיות',
-      status: 'pending',
-      content: 'ממתין להנחיות צילום',
+      status: hasGuidelines ? 'done' : (hasRecommendation ? 'waiting' : 'pending'),
+      content: hasGuidelines ? 'הנחיות צילום נוצרו' : 'ממתין להנחיות צילום',
     },
     {
       num: '3️⃣',
       title: 'הועלה',
-      status: 'pending',
-      content: 'ממתין להעלאה',
+      status: uploadedVideos.length > 0 ? 'done' : (hasGuidelines ? 'waiting' : 'pending'),
+      content: uploadedVideos.length > 0
+        ? `${uploadedVideos.length} סרטונים הועלו`
+        : 'ממתין להעלאה',
     },
     {
       num: '4️⃣',
       title: 'נותח',
-      status: 'pending',
-      content: 'ממתין לניתוח',
+      status: analyzedVideos.length > 0 ? 'done' : (uploadedVideos.length > 0 ? 'waiting' : 'pending'),
+      content: analyzedVideos.length > 0
+        ? `${analyzedVideos.length} סרטונים נותחו`
+        : 'ממתין לניתוח',
     },
   ];
 
+  const getStatusIcon = (status) => {
+    if (status === 'done') return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+    if (status === 'waiting') return <Clock className="w-4 h-4 text-amber-500 animate-pulse" />;
+    return <span className="w-4 h-4 rounded-full border-2 border-gray-300" />;
+  };
+
   return (
     <div className="p-4 bg-violet-50/50 rounded-xl border border-violet-100">
-      <div className="text-sm font-medium text-violet-700 mb-4">תהליך וידאו</div>
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-sm font-medium text-violet-700">תהליך וידאו</div>
+        {videos.length > 0 && (
+          <button
+            onClick={() => navigate(`/dashboard/children/${childId}/videos?hypothesis=${encodeURIComponent(hypothesis.focus)}`)}
+            className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800"
+          >
+            צפה בסרטונים ({videos.length})
+            <ChevronLeft className="w-3 h-3 rotate-180" />
+          </button>
+        )}
+      </div>
+
       <div className="space-y-3">
         {steps.map((step, i) => (
           <div
             key={i}
-            className={`p-3 rounded-lg ${
-              step.status === 'done' ? 'bg-white border border-violet-200' : 'bg-violet-50/50'
+            className={`p-3 rounded-lg transition-all ${
+              step.status === 'done'
+                ? 'bg-white border border-emerald-200'
+                : step.status === 'waiting'
+                  ? 'bg-amber-50/50 border border-amber-200'
+                  : 'bg-violet-50/50'
             }`}
           >
             <div className="flex items-center gap-2 mb-1">
               <span>{step.num}</span>
               <span className="font-medium text-gray-700">{step.title}</span>
-              {step.status === 'done' && (
-                <span className="text-emerald-500">✓</span>
-              )}
+              {getStatusIcon(step.status)}
             </div>
             <p className="text-sm text-gray-500 pr-6">{step.content}</p>
           </div>
@@ -727,6 +790,33 @@ function VideoWorkflowSection({ hypothesis }) {
           <span className="mr-2 px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-sm">
             {VIDEO_VALUE_HE[hypothesis.video_value] || hypothesis.video_value}
           </span>
+        </div>
+      )}
+
+      {/* Show analyzed video summaries */}
+      {analyzedVideos.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="text-xs text-violet-600 font-medium">סיכום ניתוחים:</div>
+          {analyzedVideos.slice(0, 2).map((video, i) => (
+            <div key={i} className="p-3 bg-white rounded-lg border border-gray-100 text-sm">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium text-gray-700">{video.title}</span>
+                <span className="text-xs text-gray-400">
+                  {video.observations?.length || 0} תצפיות
+                </span>
+              </div>
+              {video.certainty_after !== null && (
+                <div className="text-xs text-purple-600">
+                  ודאות לאחר ניתוח: {Math.round((video.certainty_after || 0) * 100)}%
+                </div>
+              )}
+            </div>
+          ))}
+          {analyzedVideos.length > 2 && (
+            <p className="text-xs text-gray-400 text-center">
+              +{analyzedVideos.length - 2} סרטונים נוספים
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -1581,12 +1671,18 @@ const VIDEO_CATEGORY_HE = {
 
 /**
  * Videos View - Video gallery with analysis (plan 6.5, 9)
+ * Supports filtering by hypothesis via URL query parameter
  */
 function VideosView({ childId }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [statusFilter, setStatusFilter] = useState(null);
+
+  // Get hypothesis filter from URL
+  const hypothesisFilter = searchParams.get('hypothesis');
 
   useEffect(() => {
     loadVideos();
@@ -1603,6 +1699,17 @@ function VideosView({ childId }) {
       setLoading(false);
     }
   }
+
+  // Clear hypothesis filter
+  const clearHypothesisFilter = () => {
+    searchParams.delete('hypothesis');
+    setSearchParams(searchParams);
+  };
+
+  // Filter videos by hypothesis if filter is active
+  const filteredVideos = hypothesisFilter
+    ? videos.filter(v => v.target_hypothesis_focus === hypothesisFilter)
+    : videos;
 
   if (loading) {
     return (
@@ -1624,54 +1731,96 @@ function VideosView({ childId }) {
     );
   }
 
-  // Group videos by status
-  const analyzed = videos.filter(v => v.status === 'analyzed');
-  const uploaded = videos.filter(v => v.status === 'uploaded');
-  const pending = videos.filter(v => v.status === 'pending');
-  const failed = videos.filter(v => v.status === 'validation_failed');
+  // Group filtered videos by status
+  const analyzed = filteredVideos.filter(v => v.status === 'analyzed');
+  const uploaded = filteredVideos.filter(v => v.status === 'uploaded');
+  const pending = filteredVideos.filter(v => v.status === 'pending');
+  const failed = filteredVideos.filter(v => v.status === 'validation_failed');
 
   return (
     <div className="p-6 max-w-5xl mx-auto" dir="rtl">
-      {/* Header with filter */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-medium text-gray-800">
-          סרטונים ({videos.length})
-        </h2>
-        <div className="flex items-center gap-2 text-sm">
-          {analyzed.length > 0 && (
-            <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg">
-              ✓ {analyzed.length} נותחו
+      {/* Hypothesis filter banner */}
+      {hypothesisFilter && (
+        <div className="mb-4 p-3 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2 text-purple-700">
+            <span className="text-lg">◆</span>
+            <span className="text-sm">
+              מציג סרטונים עבור השערה: <strong>"{hypothesisFilter}"</strong>
             </span>
-          )}
-          {uploaded.length > 0 && (
-            <span className="px-2 py-1 bg-violet-50 text-violet-600 rounded-lg">
-              ⬆ {uploaded.length} הועלו
-            </span>
-          )}
-          {pending.length > 0 && (
-            <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">
-              ○ {pending.length} ממתינים
-            </span>
-          )}
+          </div>
+          <button
+            onClick={clearHypothesisFilter}
+            className="flex items-center gap-1 px-2 py-1 text-purple-600 hover:bg-purple-100 rounded-lg text-sm transition"
+          >
+            <X className="w-4 h-4" />
+            הצג הכל
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* Video grid or detail view */}
-      {selectedVideo ? (
-        <VideoAnalysisView
-          video={selectedVideo}
-          onBack={() => setSelectedVideo(null)}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {videos.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={video}
-              onClick={() => setSelectedVideo(video)}
-            />
-          ))}
+      {/* Empty state for filtered view */}
+      {hypothesisFilter && filteredVideos.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Video className="w-12 h-12 text-gray-200 mb-4" />
+          <h3 className="text-gray-400 text-lg mb-2">אין סרטונים להשערה זו</h3>
+          <p className="text-gray-300 text-sm max-w-md mb-4">
+            עדיין לא הועלו סרטונים לבדיקת השערה זו.
+          </p>
+          <button
+            onClick={clearHypothesisFilter}
+            className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition"
+          >
+            הצג את כל הסרטונים
+          </button>
         </div>
+      )}
+
+      {/* Header with filter */}
+      {filteredVideos.length > 0 && (
+        <>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-medium text-gray-800">
+              סרטונים ({filteredVideos.length}{hypothesisFilter ? ` מתוך ${videos.length}` : ''})
+            </h2>
+            <div className="flex items-center gap-2 text-sm">
+              {analyzed.length > 0 && (
+                <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg">
+                  ✓ {analyzed.length} נותחו
+                </span>
+              )}
+              {uploaded.length > 0 && (
+                <span className="px-2 py-1 bg-violet-50 text-violet-600 rounded-lg">
+                  ⬆ {uploaded.length} הועלו
+                </span>
+              )}
+              {pending.length > 0 && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">
+                  ○ {pending.length} ממתינים
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Video grid or detail view */}
+          {selectedVideo ? (
+            <VideoAnalysisView
+              video={selectedVideo}
+              childId={childId}
+              hypothesisFocus={hypothesisFilter}
+              onBack={() => setSelectedVideo(null)}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredVideos.map((video) => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  onClick={() => setSelectedVideo(video)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1746,10 +1895,45 @@ function VideoCard({ video, onClick }) {
 }
 
 /**
- * Video Analysis View - Detailed view with player and observations (plan 6.5)
+ * Parse timestamp string (e.g., "0:30", "1:25", "00:01:30") to seconds
  */
-function VideoAnalysisView({ video, onBack }) {
+function parseTimestamp(timestamp) {
+  if (!timestamp) return 0;
+  const parts = timestamp.split(':').map(Number);
+  if (parts.length === 3) {
+    // HH:MM:SS
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    // MM:SS
+    return parts[0] * 60 + parts[1];
+  }
+  return 0;
+}
+
+/**
+ * Video Analysis View - Detailed view with player and observations (plan 6.5)
+ * Now with clickable timestamps and expert feedback capabilities
+ */
+function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
+  const videoRef = useRef(null);
   const [activeTab, setActiveTab] = useState('observations');
+  const [currentTime, setCurrentTime] = useState(0);
+
+  // Seek video to specific timestamp
+  const seekToTimestamp = (timestamp) => {
+    if (videoRef.current && timestamp) {
+      const seconds = parseTimestamp(timestamp);
+      videoRef.current.currentTime = seconds;
+      videoRef.current.play();
+    }
+  };
+
+  // Track current time for highlighting active observation
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -1787,12 +1971,14 @@ function VideoAnalysisView({ video, onBack }) {
           </span>
         </div>
 
-        {/* Video player placeholder */}
-        <div className="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center mb-4">
+        {/* Video player with ref for seeking */}
+        <div className="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center mb-4 overflow-hidden">
           {video.video_path ? (
             <video
+              ref={videoRef}
               src={`/uploads/${video.video_path.split('/').slice(-2).join('/')}`}
               controls
+              onTimeUpdate={handleTimeUpdate}
               className="w-full h-full rounded-xl"
             />
           ) : (
@@ -1845,7 +2031,11 @@ function VideoAnalysisView({ video, onBack }) {
           {/* Tab content */}
           <div className="p-6">
             {activeTab === 'observations' && (
-              <VideoObservationsList observations={video.observations || []} />
+              <VideoObservationsList
+                observations={video.observations || []}
+                onSeek={seekToTimestamp}
+                currentTime={currentTime}
+              />
             )}
             {activeTab === 'strengths' && (
               <div className="space-y-2">
@@ -1933,49 +2123,312 @@ function VideoAnalysisView({ video, onBack }) {
           )}
         </div>
       )}
+
+      {/* Expert Feedback Panel */}
+      <ExpertVideoFeedbackPanel
+        video={video}
+        childId={childId}
+        hypothesisFocus={hypothesisFocus}
+      />
     </div>
   );
 }
 
 /**
- * Video Observations List - Timeline of observations with timestamps
+ * Expert Video Feedback Panel - Allows experts to give feedback on videos
  */
-function VideoObservationsList({ observations }) {
+function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
+  const navigate = useNavigate();
+  const [feedback, setFeedback] = useState('');
+  const [videoQuality, setVideoQuality] = useState(null); // 'adequate' | 'inadequate' | null
+  const [showCertaintyModal, setShowCertaintyModal] = useState(false);
+  const [newCertainty, setNewCertainty] = useState(0.5);
+  const [certaintyReason, setCertaintyReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Only show for analyzed videos
+  if (video.status !== 'analyzed') {
+    return null;
+  }
+
+  const handleSubmitFeedback = async () => {
+    if (!feedback.trim() && !videoQuality) return;
+
+    setSubmitting(true);
+    try {
+      // In a real implementation, this would call an API to save the feedback
+      console.log('Expert feedback:', {
+        videoId: video.id,
+        childId,
+        hypothesisFocus,
+        videoQuality,
+        feedback,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateCertainty = async () => {
+    if (!hypothesisFocus || !certaintyReason.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await api.adjustCertainty(childId, hypothesisFocus, newCertainty, certaintyReason);
+      setShowCertaintyModal(false);
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Error updating certainty:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 text-center">
+        <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+        <h3 className="text-emerald-700 font-medium mb-1">המשוב נשמר בהצלחה</h3>
+        <p className="text-emerald-600 text-sm">תודה על הסקירה</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center gap-2">
+        <Eye className="w-5 h-5 text-indigo-500" />
+        משוב מומחה
+      </h3>
+
+      {/* Linked hypothesis info */}
+      {video.target_hypothesis_focus && (
+        <div className="mb-4 p-3 bg-purple-50 rounded-xl border border-purple-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-purple-600">◆</span>
+              <span className="text-sm text-purple-700">
+                קשור להשערה: <strong>{video.target_hypothesis_focus}</strong>
+              </span>
+            </div>
+            <button
+              onClick={() => setShowCertaintyModal(true)}
+              className="flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs hover:bg-purple-200 transition"
+            >
+              <RefreshCw className="w-3 h-3" />
+              עדכן ודאות
+            </button>
+          </div>
+          {video.certainty_after !== null && (
+            <p className="text-xs text-purple-500 mt-2">
+              ודאות נוכחית: {Math.round((video.certainty_after || 0) * 100)}%
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Video quality assessment */}
+      <div className="mb-4">
+        <p className="text-sm text-gray-600 mb-2">האם הסרטון מספק את המידע הנדרש?</p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setVideoQuality('adequate')}
+            className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition ${
+              videoQuality === 'adequate'
+                ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-300'
+                : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+            }`}
+          >
+            <CheckCircle className={`w-4 h-4 inline-block ml-1 ${videoQuality === 'adequate' ? 'text-emerald-600' : 'text-gray-400'}`} />
+            מספק
+          </button>
+          <button
+            onClick={() => setVideoQuality('inadequate')}
+            className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition ${
+              videoQuality === 'inadequate'
+                ? 'bg-amber-100 text-amber-700 border-2 border-amber-300'
+                : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
+            }`}
+          >
+            <AlertCircle className={`w-4 h-4 inline-block ml-1 ${videoQuality === 'inadequate' ? 'text-amber-600' : 'text-gray-400'}`} />
+            לא מספק
+          </button>
+        </div>
+      </div>
+
+      {/* Feedback notes */}
+      <div className="mb-4">
+        <label className="text-sm text-gray-600 mb-1 block">הערות ומשוב:</label>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="הוסף הערות על איכות הסרטון, התצפיות, או הצעות לשיפור..."
+          className="w-full p-3 border border-gray-200 rounded-xl text-sm resize-none h-24 focus:outline-none focus:border-indigo-300"
+          dir="rtl"
+        />
+      </div>
+
+      {/* Submit button */}
+      <button
+        onClick={handleSubmitFeedback}
+        disabled={submitting || (!feedback.trim() && !videoQuality)}
+        className="w-full py-2.5 bg-indigo-500 text-white rounded-xl font-medium hover:bg-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {submitting ? 'שומר...' : 'שמור משוב'}
+      </button>
+
+      {/* Certainty update modal */}
+      {showCertaintyModal && (
+        <Modal onClose={() => setShowCertaintyModal(false)}>
+          <div className="p-6">
+            <h3 className="text-lg font-medium text-gray-800 mb-4">
+              עדכון ודאות ההשערה מהוידאו
+            </h3>
+
+            <div className="mb-4 p-3 bg-purple-50 rounded-xl">
+              <p className="text-sm text-purple-700">
+                השערה: <strong>{video.target_hypothesis_focus}</strong>
+              </p>
+              {video.certainty_after !== null && (
+                <p className="text-xs text-purple-500 mt-1">
+                  ודאות נוכחית: {Math.round((video.certainty_after || 0) * 100)}%
+                </p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <label className="text-sm text-gray-600 mb-2 block">ודאות חדשה:</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={newCertainty * 100}
+                onChange={(e) => setNewCertainty(Number(e.target.value) / 100)}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>0%</span>
+                <span className="text-indigo-600 font-medium">{Math.round(newCertainty * 100)}%</span>
+                <span>100%</span>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-sm text-gray-600 mb-1 block">סיבה לשינוי:</label>
+              <textarea
+                value={certaintyReason}
+                onChange={(e) => setCertaintyReason(e.target.value)}
+                placeholder="הסבר מדוע הוידאו משפיע על הודאות..."
+                className="w-full p-3 border border-gray-200 rounded-xl text-sm resize-none h-20 focus:outline-none focus:border-indigo-300"
+                dir="rtl"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCertaintyModal(false)}
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={handleUpdateCertainty}
+                disabled={submitting || !certaintyReason.trim()}
+                className="flex-1 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition disabled:opacity-50"
+              >
+                {submitting ? 'שומר...' : 'עדכן ודאות'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Video Observations List - Timeline of observations with clickable timestamps
+ */
+function VideoObservationsList({ observations, onSeek, currentTime }) {
   if (observations.length === 0) {
     return (
       <p className="text-gray-400 text-center py-8">לא זוהו תצפיות</p>
     );
   }
 
+  // Check if an observation is currently playing
+  const isActive = (obs) => {
+    if (!currentTime || !obs.timestamp_start) return false;
+    const startSec = parseTimestamp(obs.timestamp_start);
+    const endSec = obs.timestamp_end ? parseTimestamp(obs.timestamp_end) : startSec + 10;
+    return currentTime >= startSec && currentTime <= endSec;
+  };
+
   return (
     <div className="space-y-3">
-      {observations.map((obs, i) => (
-        <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-          <div className="flex items-start justify-between mb-2">
-            <span className="text-sm text-violet-600">
-              📍 {obs.timestamp_start || '—'}
-              {obs.timestamp_end && obs.timestamp_end !== obs.timestamp_start && (
-                <span> - {obs.timestamp_end}</span>
+      {/* Instruction hint */}
+      {onSeek && (
+        <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+          <Play className="w-3 h-3" />
+          לחץ על זמן כדי לדלג לנקודה בסרטון
+        </p>
+      )}
+
+      {observations.map((obs, i) => {
+        const active = isActive(obs);
+        return (
+          <div
+            key={i}
+            className={`p-4 rounded-xl border transition-all ${
+              active
+                ? 'bg-violet-50 border-violet-200 shadow-sm'
+                : 'bg-gray-50 border-gray-100'
+            }`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              {/* Clickable timestamp */}
+              {onSeek && obs.timestamp_start ? (
+                <button
+                  onClick={() => onSeek(obs.timestamp_start)}
+                  className="flex items-center gap-1 text-sm text-violet-600 hover:text-violet-800 hover:bg-violet-100 px-2 py-1 -mx-2 -my-1 rounded-lg transition group"
+                >
+                  <Play className={`w-3 h-3 ${active ? 'text-violet-600' : 'text-violet-400 group-hover:text-violet-600'}`} />
+                  <span className="font-medium">{obs.timestamp_start}</span>
+                  {obs.timestamp_end && obs.timestamp_end !== obs.timestamp_start && (
+                    <span className="text-violet-400"> - {obs.timestamp_end}</span>
+                  )}
+                </button>
+              ) : (
+                <span className="text-sm text-violet-600">
+                  📍 {obs.timestamp_start || '—'}
+                  {obs.timestamp_end && obs.timestamp_end !== obs.timestamp_start && (
+                    <span> - {obs.timestamp_end}</span>
+                  )}
+                </span>
               )}
-            </span>
-            {obs.domain && (
-              <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
-                {DOMAIN_HE[obs.domain] || obs.domain}
+              {obs.domain && (
+                <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
+                  {DOMAIN_HE[obs.domain] || obs.domain}
+                </span>
+              )}
+            </div>
+            <p className="text-gray-700">{obs.content}</p>
+            {obs.effect && obs.effect !== 'neutral' && (
+              <span className={`mt-2 inline-block px-2 py-0.5 rounded text-xs ${
+                obs.effect === 'supports' ? 'bg-emerald-100 text-emerald-700' :
+                obs.effect === 'contradicts' ? 'bg-red-100 text-red-700' :
+                'bg-blue-100 text-blue-700'
+              }`}>
+                {EFFECT_HE[obs.effect] || obs.effect}
               </span>
             )}
           </div>
-          <p className="text-gray-700">{obs.content}</p>
-          {obs.effect && obs.effect !== 'neutral' && (
-            <span className={`mt-2 inline-block px-2 py-0.5 rounded text-xs ${
-              obs.effect === 'supports' ? 'bg-emerald-100 text-emerald-700' :
-              obs.effect === 'contradicts' ? 'bg-red-100 text-red-700' :
-              'bg-blue-100 text-blue-700'
-            }`}>
-              {EFFECT_HE[obs.effect] || obs.effect}
-            </span>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

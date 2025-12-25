@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
   ChevronUp,
@@ -8,6 +9,8 @@ import {
   Video,
   FlaskConical,
   Sparkles,
+  ExternalLink,
+  Play,
 } from 'lucide-react';
 import { api } from '../../api/client';
 
@@ -442,9 +445,13 @@ const EVIDENCE_TYPE_HE = {
  * Shows both initial state (from tool call) and current state (from curiosities)
  */
 function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject }) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [showLifecycle, setShowLifecycle] = useState(false);
   const args = hypothesis.arguments || {};
+
+  // Get hypothesis focus for filtering videos
+  const hypothesisFocus = currentHypothesis?.focus || args.about || args.theory;
 
   const hasVideoRec = args.video_appropriate || args.video_value;
   const initialCertainty = args.initial_certainty || 0.3;
@@ -541,9 +548,19 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
         {/* Video recommendation - Special section */}
         {hasVideoRec && (
           <div className="p-4 bg-violet-50 border border-violet-100 rounded-xl mb-3">
-            <div className="flex items-center gap-2 text-violet-700 font-medium mb-2">
-              <Video className="w-4 h-4" />
-              המלצת וידאו
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-violet-700 font-medium">
+                <Video className="w-4 h-4" />
+                המלצת וידאו
+              </div>
+              {/* Navigate to videos filtered by this hypothesis */}
+              <button
+                onClick={() => navigate(`/dashboard/children/${childId}/videos?hypothesis=${encodeURIComponent(hypothesisFocus)}`)}
+                className="flex items-center gap-1 px-2.5 py-1 bg-violet-100 text-violet-700 rounded-lg text-xs hover:bg-violet-200 transition"
+              >
+                <ExternalLink className="w-3 h-3" />
+                צפה בסרטונים
+              </button>
             </div>
             <div className="flex items-center gap-2 flex-wrap text-sm">
               {args.video_value && (
