@@ -923,6 +923,54 @@ class ChittaAPIClient {
   }
 
   /**
+   * Get correction analytics (admin only)
+   */
+  async getCorrectionAnalytics() {
+    const response = await fetch(`${API_BASE_URL}/dashboard/analytics/corrections`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get missed signal analytics (admin only)
+   */
+  async getMissedSignalAnalytics() {
+    const response = await fetch(`${API_BASE_URL}/dashboard/analytics/missed-signals`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get correction patterns (admin only)
+   */
+  async getCorrectionPatterns(minOccurrences = 2) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/analytics/patterns?min_occurrences=${minOccurrences}`,
+      {
+        headers: this.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Adjust curiosity certainty (admin only)
    */
   async adjustCertainty(childId, curiosityFocus, newCertainty, reason) {

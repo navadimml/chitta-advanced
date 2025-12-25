@@ -995,38 +995,498 @@ function CrystalView({ crystal }) {
   );
 }
 
+// Correction type translations
+const CORRECTION_TYPE_HE = {
+  domain_change: 'שינוי תחום',
+  extraction_error: 'שגיאת חילוץ',
+  missed_signal: 'אות שפוספס',
+  hallucination: 'המצאה',
+  evidence_reclassify: 'סיווג ראיה מחדש',
+  timing_issue: 'בעיית תזמון',
+  certainty_adjustment: 'התאמת ודאות',
+};
+
+const TARGET_TYPE_HE = {
+  observation: 'תצפית',
+  curiosity: 'סקרנות',
+  hypothesis: 'השערה',
+  evidence: 'ראיה',
+  video: 'וידאו',
+  response: 'תשובה',
+};
+
+const SEVERITY_HE = {
+  low: 'נמוכה',
+  medium: 'בינונית',
+  high: 'גבוהה',
+};
+
 /**
- * Analytics View - Correction patterns and improvement metrics
+ * Analytics View - Correction patterns and improvement metrics (plan section 11)
  */
 function AnalyticsView({ childId }) {
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState(null);
+  const [patterns, setPatterns] = useState(null);
+  const [corrections, setCorrections] = useState(null);
+  const [missedSignals, setMissedSignals] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
+
+  async function loadAnalytics() {
+    setLoading(true);
+    try {
+      const [overviewData, patternsData, correctionsData, missedData] = await Promise.all([
+        api.getDashboardAnalytics(),
+        api.getCorrectionPatterns(1),
+        api.getCorrectionAnalytics(),
+        api.getMissedSignalAnalytics(),
+      ]);
+      setOverview(overviewData);
+      setPatterns(patternsData);
+      setCorrections(correctionsData);
+      setMissedSignals(missedData);
+    } catch (err) {
+      console.error('Error loading analytics:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-200 border-t-indigo-600" />
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-4xl mx-auto" dir="rtl">
+    <div className="p-6 max-w-5xl mx-auto" dir="rtl">
       <h2 className="text-xl font-medium text-gray-800 mb-6">אנליטיקה</h2>
 
-      {/* Placeholder - will be enhanced */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
-          <div className="text-3xl font-bold text-gray-800 mb-1">0</div>
-          <div className="text-sm text-gray-400">תיקונים</div>
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
-          <div className="text-3xl font-bold text-amber-600 mb-1">0</div>
-          <div className="text-sm text-gray-400">אותות שפוספסו</div>
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
-          <div className="text-3xl font-bold text-emerald-600 mb-1">—</div>
-          <div className="text-sm text-gray-400">דיוק</div>
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <SummaryCard
+          value={overview?.total_children || 0}
+          label="ילדים"
+          color="indigo"
+        />
+        <SummaryCard
+          value={corrections?.total || 0}
+          label="תיקונים"
+          color="purple"
+        />
+        <SummaryCard
+          value={missedSignals?.total || 0}
+          label="אותות שפוספסו"
+          color="amber"
+        />
+        <SummaryCard
+          value={overview?.total_unresolved_flags || 0}
+          label="דגלים פתוחים"
+          color="red"
+        />
+      </div>
+
+      {/* Tab navigation */}
+      <div className="flex gap-2 mb-6">
+        {[
+          { id: 'overview', label: '📊 סקירה' },
+          { id: 'patterns', label: '🔍 דפוסים' },
+          { id: 'corrections', label: '✏️ תיקונים' },
+          { id: 'missed', label: '⚠️ אותות שפוספסו' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+              activeTab === tab.id
+                ? 'bg-indigo-100 text-indigo-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'overview' && (
+        <OverviewTab overview={overview} corrections={corrections} missedSignals={missedSignals} />
+      )}
+      {activeTab === 'patterns' && (
+        <PatternsTab patterns={patterns} />
+      )}
+      {activeTab === 'corrections' && (
+        <CorrectionsTab corrections={corrections} />
+      )}
+      {activeTab === 'missed' && (
+        <MissedSignalsTab missedSignals={missedSignals} />
+      )}
+    </div>
+  );
+}
+
+function SummaryCard({ value, label, color = 'gray' }) {
+  const colors = {
+    gray: 'text-gray-800',
+    indigo: 'text-indigo-600',
+    purple: 'text-purple-600',
+    amber: 'text-amber-600',
+    red: 'text-red-600',
+    emerald: 'text-emerald-600',
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
+      <div className={`text-3xl font-bold mb-1 ${colors[color]}`}>{value}</div>
+      <div className="text-sm text-gray-400">{label}</div>
+    </div>
+  );
+}
+
+function OverviewTab({ overview, corrections, missedSignals }) {
+  return (
+    <div className="space-y-6">
+      {/* System stats */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <h3 className="text-lg font-medium text-gray-800 mb-4">📈 סטטיסטיקות מערכת</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <div className="text-2xl font-bold text-gray-800">{overview?.total_observations || 0}</div>
+            <div className="text-sm text-gray-400">תצפיות</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-gray-800">{overview?.total_curiosities || 0}</div>
+            <div className="text-sm text-gray-400">סקרנויות</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-gray-800">{overview?.total_patterns || 0}</div>
+            <div className="text-sm text-gray-400">דפוסים</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-emerald-600">{overview?.children_with_crystal || 0}</div>
+            <div className="text-sm text-gray-400">עם קריסטל</div>
+          </div>
         </div>
       </div>
 
-      {/* Coming soon */}
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <BarChart3 className="w-12 h-12 text-gray-200 mb-4" />
-        <h3 className="text-gray-400 text-lg mb-2">אנליטיקה מתקדמת בקרוב</h3>
-        <p className="text-gray-300 text-sm max-w-md">
-          כאן יוצגו דפוסי תיקונים, מדדי שיפור, והמלצות לאימון.
+      {/* Correction breakdown */}
+      {corrections && Object.keys(corrections.by_type || {}).length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">✏️ תיקונים לפי סוג</h3>
+          <div className="space-y-2">
+            {Object.entries(corrections.by_type || {}).map(([type, count]) => (
+              <div key={type} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <span className="text-gray-700">{CORRECTION_TYPE_HE[type] || type}</span>
+                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg font-medium">
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Missed signals by domain */}
+      {missedSignals && Object.keys(missedSignals.by_domain || {}).length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">⚠️ אותות שפוספסו לפי תחום</h3>
+          <div className="space-y-2">
+            {Object.entries(missedSignals.by_domain || {}).map(([domain, count]) => (
+              <div key={domain} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <span className="text-gray-700">{DOMAIN_HE[domain] || domain}</span>
+                <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg font-medium">
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {(!corrections?.total && !missedSignals?.total) && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+          <BarChart3 className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+          <h3 className="text-gray-500 mb-2">אין נתוני תיקונים עדיין</h3>
+          <p className="text-gray-400 text-sm">
+            נתוני אנליטיקה יופיעו כאשר מומחים יתחילו לסקור ולתקן.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PatternsTab({ patterns }) {
+  if (!patterns || (patterns.correction_patterns?.length === 0 && patterns.missed_signal_patterns?.length === 0)) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+        <BarChart3 className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+        <h3 className="text-gray-500 mb-2">לא זוהו דפוסים עדיין</h3>
+        <p className="text-gray-400 text-sm">
+          דפוסים יזוהו כאשר יצטברו תיקונים חוזרים.
         </p>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Correction patterns */}
+      {patterns.correction_patterns?.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">
+            🔍 דפוסי תיקונים ({patterns.correction_patterns.length})
+          </h3>
+          <div className="space-y-3">
+            {patterns.correction_patterns.map((pattern, i) => (
+              <PatternCard key={i} pattern={pattern} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Missed signal patterns */}
+      {patterns.missed_signal_patterns?.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">
+            ⚠️ דפוסי אותות שפוספסו ({patterns.missed_signal_patterns.length})
+          </h3>
+          <div className="space-y-3">
+            {patterns.missed_signal_patterns.map((pattern, i) => (
+              <div key={i} className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-amber-800">
+                    {DOMAIN_HE[pattern.domain] || pattern.domain}
+                  </span>
+                  <span className="px-2 py-1 bg-amber-200 text-amber-800 rounded text-sm font-medium">
+                    {pattern.count} מקרים
+                  </span>
+                </div>
+                {pattern.examples?.length > 0 && (
+                  <div className="text-sm text-amber-700">
+                    דוגמה: {pattern.examples[0]}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PatternCard({ pattern }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-right"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-purple-800">
+              {CORRECTION_TYPE_HE[pattern.correction_type] || pattern.correction_type}
+            </span>
+            <span className="text-purple-600 text-sm">
+              → {TARGET_TYPE_HE[pattern.target_type] || pattern.target_type}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-1 bg-purple-200 text-purple-800 rounded text-sm font-medium">
+              {pattern.count} מקרים
+            </span>
+            {pattern.severity_score >= 2 && (
+              <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">
+                חומרה גבוהה
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+
+      {expanded && pattern.examples?.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-purple-200 space-y-2">
+          <div className="text-sm text-purple-600 font-medium">דוגמאות:</div>
+          {pattern.examples.map((ex, i) => (
+            <div key={i} className="p-2 bg-white rounded-lg text-sm text-gray-600">
+              {ex.expert_reasoning || 'ללא הסבר'}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CorrectionsTab({ corrections }) {
+  if (!corrections || corrections.total === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+        <FileText className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+        <h3 className="text-gray-500 mb-2">אין תיקונים עדיין</h3>
+        <p className="text-gray-400 text-sm">
+          תיקונים יופיעו כאשר מומחים יסמנו שגיאות בתצפיות או בסקרנויות.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Stats breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <h4 className="text-sm text-gray-500 mb-3">לפי חומרה</h4>
+          <div className="space-y-2">
+            {Object.entries(corrections.by_severity || {}).map(([sev, count]) => (
+              <div key={sev} className="flex items-center justify-between">
+                <span className={`text-sm ${
+                  sev === 'high' ? 'text-red-600' :
+                  sev === 'medium' ? 'text-amber-600' : 'text-gray-600'
+                }`}>
+                  {SEVERITY_HE[sev] || sev}
+                </span>
+                <span className="font-medium">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <h4 className="text-sm text-gray-500 mb-3">לפי יעד</h4>
+          <div className="space-y-2">
+            {Object.entries(corrections.by_target_type || {}).map(([target, count]) => (
+              <div key={target} className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">{TARGET_TYPE_HE[target] || target}</span>
+                <span className="font-medium">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <h4 className="text-sm text-gray-500 mb-3">מצב אימון</h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">ממתינים לאימון</span>
+              <span className="font-medium text-amber-600">{corrections.unused_for_training || 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">שומשו באימון</span>
+              <span className="font-medium text-emerald-600">
+                {(corrections.total || 0) - (corrections.unused_for_training || 0)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent examples */}
+      {corrections.recent_examples?.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">תיקונים אחרונים</h3>
+          <div className="space-y-3">
+            {corrections.recent_examples.map((ex, i) => (
+              <div key={i} className="p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                    {CORRECTION_TYPE_HE[ex.correction_type] || ex.correction_type}
+                  </span>
+                  <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
+                    {TARGET_TYPE_HE[ex.target_type] || ex.target_type}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-xs ${
+                    ex.severity === 'high' ? 'bg-red-100 text-red-700' :
+                    ex.severity === 'medium' ? 'bg-amber-100 text-amber-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {SEVERITY_HE[ex.severity] || ex.severity}
+                  </span>
+                </div>
+                <p className="text-gray-700 text-sm">{ex.expert_reasoning}</p>
+                <p className="text-gray-400 text-xs mt-2">
+                  {ex.created_at && new Date(ex.created_at).toLocaleDateString('he-IL')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MissedSignalsTab({ missedSignals }) {
+  if (!missedSignals || missedSignals.total === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+        <Eye className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+        <h3 className="text-gray-500 mb-2">אין אותות שפוספסו</h3>
+        <p className="text-gray-400 text-sm">
+          אותות שפוספסו יופיעו כאשר מומחים יזהו דברים שצ'יטה לא שמה לב אליהם.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* By signal type */}
+      {Object.keys(missedSignals.by_signal_type || {}).length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">לפי סוג אות</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {Object.entries(missedSignals.by_signal_type || {}).map(([type, count]) => (
+              <div key={type} className="p-3 bg-amber-50 rounded-xl text-center">
+                <div className="text-2xl font-bold text-amber-600">{count}</div>
+                <div className="text-sm text-amber-700">{type}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent examples */}
+      {missedSignals.recent_examples?.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4">דוגמאות אחרונות</h3>
+          <div className="space-y-3">
+            {missedSignals.recent_examples.map((ex, i) => (
+              <div key={i} className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 bg-amber-200 text-amber-800 rounded text-xs">
+                    {ex.signal_type}
+                  </span>
+                  {ex.domain && (
+                    <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
+                      {DOMAIN_HE[ex.domain] || ex.domain}
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-800 text-sm mb-2">{ex.content}</p>
+                {ex.why_important && (
+                  <p className="text-amber-700 text-sm">
+                    <span className="font-medium">למה חשוב:</span> {ex.why_important}
+                  </p>
+                )}
+                <p className="text-gray-400 text-xs mt-2">
+                  {ex.created_at && new Date(ex.created_at).toLocaleDateString('he-IL')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

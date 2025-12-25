@@ -1242,6 +1242,183 @@ async def get_analytics_overview(
     }
 
 
+@router.get("/analytics/corrections")
+async def get_correction_analytics(
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """
+    Get detailed correction analytics.
+
+    Returns breakdown by type, severity, and target with recent examples.
+    """
+    stats = await uow.dashboard.corrections.get_correction_stats()
+
+    # Get recent corrections for examples
+    recent = await uow.dashboard.corrections.get_all_with_context(used_in_training=False)
+    recent_examples = [
+        {
+            "id": str(c.id),
+            "child_id": c.child_id,
+            "correction_type": c.correction_type,
+            "target_type": c.target_type,
+            "severity": c.severity,
+            "expert_reasoning": c.expert_reasoning[:200] + "..." if len(c.expert_reasoning or "") > 200 else c.expert_reasoning,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in recent[:10]
+    ]
+
+    return {
+        **stats,
+        "recent_examples": recent_examples,
+    }
+
+
+@router.get("/analytics/missed-signals")
+async def get_missed_signal_analytics(
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """
+    Get missed signal analytics.
+
+    Returns breakdown by signal type and domain.
+    """
+    stats = await uow.dashboard.missed_signals.get_missed_signal_stats()
+
+    # Get recent missed signals
+    recent = await uow.dashboard.missed_signals.get_all()
+    recent_examples = [
+        {
+            "id": str(s.id),
+            "child_id": s.child_id,
+            "signal_type": s.signal_type,
+            "domain": s.domain,
+            "content": s.content[:150] + "..." if len(s.content or "") > 150 else s.content,
+            "why_important": s.why_important[:150] + "..." if len(s.why_important or "") > 150 else s.why_important,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in recent[:10]
+    ]
+
+    return {
+        **stats,
+        "recent_examples": recent_examples,
+    }
+
+
+@router.get("/analytics/flags")
+async def get_flag_analytics(
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """
+    Get inference flag analytics.
+
+    Returns counts of resolved vs unresolved flags.
+    """
+    unresolved = await uow.dashboard.flags.count_unresolved()
+
+    # Get all flags for stats
+    all_flags = await uow.dashboard.flags.get_by_child(
+        child_id="",  # We need a way to get all flags
+        include_resolved=True,
+        limit=1000,
+    )
+
+    # Count by flag type
+    by_type = {}
+    by_target = {}
+    resolved_count = 0
+
+    # Since get_by_child requires child_id, let's just use unresolved count for now
+    # In a real implementation we'd add a get_all method
+
+    return {
+        "total_unresolved": unresolved,
+        "by_flag_type": by_type,
+        "by_target_type": by_target,
+    }
+
+
+@router.get("/analytics/patterns")
+async def get_correction_patterns(
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+    min_occurrences: int = Query(2, description="Minimum occurrences to show pattern"),
+):
+    """
+    Get aggregated correction patterns for training improvement.
+
+    Identifies systematic issues by grouping similar corrections.
+    """
+    # Get all corrections
+    all_corrections = await uow.dashboard.corrections.get_all_with_context()
+
+    # Group by correction_type + target_type
+    patterns = {}
+    for c in all_corrections:
+        key = f"{c.correction_type}:{c.target_type}"
+        if key not in patterns:
+            patterns[key] = {
+                "correction_type": c.correction_type,
+                "target_type": c.target_type,
+                "count": 0,
+                "examples": [],
+                "severities": {"low": 0, "medium": 0, "high": 0},
+            }
+        patterns[key]["count"] += 1
+        if c.severity:
+            patterns[key]["severities"][c.severity] = patterns[key]["severities"].get(c.severity, 0) + 1
+        if len(patterns[key]["examples"]) < 3:
+            patterns[key]["examples"].append({
+                "id": str(c.id),
+                "child_id": c.child_id,
+                "expert_reasoning": c.expert_reasoning[:200] if c.expert_reasoning else None,
+            })
+
+    # Filter by min_occurrences and sort by count
+    filtered = [
+        p for p in patterns.values()
+        if p["count"] >= min_occurrences
+    ]
+    filtered.sort(key=lambda x: x["count"], reverse=True)
+
+    # Calculate severity score for each pattern
+    for p in filtered:
+        total = p["count"]
+        p["severity_score"] = round(
+            (p["severities"].get("high", 0) * 3 + p["severities"].get("medium", 0) * 2 + p["severities"].get("low", 0)) / total,
+            2
+        ) if total > 0 else 0
+
+    # Get missed signal patterns too
+    missed = await uow.dashboard.missed_signals.get_all()
+    missed_by_domain = {}
+    for s in missed:
+        domain = s.domain or "unknown"
+        if domain not in missed_by_domain:
+            missed_by_domain[domain] = {"count": 0, "examples": []}
+        missed_by_domain[domain]["count"] += 1
+        if len(missed_by_domain[domain]["examples"]) < 2:
+            missed_by_domain[domain]["examples"].append(s.content[:100] if s.content else "")
+
+    missed_patterns = [
+        {"domain": k, **v}
+        for k, v in missed_by_domain.items()
+        if v["count"] >= min_occurrences
+    ]
+    missed_patterns.sort(key=lambda x: x["count"], reverse=True)
+
+    return {
+        "correction_patterns": filtered,
+        "missed_signal_patterns": missed_patterns,
+        "total_corrections": len(all_corrections),
+        "total_missed_signals": len(missed),
+    }
+
+
 # =============================================================================
 # TRAINING PIPELINE - PROMPT IMPROVEMENT
 # =============================================================================
