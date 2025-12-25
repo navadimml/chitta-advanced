@@ -482,9 +482,12 @@ function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded,
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Header - Always visible */}
-      <button
+      <div
         onClick={onToggle}
-        className="w-full text-right p-5 hover:bg-gray-50/50 transition"
+        className="w-full text-right p-5 hover:bg-gray-50/50 transition cursor-pointer"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && onToggle()}
       >
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -544,7 +547,7 @@ function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded,
             </button>
           )}
         </div>
-      </button>
+      </div>
 
       {/* Expanded content */}
       {isExpanded && (
