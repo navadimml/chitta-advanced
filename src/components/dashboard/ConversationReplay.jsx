@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Plus, RefreshCw, MessageSquare } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  RefreshCw,
+  MessageSquare,
+  Video,
+  FlaskConical,
+  Sparkles,
+} from 'lucide-react';
 import { api } from '../../api/client';
 
 /**
@@ -11,6 +20,7 @@ import { api } from '../../api/client';
  * - Warm, approachable Hebrew
  * - Subtle correction buttons
  * - Technical details hidden by default
+ * - Special cards for hypotheses and video events
  */
 
 // Domain translations
@@ -32,6 +42,14 @@ const TYPE_HE = {
   question: 'שאלה',
   hypothesis: 'השערה',
   pattern: 'דפוס',
+};
+
+const VIDEO_VALUE_HE = {
+  calibration: 'כיול',
+  chain: 'שרשרת',
+  discovery: 'גילוי',
+  reframe: 'מסגור מחדש',
+  relational: 'יחסי',
 };
 
 export default function ConversationReplay({ childId }) {
@@ -125,26 +143,33 @@ export default function ConversationReplay({ childId }) {
 /**
  * TurnCard - The core cognitive trace display
  *
- * Collapsed: 3 lines (turn#, message, summary)
- * Expanded: Full details with clean sections
+ * Collapsed: 3 lines (turn#, message, summary with special icons)
+ * Expanded: Full details with clean sections and special cards
  */
 function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
   const [showTechnical, setShowTechnical] = useState(false);
-  const [modal, setModal] = useState(null); // null | { type: 'missed' | 'correction', data }
+  const [modal, setModal] = useState(null);
 
-  // Extract perceptions
+  // Extract and categorize perceptions
   const observations = turn.tool_calls?.filter(tc => tc.tool_name === 'notice') || [];
-  const curiosities = turn.tool_calls?.filter(tc => tc.tool_name === 'wonder') || [];
+  const allCuriosities = turn.tool_calls?.filter(tc => tc.tool_name === 'wonder') || [];
 
-  // Build summary text for collapsed state
+  // Separate hypotheses from other curiosities
+  const hypotheses = allCuriosities.filter(c => c.arguments?.type === 'hypothesis');
+  const otherCuriosities = allCuriosities.filter(c => c.arguments?.type !== 'hypothesis');
+
+  // Build summary for collapsed state
   const summaryParts = [];
   if (observations.length > 0) {
     const domains = [...new Set(observations.map(o => o.arguments?.domain).filter(Boolean))];
     const domainText = domains.length ? `(${domains.map(d => DOMAIN_HE[d] || d).join(', ')})` : '';
-    summaryParts.push(`📌 +${observations.length} תצפית ${domainText}`);
+    summaryParts.push({ icon: '📌', text: `+${observations.length} תצפית ${domainText}` });
   }
-  if (curiosities.length > 0) {
-    summaryParts.push(`❓ +${curiosities.length} סקרנות`);
+  if (hypotheses.length > 0) {
+    summaryParts.push({ icon: '◆', text: `+${hypotheses.length} השערה`, special: 'hypothesis' });
+  }
+  if (otherCuriosities.length > 0) {
+    summaryParts.push({ icon: '❓', text: `+${otherCuriosities.length} סקרנות` });
   }
 
   const time = new Date(turn.timestamp).toLocaleTimeString('he-IL', {
@@ -174,9 +199,18 @@ function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
 
         {/* Line 3: Summary + expand */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4 text-sm text-gray-500">
+          <div className="flex items-center gap-4 text-sm">
             {summaryParts.map((part, i) => (
-              <span key={i}>{part}</span>
+              <span
+                key={i}
+                className={
+                  part.special === 'hypothesis'
+                    ? 'text-purple-600 font-medium'
+                    : 'text-gray-500'
+                }
+              >
+                {part.icon} {part.text}
+              </span>
             ))}
             {summaryParts.length === 0 && (
               <span className="text-gray-300">—</span>
@@ -205,6 +239,7 @@ function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
           {/* 🧠 What Chitta Understood */}
           <Section emoji="🧠" title="מה הבינה צ'יטה:">
             <div className="space-y-4">
+              {/* Regular Observations */}
               {observations.map((obs, i) => (
                 <PerceptionCard
                   key={`obs-${i}`}
@@ -216,24 +251,35 @@ function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
                 />
               ))}
 
-              {curiosities.map((cur, i) => (
+              {/* Hypotheses - Special Card */}
+              {hypotheses.map((hyp, i) => (
+                <HypothesisCard
+                  key={`hyp-${i}`}
+                  hypothesis={hyp}
+                  turnNumber={turn.turn_number}
+                  onApprove={() => console.log('hypothesis approved')}
+                  onReject={() => setModal({ type: 'correction', target: 'hypothesis', data: hyp })}
+                />
+              ))}
+
+              {/* Other Curiosities */}
+              {otherCuriosities.map((cur, i) => (
                 <PerceptionCard
                   key={`cur-${i}`}
                   type="סקרנות חדשה"
                   content={cur.arguments?.about}
                   domain={cur.arguments?.domain}
                   curiosityType={cur.arguments?.type}
-                  theory={cur.arguments?.theory}
                   onApprove={() => console.log('approved')}
                   onReject={() => setModal({ type: 'correction', target: 'curiosity', data: cur })}
                 />
               ))}
 
-              {observations.length === 0 && curiosities.length === 0 && (
+              {observations.length === 0 && allCuriosities.length === 0 && (
                 <p className="text-gray-300 py-4">לא זוהו תובנות בתור זה</p>
               )}
 
-              {/* Add missed signal - just a text link */}
+              {/* Add missed signal */}
               <button
                 onClick={() => setModal({ type: 'missed' })}
                 className="flex items-center gap-1 text-amber-600 hover:text-amber-700 text-sm mt-2"
@@ -272,7 +318,7 @@ function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
             </>
           )}
 
-          {/* 🔧 Technical Details - collapsed by default */}
+          {/* 🔧 Technical Details */}
           <button
             onClick={() => setShowTechnical(!showTechnical)}
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-500"
@@ -346,10 +392,139 @@ function Divider() {
 }
 
 /**
- * PerceptionCard - Observation or Curiosity card
+ * HypothesisCard - Special card for hypotheses (plan section 6.2)
  *
- * Design from plan: bordered box with title, content in quotes,
- * domain label, tiny approve/reject in corner
+ * Design: ◆ diamond icon, certainty bar, video recommendation
+ */
+function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
+  const [expanded, setExpanded] = useState(false);
+  const args = hypothesis.arguments || {};
+
+  const hasVideoRec = args.video_appropriate || args.video_value;
+  const certainty = args.initial_certainty || 0.3; // Default starting certainty
+  const certaintyPercent = Math.round(certainty * 100);
+
+  return (
+    <div className="relative border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50/50 to-white overflow-hidden">
+      {/* Title badge */}
+      <div className="absolute -top-2.5 right-4 px-2 bg-white">
+        <span className="text-xs text-purple-600 font-medium flex items-center gap-1">
+          <span>◆</span> השערה חדשה
+        </span>
+      </div>
+
+      <div className="p-5 pt-6">
+        {/* Theory */}
+        <p className="text-gray-800 text-lg leading-relaxed mb-4">
+          "{args.theory || args.about}"
+        </p>
+
+        {/* Certainty bar */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+            <span>ודאות התחלתית</span>
+            <span>{certaintyPercent}%</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-purple-400 rounded-full transition-all"
+              style={{ width: `${certaintyPercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Meta info */}
+        <div className="flex items-center gap-3 text-sm text-gray-500 mb-3">
+          {args.domain && (
+            <span>תחום: {DOMAIN_HE[args.domain] || args.domain}</span>
+          )}
+          {args.question && (
+            <span className="text-purple-600">❓ {args.question}</span>
+          )}
+        </div>
+
+        {/* Video recommendation - Special section */}
+        {hasVideoRec && (
+          <div className="p-4 bg-violet-50 border border-violet-100 rounded-xl mb-3">
+            <div className="flex items-center gap-2 text-violet-700 font-medium mb-2">
+              <Video className="w-4 h-4" />
+              המלצת וידאו
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-sm">
+              {args.video_value && (
+                <span className="px-2 py-1 bg-violet-100 text-violet-700 rounded-lg">
+                  {VIDEO_VALUE_HE[args.video_value] || args.video_value}
+                </span>
+              )}
+              {args.video_appropriate && !args.video_value && (
+                <span className="text-violet-600">מתאים לבדיקה בוידאו</span>
+              )}
+            </div>
+            {args.video_value_reason && (
+              <p className="text-violet-600 text-sm mt-2">{args.video_value_reason}</p>
+            )}
+          </div>
+        )}
+
+        {/* Actions row */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+          >
+            {expanded ? 'פחות פרטים' : 'עוד פרטים'}
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {/* Approve/Reject */}
+          <div className="flex items-center gap-1 text-sm">
+            <button
+              onClick={onApprove}
+              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-emerald-500 transition"
+              title="השערה נכונה"
+            >
+              ✓
+            </button>
+            <button
+              onClick={onReject}
+              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-red-400 transition"
+              title="השערה שגויה"
+            >
+              ✗
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded details */}
+        {expanded && (
+          <div className="mt-4 pt-4 border-t border-purple-100 space-y-3">
+            {/* Raw arguments for debugging/full info */}
+            <div className="text-sm">
+              <p className="text-gray-400 mb-1">פרטים מלאים:</p>
+              <div className="p-3 bg-white rounded-lg border border-gray-100">
+                {args.about && (
+                  <p className="text-gray-600 mb-1"><strong>נושא:</strong> {args.about}</p>
+                )}
+                {args.theory && (
+                  <p className="text-gray-600 mb-1"><strong>תיאוריה:</strong> {args.theory}</p>
+                )}
+                {args.question && (
+                  <p className="text-gray-600 mb-1"><strong>שאלה:</strong> {args.question}</p>
+                )}
+                {args.domain && (
+                  <p className="text-gray-600"><strong>תחום:</strong> {DOMAIN_HE[args.domain]}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PerceptionCard - Observation or regular Curiosity card
  */
 function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject }) {
   return (
@@ -398,7 +573,7 @@ function PerceptionCard({ type, content, domain, curiosityType, theory, onApprov
           </div>
         </div>
 
-        {/* Theory for hypotheses */}
+        {/* Theory for non-hypothesis curiosities that might have a theory */}
         {theory && (
           <div className="mt-3 p-3 bg-purple-50 rounded-lg text-purple-700 text-sm">
             💡 {theory}
@@ -562,6 +737,7 @@ function CorrectionModal({ childId, turnId, target, onClose, onSuccess }) {
   const targetName = {
     observation: 'תצפית',
     curiosity: 'סקרנות',
+    hypothesis: 'השערה',
     response: 'תשובה',
   }[target.target] || target.target;
 
@@ -570,6 +746,8 @@ function CorrectionModal({ childId, turnId, target, onClose, onSuccess }) {
     { value: 'extraction_error', label: 'ההבנה לא מדויקת' },
     { value: 'hallucination', label: 'המציאה משהו שלא נאמר' },
     { value: 'missed_context', label: 'פספסה הקשר חשוב' },
+    { value: 'premature_hypothesis', label: 'השערה מוקדמת מדי' },
+    { value: 'wrong_theory', label: 'תיאוריה שגויה' },
   ];
 
   const handleSubmit = async (e) => {
@@ -597,6 +775,7 @@ function CorrectionModal({ childId, turnId, target, onClose, onSuccess }) {
   // Extract what to show
   const originalContent = target.data?.arguments?.observation
     || target.data?.arguments?.about
+    || target.data?.arguments?.theory
     || target.data?.response_text
     || '';
   const originalDomain = target.data?.arguments?.domain;
