@@ -268,13 +268,21 @@ function TabLink({ to, children, end = false }) {
 }
 
 /**
- * Hypotheses View - Shows all hypotheses with lifecycle
+ * Hypotheses View - Shows all hypotheses with lifecycle (plan sections 6.2, 6.3, 6.4, 7)
  */
 function HypothesesView({ childId, curiosities }) {
+  const [expandedHypothesis, setExpandedHypothesis] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
   // Filter hypotheses from curiosities
   const hypotheses = [
     ...(curiosities?.dynamic?.filter(c => c.type === 'hypothesis') || []),
   ];
+
+  // Group by status
+  const investigating = hypotheses.filter(h => (h.certainty || 0) < 0.7 && (h.certainty || 0) >= 0.3);
+  const confirmed = hypotheses.filter(h => (h.certainty || 0) >= 0.7);
+  const wondering = hypotheses.filter(h => (h.certainty || 0) < 0.3);
 
   if (hypotheses.length === 0) {
     return (
@@ -292,13 +300,437 @@ function HypothesesView({ childId, curiosities }) {
 
   return (
     <div className="p-6 max-w-4xl mx-auto" dir="rtl">
-      <h2 className="text-xl font-medium text-gray-800 mb-6">
-        השערות ({hypotheses.length})
-      </h2>
+      {/* Header with stats */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-medium text-gray-800">
+          השערות ({hypotheses.length})
+        </h2>
+        <div className="flex items-center gap-3 text-sm">
+          {confirmed.length > 0 && (
+            <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg">
+              ● {confirmed.length} מאושרות
+            </span>
+          )}
+          {investigating.length > 0 && (
+            <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg">
+              ◐ {investigating.length} בבדיקה
+            </span>
+          )}
+          {wondering.length > 0 && (
+            <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">
+              ○ {wondering.length} בתחילת דרך
+            </span>
+          )}
+        </div>
+      </div>
 
+      {/* Hypothesis cards */}
       <div className="space-y-4">
-        {hypotheses.map((h, i) => (
-          <HypothesisCard key={h.focus || i} hypothesis={h} />
+        {hypotheses.map((h) => (
+          <HypothesisLifecycleCard
+            key={h.focus}
+            hypothesis={h}
+            childId={childId}
+            isExpanded={expandedHypothesis === h.focus}
+            onToggle={() => setExpandedHypothesis(
+              expandedHypothesis === h.focus ? null : h.focus
+            )}
+            onRefresh={() => setRefreshKey(k => k + 1)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Domain translations for hypotheses view
+const DOMAIN_HE = {
+  motor: 'מוטורי',
+  language: 'שפתי',
+  social: 'חברתי',
+  emotional: 'רגשי',
+  cognitive: 'קוגניטיבי',
+  sensory: 'חושי',
+  behavioral: 'התנהגותי',
+  daily_living: 'תפקוד יומיומי',
+  play: 'משחק',
+  creativity: 'יצירתיות',
+};
+
+const VIDEO_VALUE_HE = {
+  calibration: 'כיול',
+  chain: 'שרשרת',
+  discovery: 'גילוי',
+  reframe: 'מסגור מחדש',
+  relational: 'יחסי',
+};
+
+const EFFECT_HE = {
+  supports: 'תומך',
+  contradicts: 'סותר',
+  transforms: 'משנה',
+};
+
+/**
+ * Hypothesis Lifecycle Card - Full view with evidence, video, lifecycle (plan 6.2, 6.3, 6.4, 7)
+ */
+function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, onRefresh }) {
+  const [activeSection, setActiveSection] = useState(null); // 'evidence' | 'video' | 'lifecycle' | null
+  const [showAddEvidence, setShowAddEvidence] = useState(false);
+  const [showAdjustCertainty, setShowAdjustCertainty] = useState(false);
+
+  const certainty = hypothesis.certainty || 0;
+  const certaintyPercent = Math.round(certainty * 100);
+  const evidence = hypothesis.evidence || [];
+  const hasVideoRec = hypothesis.video_appropriate || hypothesis.video_value;
+
+  // Status based on certainty
+  const getStatus = () => {
+    if (hypothesis.status === 'refuted') return { label: 'נדחה', color: 'red', icon: '✗' };
+    if (hypothesis.status === 'transformed') return { label: 'שונה', color: 'blue', icon: '↻' };
+    if (certainty >= 0.7) return { label: 'מאושר', color: 'emerald', icon: '●' };
+    if (certainty >= 0.3) return { label: 'בבדיקה', color: 'amber', icon: '◐' };
+    return { label: 'בתחילת דרך', color: 'gray', icon: '○' };
+  };
+
+  const status = getStatus();
+  const statusColors = {
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    amber: 'bg-amber-50 text-amber-600 border-amber-200',
+    gray: 'bg-gray-50 text-gray-500 border-gray-200',
+    red: 'bg-red-50 text-red-600 border-red-200',
+    blue: 'bg-blue-50 text-blue-600 border-blue-200',
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Header - Always visible */}
+      <button
+        onClick={onToggle}
+        className="w-full text-right p-5 hover:bg-gray-50/50 transition"
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-purple-500 text-lg">◆</span>
+            <span className="text-purple-600 font-medium">💡 השערה</span>
+          </div>
+          <span className={`px-2.5 py-1 rounded-lg text-xs border ${statusColors[status.color]}`}>
+            {status.icon} {status.label}
+          </span>
+        </div>
+
+        {/* Theory */}
+        <p className="text-gray-800 text-lg leading-relaxed mb-4">
+          "{hypothesis.theory || hypothesis.focus}"
+        </p>
+
+        {/* Certainty bar with value */}
+        <div className="mb-3">
+          <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+            <span>ודאות</span>
+            <span className="font-medium">{certaintyPercent}%</span>
+          </div>
+          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                certainty >= 0.7 ? 'bg-emerald-400' :
+                certainty >= 0.3 ? 'bg-amber-400' : 'bg-gray-300'
+              }`}
+              style={{ width: `${certaintyPercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Quick stats */}
+        <div className="flex items-center gap-4 text-sm text-gray-500">
+          {hypothesis.domain && (
+            <span>תחום: {DOMAIN_HE[hypothesis.domain] || hypothesis.domain}</span>
+          )}
+          <span>📊 {evidence.length} ראיות</span>
+          {hasVideoRec && (
+            <span className="text-violet-600">🎬 וידאו מומלץ</span>
+          )}
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {isExpanded && (
+        <div className="border-t border-gray-100 p-5 space-y-4">
+          {/* Action tabs */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setActiveSection(activeSection === 'evidence' ? null : 'evidence')}
+              className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                activeSection === 'evidence'
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              📊 ראיות ({evidence.length})
+            </button>
+            {hasVideoRec && (
+              <button
+                onClick={() => setActiveSection(activeSection === 'video' ? null : 'video')}
+                className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                  activeSection === 'video'
+                    ? 'bg-violet-100 text-violet-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                🎬 וידאו
+              </button>
+            )}
+            <button
+              onClick={() => setActiveSection(activeSection === 'lifecycle' ? null : 'lifecycle')}
+              className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                activeSection === 'lifecycle'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              📈 מחזור חיים
+            </button>
+
+            <div className="flex-1" />
+
+            {/* Expert actions */}
+            <button
+              onClick={() => setShowAdjustCertainty(true)}
+              className="px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-sm hover:bg-amber-100"
+            >
+              ✎ התאם ודאות
+            </button>
+            <button
+              onClick={() => setShowAddEvidence(true)}
+              className="px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-sm hover:bg-emerald-100"
+            >
+              + הוסף ראיה
+            </button>
+          </div>
+
+          {/* Evidence Section */}
+          {activeSection === 'evidence' && (
+            <EvidenceTrail evidence={evidence} />
+          )}
+
+          {/* Video Section */}
+          {activeSection === 'video' && (
+            <VideoWorkflowSection hypothesis={hypothesis} />
+          )}
+
+          {/* Lifecycle Section */}
+          {activeSection === 'lifecycle' && (
+            <LifecycleSection hypothesis={hypothesis} evidence={evidence} />
+          )}
+
+          {/* Add Evidence Modal */}
+          {showAddEvidence && (
+            <AddEvidenceModal
+              childId={childId}
+              hypothesisFocus={hypothesis.focus}
+              onClose={() => setShowAddEvidence(false)}
+              onSuccess={() => { setShowAddEvidence(false); onRefresh(); }}
+            />
+          )}
+
+          {/* Adjust Certainty Modal */}
+          {showAdjustCertainty && (
+            <AdjustCertaintyModal
+              childId={childId}
+              hypothesisFocus={hypothesis.focus}
+              currentCertainty={certainty}
+              onClose={() => setShowAdjustCertainty(false)}
+              onSuccess={() => { setShowAdjustCertainty(false); onRefresh(); }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Evidence Trail - Shows all evidence with effects (plan 6.3)
+ */
+function EvidenceTrail({ evidence }) {
+  if (evidence.length === 0) {
+    return (
+      <div className="p-4 bg-gray-50 rounded-xl text-center text-gray-400">
+        אין ראיות עדיין
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {evidence.map((e, i) => (
+        <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+          <div className="flex items-start justify-between mb-2">
+            <span className="text-sm text-gray-400">ראיה #{i + 1}</span>
+            <span className={`px-2 py-0.5 rounded text-xs ${
+              e.effect === 'supports' ? 'bg-emerald-100 text-emerald-700' :
+              e.effect === 'contradicts' ? 'bg-red-100 text-red-700' :
+              'bg-blue-100 text-blue-700'
+            }`}>
+              {e.effect === 'supports' ? '⬆ תומך' :
+               e.effect === 'contradicts' ? '⬇ סותר' :
+               '↻ משנה'}
+            </span>
+          </div>
+          <p className="text-gray-700 mb-2">"{e.content}"</p>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span>מקור: {e.source || 'שיחה'}</span>
+            {e.timestamp && (
+              <span>{new Date(e.timestamp).toLocaleDateString('he-IL')}</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Video Workflow Section - Shows video recommendation status (plan 6.4)
+ */
+function VideoWorkflowSection({ hypothesis }) {
+  const steps = [
+    {
+      num: '1️⃣',
+      title: 'הצעה',
+      status: hypothesis.video_appropriate ? 'done' : 'pending',
+      content: hypothesis.video_value_reason || 'וידאו יכול לעזור לאמת את ההשערה',
+    },
+    {
+      num: '2️⃣',
+      title: 'הנחיות',
+      status: 'pending',
+      content: 'ממתין להנחיות צילום',
+    },
+    {
+      num: '3️⃣',
+      title: 'הועלה',
+      status: 'pending',
+      content: 'ממתין להעלאה',
+    },
+    {
+      num: '4️⃣',
+      title: 'נותח',
+      status: 'pending',
+      content: 'ממתין לניתוח',
+    },
+  ];
+
+  return (
+    <div className="p-4 bg-violet-50/50 rounded-xl border border-violet-100">
+      <div className="text-sm font-medium text-violet-700 mb-4">תהליך וידאו</div>
+      <div className="space-y-3">
+        {steps.map((step, i) => (
+          <div
+            key={i}
+            className={`p-3 rounded-lg ${
+              step.status === 'done' ? 'bg-white border border-violet-200' : 'bg-violet-50/50'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span>{step.num}</span>
+              <span className="font-medium text-gray-700">{step.title}</span>
+              {step.status === 'done' && (
+                <span className="text-emerald-500">✓</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 pr-6">{step.content}</p>
+          </div>
+        ))}
+      </div>
+
+      {hypothesis.video_value && (
+        <div className="mt-4 p-3 bg-white rounded-lg border border-violet-200">
+          <span className="text-xs text-violet-600">סוג ערך:</span>
+          <span className="mr-2 px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-sm">
+            {VIDEO_VALUE_HE[hypothesis.video_value] || hypothesis.video_value}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Lifecycle Section - Shows certainty progression (plan section 7)
+ */
+function LifecycleSection({ hypothesis, evidence }) {
+  const certainty = hypothesis.certainty || 0;
+
+  // Build timeline from evidence
+  const events = [
+    { label: 'נוצרה', certainty: 0.3, type: 'created' },
+    ...evidence.map((e, i) => ({
+      label: e.effect === 'supports' ? '+ראיה תומכת' :
+             e.effect === 'contradicts' ? '-ראיה סותרת' : '↻ שינוי',
+      certainty: 0.3 + (i + 1) * 0.1 * (e.effect === 'contradicts' ? -1 : 1),
+      type: e.effect,
+    })),
+  ];
+
+  return (
+    <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+      <div className="text-sm font-medium text-blue-700 mb-4">מחזור חיים</div>
+
+      {/* Status legend */}
+      <div className="flex items-center gap-4 mb-4 text-xs">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-gray-300" /> בתחילת דרך
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-amber-400" /> בבדיקה
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" /> מאושר
+        </span>
+      </div>
+
+      {/* Certainty progression */}
+      <div className="relative h-24 bg-white rounded-lg border border-blue-100 p-3">
+        {/* Y-axis labels */}
+        <div className="absolute right-0 top-0 bottom-0 w-8 flex flex-col justify-between text-xs text-gray-400 py-1">
+          <span>1.0</span>
+          <span>0.5</span>
+          <span>0.0</span>
+        </div>
+
+        {/* Graph area */}
+        <div className="mr-10 h-full relative">
+          {/* Threshold lines */}
+          <div className="absolute top-[30%] left-0 right-0 border-t border-dashed border-emerald-300" />
+          <div className="absolute top-[70%] left-0 right-0 border-t border-dashed border-amber-300" />
+
+          {/* Current certainty marker */}
+          <div
+            className="absolute left-0 right-0 h-0.5 bg-purple-400"
+            style={{ top: `${(1 - certainty) * 100}%` }}
+          />
+          <div
+            className="absolute right-0 w-3 h-3 rounded-full bg-purple-500 border-2 border-white shadow"
+            style={{ top: `${(1 - certainty) * 100}%`, transform: 'translateY(-50%)' }}
+          />
+        </div>
+      </div>
+
+      {/* Events timeline */}
+      <div className="mt-4 flex items-center gap-2 overflow-x-auto py-2">
+        {events.map((event, i) => (
+          <div
+            key={i}
+            className={`flex-shrink-0 px-2 py-1 rounded text-xs ${
+              event.type === 'created' ? 'bg-gray-100 text-gray-600' :
+              event.type === 'supports' ? 'bg-emerald-100 text-emerald-700' :
+              event.type === 'contradicts' ? 'bg-red-100 text-red-700' :
+              'bg-blue-100 text-blue-700'
+            }`}
+          >
+            {event.label}
+          </div>
         ))}
       </div>
     </div>
@@ -306,67 +738,155 @@ function HypothesesView({ childId, curiosities }) {
 }
 
 /**
- * Hypothesis Card - Matches plan section 6.2
+ * Add Evidence Modal
  */
-function HypothesisCard({ hypothesis }) {
-  const certainty = hypothesis.certainty || 0;
-  const certaintyPercent = Math.round(certainty * 100);
+function AddEvidenceModal({ childId, hypothesisFocus, onClose, onSuccess }) {
+  const [content, setContent] = useState('');
+  const [effect, setEffect] = useState('supports');
+  const [submitting, setSubmitting] = useState(false);
 
-  // Status based on certainty and state
-  const getStatus = () => {
-    if (certainty >= 0.7) return { label: 'מאושר', color: 'emerald', icon: '●' };
-    if (certainty >= 0.4) return { label: 'בבדיקה', color: 'amber', icon: '◐' };
-    return { label: 'בתחילת דרך', color: 'gray', icon: '○' };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!content.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await api.addExpertEvidence(childId, hypothesisFocus, content, effect);
+      onSuccess();
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const status = getStatus();
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" dir="rtl">
+        <h2 className="text-lg font-medium text-gray-800 mb-6">הוסף ראיה</h2>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">תוכן הראיה:</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="תיאור הראיה..."
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-24 resize-none"
+            />
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-600 mb-3">השפעה על ההשערה:</p>
+            <div className="space-y-2">
+              {[
+                { value: 'supports', label: 'תומך בהשערה', icon: '⬆', color: 'emerald' },
+                { value: 'contradicts', label: 'סותר את ההשערה', icon: '⬇', color: 'red' },
+                { value: 'transforms', label: 'משנה את ההשערה', icon: '↻', color: 'blue' },
+              ].map((opt) => (
+                <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="effect"
+                    checked={effect === opt.value}
+                    onChange={() => setEffect(opt.value)}
+                    className="w-4 h-4"
+                  />
+                  <span className={`text-${opt.color}-600`}>{opt.icon}</span>
+                  <span className="text-gray-700">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-500 hover:text-gray-700">
+              ביטול
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !content.trim()}
+              className="px-5 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 disabled:opacity-40"
+            >
+              {submitting ? 'שומר...' : 'הוסף ראיה'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Adjust Certainty Modal
+ */
+function AdjustCertaintyModal({ childId, hypothesisFocus, currentCertainty, onClose, onSuccess }) {
+  const [newCertainty, setNewCertainty] = useState(currentCertainty);
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!reason.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await api.adjustCertainty(childId, hypothesisFocus, newCertainty, reason);
+      onSuccess();
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">◆</span>
-          <span className="text-purple-600 font-medium">💡 השערה</span>
-        </div>
-        <span className={`px-2 py-1 rounded-lg text-xs bg-${status.color}-50 text-${status.color}-600`}>
-          {status.icon} {status.label}
-        </span>
-      </div>
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" dir="rtl">
+        <h2 className="text-lg font-medium text-gray-800 mb-6">התאם ודאות</h2>
 
-      {/* Theory */}
-      <p className="text-gray-800 text-lg leading-relaxed mb-4">
-        "{hypothesis.theory || hypothesis.about}"
-      </p>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">ודאות חדשה: {Math.round(newCertainty * 100)}%</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={newCertainty}
+              onChange={(e) => setNewCertainty(parseFloat(e.target.value))}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
+            </div>
+          </div>
 
-      {/* Certainty bar */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
-          <span>ודאות</span>
-          <span>{certaintyPercent}%</span>
-        </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              certainty >= 0.7 ? 'bg-emerald-400' :
-              certainty >= 0.4 ? 'bg-amber-400' : 'bg-gray-300'
-            }`}
-            style={{ width: `${certaintyPercent}%` }}
-          />
-        </div>
-      </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">סיבה לשינוי:</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="הסבר את הסיבה להתאמה..."
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-24 resize-none"
+            />
+          </div>
 
-      {/* Meta */}
-      <div className="flex items-center gap-4 text-sm text-gray-400">
-        {hypothesis.domain && (
-          <span>תחום: {hypothesis.domain}</span>
-        )}
-        {hypothesis.evidence_count > 0 && (
-          <span>📊 {hypothesis.evidence_count} ראיות</span>
-        )}
-        {hypothesis.video_status && (
-          <span>🎬 {hypothesis.video_status}</span>
-        )}
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-500 hover:text-gray-700">
+              ביטול
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !reason.trim()}
+              className="px-5 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-40"
+            >
+              {submitting ? 'שומר...' : 'שמור שינוי'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
