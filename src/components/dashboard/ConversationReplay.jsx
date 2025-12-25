@@ -1,43 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import {
-  MessageSquare,
-  Bot,
-  User,
-  ChevronDown,
-  ChevronUp,
-  Eye,
-  Lightbulb,
-  FlaskConical,
-  BookOpen,
-  Video,
-  AlertTriangle,
-  Plus,
-  Clock,
-  Sparkles,
-  Brain,
-  Check,
-  X,
-  RefreshCw,
-} from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, RefreshCw, MessageSquare } from 'lucide-react';
 import { api } from '../../api/client';
 
 /**
- * ConversationReplay Component
+ * ConversationReplay - Clean, friendly UI for reviewing conversation turns
  *
- * Natural chat-like view of the conversation with inline annotations
- * showing what the AI perceived at each turn.
- *
- * This is the human-friendly version of CognitiveTimeline -
- * designed for expert reviewers to quickly understand the dialogue
- * and spot issues.
+ * Design principles (from COGNITIVE_DASHBOARD_PLAN.md):
+ * - Minimal visual noise
+ * - Progressive disclosure (collapsed by default)
+ * - Warm, approachable Hebrew
+ * - Subtle correction buttons
+ * - Technical details hidden by default
  */
+
+// Domain translations
+const DOMAIN_HE = {
+  motor: 'מוטורי',
+  language: 'שפתי',
+  social: 'חברתי',
+  emotional: 'רגשי',
+  cognitive: 'קוגניטיבי',
+  sensory: 'חושי',
+  behavioral: 'התנהגותי',
+  daily_living: 'תפקוד יומיומי',
+  play: 'משחק',
+  creativity: 'יצירתיות',
+};
+
+const TYPE_HE = {
+  discovery: 'גילוי',
+  question: 'שאלה',
+  hypothesis: 'השערה',
+  pattern: 'דפוס',
+};
+
 export default function ConversationReplay({ childId }) {
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedTurn, setExpandedTurn] = useState(null);
-  const [showCorrectionForm, setShowCorrectionForm] = useState(null);
-  const [showMissedSignalForm, setShowMissedSignalForm] = useState(null);
+  const [expandedTurns, setExpandedTurns] = useState(new Set());
 
   useEffect(() => {
     loadTimeline();
@@ -45,7 +46,6 @@ export default function ConversationReplay({ childId }) {
 
   async function loadTimeline() {
     setLoading(true);
-    setError(null);
     try {
       const data = await api.getCognitiveTimeline(childId);
       setTimeline(data);
@@ -56,10 +56,18 @@ export default function ConversationReplay({ childId }) {
     }
   }
 
+  const toggleTurn = (turnId) => {
+    setExpandedTurns(prev => {
+      const next = new Set(prev);
+      next.has(turnId) ? next.delete(turnId) : next.add(turnId);
+      return next;
+    });
+  };
+
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-200 border-t-indigo-600" />
       </div>
     );
   }
@@ -67,8 +75,8 @@ export default function ConversationReplay({ childId }) {
   if (error) {
     return (
       <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          Error loading conversation: {error}
+        <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-red-700 text-center">
+          שגיאה בטעינת השיחה
         </div>
       </div>
     );
@@ -76,663 +84,351 @@ export default function ConversationReplay({ childId }) {
 
   if (!timeline?.turns?.length) {
     return (
-      <div className="p-8 text-center text-gray-500">
-        <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-        <p>No conversation yet</p>
-        <p className="text-sm mt-2">
-          Conversations will appear here as they happen
-        </p>
+      <div className="py-16 text-center">
+        <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-200" />
+        <p className="text-gray-400">אין שיחה עדיין</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-indigo-600" />
-            Conversation Replay
-          </h2>
-          <p className="text-sm text-gray-500">
-            {timeline.total_turns} turns • Click any turn to see AI's thinking
-          </p>
-        </div>
+    <div className="p-6 max-w-4xl mx-auto" dir="rtl">
+      {/* Simple header */}
+      <div className="flex items-center justify-between mb-8">
+        <h2 className="text-xl font-medium text-gray-800">ציר הזמן</h2>
         <button
           onClick={loadTimeline}
-          className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-sm"
+          className="p-2 text-gray-400 hover:text-gray-600 transition"
+          title="רענן"
         >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
+          <RefreshCw className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Conversation Thread */}
-      <div className="space-y-1">
-        {timeline.turns.map((turn, index) => (
-          <ConversationTurn
+      {/* Timeline - lots of space between cards */}
+      <div className="space-y-4">
+        {timeline.turns.map((turn) => (
+          <TurnCard
             key={turn.turn_id}
             turn={turn}
-            turnNumber={index + 1}
-            isExpanded={expandedTurn === turn.turn_id}
-            onToggleExpand={() => setExpandedTurn(
-              expandedTurn === turn.turn_id ? null : turn.turn_id
-            )}
-            showCorrectionForm={showCorrectionForm === turn.turn_id}
-            showMissedSignalForm={showMissedSignalForm === turn.turn_id}
-            onShowCorrectionForm={() => setShowCorrectionForm(turn.turn_id)}
-            onShowMissedSignalForm={() => setShowMissedSignalForm(turn.turn_id)}
-            onCloseForms={() => {
-              setShowCorrectionForm(null);
-              setShowMissedSignalForm(null);
-            }}
             childId={childId}
+            isExpanded={expandedTurns.has(turn.turn_id)}
+            onToggle={() => toggleTurn(turn.turn_id)}
             onRefresh={loadTimeline}
           />
         ))}
       </div>
-
-      {/* Legend */}
-      <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Legend</h3>
-        <div className="flex flex-wrap gap-4 text-sm">
-          <LegendItem icon={<Eye className="w-4 h-4 text-emerald-600" />} label="Noticed (observation)" />
-          <LegendItem icon={<Lightbulb className="w-4 h-4 text-amber-600" />} label="Wondered (curiosity)" />
-          <LegendItem icon={<FlaskConical className="w-4 h-4 text-purple-600" />} label="Hypothesis" />
-          <LegendItem icon={<BookOpen className="w-4 h-4 text-indigo-600" />} label="Captured story" />
-          <LegendItem icon={<Video className="w-4 h-4 text-violet-600" />} label="Video recommended" />
-        </div>
-      </div>
     </div>
   );
 }
 
 /**
- * Legend Item Component
- */
-function LegendItem({ icon, label }) {
-  return (
-    <div className="flex items-center gap-2 text-gray-600">
-      {icon}
-      <span>{label}</span>
-    </div>
-  );
-}
-
-/**
- * Conversation Turn Component
+ * TurnCard - The core cognitive trace display
  *
- * Shows a single turn in chat format with:
- * - Parent message (bubble on right)
- * - Inline perception badges
- * - AI response (bubble on left)
- * - Expandable cognitive details
+ * Collapsed: 3 lines (turn#, message, summary)
+ * Expanded: Full details with clean sections
  */
-function ConversationTurn({
-  turn,
-  turnNumber,
-  isExpanded,
-  onToggleExpand,
-  showCorrectionForm,
-  showMissedSignalForm,
-  onShowCorrectionForm,
-  onShowMissedSignalForm,
-  onCloseForms,
-  childId,
-  onRefresh,
-}) {
-  const hasIssues = turn.corrections_count > 0 || turn.missed_signals_count > 0;
+function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
+  const [showTechnical, setShowTechnical] = useState(false);
+  const [modal, setModal] = useState(null); // null | { type: 'missed' | 'correction', data }
 
-  // Extract what AI perceived from tool calls
-  const perceptions = extractPerceptions(turn.tool_calls || []);
+  // Extract perceptions
+  const observations = turn.tool_calls?.filter(tc => tc.tool_name === 'notice') || [];
+  const curiosities = turn.tool_calls?.filter(tc => tc.tool_name === 'wonder') || [];
 
-  return (
-    <div className={`relative ${hasIssues ? 'bg-amber-50/50 rounded-lg' : ''}`}>
-      {/* Turn number indicator */}
-      <div className="absolute left-0 top-4 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-500 font-medium">
-        {turnNumber}
-      </div>
-
-      <div className="pl-10 py-3">
-        {/* Parent Message */}
-        <div className="flex justify-end mb-2">
-          <div className="max-w-[75%]">
-            <div className="flex items-center gap-2 justify-end mb-1">
-              <span className="text-xs text-gray-400">
-                {new Date(turn.timestamp).toLocaleTimeString()}
-              </span>
-              <User className="w-4 h-4 text-gray-400" />
-            </div>
-            <div
-              className="bg-indigo-600 text-white px-4 py-3 rounded-2xl rounded-tr-md"
-              dir="rtl"
-            >
-              {turn.parent_message}
-            </div>
-          </div>
-        </div>
-
-        {/* Perception Badges - What AI noticed */}
-        {perceptions.length > 0 && (
-          <div className="flex flex-wrap gap-2 my-3 ml-12">
-            {perceptions.map((p, i) => (
-              <PerceptionBadge key={i} perception={p} />
-            ))}
-          </div>
-        )}
-
-        {/* AI Response */}
-        {turn.response_text && (
-          <div className="flex justify-start">
-            <div className="max-w-[75%]">
-              <div className="flex items-center gap-2 mb-1">
-                <Bot className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs text-gray-400">Chitta</span>
-                {turn.perceived_intent && (
-                  <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
-                    {turn.perceived_intent}
-                  </span>
-                )}
-              </div>
-              <div
-                className="bg-gray-100 text-gray-800 px-4 py-3 rounded-2xl rounded-tl-md"
-                dir="rtl"
-              >
-                {turn.response_text}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Issue indicator */}
-        {hasIssues && (
-          <div className="flex items-center gap-2 mt-2 ml-12">
-            <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              {turn.corrections_count + turn.missed_signals_count} expert feedback
-            </span>
-          </div>
-        )}
-
-        {/* Expand/Collapse Toggle */}
-        <button
-          onClick={onToggleExpand}
-          className="flex items-center gap-2 mt-3 ml-12 text-sm text-gray-500 hover:text-gray-700 transition"
-        >
-          <Brain className="w-4 h-4" />
-          {isExpanded ? 'Hide AI thinking' : 'Show AI thinking'}
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4" />
-          ) : (
-            <ChevronDown className="w-4 h-4" />
-          )}
-        </button>
-
-        {/* Expanded Cognitive Details */}
-        {isExpanded && (
-          <CognitiveDetails
-            turn={turn}
-            childId={childId}
-            showCorrectionForm={showCorrectionForm}
-            showMissedSignalForm={showMissedSignalForm}
-            onShowCorrectionForm={onShowCorrectionForm}
-            onShowMissedSignalForm={onShowMissedSignalForm}
-            onCloseForms={onCloseForms}
-            onRefresh={onRefresh}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Extract perceptions from tool calls for display
- */
-function extractPerceptions(toolCalls) {
-  const perceptions = [];
-
-  for (const tc of toolCalls) {
-    const { tool_name, arguments: args } = tc;
-
-    if (tool_name === 'notice') {
-      perceptions.push({
-        type: 'noticed',
-        icon: <Eye className="w-3 h-3" />,
-        color: 'bg-emerald-100 text-emerald-700',
-        text: args?.observation?.substring(0, 40) + (args?.observation?.length > 40 ? '...' : ''),
-        domain: args?.domain,
-      });
-    } else if (tool_name === 'wonder') {
-      const isHypothesis = args?.type === 'hypothesis';
-      perceptions.push({
-        type: isHypothesis ? 'hypothesis' : 'wondered',
-        icon: isHypothesis ? <FlaskConical className="w-3 h-3" /> : <Lightbulb className="w-3 h-3" />,
-        color: isHypothesis ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700',
-        text: args?.about?.substring(0, 40) + (args?.about?.length > 40 ? '...' : ''),
-        hasVideo: args?.video_appropriate || args?.video_value,
-      });
-    } else if (tool_name === 'capture_story') {
-      perceptions.push({
-        type: 'story',
-        icon: <BookOpen className="w-3 h-3" />,
-        color: 'bg-indigo-100 text-indigo-700',
-        text: 'Captured story',
-      });
-    } else if (tool_name === 'set_child_identity') {
-      const parts = [];
-      if (args?.name) parts.push(args.name);
-      if (args?.age) parts.push(`${args.age}y`);
-      if (args?.gender) parts.push(args.gender);
-      if (parts.length > 0) {
-        perceptions.push({
-          type: 'identity',
-          icon: <User className="w-3 h-3" />,
-          color: 'bg-purple-100 text-purple-700',
-          text: `Identity: ${parts.join(', ')}`,
-        });
-      }
-    }
+  // Build summary text for collapsed state
+  const summaryParts = [];
+  if (observations.length > 0) {
+    const domains = [...new Set(observations.map(o => o.arguments?.domain).filter(Boolean))];
+    const domainText = domains.length ? `(${domains.map(d => DOMAIN_HE[d] || d).join(', ')})` : '';
+    summaryParts.push(`📌 +${observations.length} תצפית ${domainText}`);
+  }
+  if (curiosities.length > 0) {
+    summaryParts.push(`❓ +${curiosities.length} סקרנות`);
   }
 
-  return perceptions;
+  const time = new Date(turn.timestamp).toLocaleTimeString('he-IL', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Collapsed Header - Always Visible */}
+      <button
+        onClick={onToggle}
+        className="w-full text-right px-6 py-5 hover:bg-gray-50/50 transition"
+      >
+        {/* Line 1: Turn indicator */}
+        <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+          <span className="w-2 h-2 rounded-full bg-indigo-400" />
+          <span>תור #{turn.turn_number}</span>
+          <span>·</span>
+          <span>{time}</span>
+        </div>
+
+        {/* Line 2: Parent message */}
+        <p className="text-gray-800 text-lg leading-relaxed line-clamp-2 mb-2">
+          "{turn.parent_message}"
+        </p>
+
+        {/* Line 3: Summary + expand */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-sm text-gray-500">
+            {summaryParts.map((part, i) => (
+              <span key={i}>{part}</span>
+            ))}
+            {summaryParts.length === 0 && (
+              <span className="text-gray-300">—</span>
+            )}
+          </div>
+          <span className="flex items-center gap-1 text-sm text-indigo-500">
+            {isExpanded ? 'צמצם' : 'הרחב'}
+            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </span>
+        </div>
+      </button>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="border-t border-gray-50 px-6 py-6">
+
+          {/* 💬 Parent Section */}
+          <Section emoji="💬" title="ההורה:">
+            <div className="bg-indigo-50/50 rounded-xl p-5 text-gray-800 text-lg leading-relaxed">
+              "{turn.parent_message}"
+            </div>
+          </Section>
+
+          <Divider />
+
+          {/* 🧠 What Chitta Understood */}
+          <Section emoji="🧠" title="מה הבינה צ'יטה:">
+            <div className="space-y-4">
+              {observations.map((obs, i) => (
+                <PerceptionCard
+                  key={`obs-${i}`}
+                  type="תצפית"
+                  content={obs.arguments?.observation || obs.arguments?.content}
+                  domain={obs.arguments?.domain}
+                  onApprove={() => console.log('approved')}
+                  onReject={() => setModal({ type: 'correction', target: 'observation', data: obs })}
+                />
+              ))}
+
+              {curiosities.map((cur, i) => (
+                <PerceptionCard
+                  key={`cur-${i}`}
+                  type="סקרנות חדשה"
+                  content={cur.arguments?.about}
+                  domain={cur.arguments?.domain}
+                  curiosityType={cur.arguments?.type}
+                  theory={cur.arguments?.theory}
+                  onApprove={() => console.log('approved')}
+                  onReject={() => setModal({ type: 'correction', target: 'curiosity', data: cur })}
+                />
+              ))}
+
+              {observations.length === 0 && curiosities.length === 0 && (
+                <p className="text-gray-300 py-4">לא זוהו תובנות בתור זה</p>
+              )}
+
+              {/* Add missed signal - just a text link */}
+              <button
+                onClick={() => setModal({ type: 'missed' })}
+                className="flex items-center gap-1 text-amber-600 hover:text-amber-700 text-sm mt-2"
+              >
+                <Plus className="w-4 h-4" />
+                הוסף משהו שפוספס
+              </button>
+            </div>
+          </Section>
+
+          <Divider />
+
+          {/* 💭 Chitta's Response */}
+          {turn.response_text && (
+            <>
+              <Section emoji="💭" title="תשובת צ'יטה:">
+                <div className="bg-gray-50/70 rounded-xl p-5">
+                  <p className="text-gray-800 leading-relaxed mb-4">
+                    "{turn.response_text}"
+                  </p>
+                  <div className="flex items-center justify-end gap-3 text-sm">
+                    <button className="text-emerald-600 hover:text-emerald-700">
+                      ✓ תשובה מתאימה
+                    </button>
+                    <button
+                      onClick={() => setModal({ type: 'correction', target: 'response', data: turn })}
+                      className="text-red-400 hover:text-red-500"
+                    >
+                      ✗ בעיה
+                    </button>
+                  </div>
+                </div>
+              </Section>
+
+              <Divider />
+            </>
+          )}
+
+          {/* 🔧 Technical Details - collapsed by default */}
+          <button
+            onClick={() => setShowTechnical(!showTechnical)}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-500"
+          >
+            🔧 פרטים טכניים
+            {showTechnical ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showTechnical && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-xl text-sm space-y-4">
+              {turn.turn_guidance && (
+                <div>
+                  <p className="text-gray-400 mb-1">הנחיית תור:</p>
+                  <p className="text-gray-600">{turn.turn_guidance}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-gray-400 mb-1">קריאות כלים:</p>
+                <pre className="text-xs text-gray-500 bg-white p-3 rounded-lg border border-gray-100 overflow-x-auto" dir="ltr">
+                  {JSON.stringify(turn.tool_calls, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal dialogs */}
+      {modal?.type === 'missed' && (
+        <MissedSignalModal
+          childId={childId}
+          turnId={turn.turn_id}
+          parentMessage={turn.parent_message}
+          onClose={() => setModal(null)}
+          onSuccess={() => { setModal(null); onRefresh(); }}
+        />
+      )}
+      {modal?.type === 'correction' && (
+        <CorrectionModal
+          childId={childId}
+          turnId={turn.turn_id}
+          target={modal}
+          onClose={() => setModal(null)}
+          onSuccess={() => { setModal(null); onRefresh(); }}
+        />
+      )}
+    </div>
+  );
 }
 
 /**
- * Perception Badge Component
+ * Section - A labeled content area with emoji header
  */
-function PerceptionBadge({ perception }) {
+function Section({ emoji, title, children }) {
+  return (
+    <div className="py-2">
+      <h3 className="text-gray-500 text-sm mb-3 flex items-center gap-2">
+        <span>{emoji}</span>
+        <span>{title}</span>
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Divider - Subtle separator line
+ */
+function Divider() {
+  return <div className="border-t border-gray-100 my-4" />;
+}
+
+/**
+ * PerceptionCard - Observation or Curiosity card
+ *
+ * Design from plan: bordered box with title, content in quotes,
+ * domain label, tiny approve/reject in corner
+ */
+function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject }) {
+  return (
+    <div className="relative border border-gray-200 rounded-xl bg-white">
+      {/* Title in border line effect */}
+      <div className="absolute -top-2.5 right-4 px-2 bg-white">
+        <span className="text-xs text-gray-400">{type}</span>
+      </div>
+
+      <div className="p-4 pt-5">
+        {/* Content */}
+        <p className="text-gray-800 leading-relaxed mb-3">
+          "{content}"
+        </p>
+
+        {/* Labels row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-sm text-gray-500">
+            {curiosityType && (
+              <span>סוג: {TYPE_HE[curiosityType] || curiosityType}</span>
+            )}
+            {domain && (
+              <>
+                {curiosityType && <span className="text-gray-300">|</span>}
+                <span>תחום: {DOMAIN_HE[domain] || domain}</span>
+              </>
+            )}
+          </div>
+
+          {/* Tiny approve/reject buttons */}
+          <div className="flex items-center gap-1 text-sm">
+            <button
+              onClick={onApprove}
+              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-emerald-500 transition"
+              title="נכון"
+            >
+              ✓
+            </button>
+            <button
+              onClick={onReject}
+              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-red-400 transition"
+              title="לא נכון"
+            >
+              ✗
+            </button>
+          </div>
+        </div>
+
+        {/* Theory for hypotheses */}
+        {theory && (
+          <div className="mt-3 p-3 bg-purple-50 rounded-lg text-purple-700 text-sm">
+            💡 {theory}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Modal backdrop
+ */
+function Modal({ children, onClose }) {
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${perception.color}`}
-      title={perception.text}
+      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {perception.icon}
-      <span className="max-w-32 truncate" dir="rtl">{perception.text}</span>
-      {perception.domain && (
-        <span className="opacity-60">({perception.domain})</span>
-      )}
-      {perception.hasVideo && (
-        <Video className="w-3 h-3 text-violet-600" />
-      )}
-    </div>
-  );
-}
-
-/**
- * Cognitive Details - Expanded view of AI's thinking
- */
-function CognitiveDetails({
-  turn,
-  childId,
-  showCorrectionForm,
-  showMissedSignalForm,
-  onShowCorrectionForm,
-  onShowMissedSignalForm,
-  onCloseForms,
-  onRefresh,
-}) {
-  return (
-    <div className="mt-4 ml-12 p-4 bg-white rounded-xl border border-gray-200 space-y-4">
-      {/* Turn Guidance */}
-      {turn.turn_guidance && (
-        <div>
-          <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Turn Guidance</h4>
-          <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded" dir="rtl">
-            {turn.turn_guidance}
-          </p>
-        </div>
-      )}
-
-      {/* State Changes */}
-      {turn.state_delta && (
-        <div>
-          <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">State Changes</h4>
-          <div className="flex flex-wrap gap-2">
-            {turn.state_delta.observations_added > 0 && (
-              <StateBadge
-                label="observations"
-                value={turn.state_delta.observations_added}
-                color="emerald"
-              />
-            )}
-            {turn.state_delta.curiosities_spawned > 0 && (
-              <StateBadge
-                label="curiosities"
-                value={turn.state_delta.curiosities_spawned}
-                color="amber"
-              />
-            )}
-            {turn.state_delta.evidence_added > 0 && (
-              <StateBadge
-                label="evidence"
-                value={turn.state_delta.evidence_added}
-                color="blue"
-              />
-            )}
-            {turn.state_delta.stories_captured > 0 && (
-              <StateBadge
-                label="stories"
-                value={turn.state_delta.stories_captured}
-                color="indigo"
-              />
-            )}
-            {turn.state_delta.child_identity_set && (
-              <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
-                Identity set
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Full Tool Calls */}
-      {turn.tool_calls?.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-            All Tool Calls ({turn.tool_calls.length})
-          </h4>
-          <div className="space-y-2">
-            {turn.tool_calls.map((tc, i) => (
-              <ToolCallDetail key={i} toolCall={tc} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Active Curiosities */}
-      {turn.active_curiosities?.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">Active Curiosities</h4>
-          <div className="flex flex-wrap gap-2">
-            {turn.active_curiosities.map((c, i) => (
-              <span
-                key={i}
-                className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded-full"
-                dir="rtl"
-              >
-                {c}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Expert Actions */}
-      <div className="pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onShowCorrectionForm}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition text-sm"
-          >
-            <AlertTriangle className="w-4 h-4" />
-            Add Correction
-          </button>
-          <button
-            onClick={onShowMissedSignalForm}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Missed Signal
-          </button>
-        </div>
-      </div>
-
-      {/* Correction Form */}
-      {showCorrectionForm && (
-        <CorrectionForm
-          childId={childId}
-          turnId={turn.turn_id}
-          onClose={onCloseForms}
-          onSuccess={() => {
-            onCloseForms();
-            onRefresh();
-          }}
-        />
-      )}
-
-      {/* Missed Signal Form */}
-      {showMissedSignalForm && (
-        <MissedSignalForm
-          childId={childId}
-          turnId={turn.turn_id}
-          onClose={onCloseForms}
-          onSuccess={() => {
-            onCloseForms();
-            onRefresh();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * State Badge Component
- */
-function StateBadge({ label, value, color }) {
-  const colors = {
-    emerald: 'bg-emerald-100 text-emerald-700',
-    amber: 'bg-amber-100 text-amber-700',
-    blue: 'bg-blue-100 text-blue-700',
-    indigo: 'bg-indigo-100 text-indigo-700',
-  };
-
-  return (
-    <span className={`text-xs px-2 py-1 rounded-full ${colors[color]}`}>
-      +{value} {label}
-    </span>
-  );
-}
-
-/**
- * Tool Call Detail Component
- */
-function ToolCallDetail({ toolCall }) {
-  const { tool_name, arguments: args } = toolCall;
-
-  const toolConfig = {
-    notice: { icon: <Eye className="w-4 h-4" />, color: 'border-emerald-200 bg-emerald-50' },
-    wonder: { icon: <Lightbulb className="w-4 h-4" />, color: 'border-amber-200 bg-amber-50' },
-    capture_story: { icon: <BookOpen className="w-4 h-4" />, color: 'border-indigo-200 bg-indigo-50' },
-    add_evidence: { icon: <Plus className="w-4 h-4" />, color: 'border-blue-200 bg-blue-50' },
-    set_child_identity: { icon: <User className="w-4 h-4" />, color: 'border-purple-200 bg-purple-50' },
-  };
-
-  const config = toolConfig[tool_name] || { icon: '🔧', color: 'border-gray-200 bg-gray-50' };
-
-  return (
-    <div className={`p-3 rounded-lg border ${config.color}`}>
-      <div className="flex items-center gap-2 mb-1">
-        {config.icon}
-        <span className="font-mono text-sm font-medium">{tool_name}</span>
-        {args?.type && (
-          <span className={`text-xs px-1.5 py-0.5 rounded ${
-            args.type === 'hypothesis' ? 'bg-purple-200 text-purple-800' : 'bg-gray-200 text-gray-700'
-          }`}>
-            {args.type}
-          </span>
-        )}
-        {args?.domain && (
-          <span className="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded">
-            {args.domain}
-          </span>
-        )}
-      </div>
-
-      {/* Content based on tool type */}
-      <div className="text-sm text-gray-700" dir="rtl">
-        {tool_name === 'notice' && args?.observation}
-        {tool_name === 'wonder' && (
-          <div className="space-y-1">
-            <p>{args?.about}</p>
-            {args?.theory && (
-              <p className="text-purple-700 bg-purple-100 p-2 rounded mt-1">
-                💡 {args.theory}
-              </p>
-            )}
-            {(args?.video_appropriate || args?.video_value) && (
-              <div className="flex items-center gap-2 mt-1 text-violet-700">
-                <Video className="w-4 h-4" />
-                <span>Video: {args.video_value || 'recommended'}</span>
-              </div>
-            )}
-          </div>
-        )}
-        {tool_name === 'capture_story' && (
-          <div>
-            <p>{args?.summary}</p>
-            {args?.reveals?.length > 0 && (
-              <div className="mt-1 text-xs text-gray-500">
-                Reveals: {args.reveals.join(', ')}
-              </div>
-            )}
-          </div>
-        )}
-        {tool_name === 'set_child_identity' && (
-          <div className="flex gap-4">
-            {args?.name && <span>Name: {args.name}</span>}
-            {args?.age && <span>Age: {args.age}</span>}
-            {args?.gender && <span>Gender: {args.gender}</span>}
-          </div>
-        )}
-        {tool_name === 'add_evidence' && args?.evidence}
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" dir="rtl">
+        {children}
       </div>
     </div>
   );
 }
 
 /**
- * Correction Form Component
+ * MissedSignalModal - Add something that was missed
  */
-function CorrectionForm({ childId, turnId, onClose, onSuccess }) {
-  const [targetType, setTargetType] = useState('observation');
-  const [correctionType, setCorrectionType] = useState('extraction_error');
-  const [reasoning, setReasoning] = useState('');
-  const [severity, setSeverity] = useState('medium');
-  const [submitting, setSubmitting] = useState(false);
-
-  const correctionTypes = [
-    { value: 'domain_change', label: 'Wrong Domain' },
-    { value: 'extraction_error', label: 'Extraction Error' },
-    { value: 'hallucination', label: 'Hallucination' },
-    { value: 'evidence_reclassify', label: 'Wrong Evidence Classification' },
-    { value: 'timing_issue', label: 'Timing Issue' },
-    { value: 'certainty_adjustment', label: 'Wrong Certainty' },
-    { value: 'response_issue', label: 'Response Issue' },
-  ];
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!reasoning.trim()) return;
-
-    setSubmitting(true);
-    try {
-      await api.createCorrection(childId, turnId, {
-        target_type: targetType,
-        correction_type: correctionType,
-        expert_reasoning: reasoning,
-        severity,
-      });
-      onSuccess();
-    } catch (err) {
-      console.error('Error creating correction:', err);
-      alert('Failed to create correction');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="font-medium text-red-800">Add Correction</h4>
-        <button onClick={onClose} className="text-red-600 hover:text-red-800">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Target</label>
-            <select
-              value={targetType}
-              onChange={(e) => setTargetType(e.target.value)}
-              className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-            >
-              <option value="observation">Observation</option>
-              <option value="curiosity">Curiosity</option>
-              <option value="evidence">Evidence</option>
-              <option value="response">Response</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-            <select
-              value={correctionType}
-              onChange={(e) => setCorrectionType(e.target.value)}
-              className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-            >
-              {correctionTypes.map((ct) => (
-                <option key={ct.value} value={ct.value}>{ct.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Severity</label>
-          <div className="flex gap-1">
-            {['low', 'medium', 'high', 'critical'].map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSeverity(s)}
-                className={`px-2 py-1 rounded text-xs capitalize ${
-                  severity === s
-                    ? 'bg-red-600 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Expert Reasoning
-          </label>
-          <textarea
-            value={reasoning}
-            onChange={(e) => setReasoning(e.target.value)}
-            placeholder="Explain what was wrong..."
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm h-20"
-            dir="rtl"
-          />
-        </div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-gray-600 text-sm">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting || !reasoning.trim()}
-            className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50"
-          >
-            <Check className="w-3 h-3" />
-            Save
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-/**
- * Missed Signal Form Component
- */
-function MissedSignalForm({ childId, turnId, onClose, onSuccess }) {
+function MissedSignalModal({ childId, turnId, parentMessage, onClose, onSuccess }) {
   const [signalType, setSignalType] = useState('observation');
   const [content, setContent] = useState('');
   const [domain, setDomain] = useState('');
@@ -753,90 +449,241 @@ function MissedSignalForm({ childId, turnId, onClose, onSuccess }) {
       });
       onSuccess();
     } catch (err) {
-      console.error('Error creating missed signal:', err);
-      alert('Failed to report missed signal');
+      console.error('Error:', err);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="font-medium text-amber-800">Report Missed Signal</h4>
-        <button onClick={onClose} className="text-amber-600 hover:text-amber-800">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+    <Modal onClose={onClose}>
+      <div className="p-6">
+        <h2 className="text-lg font-medium text-gray-800 mb-6">הוסף משהו שפוספס</h2>
+
+        {/* Context */}
+        <div className="bg-gray-50 rounded-xl p-4 mb-6">
+          <p className="text-sm text-gray-400 mb-1">בתור זה, ההורה אמר/ה:</p>
+          <p className="text-gray-700">"{parentMessage}"</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Type selection */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Signal Type</label>
-            <select
-              value={signalType}
-              onChange={(e) => setSignalType(e.target.value)}
-              className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-            >
-              <option value="observation">Observation</option>
-              <option value="curiosity">Curiosity</option>
-              <option value="hypothesis">Hypothesis</option>
-            </select>
+            <p className="text-sm text-gray-600 mb-3">סוג:</p>
+            <div className="space-y-2">
+              {[
+                { value: 'observation', label: 'תצפית שפוספסה' },
+                { value: 'curiosity', label: 'סקרנות שהיתה צריכה להיווצר' },
+                { value: 'hypothesis', label: 'השערה שהיתה צריכה להיווצר' },
+              ].map((opt) => (
+                <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="type"
+                    checked={signalType === opt.value}
+                    onChange={() => setSignalType(opt.value)}
+                    className="w-4 h-4 text-amber-500"
+                  />
+                  <span className="text-gray-700">{opt.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
+
+          {/* Content */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Domain</label>
+            <label className="text-sm text-gray-600 block mb-2">תוכן:</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="מה היה צריך להיות מזוהה..."
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-24 resize-none"
+            />
+          </div>
+
+          {/* Domain */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">תחום:</label>
             <select
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
-              className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800"
             >
-              <option value="">Select...</option>
-              <option value="motor">Motor</option>
-              <option value="language">Language</option>
-              <option value="social">Social</option>
-              <option value="emotional">Emotional</option>
-              <option value="cognitive">Cognitive</option>
-              <option value="sensory">Sensory</option>
+              <option value="">בחר תחום...</option>
+              {Object.entries(DOMAIN_HE).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
             </select>
           </div>
+
+          {/* Why important */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">הסבר למה זה חשוב:</label>
+            <textarea
+              value={whyImportant}
+              onChange={(e) => setWhyImportant(e.target.value)}
+              placeholder="הסבר קליני..."
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-24 resize-none"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-500 hover:text-gray-700"
+            >
+              ביטול
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !content.trim() || !whyImportant.trim()}
+              className="px-5 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-40"
+            >
+              {submitting ? 'שומר...' : 'הוסף'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * CorrectionModal - Flag incorrect perception
+ */
+function CorrectionModal({ childId, turnId, target, onClose, onSuccess }) {
+  const [correctionType, setCorrectionType] = useState('domain_change');
+  const [newDomain, setNewDomain] = useState('');
+  const [reasoning, setReasoning] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const targetName = {
+    observation: 'תצפית',
+    curiosity: 'סקרנות',
+    response: 'תשובה',
+  }[target.target] || target.target;
+
+  const correctionTypes = [
+    { value: 'domain_change', label: 'התחום שגוי' },
+    { value: 'extraction_error', label: 'ההבנה לא מדויקת' },
+    { value: 'hallucination', label: 'המציאה משהו שלא נאמר' },
+    { value: 'missed_context', label: 'פספסה הקשר חשוב' },
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!reasoning.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await api.createCorrection(childId, turnId, {
+        target_type: target.target,
+        correction_type: correctionType,
+        original_value: target.data?.arguments || target.data,
+        corrected_value: newDomain ? { domain: newDomain } : null,
+        expert_reasoning: reasoning,
+        severity: 'medium',
+      });
+      onSuccess();
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Extract what to show
+  const originalContent = target.data?.arguments?.observation
+    || target.data?.arguments?.about
+    || target.data?.response_text
+    || '';
+  const originalDomain = target.data?.arguments?.domain;
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6">
+        <h2 className="text-lg font-medium text-gray-800 mb-6">תיקון {targetName}</h2>
+
+        {/* What Chitta understood */}
+        <div className="bg-gray-50 rounded-xl p-4 mb-6">
+          <p className="text-sm text-gray-400 mb-1">צ'יטה הבינה:</p>
+          <p className="text-gray-700 mb-2">"{originalContent}"</p>
+          {originalDomain && (
+            <span className="text-sm text-gray-500">
+              תחום: {DOMAIN_HE[originalDomain] || originalDomain}
+            </span>
+          )}
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            What was missed
-          </label>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Describe what should have been noticed..."
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm h-16"
-            dir="rtl"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Why important
-          </label>
-          <textarea
-            value={whyImportant}
-            onChange={(e) => setWhyImportant(e.target.value)}
-            placeholder="Clinical significance..."
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm h-16"
-            dir="rtl"
-          />
-        </div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-gray-600 text-sm">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting || !content.trim() || !whyImportant.trim()}
-            className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 disabled:opacity-50"
-          >
-            <Check className="w-3 h-3" />
-            Report
-          </button>
-        </div>
-      </form>
-    </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* What's wrong */}
+          <div>
+            <p className="text-sm text-gray-600 mb-3">מה לא נכון?</p>
+            <div className="space-y-2">
+              {correctionTypes.map((opt) => (
+                <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="type"
+                    checked={correctionType === opt.value}
+                    onChange={() => setCorrectionType(opt.value)}
+                    className="w-4 h-4 text-red-400"
+                  />
+                  <span className="text-gray-700">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* New domain if domain change */}
+          {correctionType === 'domain_change' && (
+            <div>
+              <label className="text-sm text-gray-600 block mb-2">התחום הנכון:</label>
+              <select
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                className="w-full p-3 border border-gray-200 rounded-xl text-gray-800"
+              >
+                <option value="">בחר תחום...</option>
+                {Object.entries(DOMAIN_HE).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Clinical reasoning */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">הסבר קליני:</label>
+            <textarea
+              value={reasoning}
+              onChange={(e) => setReasoning(e.target.value)}
+              placeholder="הסבר למה הפרשנות שגויה ומה היה הנכון..."
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-28 resize-none"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-500 hover:text-gray-700"
+            >
+              ביטול
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !reasoning.trim()}
+              className="px-5 py-2 bg-red-400 text-white rounded-xl hover:bg-red-500 disabled:opacity-40"
+            >
+              {submitting ? 'שומר...' : 'שמור תיקון'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Modal>
   );
 }
