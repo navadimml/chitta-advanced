@@ -1288,7 +1288,7 @@ async def get_missed_signal_analytics(
 
     Returns breakdown by signal type and domain.
     """
-    stats = await uow.dashboard.missed_signals.get_missed_signal_stats()
+    stats = await uow.dashboard.missed_signals.get_signal_stats()
 
     # Get recent missed signals
     recent = await uow.dashboard.missed_signals.get_all()
