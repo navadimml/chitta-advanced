@@ -428,6 +428,15 @@ class DarshanRepository:
                 investigations = await self.get_investigations_by_curiosity(str(c.id))
                 if investigations:
                     inv = investigations[0]  # Get most recent
+
+                    # Deserialize video_scenarios from JSON if available
+                    video_scenarios = []
+                    if inv.video_scenarios_json:
+                        try:
+                            video_scenarios = json.loads(inv.video_scenarios_json)
+                        except json.JSONDecodeError:
+                            pass
+
                     c_data["investigation"] = {
                         "id": inv.id,
                         "status": inv.status,
@@ -445,7 +454,7 @@ class DarshanRepository:
                             }
                             for e in inv.evidence
                         ],
-                        "video_scenarios": [],  # Would need to load from video_scenarios table
+                        "video_scenarios": video_scenarios,
                     }
 
             curiosities_data.append(c_data)
@@ -597,6 +606,11 @@ class DarshanRepository:
                         investigation_data["video_suggested_at"] = datetime.fromisoformat(video_suggested_at)
                     else:
                         investigation_data["video_suggested_at"] = video_suggested_at
+
+                # Serialize video_scenarios (Chitta VideoScenario suggestions) as JSON
+                video_scenarios = inv_data.get("video_scenarios", [])
+                if video_scenarios:
+                    investigation_data["video_scenarios_json"] = json.dumps(video_scenarios, ensure_ascii=False)
 
                 await self.save_investigation(investigation_data)
 

@@ -65,6 +65,11 @@ class Investigation(Base, TimestampMixin):
     video_suggested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     guidelines_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # generating/ready/error
 
+    # Video scenarios (Chitta VideoScenario suggestions serialized as JSON)
+    # This stores video filming suggestions from app.chitta.models.VideoScenario
+    # Different from the video_scenarios relationship which links to actual uploaded video files
+    video_scenarios_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     evidence: Mapped[List["InvestigationEvidence"]] = relationship(
         "InvestigationEvidence", back_populates="investigation", cascade="all, delete-orphan"
