@@ -163,7 +163,7 @@ export default function ChildDetail() {
             </TabLink>
             <TabLink to={`/dashboard/children/${childId}/hypotheses`}>
               <Lightbulb className="w-4 h-4" />
-              השערות
+              סקירת השערות
             </TabLink>
             <TabLink to={`/dashboard/children/${childId}/crystal`}>
               <Sparkles className="w-4 h-4" />
@@ -187,7 +187,7 @@ export default function ChildDetail() {
           {/* Default: Conversation/Timeline */}
           <Route
             index
-            element={<ConversationReplay childId={childId} />}
+            element={<ConversationReplay childId={childId} curiosities={child?.curiosities} />}
           />
 
           {/* Hypotheses */}
@@ -290,9 +290,11 @@ function TabLink({ to, children, end = false }) {
 }
 
 /**
- * Hypotheses View - Shows all hypotheses with lifecycle (plan sections 6.2, 6.3, 6.4, 7)
+ * Hypotheses View - Overview of all hypotheses with lifecycle (plan sections 6.2, 6.3, 6.4, 7)
+ * This is an overview page - full hypothesis details appear in the Conversation timeline
  */
 function HypothesesView({ childId, curiosities }) {
+  const navigate = useNavigate();
   const [expandedHypothesis, setExpandedHypothesis] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -305,6 +307,11 @@ function HypothesesView({ childId, curiosities }) {
   const investigating = hypotheses.filter(h => (h.certainty || 0) < 0.7 && (h.certainty || 0) >= 0.3);
   const confirmed = hypotheses.filter(h => (h.certainty || 0) >= 0.7);
   const wondering = hypotheses.filter(h => (h.certainty || 0) < 0.3);
+
+  // Navigate to conversation (default tab)
+  const goToConversation = () => {
+    navigate(`/dashboard/children/${childId}`);
+  };
 
   if (hypotheses.length === 0) {
     return (
@@ -322,27 +329,43 @@ function HypothesesView({ childId, curiosities }) {
 
   return (
     <div className="p-6 max-w-4xl mx-auto" dir="rtl">
-      {/* Header with stats */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-medium text-gray-800">
-          השערות ({hypotheses.length})
-        </h2>
-        <div className="flex items-center gap-3 text-sm">
-          {confirmed.length > 0 && (
-            <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg">
-              ● {confirmed.length} מאושרות
-            </span>
-          )}
-          {investigating.length > 0 && (
-            <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg">
-              ◐ {investigating.length} בבדיקה
-            </span>
-          )}
-          {wondering.length > 0 && (
-            <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">
-              ○ {wondering.length} בתחילת דרך
-            </span>
-          )}
+      {/* Header with stats and info */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xl font-medium text-gray-800">
+            סקירת השערות ({hypotheses.length})
+          </h2>
+          <div className="flex items-center gap-3 text-sm">
+            {confirmed.length > 0 && (
+              <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg">
+                ● {confirmed.length} מאושרות
+              </span>
+            )}
+            {investigating.length > 0 && (
+              <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg">
+                ◐ {investigating.length} בבדיקה
+              </span>
+            )}
+            {wondering.length > 0 && (
+              <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">
+                ○ {wondering.length} בתחילת דרך
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Overview info banner */}
+        <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
+          <p className="text-sm text-indigo-700">
+            📋 זוהי סקירה כללית של כל ההשערות. לצפייה בהשערה בהקשר המלא של השיחה, לחצו על "ראה בשיחה".
+          </p>
+          <button
+            onClick={goToConversation}
+            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-200 transition"
+          >
+            <MessageSquare className="w-4 h-4" />
+            לציר הזמן
+          </button>
         </div>
       </div>
 
@@ -358,6 +381,7 @@ function HypothesesView({ childId, curiosities }) {
               expandedHypothesis === h.focus ? null : h.focus
             )}
             onRefresh={() => setRefreshKey(k => k + 1)}
+            onGoToConversation={goToConversation}
           />
         ))}
       </div>
@@ -396,7 +420,7 @@ const EFFECT_HE = {
 /**
  * Hypothesis Lifecycle Card - Full view with evidence, video, lifecycle (plan 6.2, 6.3, 6.4, 7)
  */
-function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, onRefresh }) {
+function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, onRefresh, onGoToConversation }) {
   const [activeSection, setActiveSection] = useState(null); // 'evidence' | 'video' | 'lifecycle' | null
   const [showAddEvidence, setShowAddEvidence] = useState(false);
   const [showAdjustCertainty, setShowAdjustCertainty] = useState(false);
@@ -463,14 +487,30 @@ function HypothesisLifecycleCard({ hypothesis, childId, isExpanded, onToggle, on
           </div>
         </div>
 
-        {/* Quick stats */}
-        <div className="flex items-center gap-4 text-sm text-gray-500">
-          {hypothesis.domain && (
-            <span>תחום: {DOMAIN_HE[hypothesis.domain] || hypothesis.domain}</span>
-          )}
-          <span>📊 {evidence.length} ראיות</span>
-          {hasVideoRec && (
-            <span className="text-violet-600">🎬 וידאו מומלץ</span>
+        {/* Quick stats and conversation link */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-sm text-gray-500">
+            {hypothesis.domain && (
+              <span>תחום: {DOMAIN_HE[hypothesis.domain] || hypothesis.domain}</span>
+            )}
+            <span>📊 {evidence.length} ראיות</span>
+            {hasVideoRec && (
+              <span className="text-violet-600">🎬 וידאו מומלץ</span>
+            )}
+          </div>
+
+          {/* See in conversation button */}
+          {onGoToConversation && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onGoToConversation();
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-sm hover:bg-indigo-100 transition"
+            >
+              <MessageSquare className="w-4 h-4" />
+              ראה בשיחה
+            </button>
           )}
         </div>
       </button>

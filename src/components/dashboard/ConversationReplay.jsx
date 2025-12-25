@@ -52,11 +52,22 @@ const VIDEO_VALUE_HE = {
   relational: 'יחסי',
 };
 
-export default function ConversationReplay({ childId }) {
+export default function ConversationReplay({ childId, curiosities }) {
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedTurns, setExpandedTurns] = useState(new Set());
+
+  // Build a map of current hypotheses by their "about" field for quick lookup
+  const hypothesesMap = React.useMemo(() => {
+    const map = new Map();
+    const allHypotheses = curiosities?.dynamic?.filter(c => c.type === 'hypothesis') || [];
+    for (const h of allHypotheses) {
+      // Map by focus (the main identifier)
+      if (h.focus) map.set(h.focus, h);
+    }
+    return map;
+  }, [curiosities]);
 
   useEffect(() => {
     loadTimeline();
@@ -130,6 +141,7 @@ export default function ConversationReplay({ childId }) {
             key={turn.turn_id}
             turn={turn}
             childId={childId}
+            hypothesesMap={hypothesesMap}
             isExpanded={expandedTurns.has(turn.turn_id)}
             onToggle={() => toggleTurn(turn.turn_id)}
             onRefresh={loadTimeline}
@@ -146,7 +158,7 @@ export default function ConversationReplay({ childId }) {
  * Collapsed: 3 lines (turn#, message, summary with special icons)
  * Expanded: Full details with clean sections and special cards
  */
-function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
+function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefresh }) {
   const [showTechnical, setShowTechnical] = useState(false);
   const [modal, setModal] = useState(null);
 
@@ -251,16 +263,25 @@ function TurnCard({ turn, childId, isExpanded, onToggle, onRefresh }) {
                 />
               ))}
 
-              {/* Hypotheses - Special Card */}
-              {hypotheses.map((hyp, i) => (
-                <HypothesisCard
-                  key={`hyp-${i}`}
-                  hypothesis={hyp}
-                  turnNumber={turn.turn_number}
-                  onApprove={() => console.log('hypothesis approved')}
-                  onReject={() => setModal({ type: 'correction', target: 'hypothesis', data: hyp })}
-                />
-              ))}
+              {/* Hypotheses - Special Card with current state */}
+              {hypotheses.map((hyp, i) => {
+                // Find current hypothesis state by matching about/theory
+                const args = hyp.arguments || {};
+                const matchKey = args.about || args.theory;
+                const currentHypothesis = matchKey ? hypothesesMap.get(matchKey) : null;
+
+                return (
+                  <HypothesisCard
+                    key={`hyp-${i}`}
+                    hypothesis={hyp}
+                    currentHypothesis={currentHypothesis}
+                    turnNumber={turn.turn_number}
+                    childId={childId}
+                    onApprove={() => console.log('hypothesis approved')}
+                    onReject={() => setModal({ type: 'correction', target: 'hypothesis', data: hyp })}
+                  />
+                );
+              })}
 
               {/* Other Curiosities */}
               {otherCuriosities.map((cur, i) => (
@@ -391,26 +412,63 @@ function Divider() {
   return <div className="border-t border-gray-100 my-4" />;
 }
 
+// Status translations for hypotheses
+const STATUS_HE = {
+  active: 'בבדיקה',
+  confirmed: 'מאושר',
+  rejected: 'נדחה',
+  merged: 'מוזג',
+  evolved: 'התפתח',
+};
+
+const STATUS_COLORS = {
+  active: 'bg-amber-100 text-amber-700',
+  confirmed: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
+  merged: 'bg-blue-100 text-blue-700',
+  evolved: 'bg-purple-100 text-purple-700',
+};
+
+const EVIDENCE_TYPE_HE = {
+  supports: 'תומך',
+  contradicts: 'סותר',
+  transforms: 'משנה',
+};
+
 /**
  * HypothesisCard - Special card for hypotheses (plan section 6.2)
  *
  * Design: ◆ diamond icon, certainty bar, video recommendation
+ * Shows both initial state (from tool call) and current state (from curiosities)
  */
-function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
+function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject }) {
   const [expanded, setExpanded] = useState(false);
+  const [showLifecycle, setShowLifecycle] = useState(false);
   const args = hypothesis.arguments || {};
 
   const hasVideoRec = args.video_appropriate || args.video_value;
-  const certainty = args.initial_certainty || 0.3; // Default starting certainty
-  const certaintyPercent = Math.round(certainty * 100);
+  const initialCertainty = args.initial_certainty || 0.3;
+  const initialCertaintyPercent = Math.round(initialCertainty * 100);
+
+  // Current state from curiosities (if available)
+  const currentCertainty = currentHypothesis?.certainty ?? initialCertainty;
+  const currentCertaintyPercent = Math.round(currentCertainty * 100);
+  const certaintyChanged = currentHypothesis && Math.abs(currentCertainty - initialCertainty) > 0.01;
+  const status = currentHypothesis?.status || 'active';
+  const evidenceCount = currentHypothesis?.evidence?.length || 0;
 
   return (
     <div className="relative border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50/50 to-white">
-      {/* Title badge */}
-      <div className="absolute -top-2.5 right-4 px-2 bg-white">
+      {/* Title badge with status */}
+      <div className="absolute -top-2.5 right-4 px-2 bg-white flex items-center gap-2">
         <span className="text-xs text-purple-600 font-medium flex items-center gap-1">
-          <span>◆</span> השערה חדשה
+          <span>◆</span> השערה
         </span>
+        {currentHypothesis && (
+          <span className={`text-xs px-1.5 py-0.5 rounded-full ${STATUS_COLORS[status] || 'bg-gray-100 text-gray-600'}`}>
+            {STATUS_HE[status] || status}
+          </span>
+        )}
       </div>
 
       <div className="p-5 pt-6">
@@ -419,19 +477,56 @@ function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
           "{args.theory || args.about}"
         </p>
 
-        {/* Certainty bar */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
-            <span>ודאות התחלתית</span>
-            <span>{certaintyPercent}%</span>
+        {/* Certainty bars - show both if changed */}
+        <div className="mb-4 space-y-2">
+          {/* Current certainty (main) */}
+          <div>
+            <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+              <span>{certaintyChanged ? 'ודאות נוכחית' : 'ודאות'}</span>
+              <span className={certaintyChanged ? 'font-medium text-purple-600' : ''}>
+                {currentCertaintyPercent}%
+              </span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  currentCertainty > initialCertainty
+                    ? 'bg-emerald-400'
+                    : currentCertainty < initialCertainty
+                      ? 'bg-amber-400'
+                      : 'bg-purple-400'
+                }`}
+                style={{ width: `${currentCertaintyPercent}%` }}
+              />
+            </div>
           </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-purple-400 rounded-full transition-all"
-              style={{ width: `${certaintyPercent}%` }}
-            />
-          </div>
+
+          {/* Initial certainty (secondary, only if changed) */}
+          {certaintyChanged && (
+            <div className="text-xs text-gray-400">
+              <span>התחלתית: {initialCertaintyPercent}%</span>
+              <span className="mx-2">→</span>
+              <span className={currentCertainty > initialCertainty ? 'text-emerald-600' : 'text-amber-600'}>
+                {currentCertainty > initialCertainty ? '+' : ''}
+                {currentCertaintyPercent - initialCertaintyPercent}%
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* Evidence summary */}
+        {evidenceCount > 0 && (
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+            <FlaskConical className="w-4 h-4" />
+            <span>{evidenceCount} ראיות</span>
+            {currentHypothesis?.evidence && (
+              <span className="text-gray-400">
+                ({currentHypothesis.evidence.filter(e => e.effect === 'supports').length} תומכות,{' '}
+                {currentHypothesis.evidence.filter(e => e.effect === 'contradicts').length} סותרות)
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Meta info */}
         <div className="flex items-center gap-3 text-sm text-gray-500 mb-3">
@@ -468,13 +563,26 @@ function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
 
         {/* Actions row */}
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
-          >
-            {expanded ? 'פחות פרטים' : 'עוד פרטים'}
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+            >
+              {expanded ? 'פחות פרטים' : 'עוד פרטים'}
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {/* Full lifecycle button */}
+            {currentHypothesis && (
+              <button
+                onClick={() => setShowLifecycle(true)}
+                className="text-sm text-indigo-500 hover:text-indigo-600 flex items-center gap-1 mr-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                מסע מלא
+              </button>
+            )}
+          </div>
 
           {/* Approve/Reject */}
           <div className="flex items-center gap-1 text-sm">
@@ -509,6 +617,41 @@ function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
               </button>
             </div>
 
+            {/* Evidence trail (if available) */}
+            {currentHypothesis?.evidence?.length > 0 && (
+              <div className="max-h-48 overflow-y-auto">
+                <p className="text-gray-400 text-sm mb-2">ראיות:</p>
+                <div className="space-y-2">
+                  {currentHypothesis.evidence.map((ev, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-lg text-sm ${
+                        ev.effect === 'supports'
+                          ? 'bg-emerald-50 border border-emerald-100'
+                          : ev.effect === 'contradicts'
+                            ? 'bg-red-50 border border-red-100'
+                            : 'bg-amber-50 border border-amber-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          ev.effect === 'supports' ? 'bg-emerald-100 text-emerald-700' :
+                          ev.effect === 'contradicts' ? 'bg-red-100 text-red-700' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {EVIDENCE_TYPE_HE[ev.effect] || ev.effect}
+                        </span>
+                        {ev.weight && (
+                          <span className="text-gray-400">משקל: {ev.weight}</span>
+                        )}
+                      </div>
+                      <p className="text-gray-700">{ev.content || ev.observation}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Raw arguments for debugging/full info */}
             <div className="text-sm max-h-64 overflow-y-auto">
               <p className="text-gray-400 mb-1">פרטים מלאים:</p>
@@ -530,7 +673,147 @@ function HypothesisCard({ hypothesis, turnNumber, onApprove, onReject }) {
           </div>
         )}
       </div>
+
+      {/* Full lifecycle modal */}
+      {showLifecycle && currentHypothesis && (
+        <HypothesisLifecycleModal
+          hypothesis={currentHypothesis}
+          initialArgs={args}
+          onClose={() => setShowLifecycle(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * HypothesisLifecycleModal - Full hypothesis journey
+ */
+function HypothesisLifecycleModal({ hypothesis, initialArgs, onClose }) {
+  const status = hypothesis.status || 'active';
+  const certainty = hypothesis.certainty || 0.3;
+  const certaintyPercent = Math.round(certainty * 100);
+  const evidence = hypothesis.evidence || [];
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">◆</span>
+            <h2 className="text-lg font-medium text-gray-800">מסע ההשערה</h2>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[status] || 'bg-gray-100 text-gray-600'}`}>
+            {STATUS_HE[status] || status}
+          </span>
+        </div>
+
+        {/* Theory */}
+        <div className="bg-purple-50 rounded-xl p-4 mb-6">
+          <p className="text-gray-400 text-sm mb-1">ההשערה:</p>
+          <p className="text-gray-800 text-lg">"{hypothesis.focus || initialArgs.theory || initialArgs.about}"</p>
+        </div>
+
+        {/* Current state */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="bg-gray-50 rounded-xl p-4">
+            <p className="text-gray-400 text-sm mb-2">ודאות נוכחית</p>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 rounded-full"
+                  style={{ width: `${certaintyPercent}%` }}
+                />
+              </div>
+              <span className="text-xl font-medium text-purple-600">{certaintyPercent}%</span>
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-4">
+            <p className="text-gray-400 text-sm mb-2">ראיות</p>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <span className="text-emerald-500 text-xl font-medium">
+                  {evidence.filter(e => e.effect === 'supports').length}
+                </span>
+                <span className="text-gray-400 text-sm">תומכות</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-red-400 text-xl font-medium">
+                  {evidence.filter(e => e.effect === 'contradicts').length}
+                </span>
+                <span className="text-gray-400 text-sm">סותרות</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Evidence timeline */}
+        {evidence.length > 0 && (
+          <div className="mb-6">
+            <p className="text-gray-600 font-medium mb-3">ציר ראיות</p>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {evidence.map((ev, i) => (
+                <div
+                  key={i}
+                  className={`p-4 rounded-xl border-r-4 ${
+                    ev.effect === 'supports'
+                      ? 'bg-emerald-50/50 border-emerald-400'
+                      : ev.effect === 'contradicts'
+                        ? 'bg-red-50/50 border-red-400'
+                        : 'bg-amber-50/50 border-amber-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-sm font-medium ${
+                      ev.effect === 'supports' ? 'text-emerald-600' :
+                      ev.effect === 'contradicts' ? 'text-red-600' :
+                      'text-amber-600'
+                    }`}>
+                      {EVIDENCE_TYPE_HE[ev.effect] || ev.effect}
+                    </span>
+                    {ev.weight && (
+                      <span className="text-sm text-gray-400">משקל: {ev.weight}</span>
+                    )}
+                  </div>
+                  <p className="text-gray-700">{ev.content || ev.observation}</p>
+                  {ev.source && (
+                    <p className="text-sm text-gray-400 mt-1">מקור: {ev.source}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {evidence.length === 0 && (
+          <div className="text-center py-8 text-gray-400">
+            <FlaskConical className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>עדיין אין ראיות להשערה זו</p>
+          </div>
+        )}
+
+        {/* Domain & question */}
+        <div className="border-t border-gray-100 pt-4 space-y-2 text-sm text-gray-500">
+          {(hypothesis.domain || initialArgs.domain) && (
+            <p>תחום: {DOMAIN_HE[hypothesis.domain || initialArgs.domain]}</p>
+          )}
+          {(hypothesis.question || initialArgs.question) && (
+            <p>שאלה לבירור: {hypothesis.question || initialArgs.question}</p>
+          )}
+        </div>
+
+        {/* Close button */}
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition"
+          >
+            סגור
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
