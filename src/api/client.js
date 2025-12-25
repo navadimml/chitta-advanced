@@ -994,6 +994,30 @@ class ChittaAPIClient {
   }
 
   /**
+   * Update observation domain (admin only)
+   */
+  async updateObservationDomain(childId, observationContent, newDomain, reason) {
+    const response = await fetch(
+      `${API_BASE_URL}/dashboard/children/${childId}/observations/update-domain`,
+      {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          observation_content: observationContent,
+          new_domain: newDomain,
+          reason,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Add expert evidence to a curiosity (admin only)
    */
   async addExpertEvidence(childId, curiosityFocus, content, effect) {

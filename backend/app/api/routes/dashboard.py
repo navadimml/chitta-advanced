@@ -476,6 +476,82 @@ async def add_expert_evidence(
 
 
 # =============================================================================
+# OBSERVATIONS ENDPOINTS
+# =============================================================================
+
+class UpdateObservationDomainRequest(BaseModel):
+    """Request to update an observation's domain."""
+    observation_content: str  # Used to identify the observation
+    new_domain: str
+    reason: str
+
+
+@router.post("/children/{child_id}/observations/update-domain")
+async def update_observation_domain(
+    child_id: str,
+    request: UpdateObservationDomainRequest,
+    admin: User = Depends(get_current_admin_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    """
+    Update the domain of an observation.
+
+    Finds the observation by content and updates its domain.
+    Creates an audit record of the change.
+    """
+    from app.chitta.service import get_chitta_service
+
+    logger.info(f"Dashboard: Admin {admin.email} updating observation domain for child {child_id}")
+
+    chitta = get_chitta_service()
+    darshan = await chitta._gestalt_manager.get_darshan(child_id)
+
+    if not darshan:
+        raise HTTPException(status_code=404, detail="Child not found")
+
+    # Find the observation by content
+    observation_found = None
+    original_domain = None
+    for obs in darshan.understanding.observations:
+        if obs.content == request.observation_content:
+            observation_found = obs
+            original_domain = obs.domain
+            break
+
+    if not observation_found:
+        raise HTTPException(status_code=404, detail="Observation not found")
+
+    # Update the domain
+    observation_found.domain = request.new_domain
+
+    # Save Darshan state
+    await chitta._gestalt_manager.persist_darshan(child_id, darshan)
+
+    # Create audit record
+    await uow.dashboard.corrections.create_correction(
+        turn_id="manual_edit",
+        child_id=child_id,
+        target_type="observation",
+        target_id=None,
+        correction_type="domain_change",
+        original_value={"content": request.observation_content, "domain": original_domain},
+        corrected_value={"content": request.observation_content, "domain": request.new_domain},
+        expert_reasoning=request.reason,
+        expert_id=admin.id,
+        expert_name=admin.display_name,
+        severity="low",
+    )
+    await uow.commit()
+
+    return {
+        "success": True,
+        "observation_content": request.observation_content,
+        "original_domain": original_domain,
+        "new_domain": request.new_domain,
+    }
+
+
+# =============================================================================
 # VIDEOS ENDPOINTS
 # =============================================================================
 

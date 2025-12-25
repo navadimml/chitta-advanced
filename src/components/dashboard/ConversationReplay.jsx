@@ -1064,17 +1064,24 @@ function CorrectionModal({ childId, turnId, target, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!reasoning.trim()) return;
+    if (correctionType === 'domain_change' && !newDomain) return;
 
     setSubmitting(true);
     try {
-      await api.createCorrection(childId, turnId, {
-        target_type: target.target,
-        correction_type: correctionType,
-        original_value: target.data?.arguments || target.data,
-        corrected_value: newDomain ? { domain: newDomain } : null,
-        expert_reasoning: reasoning,
-        severity: 'medium',
-      });
+      // If this is a domain change on an observation, apply it to the actual data
+      if (correctionType === 'domain_change' && target.target === 'observation' && newDomain && originalContent) {
+        await api.updateObservationDomain(childId, originalContent, newDomain, reasoning);
+      } else {
+        // Record as correction for training
+        await api.createCorrection(childId, turnId, {
+          target_type: target.target,
+          correction_type: correctionType,
+          original_value: target.data?.arguments || target.data,
+          corrected_value: newDomain ? { domain: newDomain } : null,
+          expert_reasoning: reasoning,
+          severity: 'medium',
+        });
+      }
       onSuccess();
     } catch (err) {
       console.error('Error:', err);
