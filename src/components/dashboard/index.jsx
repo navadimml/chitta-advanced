@@ -15,12 +15,14 @@ import {
   AlertCircle,
   Search,
   GraduationCap,
+  BookOpen,
 } from 'lucide-react';
 
 import { api } from '../../api/client';
 import ChildBrowser from './ChildBrowser';
 import ChildDetail from './ChildDetail';
 import PromptSuggestions from './PromptSuggestions';
+import ExpertGuide from './ExpertGuide';
 
 /**
  * Main Dashboard Component
@@ -87,6 +89,12 @@ export default function Dashboard({ onLogout }) {
             label="Training"
             collapsed={sidebarCollapsed}
           />
+          <NavItem
+            to="/dashboard/guide"
+            icon={<BookOpen className="w-5 h-5" />}
+            label="מדריך למומחה"
+            collapsed={sidebarCollapsed}
+          />
 
           <div className="my-4 border-t border-slate-700" />
 
@@ -135,6 +143,7 @@ export default function Dashboard({ onLogout }) {
           <Route path="children/:childId/*" element={<ChildDetail />} />
           <Route path="analytics" element={<AnalyticsPlaceholder />} />
           <Route path="training" element={<PromptSuggestions />} />
+          <Route path="guide" element={<ExpertGuide />} />
           <Route path="flags" element={<FlagsPlaceholder />} />
         </Routes>
       </main>

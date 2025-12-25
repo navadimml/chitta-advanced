@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, NavLink, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, NavLink, Routes, Route, useNavigate, Navigate, Link } from 'react-router-dom';
 import {
   ChevronLeft,
   MessageSquare,
@@ -10,6 +10,7 @@ import {
   Eye,
   Video,
   FileText,
+  HelpCircle,
 } from 'lucide-react';
 
 import { api } from '../../api/client';
@@ -125,13 +126,22 @@ export default function ChildDetail() {
               </div>
             </div>
 
-            <button
-              onClick={loadChild}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
-              title="רענן"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <Link
+                to="/dashboard/guide"
+                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition"
+                title="מדריך למומחה"
+              >
+                <HelpCircle className="w-5 h-5" />
+              </Link>
+              <button
+                onClick={loadChild}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
+                title="רענן"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Stats row */}
