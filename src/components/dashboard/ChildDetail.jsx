@@ -905,6 +905,22 @@ function LifecycleSection({ hypothesis, evidence }) {
 }
 
 /**
+ * Modal backdrop
+ */
+function Modal({ children, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" dir="rtl">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Add Evidence Modal
  */
 function AddEvidenceModal({ childId, hypothesisFocus, onClose, onSuccess }) {
