@@ -11,6 +11,7 @@ import {
   Sparkles,
   ExternalLink,
   Play,
+  Flag,
 } from 'lucide-react';
 import { api } from '../../api/client';
 
@@ -269,6 +270,12 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                   domain={obs.arguments?.domain}
                   onApprove={() => console.log('approved')}
                   onReject={() => setModal({ type: 'correction', target: 'observation', data: obs })}
+                  onFlag={() => setModal({
+                    type: 'flag',
+                    targetType: 'observation',
+                    targetId: `obs-${turn.turn_id}-${i}`,
+                    targetLabel: obs.arguments?.observation || obs.arguments?.content
+                  })}
                 />
               ))}
 
@@ -288,6 +295,12 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                     childId={childId}
                     onApprove={() => console.log('hypothesis approved')}
                     onReject={() => setModal({ type: 'correction', target: 'hypothesis', data: hyp })}
+                    onFlag={() => setModal({
+                      type: 'flag',
+                      targetType: 'hypothesis',
+                      targetId: currentHypothesis?.focus || args.about || args.theory,
+                      targetLabel: args.theory || args.about
+                    })}
                   />
                 );
               })}
@@ -302,6 +315,12 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
                   curiosityType={cur.arguments?.type}
                   onApprove={() => console.log('approved')}
                   onReject={() => setModal({ type: 'correction', target: 'curiosity', data: cur })}
+                  onFlag={() => setModal({
+                    type: 'flag',
+                    targetType: 'curiosity',
+                    targetId: `cur-${turn.turn_id}-${i}`,
+                    targetLabel: cur.arguments?.about
+                  })}
                 />
               ))}
 
@@ -395,6 +414,16 @@ function TurnCard({ turn, childId, hypothesesMap, isExpanded, onToggle, onRefres
           onSuccess={() => { setModal(null); onRefresh(); }}
         />
       )}
+      {modal?.type === 'flag' && (
+        <FlagModal
+          childId={childId}
+          targetType={modal.targetType}
+          targetId={modal.targetId}
+          targetLabel={modal.targetLabel}
+          onClose={() => setModal(null)}
+          onSuccess={() => { setModal(null); onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -450,7 +479,7 @@ const EVIDENCE_TYPE_HE = {
  * Design: ◆ diamond icon, certainty bar, video recommendation
  * Shows both initial state (from tool call) and current state (from curiosities)
  */
-function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject }) {
+function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, onApprove, onReject, onFlag }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [showLifecycle, setShowLifecycle] = useState(false);
@@ -607,7 +636,7 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
             )}
           </div>
 
-          {/* Approve/Reject */}
+          {/* Approve/Reject/Flag */}
           <div className="flex items-center gap-1 text-sm">
             <button
               onClick={onApprove}
@@ -623,6 +652,15 @@ function HypothesisCard({ hypothesis, currentHypothesis, turnNumber, childId, on
             >
               ✗
             </button>
+            {onFlag && (
+              <button
+                onClick={onFlag}
+                className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-orange-500 transition"
+                title="סמן בעיה"
+              >
+                <Flag className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -843,7 +881,7 @@ function HypothesisLifecycleModal({ hypothesis, initialArgs, onClose }) {
 /**
  * PerceptionCard - Observation or regular Curiosity card
  */
-function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject }) {
+function PerceptionCard({ type, content, domain, curiosityType, theory, onApprove, onReject, onFlag }) {
   return (
     <div className="relative border border-gray-200 rounded-xl bg-white">
       {/* Title in border line effect */}
@@ -871,7 +909,7 @@ function PerceptionCard({ type, content, domain, curiosityType, theory, onApprov
             )}
           </div>
 
-          {/* Tiny approve/reject buttons */}
+          {/* Tiny approve/reject/flag buttons */}
           <div className="flex items-center gap-1 text-sm">
             <button
               onClick={onApprove}
@@ -887,6 +925,15 @@ function PerceptionCard({ type, content, domain, curiosityType, theory, onApprov
             >
               ✗
             </button>
+            {onFlag && (
+              <button
+                onClick={onFlag}
+                className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-orange-500 transition"
+                title="סמן בעיה"
+              >
+                <Flag className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1183,6 +1230,116 @@ function CorrectionModal({ childId, turnId, target, onClose, onSuccess }) {
               className="px-5 py-2 bg-red-400 text-white rounded-xl hover:bg-red-500 disabled:opacity-40"
             >
               {submitting ? 'שומר...' : 'שמור תיקון'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * FlagModal - Flag something as problematic
+ */
+function FlagModal({ childId, targetType, targetId, targetLabel, onClose, onSuccess }) {
+  const [flagType, setFlagType] = useState('incorrect_inference');
+  const [reason, setReason] = useState('');
+  const [suggestedCorrection, setSuggestedCorrection] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const flagTypes = [
+    { value: 'incorrect_inference', label: 'מסקנה שגויה', description: 'ההשערה או ההבנה לא נכונה' },
+    { value: 'needs_review', label: 'דורש בדיקה', description: 'צריך לבחון שוב עם מידע נוסף' },
+    { value: 'potentially_harmful', label: 'עלול להזיק', description: 'עלול להוביל להכוונה שגויה' },
+    { value: 'premature', label: 'מוקדם מדי', description: 'אין מספיק מידע להסקה זו' },
+    { value: 'outdated', label: 'לא עדכני', description: 'המידע כבר לא רלוונטי' },
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!reason.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await api.createFlag(childId, targetType, targetId, flagType, reason, suggestedCorrection || null);
+      onSuccess();
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6" dir="rtl">
+        <h2 className="text-lg font-medium text-gray-800 mb-2">סמן בעיה</h2>
+        <p className="text-sm text-gray-500 mb-6 truncate">"{targetLabel}"</p>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Flag type selection */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-3">סוג הבעיה:</label>
+            <div className="space-y-2">
+              {flagTypes.map((ft) => (
+                <label
+                  key={ft.value}
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    flagType === ft.value
+                      ? 'border-orange-300 bg-orange-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="flagType"
+                    value={ft.value}
+                    checked={flagType === ft.value}
+                    onChange={(e) => setFlagType(e.target.value)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <span className="font-medium text-gray-700">{ft.label}</span>
+                    <p className="text-xs text-gray-500">{ft.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">הסבר:</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="תאר את הבעיה..."
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-24 resize-none"
+              required
+            />
+          </div>
+
+          {/* Suggested correction (optional) */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">הצעה לתיקון (אופציונלי):</label>
+            <textarea
+              value={suggestedCorrection}
+              onChange={(e) => setSuggestedCorrection(e.target.value)}
+              placeholder="מה היית מציע במקום?"
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-20 resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-500 hover:text-gray-700">
+              ביטול
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !reason.trim()}
+              className="px-5 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 disabled:opacity-40"
+            >
+              {submitting ? 'שומר...' : 'סמן בעיה'}
             </button>
           </div>
         </form>

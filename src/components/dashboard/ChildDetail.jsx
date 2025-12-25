@@ -2298,6 +2298,12 @@ function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
   const videoRef = useRef(null);
   const [activeTab, setActiveTab] = useState('observations');
   const [currentTime, setCurrentTime] = useState(0);
+  const [flagModal, setFlagModal] = useState(null);
+
+  // Open flag modal
+  const openFlagModal = (targetType, targetId, targetLabel) => {
+    setFlagModal({ targetType, targetId, targetLabel });
+  };
 
   // Seek video to specific timestamp
   const seekToTimestamp = (timestamp) => {
@@ -2415,14 +2421,22 @@ function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
                 observations={video.observations || []}
                 onSeek={seekToTimestamp}
                 currentTime={currentTime}
+                onFlag={openFlagModal}
               />
             )}
             {activeTab === 'strengths' && (
               <div className="space-y-2">
                 {video.strengths_observed?.length > 0 ? (
                   video.strengths_observed.map((strength, i) => (
-                    <div key={i} className="p-3 bg-emerald-50 rounded-xl text-emerald-700">
-                      💪 {strength}
+                    <div key={i} className="p-3 bg-emerald-50 rounded-xl text-emerald-700 flex items-start justify-between group">
+                      <span>💪 {strength}</span>
+                      <button
+                        onClick={() => openFlagModal('video_strength', `video-strength-${video.id}-${i}`, strength)}
+                        className="w-6 h-6 flex items-center justify-center text-emerald-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition rounded"
+                        title="סמן בעיה"
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))
                 ) : (
@@ -2434,8 +2448,15 @@ function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
               <div className="space-y-2">
                 {video.insights?.length > 0 ? (
                   video.insights.map((insight, i) => (
-                    <div key={i} className="p-3 bg-amber-50 rounded-xl text-amber-700">
-                      💡 {insight}
+                    <div key={i} className="p-3 bg-amber-50 rounded-xl text-amber-700 flex items-start justify-between group">
+                      <span>💡 {insight}</span>
+                      <button
+                        onClick={() => openFlagModal('video_insight', `video-insight-${video.id}-${i}`, insight)}
+                        className="w-6 h-6 flex items-center justify-center text-amber-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition rounded"
+                        title="סמן בעיה"
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))
                 ) : (
@@ -2510,6 +2531,18 @@ function VideoAnalysisView({ video, childId, hypothesisFocus, onBack }) {
         childId={childId}
         hypothesisFocus={hypothesisFocus}
       />
+
+      {/* Flag Modal */}
+      {flagModal && (
+        <FlagModal
+          childId={childId}
+          targetType={flagModal.targetType}
+          targetId={flagModal.targetId}
+          targetLabel={flagModal.targetLabel}
+          onClose={() => setFlagModal(null)}
+          onSuccess={() => setFlagModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2733,7 +2766,7 @@ function ExpertVideoFeedbackPanel({ video, childId, hypothesisFocus }) {
 /**
  * Video Observations List - Timeline of observations with clickable timestamps
  */
-function VideoObservationsList({ observations, onSeek, currentTime }) {
+function VideoObservationsList({ observations, onSeek, currentTime, onFlag }) {
   if (observations.length === 0) {
     return (
       <p className="text-gray-400 text-center py-8">לא זוהו תצפיות</p>
@@ -2790,11 +2823,22 @@ function VideoObservationsList({ observations, onSeek, currentTime }) {
                   )}
                 </span>
               )}
-              {obs.domain && (
-                <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
-                  {DOMAIN_HE[obs.domain] || obs.domain}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {obs.domain && (
+                  <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
+                    {DOMAIN_HE[obs.domain] || obs.domain}
+                  </span>
+                )}
+                {onFlag && (
+                  <button
+                    onClick={() => onFlag('video_observation', `video-obs-${i}`, obs.content)}
+                    className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-orange-500 transition rounded"
+                    title="סמן בעיה"
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-gray-700">{obs.content}</p>
             {obs.effect && obs.effect !== 'neutral' && (
