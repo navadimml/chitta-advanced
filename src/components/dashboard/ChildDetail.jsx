@@ -449,6 +449,7 @@ function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded,
   const [activeSection, setActiveSection] = useState(null); // 'evidence' | 'video' | 'lifecycle' | null
   const [showAddEvidence, setShowAddEvidence] = useState(false);
   const [showAdjustCertainty, setShowAdjustCertainty] = useState(false);
+  const [showFlag, setShowFlag] = useState(false);
 
   const certainty = hypothesis.certainty || 0;
   const certaintyPercent = Math.round(certainty * 100);
@@ -614,6 +615,12 @@ function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded,
             >
               + הוסף ראיה
             </button>
+            <button
+              onClick={() => setShowFlag(true)}
+              className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100"
+            >
+              🚩 סמן בעיה
+            </button>
           </div>
 
           {/* Section content with scroll */}
@@ -652,6 +659,18 @@ function HypothesisLifecycleCard({ hypothesis, childId, videos = [], isExpanded,
               currentCertainty={certainty}
               onClose={() => setShowAdjustCertainty(false)}
               onSuccess={() => { setShowAdjustCertainty(false); onRefresh(); }}
+            />
+          )}
+
+          {/* Flag Modal */}
+          {showFlag && (
+            <FlagModal
+              childId={childId}
+              targetType="hypothesis"
+              targetId={hypothesis.focus}
+              targetLabel={hypothesis.theory || hypothesis.focus}
+              onClose={() => setShowFlag(false)}
+              onSuccess={() => { setShowFlag(false); onRefresh(); }}
             />
           )}
         </div>
@@ -1070,6 +1089,116 @@ function AdjustCertaintyModal({ childId, hypothesisFocus, currentCertainty, onCl
               className="px-5 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-40"
             >
               {submitting ? 'שומר...' : 'שמור שינוי'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Flag Modal - Flag something as problematic
+ */
+function FlagModal({ childId, targetType, targetId, targetLabel, onClose, onSuccess }) {
+  const [flagType, setFlagType] = useState('incorrect_inference');
+  const [reason, setReason] = useState('');
+  const [suggestedCorrection, setSuggestedCorrection] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const flagTypes = [
+    { value: 'incorrect_inference', label: 'מסקנה שגויה', description: 'ההשערה או ההבנה לא נכונה' },
+    { value: 'needs_review', label: 'דורש בדיקה', description: 'צריך לבחון שוב עם מידע נוסף' },
+    { value: 'potentially_harmful', label: 'עלול להזיק', description: 'עלול להוביל להכוונה שגויה' },
+    { value: 'premature', label: 'מוקדם מדי', description: 'אין מספיק מידע להסקה זו' },
+    { value: 'outdated', label: 'לא עדכני', description: 'המידע כבר לא רלוונטי' },
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!reason.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await api.createFlag(childId, targetType, targetId, flagType, reason, suggestedCorrection || null);
+      onSuccess();
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" dir="rtl">
+        <h2 className="text-lg font-medium text-gray-800 mb-2">סמן בעיה</h2>
+        <p className="text-sm text-gray-500 mb-6">"{targetLabel}"</p>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Flag type selection */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-3">סוג הבעיה:</label>
+            <div className="space-y-2">
+              {flagTypes.map((ft) => (
+                <label
+                  key={ft.value}
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    flagType === ft.value
+                      ? 'border-red-300 bg-red-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="flagType"
+                    value={ft.value}
+                    checked={flagType === ft.value}
+                    onChange={(e) => setFlagType(e.target.value)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <span className="font-medium text-gray-700">{ft.label}</span>
+                    <p className="text-xs text-gray-500">{ft.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">הסבר:</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="תאר את הבעיה..."
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-24 resize-none"
+              required
+            />
+          </div>
+
+          {/* Suggested correction (optional) */}
+          <div>
+            <label className="text-sm text-gray-600 block mb-2">הצעה לתיקון (אופציונלי):</label>
+            <textarea
+              value={suggestedCorrection}
+              onChange={(e) => setSuggestedCorrection(e.target.value)}
+              placeholder="מה היית מציע במקום?"
+              className="w-full p-3 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-300 h-20 resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-500 hover:text-gray-700">
+              ביטול
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !reason.trim()}
+              className="px-5 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 disabled:opacity-40"
+            >
+              {submitting ? 'שומר...' : 'שמור סימון'}
             </button>
           </div>
         </form>
