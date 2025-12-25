@@ -304,6 +304,7 @@ async def get_child_full(
         "crystal": _crystal_to_dict(darshan.crystal) if darshan.crystal else None,
         "session_history_length": len(darshan.session_history) if darshan.session_history else 0,
         "feedback": feedback_summary,
+        "videos": _extract_videos_from_darshan(darshan),
     }
 
 
@@ -1761,3 +1762,63 @@ def _crystal_to_dict(crystal) -> Dict[str, Any]:
         "version": crystal.version if hasattr(crystal, 'version') else 1,
         "generated_at": crystal.generated_at.isoformat() if hasattr(crystal, 'generated_at') and crystal.generated_at else None,
     }
+
+
+def _extract_videos_from_darshan(darshan) -> List[Dict[str, Any]]:
+    """Extract all video scenarios from Darshan's curiosities."""
+    videos = []
+
+    for curiosity in darshan._curiosities._dynamic:
+        if not curiosity.investigation:
+            continue
+
+        for scenario in curiosity.investigation.video_scenarios:
+            # Extract observations from analysis
+            observations = []
+            strengths = []
+            insights = []
+
+            if scenario.analysis_result and scenario.status == "analyzed":
+                for obs in scenario.analysis_result.get("observations", []):
+                    observations.append({
+                        "content": obs.get("content", ""),
+                        "timestamp_start": obs.get("timestamp_start", obs.get("timestamp", "")),
+                        "timestamp_end": obs.get("timestamp_end", ""),
+                        "domain": obs.get("domain", "general"),
+                        "effect": obs.get("effect", "neutral"),
+                    })
+
+                for s in scenario.analysis_result.get("strengths_observed", []):
+                    if isinstance(s, dict):
+                        strengths.append(s.get("strength", ""))
+                    elif isinstance(s, str):
+                        strengths.append(s)
+
+                insights = scenario.analysis_result.get("insights", [])
+
+            videos.append({
+                "id": scenario.id,
+                "title": scenario.title,
+                "status": scenario.status,
+                "category": getattr(scenario, 'category', 'hypothesis_test'),
+                "what_to_film": scenario.what_to_film,
+                "rationale_for_parent": scenario.rationale_for_parent,
+                "duration_suggestion": scenario.duration_suggestion,
+                "target_hypothesis_id": scenario.target_hypothesis_id,
+                "target_hypothesis_focus": curiosity.focus,
+                "what_we_hope_to_learn": scenario.what_we_hope_to_learn,
+                "focus_points": scenario.focus_points or [],
+                "video_path": scenario.video_path,
+                "created_at": scenario.created_at.isoformat() if scenario.created_at else None,
+                "uploaded_at": scenario.uploaded_at.isoformat() if scenario.uploaded_at else None,
+                "analyzed_at": scenario.analyzed_at.isoformat() if scenario.analyzed_at else None,
+                "observations": observations,
+                "strengths_observed": strengths,
+                "insights": insights,
+                "certainty_after": curiosity.certainty if scenario.status == "analyzed" else None,
+            })
+
+    # Sort by most recent first
+    videos.sort(key=lambda v: v.get("uploaded_at") or v.get("created_at") or "", reverse=True)
+
+    return videos
