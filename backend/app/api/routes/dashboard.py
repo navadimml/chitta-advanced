@@ -492,7 +492,8 @@ class VideoScenarioResponse(BaseModel):
     """Full video scenario details."""
     id: str
     title: str
-    status: str  # pending, uploaded, analyzed, validation_failed
+    status: str  # pending, uploaded, analyzed, validation_failed, needs_confirmation, acknowledged, rejected
+    category: str = "hypothesis_test"  # hypothesis_test, pattern_exploration, strength_baseline, baseline, long_absence, returning
     what_to_film: Optional[str] = None
     rationale_for_parent: Optional[str] = None
     duration_suggestion: Optional[str] = None
@@ -578,6 +579,7 @@ async def get_child_videos(
                 id=scenario.id,
                 title=scenario.title,
                 status=scenario.status,
+                category=getattr(scenario, 'category', 'hypothesis_test'),
                 what_to_film=scenario.what_to_film,
                 rationale_for_parent=scenario.rationale_for_parent,
                 duration_suggestion=scenario.duration_suggestion,
@@ -651,6 +653,7 @@ async def get_video_detail(
                     "id": scenario.id,
                     "title": scenario.title,
                     "status": scenario.status,
+                    "category": getattr(scenario, 'category', 'hypothesis_test'),
                     "what_to_film": scenario.what_to_film,
                     "rationale_for_parent": scenario.rationale_for_parent,
                     "duration_suggestion": scenario.duration_suggestion,

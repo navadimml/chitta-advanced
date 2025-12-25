@@ -1502,6 +1502,16 @@ const VIDEO_STATUS_HE = {
   rejected: 'נדחה',
 };
 
+// Video category translations
+const VIDEO_CATEGORY_HE = {
+  hypothesis_test: 'בדיקת השערה',
+  pattern_exploration: 'חקירת דפוס',
+  strength_baseline: 'בסיס חוזקות',
+  baseline: 'בסיס',
+  long_absence: 'היעדרות ארוכה',
+  returning: 'חזרה',
+};
+
 /**
  * Videos View - Video gallery with analysis (plan 6.5, 9)
  */
@@ -1633,6 +1643,13 @@ function VideoCard({ video, onClick }) {
           </span>
         </div>
 
+        {/* Category badge */}
+        {video.category && video.category !== 'hypothesis_test' && (
+          <p className="text-xs text-indigo-500 mb-1">
+            {VIDEO_CATEGORY_HE[video.category] || video.category}
+          </p>
+        )}
+
         {/* Hypothesis link */}
         {video.target_hypothesis_focus && (
           <p className="text-xs text-purple-600 mb-2 line-clamp-1">
@@ -1683,6 +1700,11 @@ function VideoAnalysisView({ video, onBack }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h2 className="text-xl font-medium text-gray-800 mb-1">{video.title}</h2>
+            {video.category && (
+              <p className="text-indigo-500 text-sm mb-1">
+                {VIDEO_CATEGORY_HE[video.category] || video.category}
+              </p>
+            )}
             {video.target_hypothesis_focus && (
               <p className="text-purple-600 text-sm">
                 ◆ קשור להשערה: {video.target_hypothesis_focus}
