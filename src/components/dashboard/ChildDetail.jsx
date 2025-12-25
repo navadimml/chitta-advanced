@@ -197,7 +197,7 @@ export default function ChildDetail() {
           {/* Default: Conversation/Timeline */}
           <Route
             index
-            element={<ConversationReplay childId={childId} curiosities={child?.curiosities} />}
+            element={<ConversationReplay childId={childId} curiosities={child?.curiosities} onDataChange={loadChild} />}
           />
 
           {/* Hypotheses */}
@@ -207,6 +207,7 @@ export default function ChildDetail() {
               <HypothesesView
                 childId={childId}
                 curiosities={child?.curiosities}
+                onDataChange={loadChild}
               />
             }
           />
@@ -309,11 +310,17 @@ function TabLink({ to, children, end = false }) {
  * Hypotheses View - Overview of all hypotheses with lifecycle (plan sections 6.2, 6.3, 6.4, 7)
  * This is an overview page - full hypothesis details appear in the Conversation timeline
  */
-function HypothesesView({ childId, curiosities }) {
+function HypothesesView({ childId, curiosities, onDataChange }) {
   const navigate = useNavigate();
   const [expandedHypothesis, setExpandedHypothesis] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [videos, setVideos] = useState([]);
+
+  // Refresh handler - reloads both local videos and parent data
+  const handleRefresh = () => {
+    setRefreshKey(k => k + 1);  // Reload videos
+    if (onDataChange) onDataChange();  // Reload parent data (curiosities)
+  };
 
   // Load videos for this child
   useEffect(() => {
@@ -416,7 +423,7 @@ function HypothesesView({ childId, curiosities }) {
             onToggle={() => setExpandedHypothesis(
               expandedHypothesis === h.focus ? null : h.focus
             )}
-            onRefresh={() => setRefreshKey(k => k + 1)}
+            onRefresh={handleRefresh}
             onGoToConversation={goToConversation}
           />
         ))}

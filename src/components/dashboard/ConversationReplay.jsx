@@ -55,11 +55,17 @@ const VIDEO_VALUE_HE = {
   relational: 'יחסי',
 };
 
-export default function ConversationReplay({ childId, curiosities }) {
+export default function ConversationReplay({ childId, curiosities, onDataChange }) {
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedTurns, setExpandedTurns] = useState(new Set());
+
+  // Combined refresh handler - reloads timeline and notifies parent
+  const handleRefresh = () => {
+    loadTimeline();
+    if (onDataChange) onDataChange();
+  };
 
   // Build a map of current hypotheses by their "about" field for quick lookup
   const hypothesesMap = React.useMemo(() => {
@@ -147,7 +153,7 @@ export default function ConversationReplay({ childId, curiosities }) {
             hypothesesMap={hypothesesMap}
             isExpanded={expandedTurns.has(turn.turn_id)}
             onToggle={() => toggleTurn(turn.turn_id)}
-            onRefresh={loadTimeline}
+            onRefresh={handleRefresh}
           />
         ))}
       </div>
