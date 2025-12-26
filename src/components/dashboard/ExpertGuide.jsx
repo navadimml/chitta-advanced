@@ -677,7 +677,7 @@ export default function ExpertGuide() {
               title="דפוס (Pattern)"
               description="קשר בין תחומים שונים — תובנה רחבה יותר"
               trigger="סיפור שנוגע ב-2+ תחומים עם משמעות גבוהה"
-              example="'רגישות חושית → קושי בוויסות → הימנעות חברתית'"
+              example="'רגישות חושית ← קושי בוויסות ← הימנעות חברתית'"
               isLast
             />
           </div>
@@ -1193,7 +1193,7 @@ export default function ExpertGuide() {
               />
               <VideoValueCard
                 value="שרשרת (chain)"
-                description="לראות את הרצף: טריגר → תגובה → תוצאה"
+                description="לראות את הרצף: טריגר ← תגובה ← תוצאה"
               />
               <VideoValueCard
                 value="גילוי (discovery)"
@@ -1275,13 +1275,14 @@ export default function ExpertGuide() {
               "לא קיים דפוס דומה כבר",
             ]}
             notThis="'הוא רגיש' — תחום יחיד"
-            thisIs="'רגישות שמיעתית → קושי בוויסות → הימנעות חברתית' — שלושה תחומים מחוברים"
+            thisIs="'רגישות שמיעתית ← קושי בוויסות ← הימנעות חברתית' — שלושה תחומים מחוברים"
           />
 
           {/* Evidence */}
           <GlossaryItem
             term="ראיה (Evidence)"
             color="purple"
+            belongsTo="שייכת לחקירה (Investigation) של סקרנות"
             howDetected="LLM מפעיל כלי 'add_evidence' עם effect"
             criteria={[
               "מקושרת לחקירה פעילה (investigation_id)",
@@ -1311,6 +1312,7 @@ export default function ExpertGuide() {
           <GlossaryItem
             term="משיכה (Pull)"
             color="orange"
+            belongsTo="תכונה של סקרנות"
             howDetected="מחושבת מחדש בכל תור לפי נוסחה"
             criteria={[
               "base_pull — ערך התחלתי (0-1)",
@@ -1326,6 +1328,7 @@ export default function ExpertGuide() {
           <GlossaryItem
             term="ודאות (Certainty)"
             color="indigo"
+            belongsTo="תכונה של סקרנות"
             howDetected="מתעדכנת עם כל ראיה"
             criteria={[
               "0-100% — כמה בטוחים בסקרנות/השערה",
@@ -1644,7 +1647,7 @@ function VideoValueCard({ value, description }) {
   );
 }
 
-function GlossaryItem({ term, color, howDetected, criteria, notThis, thisIs }) {
+function GlossaryItem({ term, color, belongsTo, howDetected, criteria, notThis, thisIs }) {
   const colors = {
     emerald: 'border-emerald-200 bg-emerald-50',
     amber: 'border-amber-200 bg-amber-50',
@@ -1680,7 +1683,10 @@ function GlossaryItem({ term, color, howDetected, criteria, notThis, thisIs }) {
 
   return (
     <div className={`rounded-xl p-5 border ${colors[color]}`}>
-      <h4 className={`font-semibold ${headerColors[color]} mb-3`}>{term}</h4>
+      <h4 className={`font-semibold ${headerColors[color]} mb-1`}>{term}</h4>
+      {belongsTo && (
+        <div className="text-xs text-gray-500 mb-3 italic">📎 {belongsTo}</div>
+      )}
 
       <div className="mb-3">
         <div className={`text-sm font-medium ${textColors[color]} mb-1`}>איך המערכת מזהה:</div>
