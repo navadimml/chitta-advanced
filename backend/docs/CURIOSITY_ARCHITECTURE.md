@@ -1522,4 +1522,546 @@ Pull indicator:  🔥 (high) | ⚪ (low)
 
 ---
 
+## Appendix D: Edge Cases & Error Handling
+
+### D.1 Conflicting Evidence
+
+**Scenario**: Two pieces of evidence contradict each other for the same hypothesis.
+
+```python
+# Example:
+# Evidence 1: "מתפקד טוב בסביבה רועשת" (contradicts sensory hypothesis)
+# Evidence 2: "מתמוטט בקניון" (supports sensory hypothesis)
+
+# Resolution: Both are recorded. LLM assesses NET confidence.
+# The LLM sees all evidence and makes a holistic judgment.
+# System does NOT try to reconcile — LLM handles nuance.
+
+add_evidence(
+    curiosity_focus="רגישות חושית",
+    evidence="מתפקד טוב בסביבה רועשת",
+    effect="contradicts",
+    new_confidence=0.55,  # LLM weighs all evidence
+    effect_reasoning="זה מעיד שהרגישות לא גורפת, אבל אולי תלויה בהקשר"
+)
+```
+
+### D.2 Observation Correction
+
+**Scenario**: Parent says "actually, that's not what I meant" or "I was wrong about that."
+
+```python
+@dataclass
+class ObservationCorrection:
+    original_observation_id: str
+    correction: str
+    corrected_at: datetime
+    session_id: str
+
+# System actions:
+# 1. Mark original observation as "corrected" (not deleted — audit trail)
+# 2. Record correction event
+# 3. LLM reassesses affected curiosities in next turn
+# 4. Evidence chain shows correction
+
+def correct_observation(self, obs_id: str, correction: str) -> None:
+    obs = self.get_observation(obs_id)
+    obs.status = "corrected"
+    obs.correction = correction
+
+    self.record_event("observation_corrected", obs_id, {
+        "original": obs.content,
+        "correction": correction,
+    })
+```
+
+### D.3 Birthdate Change
+
+**Scenario**: Parent provides corrected birthdate after observations exist.
+
+```python
+def update_birthdate(self, child_id: str, new_birthdate: date) -> None:
+    """
+    Birthdate change affects age calculations.
+
+    Since age is CALCULATED (not stored), no data migration needed.
+    All historical queries will use new birthdate.
+
+    Record the change for audit.
+    """
+    child = self.get_child(child_id)
+    old_birthdate = child.birthdate
+    child.birthdate = new_birthdate
+
+    self.record_event("birthdate_corrected", child_id, {
+        "from": old_birthdate.isoformat(),
+        "to": new_birthdate.isoformat(),
+    })
+```
+
+### D.4 Competing Hypotheses
+
+**Scenario**: Two hypotheses explain the same behavior differently.
+
+```
+Hypothesis A: "הקושי בויסות נובע מרגישות חושית"
+Hypothesis B: "הקושי בויסות נובע מחרדה"
+```
+
+**Resolution**:
+- Both can exist simultaneously
+- They compete for confidence via evidence
+- LLM may eventually see them as complementary (Pattern: "חושי + חרדה")
+- Or one gets refuted
+
+```python
+# System tracks competing hypotheses via shared domain
+# LLM sees both and gathers evidence for each
+# No automatic resolution — LLM's judgment prevails
+```
+
+### D.5 Curiosity Merging
+
+**Scenario**: Two curiosities turn out to be about the same thing.
+
+```
+Question A: "למה מתקשה בבקרים?"
+Question B: "למה ההתלבשות קשה?"
+# Turns out both are about morning transitions
+```
+
+```python
+def merge_curiosities(self, keep_id: str, merge_id: str, reasoning: str) -> None:
+    """
+    Merge two curiosities into one.
+
+    - Keep one, mark other as "merged"
+    - Transfer observations/evidence to kept one
+    - Maintain links for audit trail
+    """
+    keep = self.get_curiosity(keep_id)
+    merge = self.get_curiosity(merge_id)
+
+    # Transfer
+    keep.related_observations.extend(merge.related_observations)
+    if hasattr(merge, 'evidence'):
+        keep.evidence.extend(merge.evidence)
+
+    # Mark merged
+    merge.status = "merged"
+    merge.merged_into = keep_id
+
+    self.record_event("curiosity_merged", merge_id, {
+        "merged_into": keep_id,
+        "reasoning": reasoning,
+    })
+```
+
+### D.6 Expert Override
+
+**Scenario**: Clinical expert (via dashboard) adjusts a value.
+
+```python
+@dataclass
+class ExpertAdjustment:
+    entity_id: str
+    field: str
+    old_value: Any
+    new_value: Any
+    expert_id: str
+    reasoning: str
+    timestamp: datetime
+
+def expert_adjust(
+    self,
+    entity_id: str,
+    field: str,
+    new_value: Any,
+    expert_id: str,
+    reasoning: str,
+) -> None:
+    """
+    Expert can override LLM assessments.
+
+    Fully audited with reasoning.
+    """
+    entity = self.get_entity(entity_id)
+    old_value = getattr(entity, field)
+    setattr(entity, field, new_value)
+
+    self.record_event("expert_adjustment", entity_id, {
+        "field": field,
+        "from": old_value,
+        "to": new_value,
+        "expert_id": expert_id,
+        "reasoning": reasoning,
+    })
+```
+
+### D.7 LLM Fails to Provide Reasoning
+
+**Scenario**: LLM doesn't include required `reasoning` field.
+
+```python
+def validate_tool_call(self, tool_name: str, args: dict) -> ValidationResult:
+    """
+    Validate required fields before processing.
+    """
+    required_reasoning_tools = ["wonder", "add_evidence", "see_pattern", "update_curiosity"]
+
+    if tool_name in required_reasoning_tools:
+        reasoning_fields = ["assessment_reasoning", "effect_reasoning", "reasoning", "change_reasoning"]
+        has_reasoning = any(args.get(f) for f in reasoning_fields)
+
+        if not has_reasoning:
+            return ValidationResult(
+                valid=False,
+                error="Missing required reasoning field",
+                action="prompt_for_reasoning",  # Ask LLM to explain
+            )
+
+    return ValidationResult(valid=True)
+```
+
+### D.8 Very Old Dormant Curiosities
+
+**Scenario**: Curiosity has been dormant for 2+ years. Delete or keep?
+
+```python
+# Policy: NEVER auto-delete. Understanding persists.
+#
+# Reasons:
+# 1. A 5-year-old hypothesis might become relevant when child is 8
+# 2. Longitudinal insights require historical data
+# 3. Audit trail requires preservation
+#
+# Solution: Archive after 1 year dormancy
+
+ARCHIVE_THRESHOLD_DAYS = 365
+
+def archive_old_dormant(self) -> None:
+    """
+    Move very old dormant curiosities to archive.
+
+    Archived = not shown in active context, but preserved for:
+    - Historical queries
+    - Audit
+    - Potential revival
+    """
+    for curiosity in self.get_dormant():
+        days_dormant = (datetime.now() - curiosity.last_updated).days
+        if days_dormant > ARCHIVE_THRESHOLD_DAYS:
+            curiosity.status = "archived"
+            self.record_event("curiosity_archived", curiosity.id)
+```
+
+### D.9 Multi-Age Stories
+
+**Scenario**: Parent tells stories from multiple ages in one message.
+
+```
+"כשהיה בן שנתיים הוא התחיל לדבר, ועכשיו בגיל 4 הוא מדבר בלי הפסקה"
+```
+
+```python
+# LLM creates multiple observations with different refers_to_age_months:
+
+notice(
+    observation="התחיל לדבר",
+    domain="milestones",
+    when_type="age_months",
+    when_value=24,  # Age 2
+)
+
+notice(
+    observation="מדבר בלי הפסקה",
+    domain="language",
+    when_type="now",
+    # No when_value — refers to current age
+)
+```
+
+### D.10 Session Boundaries & Memory
+
+**Scenario**: Session ends. What happens to in-progress state?
+
+```python
+def on_session_end(self, session_id: str) -> None:
+    """
+    Session ended (gap > 4 hours).
+
+    Actions:
+    1. All curiosities persist (no loss)
+    2. Previous session summarized (memory distillation)
+    3. Next session starts with full context
+    """
+    session = self.get_session(session_id)
+
+    # Create memory summary
+    memory = self.llm.summarize_session(session)
+    self.save_session_memory(session_id, memory)
+
+    # Record session end
+    self.record_event("session_ended", session_id, {
+        "observations_count": session.observations_count,
+        "curiosities_touched": session.curiosities_touched,
+    })
+
+def on_session_start(self, child_id: str) -> SessionContext:
+    """
+    New session starting.
+
+    Context includes:
+    - All active curiosities
+    - Recent session memories
+    - Crystal (if exists)
+    """
+    return SessionContext(
+        curiosities=self.get_active_curiosities(child_id),
+        recent_memories=self.get_recent_memories(child_id, limit=3),
+        crystal=self.get_current_crystal(child_id),
+    )
+```
+
+### D.11 Data Deletion (GDPR)
+
+**Scenario**: Parent requests data deletion.
+
+```python
+def delete_child_data(self, child_id: str, requester: str) -> DeletionReport:
+    """
+    GDPR right to be forgotten.
+
+    Deletes:
+    - All observations
+    - All curiosities
+    - All events
+    - All crystals
+
+    Preserves (anonymized):
+    - Aggregate statistics (for research, if consented)
+    """
+    # Record the deletion request first
+    self.record_event("deletion_requested", child_id, {
+        "requester": requester,
+        "timestamp": datetime.now().isoformat(),
+    })
+
+    # Perform deletion
+    deleted = {
+        "observations": self.delete_observations(child_id),
+        "curiosities": self.delete_curiosities(child_id),
+        "events": self.delete_events(child_id),
+        "crystals": self.delete_crystals(child_id),
+    }
+
+    return DeletionReport(
+        child_id=child_id,
+        deleted_at=datetime.now(),
+        items_deleted=deleted,
+    )
+```
+
+### D.12 Video Evidence Flow
+
+**Scenario**: Video is analyzed and produces findings.
+
+```python
+def on_video_analyzed(self, video_id: str, analysis: VideoAnalysis) -> None:
+    """
+    Video analysis produces rich observations and evidence.
+
+    Flow:
+    1. Video analyzed (external service or LLM)
+    2. Findings become observations
+    3. Findings become evidence for relevant hypotheses
+    4. Crystal may regenerate
+    """
+    for finding in analysis.findings:
+        # Create observation
+        obs = Observation(
+            content=finding.description,
+            domain=finding.domain,
+            source="video",
+            timestamp=datetime.now(),
+            video_id=video_id,
+            video_timestamp=finding.timestamp_in_video,
+        )
+        self.save_observation(obs)
+
+        # If finding relates to hypothesis, add as evidence
+        if finding.relates_to_hypothesis:
+            self.add_evidence(
+                curiosity_focus=finding.relates_to_hypothesis,
+                evidence=finding.description,
+                effect=finding.effect,
+                source_observation=obs.id,
+            )
+
+    # Trigger Crystal regeneration
+    self.mark_crystal_for_regeneration("video_analyzed")
+```
+
+### D.13 Circular Dependencies
+
+**Scenario**: Pattern spawns question that leads to hypothesis that strengthens pattern.
+
+```
+Pattern: "רגישות חושית מרכזית"
+  └─ spawns Question: "האם משפיע על שינה?"
+       └─ leads to Hypothesis: "חושי → שינה"
+            └─ if confirmed, strengthens original Pattern
+```
+
+**Resolution**: This is VALID and desired behavior. The cycle represents deepening understanding.
+
+```python
+# Track lineage but allow cycles
+# The system stores links; doesn't prevent cycles
+# Each entity has creation provenance — cycles are traceable
+
+@dataclass
+class Curiosity:
+    # ... other fields ...
+
+    # Lineage (allows understanding the path)
+    created_from: Optional[str]      # Parent curiosity
+    spawned: List[str]               # Children
+    strengthens: List[str]           # What this strengthens when confirmed
+```
+
+### D.14 Concurrent Sessions
+
+**Scenario**: Parent uses app from two devices simultaneously.
+
+```python
+# Policy: Last-write-wins with conflict detection
+
+def save_with_conflict_check(self, entity: Entity, session_id: str) -> SaveResult:
+    """
+    Check for concurrent modification.
+    """
+    current = self.get_entity(entity.id)
+
+    if current.last_updated > entity.loaded_at:
+        # Concurrent modification detected
+        return SaveResult(
+            success=False,
+            conflict=True,
+            current_version=current,
+            attempted_version=entity,
+        )
+
+    self.save(entity)
+    return SaveResult(success=True)
+
+# For observations: No conflict possible (always append)
+# For curiosities: LLM reassesses on next turn anyway
+# For Crystal: Version number ensures ordering
+```
+
+---
+
+## Appendix E: Performance Considerations
+
+### E.1 Context Size Management
+
+As observations accumulate over years, context grows. Strategies:
+
+```python
+class ContextManager:
+    MAX_OBSERVATIONS_IN_CONTEXT = 50
+    MAX_CURIOSITIES_IN_CONTEXT = 20
+
+    def build_context(self, child_id: str) -> Context:
+        """
+        Build bounded context for LLM.
+        """
+        # Recent observations (last 3 months)
+        recent_obs = self.get_recent_observations(child_id, months=3)
+
+        # If too many, prioritize by:
+        # 1. High confidence
+        # 2. Related to active curiosities
+        # 3. From video (richer)
+        if len(recent_obs) > self.MAX_OBSERVATIONS_IN_CONTEXT:
+            recent_obs = self.prioritize_observations(recent_obs)
+
+        # Active curiosities only (not dormant/archived)
+        curiosities = self.get_active_curiosities(child_id)
+
+        # Crystal provides summary of older understanding
+        crystal = self.get_current_crystal(child_id)
+
+        return Context(
+            observations=recent_obs,
+            curiosities=curiosities,
+            crystal=crystal,  # Crystal summarizes historical understanding
+        )
+```
+
+### E.2 Event Store Scaling
+
+```python
+# For long-term (years) event storage:
+# 1. Partition by year
+# 2. Index by entity_id, event_type, timestamp
+# 3. Archive old events to cold storage
+# 4. Keep recent events (1 year) in hot storage
+
+class EventStoreConfig:
+    HOT_STORAGE_DAYS = 365
+    PARTITION_BY = "year"
+    INDEXES = ["entity_id", "event_type", "timestamp", "session_id"]
+```
+
+---
+
+## Appendix F: Testing Strategy
+
+### F.1 Unit Tests
+
+```python
+# Test curiosity state transitions
+def test_hypothesis_refutation_cascade():
+    """When hypothesis is refuted, source question reopens."""
+
+# Test evidence effects
+def test_supporting_evidence_increases_confidence():
+    """Supporting evidence should increase confidence."""
+
+# Test decay mechanics
+def test_pull_decays_over_time():
+    """Pull should decay but fullness should not."""
+```
+
+### F.2 Integration Tests
+
+```python
+# Test full flows
+def test_observation_to_pattern_flow():
+    """
+    Full flow: observation → discovery fills → question spawns →
+    hypothesis crystallizes → evidence confirms → pattern emerges
+    """
+
+# Test temporal queries
+def test_state_reconstruction_at_past_age():
+    """Can reconstruct understanding at any historical age."""
+```
+
+### F.3 LLM Behavior Tests
+
+```python
+# Test that LLM provides required fields
+def test_llm_provides_reasoning():
+    """All tool calls include reasoning."""
+
+# Test that LLM links correctly
+def test_llm_links_evidence_to_observations():
+    """Evidence traces back to source observations."""
+```
+
+---
+
 **End of Specification**
