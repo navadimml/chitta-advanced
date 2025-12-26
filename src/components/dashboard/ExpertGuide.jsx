@@ -839,18 +839,91 @@ export default function ExpertGuide() {
             מה היא חושבת? איך היא מחליטה מה לשאול? הנה דוגמה:
           </p>
 
-          {/* Setup */}
-          <div className="bg-gray-100 rounded-xl p-4 border border-gray-200">
-            <div className="text-sm text-gray-500 mb-2">📋 מצב התחלתי:</div>
-            <div className="text-gray-700">
-              <strong>ילד:</strong> יואב, בן 4
-              <br />
-              <strong>סקרנויות פתוחות:</strong>
-              <ul className="mr-4 mt-1 space-y-1">
-                <li>• "איך יואב מתמודד עם מעברים?" (שאלה, ודאות 35%, משיכה 0.7)</li>
-                <li>• "מה מאפיין את המשחק שלו?" (גילוי, ודאות 20%, משיכה 0.5)</li>
-                <li>• "רגישות חושית משפיעה על ויסות" (השערה, ודאות 55%, משיכה 0.6)</li>
-              </ul>
+          {/* Setup - Enhanced Visual */}
+          <div className="bg-gradient-to-l from-slate-100 to-gray-50 rounded-2xl p-5 border border-gray-200 shadow-sm">
+            {/* Child Info Header */}
+            <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-200">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white text-2xl shadow-md">
+                👦
+              </div>
+              <div>
+                <h4 className="text-xl font-bold text-gray-800">יואב</h4>
+                <p className="text-gray-500">בן 4 | תחילת היכרות</p>
+              </div>
+              <div className="mr-auto bg-white rounded-lg px-3 py-1.5 border border-gray-200 shadow-sm">
+                <span className="text-xs text-gray-400">סקרנויות פתוחות</span>
+                <span className="text-lg font-bold text-indigo-600 mr-2">3</span>
+              </div>
+            </div>
+
+            {/* Curiosities Grid */}
+            <div className="space-y-3">
+              {/* Curiosity 1 - Question (highest pull) */}
+              <div className="bg-white rounded-xl p-4 border-r-4 border-blue-400 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">❓</span>
+                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">שאלה</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-orange-500">
+                    <span className="text-xs">משיכה</span>
+                    <span className="font-bold">0.7</span>
+                    <span className="text-orange-400">🔥</span>
+                  </div>
+                </div>
+                <p className="text-gray-800 font-medium mb-2">"איך יואב מתמודד עם מעברים?"</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">ודאות:</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-400 rounded-full" style={{width: '35%'}}></div>
+                  </div>
+                  <span className="text-xs font-medium text-gray-600">35%</span>
+                </div>
+              </div>
+
+              {/* Curiosity 2 - Hypothesis */}
+              <div className="bg-white rounded-xl p-4 border-r-4 border-purple-400 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🎯</span>
+                    <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">השערה</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-orange-400">
+                    <span className="text-xs">משיכה</span>
+                    <span className="font-bold">0.6</span>
+                  </div>
+                </div>
+                <p className="text-gray-800 font-medium mb-2">"רגישות חושית משפיעה על ויסות"</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">ודאות:</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-400 rounded-full" style={{width: '55%'}}></div>
+                  </div>
+                  <span className="text-xs font-medium text-gray-600">55%</span>
+                </div>
+              </div>
+
+              {/* Curiosity 3 - Discovery */}
+              <div className="bg-white rounded-xl p-4 border-r-4 border-emerald-400 shadow-sm opacity-75">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🔍</span>
+                    <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">גילוי</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-gray-400">
+                    <span className="text-xs">משיכה</span>
+                    <span className="font-bold">0.5</span>
+                  </div>
+                </div>
+                <p className="text-gray-800 font-medium mb-2">"מה מאפיין את המשחק שלו?"</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">ודאות:</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full" style={{width: '20%'}}></div>
+                  </div>
+                  <span className="text-xs font-medium text-gray-600">20%</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -864,10 +937,15 @@ export default function ExpertGuide() {
               "רגע, זה גם קשור למעברים — הוא התקשה במעבר מפיג'מה לבגדים. שתי סקרנויות מתחברות!",
               "המשיכה של 'מעברים' עכשיו הכי גבוהה (0.8). אבל לא אלחץ — אעקוב אחרי מה שהאמא רוצה לספר.",
             ]}
+            responseThinking="אני רוצה להבין יותר על הרגישות הזו. אשאל אם זה קורה עם כל הבגדים או רק עם סוגים מסוימים — זה יעזור לי להבין אם זו רגישות כללית או ספציפית."
             chittaResponse="זה נשמע כמו בוקר מאתגר. כשהוא אומר שהחולצה 'עוקצת' — זה קורה עם בגדים מסוימים? או שזה משתנה?"
             toolCalls={[
               { tool: "notice", content: "תגובה שלילית לטקסטורת בד — מתאר תחושת 'עקיצה'" },
               { tool: "add_evidence", content: "תומך בהשערת רגישות חושית (מקור: שיחה)" },
+            ]}
+            stateChanges={[
+              { entity: "רגישות חושית", field: "ודאות", from: "55%", to: "65%", direction: "up" },
+              { entity: "מעברים", field: "משיכה", from: "0.7", to: "0.8", direction: "up" },
             ]}
           />
 
@@ -879,13 +957,18 @@ export default function ExpertGuide() {
               "וואו, עוד אישור! תוויות וטקסטורות — זה ממש קלאסי לרגישות טקטילית.",
               "הודאות קופצת ל-75%! זו כבר רמה גבוהה.",
               "אבל רגע — אני לא רוצה להתקבע. בוא נראה אם זה מתחבר לתחומים אחרים.",
-              "יש לי רעיון: אולי אציע סרטון? לצלם את הבוקר כדי לראות את הרצף המלא...",
-              "לא, עדיין מוקדם. קודם אבין יותר על המעברים בכלל.",
+              "יש לי רעיון: אולי אציע סרטון? לא, עדיין מוקדם.",
+              "המשיכה של 'מעברים' הכי גבוהה (0.8). אשזור את זה בטבעיות...",
             ]}
+            responseThinking="אחבר את הנושא הנוכחי (בגדים) לסקרנות עם המשיכה הגבוהה (מעברים). ההתלבשות היא סוג של מעבר — מפיג'מה לבגדים. זה גשר טבעי!"
             chittaResponse="כותנה רכה ובלי תוויות — הוא יודע בדיוק מה מתאים לו. ספרי לי, מלבד ההתלבשות — איך הוא עם מעברים אחרים במהלך היום?"
             toolCalls={[
               { tool: "notice", content: "העדפה ברורה לכותנה רכה, רגישות לתוויות" },
               { tool: "add_evidence", content: "תומך בהשערת רגישות חושית — ודאות 75%" },
+            ]}
+            stateChanges={[
+              { entity: "רגישות חושית", field: "ודאות", from: "65%", to: "75%", direction: "up" },
+              { entity: "רגישות חושית", field: "משיכה", from: "0.6", to: "0.5", direction: "down", note: "שביעות רצון" },
             ]}
             chittaNote="שימו לב: צ'יטה בחרה לעקוב אחרי הסקרנות עם המשיכה הגבוהה ביותר (מעברים), אבל עשתה את זה בצורה טבעית שמתחברת למה שהאמא סיפרה."
           />
@@ -899,14 +982,19 @@ export default function ExpertGuide() {
               "הנחתי שהבעיה היא במעברים בכלל, אבל זה לא מדויק.",
               "הבעיה היא ביציאה מהבית, לא בפרידה. אלה שני דברים שונים!",
               "זו ראיה שמשנה את ההבנה שלי. לא 'סותרת' — 'משנה' (transforms).",
-              "ההשערה על מעברים צריכה להתחדד: לא 'מעברים' אלא 'מעברים מסביבה מוכרת לבלתי מוכרת'.",
-              "אני אעדכן את הסקרנות. ודאות יורדת ל-40% (איפוס) כי ההבנה השתנתה.",
+              "אני מאפסת את הודאות ל-40% ומנסחת מחדש: 'מעברים מסביבה מוכרת'.",
             ]}
+            responseThinking="זו תובנה חשובה של האמא. אחזור על ההבחנה שלה (לוודא שהבנתי נכון) ואשאל מה היא חושבת שקורה — היא מכירה את יואב הכי טוב."
             chittaResponse="זה ממש מעניין! אז בגן, כשהוא כבר שם, הפרידה קלה. הקושי הוא דווקא ברגע היציאה מהבית. מה את חושבת שקורה ברגע הזה?"
             toolCalls={[
               { tool: "notice", content: "פרידה קלה בגן, קושי ביציאה מהבית — הבחנה חשובה" },
               { tool: "add_evidence", content: "משנה את הבנת 'מעברים' — ודאות 40% (איפוס)" },
               { tool: "wonder", content: "שאלה חדשה: מה בסביבה הביתית מקשה על היציאה?" },
+            ]}
+            stateChanges={[
+              { entity: "מעברים", field: "ודאות", from: "35%", to: "40%", direction: "reset", note: "הבנה חדשה" },
+              { entity: "מעברים", field: "נוסח", from: "מעברים בכלל", to: "יציאה מסביבה מוכרת", direction: "transform" },
+              { entity: "שאלה חדשה", field: "", from: "", to: "מה מקשה על היציאה?", direction: "new" },
             ]}
             chittaNote="הנה רגע קריטי: צ'יטה לא נצמדת להשערה הישנה. היא מוכנה 'לאפס' ולהתחיל מחדש עם הבנה מדויקת יותר."
           />
@@ -922,13 +1010,18 @@ export default function ExpertGuide() {
               "וגם את היציאה — בחוץ הוא לא יודע מה לצפות.",
               "זה לא שלוש בעיות נפרדות. זה דפוס אחד!",
               "אני רואה דפוס חוצה-תחומים: חושי + רגשי + התנהגותי.",
-              "עכשיו זה הזמן להציע סרטון — לראות את הרצף ביציאה מהבית.",
             ]}
+            responseThinking="האמא הגיעה לתובנה בעצמה! אני אחזק את זה ואציע סרטון — עכשיו יש לנו השערה ברורה לבדוק: הקשר בין שליטה/צפיות לבין התנהגות."
             chittaResponse="את מתארת משהו חשוב מאוד. יואב צריך לדעת מה לצפות — גם בבגדים וגם בסביבה. כשהוא מרגיש בשליטה, הוא מסתדר יפה. האם תרצי שנצלם את רגע היציאה מהבית? זה יכול לעזור לנו להבין בדיוק מה עוזר לו ומה מקשה."
             toolCalls={[
               { tool: "notice", content: "צורך בשליטה ובציפיות ברורות — חוצה תחומים" },
               { tool: "wonder", content: "דפוס: רגישות חושית + צורך בשליטה + חוסר ודאות = קושי" },
               { tool: "suggest_video", content: "בקשת סרטון — רגע היציאה מהבית" },
+            ]}
+            stateChanges={[
+              { entity: "דפוס חדש!", field: "סוג", from: "", to: "חוצה-תחומים", direction: "pattern" },
+              { entity: "דפוס", field: "תחומים", from: "", to: "חושי + רגשי + התנהגותי", direction: "new" },
+              { entity: "סרטון", field: "סטטוס", from: "", to: "הוצע להורה", direction: "video" },
             ]}
             chittaNote="כאן נוצר דפוס! שלושה תחומים התחברו לתובנה אחת. זה הרגע שבו ההבנה 'מתגבשת'."
           />
@@ -1719,23 +1812,23 @@ function GlossaryItem({ term, color, belongsTo, howDetected, criteria, notThis, 
   );
 }
 
-function ConversationTurnExample({ turnNumber, parentMessage, chittaThinking, chittaResponse, toolCalls, chittaNote }) {
+function ConversationTurnExample({ turnNumber, parentMessage, chittaThinking, responseThinking, chittaResponse, toolCalls, stateChanges, chittaNote }) {
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
       {/* Turn header */}
-      <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-        <span className="text-sm font-medium text-gray-600">תור {turnNumber}</span>
+      <div className="bg-gradient-to-l from-gray-100 to-gray-50 px-4 py-2 border-b border-gray-200">
+        <span className="text-sm font-bold text-gray-700">תור {turnNumber}</span>
       </div>
 
       {/* Parent message */}
       <div className="p-4 bg-blue-50 border-b border-gray-200">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 text-sm font-medium">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-300 to-blue-400 rounded-full flex items-center justify-center text-white text-lg shadow-sm">
             👩
           </div>
-          <div>
-            <div className="text-xs text-blue-600 mb-1">ההורה:</div>
-            <p className="text-blue-800">{parentMessage}</p>
+          <div className="flex-1">
+            <div className="text-xs font-medium text-blue-600 mb-1">ההורה:</div>
+            <p className="text-blue-900 leading-relaxed">{parentMessage}</p>
           </div>
         </div>
       </div>
@@ -1743,14 +1836,14 @@ function ConversationTurnExample({ turnNumber, parentMessage, chittaThinking, ch
       {/* Chitta's thinking - the inner voice */}
       <div className="p-4 bg-amber-50 border-b border-gray-200">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 bg-amber-200 rounded-full flex items-center justify-center text-amber-700 text-sm">
+          <div className="w-10 h-10 bg-gradient-to-br from-amber-300 to-orange-400 rounded-full flex items-center justify-center text-white text-lg shadow-sm">
             🧠
           </div>
           <div className="flex-1">
-            <div className="text-xs text-amber-600 mb-2">מה צ'יטה חושבת:</div>
+            <div className="text-xs font-medium text-amber-700 mb-3">מה צ'יטה חושבת:</div>
             <div className="space-y-2">
               {chittaThinking.map((thought, i) => (
-                <p key={i} className="text-amber-800 text-sm italic bg-white/50 rounded-lg px-3 py-2">
+                <p key={i} className="text-amber-900 text-sm italic bg-white/60 rounded-lg px-3 py-2 border-r-2 border-amber-300">
                   "{thought}"
                 </p>
               ))}
@@ -1761,27 +1854,101 @@ function ConversationTurnExample({ turnNumber, parentMessage, chittaThinking, ch
 
       {/* Tool calls */}
       <div className="p-4 bg-gray-50 border-b border-gray-200">
-        <div className="text-xs text-gray-500 mb-2">🔧 כלים שהופעלו:</div>
+        <div className="text-xs font-medium text-gray-600 mb-2">🔧 כלים שהופעלו:</div>
         <div className="flex flex-wrap gap-2">
           {toolCalls.map((tc, i) => (
-            <div key={i} className="bg-white rounded-lg px-3 py-1.5 border border-gray-200 text-xs">
-              <span className="font-mono text-purple-600">{tc.tool}</span>
-              <span className="text-gray-400 mx-1">:</span>
+            <div key={i} className="bg-white rounded-lg px-3 py-1.5 border border-gray-200 text-xs shadow-sm">
+              <span className="font-mono font-medium text-purple-600">{tc.tool}</span>
+              <span className="text-gray-300 mx-1">|</span>
               <span className="text-gray-600">{tc.content}</span>
             </div>
           ))}
         </div>
       </div>
 
+      {/* State Changes - Visual */}
+      {stateChanges && stateChanges.length > 0 && (
+        <div className="p-4 bg-gradient-to-l from-indigo-50 to-purple-50 border-b border-gray-200">
+          <div className="text-xs font-medium text-indigo-700 mb-3">📊 שינויים במצב:</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {stateChanges.map((change, i) => (
+              <div key={i} className={`rounded-lg px-3 py-2 text-xs flex items-center gap-2 ${
+                change.direction === 'up' ? 'bg-emerald-100 border border-emerald-200' :
+                change.direction === 'down' ? 'bg-orange-100 border border-orange-200' :
+                change.direction === 'reset' ? 'bg-amber-100 border border-amber-200' :
+                change.direction === 'transform' ? 'bg-purple-100 border border-purple-200' :
+                change.direction === 'new' ? 'bg-blue-100 border border-blue-200' :
+                change.direction === 'pattern' ? 'bg-violet-100 border border-violet-200' :
+                change.direction === 'video' ? 'bg-pink-100 border border-pink-200' :
+                'bg-gray-100 border border-gray-200'
+              }`}>
+                <span className={`text-lg ${
+                  change.direction === 'up' ? '' :
+                  change.direction === 'down' ? '' :
+                  change.direction === 'reset' ? '' :
+                  change.direction === 'transform' ? '' :
+                  change.direction === 'new' ? '' :
+                  change.direction === 'pattern' ? '' :
+                  change.direction === 'video' ? '' : ''
+                }`}>
+                  {change.direction === 'up' ? '📈' :
+                   change.direction === 'down' ? '📉' :
+                   change.direction === 'reset' ? '🔄' :
+                   change.direction === 'transform' ? '✨' :
+                   change.direction === 'new' ? '➕' :
+                   change.direction === 'pattern' ? '🧩' :
+                   change.direction === 'video' ? '🎬' : '•'}
+                </span>
+                <div className="flex-1">
+                  <span className="font-medium text-gray-800">{change.entity}</span>
+                  {change.field && <span className="text-gray-500"> • {change.field}</span>}
+                  {change.from && (
+                    <span className="text-gray-400 mx-1">
+                      {change.from} ←
+                    </span>
+                  )}
+                  <span className={`font-bold ${
+                    change.direction === 'up' ? 'text-emerald-700' :
+                    change.direction === 'down' ? 'text-orange-700' :
+                    change.direction === 'reset' ? 'text-amber-700' :
+                    change.direction === 'transform' ? 'text-purple-700' :
+                    change.direction === 'new' ? 'text-blue-700' :
+                    change.direction === 'pattern' ? 'text-violet-700' :
+                    change.direction === 'video' ? 'text-pink-700' :
+                    'text-gray-700'
+                  }`}>{change.to}</span>
+                  {change.note && <span className="text-gray-400 mr-1">({change.note})</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Response thinking - bridge to response */}
+      {responseThinking && (
+        <div className="p-4 bg-teal-50 border-b border-gray-200">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 bg-teal-200 rounded-full flex items-center justify-center text-teal-700 text-sm">
+              💭
+            </div>
+            <div className="flex-1">
+              <div className="text-xs font-medium text-teal-700 mb-1">איך להגיב:</div>
+              <p className="text-teal-800 text-sm italic">"{responseThinking}"</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chitta's response */}
       <div className="p-4 bg-emerald-50">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 bg-emerald-200 rounded-full flex items-center justify-center text-emerald-700 text-sm">
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-300 to-green-400 rounded-full flex items-center justify-center text-white text-lg shadow-sm">
             🌱
           </div>
-          <div>
-            <div className="text-xs text-emerald-600 mb-1">תגובת צ'יטה:</div>
-            <p className="text-emerald-800">{chittaResponse}</p>
+          <div className="flex-1">
+            <div className="text-xs font-medium text-emerald-700 mb-1">תגובת צ'יטה:</div>
+            <p className="text-emerald-900 leading-relaxed">{chittaResponse}</p>
           </div>
         </div>
       </div>
