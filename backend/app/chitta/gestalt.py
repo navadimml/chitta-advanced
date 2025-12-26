@@ -889,10 +889,11 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         elif curiosity_type == "pattern":
             curiosity = CuriosityPattern.create(
                 focus=focus,
-                confidence=value,
-                reasoning=reasoning,
+                insight=args.get("insight", focus),  # Default insight to focus if not provided
                 domains_involved=args.get("domains_involved", []),
                 source_hypotheses=args.get("source_hypotheses", []),
+                reasoning=reasoning,
+                confidence=value,
             )
             self._curiosity_manager.add(curiosity)
 
@@ -931,9 +932,11 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 pattern_focus = f"קשר בין {' ל'.join(story.domains[:3])}"
                 pattern_curiosity = CuriosityPattern.create(
                     focus=pattern_focus,
+                    insight=f"סיפור חושף קשר בין {' ו'.join(story.domains[:3])}",
                     domains_involved=story.domains,
-                    confidence=0.3,  # Start tentative
+                    source_hypotheses=[],  # Story-spawned patterns don't start with source hypotheses
                     reasoning="Story revealed cross-domain connections",
+                    confidence=0.3,  # Start tentative
                 )
                 pattern_curiosity.pull = 0.5 + (story.significance * 0.3)  # Higher pull for significant stories
                 self._curiosity_manager.add(pattern_curiosity)
