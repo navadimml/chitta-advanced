@@ -889,7 +889,7 @@ export default function ExpertGuide() {
               <div className="text-slate-500 mr-4">  Theory: רגישות חושית גורמת לקושי (confidence: 55%)</div>
               <div className="text-slate-500 mr-4">  Video appropriate: Yes</div>
               <br />
-              <div>- 🔍 מה מאפיין את המשחק שלו? [█████░░░░░] 50%</div>
+              <div>- 🔍 עולם המשחק שלו [█████░░░░░] 50%</div>
             </div>
             <p className="text-slate-500 text-xs mt-2">
               סרגל המשיכה הויזואלי [████░░░░░░] עוזר ל-LLM להבין את העדיפות היחסית.
@@ -972,7 +972,7 @@ export default function ExpertGuide() {
                     <span className="font-bold">0.5</span>
                   </div>
                 </div>
-                <p className="text-gray-800 font-medium mb-2">"מה מאפיין את המשחק שלו?"</p>
+                <p className="text-gray-800 font-medium mb-2">"עולם המשחק שלו"</p>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400">ודאות:</span>
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
