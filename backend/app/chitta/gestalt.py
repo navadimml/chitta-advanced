@@ -22,7 +22,7 @@ import re
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional, Union
 
-# V2: New type-aware curiosity system
+# V2: Type-aware curiosity system (replaces old Curiosities class)
 from .curiosity_types import (
     BaseCuriosity,
     Discovery,
@@ -36,17 +36,6 @@ from .event_store import InMemoryEventStore, EventStore
 from .event_recorder import EventRecorder
 from .decay import DecayManager, DecayConfig
 from .cascades import CascadeHandler
-
-# Keep old imports for backward compatibility during transition
-from .curiosity import (
-    Curiosity,
-    Curiosities,
-    InvestigationContext,
-    create_hypothesis,
-    create_question,
-    create_pattern,
-    create_discovery,
-)
 from .models import (
     Understanding,
     TemporalFact,
@@ -117,7 +106,6 @@ class Darshan:
         understanding: Understanding,
         stories: List[Story],
         journal: List[JournalEntry],
-        curiosities: Curiosities,
         session_history: List[Message],
         crystal: Optional[Crystal] = None,
         shared_summaries: Optional[List[SharedSummary]] = None,
@@ -125,7 +113,6 @@ class Darshan:
         child_gender: Optional[str] = None,
         parent_context: Optional[ParentContext] = None,
         cognitive_turns: Optional[List[CognitiveTurn]] = None,
-        # V2: New components
         curiosity_manager: Optional[CuriosityManager] = None,
         event_store: Optional[EventStore] = None,
         session_id: Optional[str] = None,
@@ -139,7 +126,6 @@ class Darshan:
             understanding: Current understanding of the child
             stories: Captured stories
             journal: Journal entries
-            curiosities: The curiosities manager (includes investigations)
             session_history: Recent conversation history
             crystal: Cached synthesis (patterns, essence, pathways)
             shared_summaries: Previously generated Letters for sharing
@@ -147,8 +133,8 @@ class Darshan:
             child_gender: Child's gender for correct pronoun usage (male/female/unknown)
             parent_context: Parent context for gender-appropriate verb forms
             cognitive_turns: Cognitive traces for dashboard (optional, persisted separately)
-            curiosity_manager: V2 type-aware curiosity manager
-            event_store: V2 event store for event sourcing
+            curiosity_manager: Type-aware curiosity manager
+            event_store: Event store for event sourcing
             session_id: Current session ID for event recording
         """
         self.child_id = child_id
@@ -156,7 +142,6 @@ class Darshan:
         self.understanding = understanding
         self.stories = stories
         self.journal = journal
-        self._curiosities = curiosities
         self.session_history = session_history
         self.crystal = crystal
         self.shared_summaries = shared_summaries or []
@@ -175,7 +160,7 @@ class Darshan:
         self._llm = None
         self._strong_llm = None
 
-        # V2: Type-aware curiosity system
+        # Type-aware curiosity system
         self._session_id = session_id or generate_id()
         self._curiosity_manager = curiosity_manager or CuriosityManager()
         self._event_store = event_store or InMemoryEventStore()
@@ -292,7 +277,7 @@ class Darshan:
         return Response(
             text=response_text,
             curiosities=self.get_active_curiosities(),
-            open_questions=self._curiosities.get_gaps(),
+            open_questions=self._curiosity_manager.get_gaps(),
             should_crystallize=should_crystallize,
         )
 
@@ -327,9 +312,9 @@ class Darshan:
 
         return has_important or has_hypothesis or has_significant_evidence
 
-    def get_active_curiosities(self) -> List[Curiosity]:
+    def get_active_curiosities(self) -> List[BaseCuriosity]:
         """What am I curious about right now?"""
-        return self._curiosities.get_active(self.understanding)
+        return self._curiosity_manager.get_active()
 
     def get_latest_cognitive_turn(self) -> Optional[CognitiveTurn]:
         """Get the most recent cognitive turn for persistence."""
@@ -850,15 +835,15 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             confidence=args.get("confidence", 0.7),
         )
         self.understanding.add_observation(observation)
-        self._curiosities.on_observation_learned(observation)
+        self._curiosity_manager.on_observation_learned(observation)
 
     def _handle_wonder(self, args: Dict[str, Any]):
         """
-        Spawn a new curiosity (V2: with provenance tracking).
+        Spawn a new curiosity with provenance tracking.
 
-        V2 tools use:
-        - focus (not about)
-        - fullness_or_confidence (not certainty)
+        Tool fields:
+        - focus (or "about" for compatibility)
+        - fullness_or_confidence (or "certainty" for compatibility)
         - assessment_reasoning (REQUIRED)
         - evidence_refs
         - emerges_from, source_hypotheses (lineage)
@@ -867,15 +852,13 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         focus = args.get("focus", args.get("about", ""))
         curiosity_type = args.get("type", "question")
 
-        # V2: Get provenance fields
+        # Get provenance fields
         reasoning = args.get("assessment_reasoning", "Spawned during conversation")
-        evidence_refs = args.get("evidence_refs", [])
         value = args.get("fullness_or_confidence", args.get("certainty", 0.3))
         emerges_from = args.get("emerges_from")
 
         if curiosity_type == "hypothesis":
-            # V2: Create typed Hypothesis
-            v2_curiosity = Hypothesis.create(
+            curiosity = Hypothesis.create(
                 focus=focus,
                 domain=args.get("domain", "general"),
                 confidence=value,
@@ -885,28 +868,10 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 video_value=args.get("video_value"),
                 source_question=emerges_from,
             )
-            self._curiosity_manager.add(v2_curiosity)
-
-            # Also add to old system for compatibility
-            curiosity = create_hypothesis(
-                focus=focus,
-                theory=args.get("theory", focus),
-                domain=args.get("domain", "general"),
-                video_appropriate=args.get("video_appropriate", True),
-                video_value=args.get("video_value"),
-                video_value_reason=args.get("video_value_reason"),
-                certainty=value,
-            )
-            self._curiosities.add_curiosity(curiosity)
-
-            # Auto-start investigation for video-valuable hypotheses
-            if curiosity.video_value is not None and curiosity.video_appropriate:
-                curiosity.start_investigation()
-                logger.info(f"🔬 Auto-started investigation for video-valuable hypothesis: {curiosity.focus}")
+            self._curiosity_manager.add(curiosity)
 
         elif curiosity_type == "question":
-            # V2: Create typed Question
-            v2_curiosity = Question.create(
+            curiosity = Question.create(
                 focus=focus,
                 domain=args.get("domain", "general"),
                 fullness=value,
@@ -914,53 +879,28 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 question=args.get("question", focus),
                 source_discovery=emerges_from,
             )
-            self._curiosity_manager.add(v2_curiosity)
-
-            # Also add to old system for compatibility
-            curiosity = create_question(
-                focus=focus,
-                question=args.get("question", focus),
-                domain=args.get("domain"),
-            )
-            self._curiosities.add_curiosity(curiosity)
+            self._curiosity_manager.add(curiosity)
 
         elif curiosity_type == "pattern":
-            # V2: Create typed Pattern
-            v2_curiosity = CuriosityPattern.create(
+            curiosity = CuriosityPattern.create(
                 focus=focus,
                 confidence=value,
                 reasoning=reasoning,
                 domains_involved=args.get("domains_involved", []),
                 source_hypotheses=args.get("source_hypotheses", []),
             )
-            self._curiosity_manager.add(v2_curiosity)
-
-            # Also add to old system for compatibility
-            curiosity = create_pattern(
-                focus=focus,
-                domains_involved=args.get("domains_involved", []),
-                certainty=value,
-            )
-            self._curiosities.add_curiosity(curiosity)
+            self._curiosity_manager.add(curiosity)
 
         else:  # discovery
-            # V2: Create typed Discovery
-            v2_curiosity = Discovery.create(
+            curiosity = Discovery.create(
                 focus=focus,
                 domain=args.get("domain", "essence"),
                 fullness=value,
                 reasoning=reasoning,
             )
-            self._curiosity_manager.add(v2_curiosity)
+            self._curiosity_manager.add(curiosity)
 
-            # Also add to old system for compatibility
-            curiosity = create_discovery(
-                focus=focus,
-                domain=args.get("domain", "essence"),
-            )
-            self._curiosities.add_curiosity(curiosity)
-
-        logger.info(f"✨ Spawned V2 {curiosity_type}: {focus} (reasoning: {reasoning[:50]}...)")
+        logger.info(f"✨ Spawned {curiosity_type}: {focus} (reasoning: {reasoning[:50]}...)")
 
     def _handle_capture_story(self, args: Dict[str, Any]):
         """Capture a story and its developmental signals."""
@@ -974,25 +914,24 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
         # Touch domains in curiosities
         for domain in story.domains:
-            self._curiosities.on_domain_touched(domain)
+            self._curiosity_manager.on_domain_touched(domain)
 
         # Cross-domain stories are GOLD for pattern detection
         # Spawn pattern curiosity when story reveals connections across 2+ domains
         if len(story.domains) >= 2 and story.significance >= 0.5:
             # Check if we already have a pattern curiosity for these domains
-            existing_pattern = self._curiosities.find_curiosity_by_domains(
-                story.domains
-            )
+            existing_pattern = self._curiosity_manager.find_by_domains(story.domains)
             if not existing_pattern:
                 # Create a pattern curiosity connecting these domains
                 pattern_focus = f"קשר בין {' ל'.join(story.domains[:3])}"
-                pattern_curiosity = create_pattern(
+                pattern_curiosity = CuriosityPattern.create(
                     focus=pattern_focus,
                     domains_involved=story.domains,
-                    certainty=0.3,  # Start tentative
-                    pull=0.5 + (story.significance * 0.3),  # Higher pull for significant stories
+                    confidence=0.3,  # Start tentative
+                    reasoning="Story revealed cross-domain connections",
                 )
-                self._curiosities.add_curiosity(pattern_curiosity)
+                pattern_curiosity.pull = 0.5 + (story.significance * 0.3)  # Higher pull for significant stories
+                self._curiosity_manager.add(pattern_curiosity)
                 logger.info(f"Story spawned pattern curiosity: {pattern_focus}")
 
         # Add journal entry
@@ -1006,10 +945,10 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
     def _handle_add_evidence(self, args: Dict[str, Any]):
         """
-        Add evidence to an active curiosity (V2: with provenance tracking).
+        Add evidence to an active curiosity with provenance tracking.
 
-        V2 tools use:
-        - curiosity_focus (not cycle_id)
+        Tool fields:
+        - curiosity_focus (or "cycle_id" for compatibility)
         - new_confidence
         - effect_reasoning (REQUIRED)
         - source_observation (REQUIRED)
@@ -1019,26 +958,26 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         if not curiosity_focus:
             return
 
-        # V2: Get provenance fields
+        # Get provenance fields
         reasoning = args.get("effect_reasoning", "Evidence from conversation")
-        source_observation = args.get("source_observation", "")
+        effect = args.get("effect", "supports")
         new_confidence = args.get("new_confidence")
 
-        # V2: Find in curiosity manager and update
-        v2_curiosity = self._curiosity_manager.get_by_focus(curiosity_focus)
-        if v2_curiosity and isinstance(v2_curiosity, (Hypothesis, CuriosityPattern)):
-            old_confidence = v2_curiosity.confidence
+        # Find curiosity and update
+        curiosity = self._curiosity_manager.get_by_focus(curiosity_focus)
+        if curiosity and isinstance(curiosity, (Hypothesis, CuriosityPattern)):
+            old_confidence = curiosity.confidence
+
             if new_confidence is not None:
-                v2_curiosity.confidence = new_confidence
-                v2_curiosity.last_updated = datetime.now()
-                v2_curiosity.last_updated_reasoning = reasoning
+                curiosity.confidence = new_confidence
+                curiosity.last_updated = datetime.now()
+                curiosity.last_updated_reasoning = reasoning
 
                 # Check for significant contradiction
-                effect = args.get("effect", "supports")
                 if effect == "contradicts" and (old_confidence - new_confidence) > 0.3:
                     # Trigger cascade handling for significant contradiction
                     cascade_result = self._cascade_handler.handle_evidence_contradiction(
-                        curiosity=v2_curiosity,
+                        curiosity=curiosity,
                         old_confidence=old_confidence,
                         new_confidence=new_confidence,
                         session_id=self._session_id,
@@ -1047,41 +986,11 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     )
                     if cascade_result.crystal_needs_regeneration:
                         logger.info(f"🔄 Evidence contradiction triggered crystal regeneration need")
+            else:
+                # No explicit new_confidence - use effect to adjust
+                self._curiosity_manager.on_evidence_added(curiosity_focus, effect)
 
-        # Old system: Find curiosity by investigation ID
-        curiosity = self._curiosities.get_curiosity_by_investigation_id(curiosity_focus)
-        if curiosity and curiosity.investigation and curiosity.investigation.status == "active":
-            # V2: Create evidence with provenance
-            evidence = Evidence.create(
-                content=args["evidence"],
-                effect=args.get("effect", "supports"),
-                source="conversation",
-                session_id=self._session_id,
-                source_observation=source_observation,
-                reasoning=reasoning,
-                confidence_before=curiosity.certainty if hasattr(curiosity, 'certainty') else 0.5,
-                confidence_after=new_confidence or curiosity.certainty,
-            )
-            curiosity.add_evidence(evidence)
-
-            # Update curiosity certainty
-            self._curiosities.on_evidence_added(curiosity.focus, evidence.effect)
-        else:
-            # Try finding by focus directly (for curiosities without investigation)
-            curiosity = self._curiosities.find_curiosity_by_focus(curiosity_focus)
-            if curiosity:
-                evidence = Evidence.create(
-                    content=args["evidence"],
-                    effect=args.get("effect", "supports"),
-                    source="conversation",
-                    session_id=self._session_id,
-                    source_observation=source_observation,
-                    reasoning=reasoning,
-                )
-                # Update certainty based on effect
-                self._curiosities.on_evidence_added(curiosity.focus, evidence.effect)
-
-        logger.info(f"📊 Added evidence to {curiosity_focus}: {args.get('effect', 'supports')} (reasoning: {reasoning[:50]}...)")
+        logger.info(f"📊 Added evidence to {curiosity_focus}: {effect} (reasoning: {reasoning[:50]}...)")
 
     # Note: spawn_exploration tool has been removed.
     # Investigations are now started automatically in _handle_wonder
@@ -1089,7 +998,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
     def _handle_see_pattern(self, args: Dict[str, Any]):
         """
-        V2: Record an emerging pattern across multiple curiosities.
+        Record an emerging pattern across multiple curiosities.
 
         Required fields:
         - pattern: Short description
@@ -1105,37 +1014,29 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         connects = args.get("connects", [])
         reasoning = args.get("reasoning", "Pattern observed")
 
-        # V2: Create typed Pattern
-        v2_pattern = CuriosityPattern.create(
+        # Create typed Pattern
+        pattern = CuriosityPattern.create(
             focus=pattern_desc,
             confidence=confidence,
             reasoning=reasoning,
             domains_involved=domains_involved,
             source_hypotheses=connects,
         )
-        v2_pattern.insight = insight  # Store the insight
-        self._curiosity_manager.add(v2_pattern)
-
-        # Also add to old system
-        curiosity = create_pattern(
-            focus=pattern_desc,
-            domains_involved=domains_involved,
-            certainty=confidence,
-        )
-        self._curiosities.add_curiosity(curiosity)
+        pattern.insight = insight  # Store the insight
+        self._curiosity_manager.add(pattern)
 
         # Update contributing hypotheses to track this pattern
         for hyp_focus in connects:
-            v2_hyp = self._curiosity_manager.get_by_focus(hyp_focus)
-            if v2_hyp and isinstance(v2_hyp, Hypothesis):
-                if pattern_desc not in v2_hyp.contributed_to_patterns:
-                    v2_hyp.contributed_to_patterns.append(pattern_desc)
+            hyp = self._curiosity_manager.get_by_focus(hyp_focus)
+            if hyp and isinstance(hyp, Hypothesis):
+                if pattern_desc not in hyp.contributed_to_patterns:
+                    hyp.contributed_to_patterns.append(pattern_desc)
 
         logger.info(f"🔮 Pattern emerged: {pattern_desc} (connects: {connects})")
 
     def _handle_update_curiosity(self, args: Dict[str, Any]):
         """
-        V2: Reassess an existing curiosity based on new understanding.
+        Reassess an existing curiosity based on new understanding.
 
         Required fields:
         - focus: Curiosity to update
@@ -1149,63 +1050,52 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         """
         focus = args.get("focus", "")
         change_reasoning = args.get("change_reasoning", "")
-        triggered_by = args.get("triggered_by", "")
 
         if not focus:
             return
 
-        # V2: Update in curiosity manager
+        # Update in curiosity manager
         new_value = args.get("new_fullness_or_confidence")
         new_pull = args.get("new_pull")
         new_status = args.get("new_status")
 
-        v2_curiosity = self._curiosity_manager.update_curiosity(
+        curiosity = self._curiosity_manager.update_curiosity(
             focus=focus,
             new_fullness_or_confidence=new_value,
             new_pull=new_pull,
             new_status=new_status,
         )
 
-        if v2_curiosity:
-            v2_curiosity.last_updated_reasoning = change_reasoning
+        if curiosity:
+            curiosity.last_updated_reasoning = change_reasoning
 
             # Handle status transitions that trigger cascades
-            if new_status == "refuted" and isinstance(v2_curiosity, Hypothesis):
+            if new_status == "refuted" and isinstance(curiosity, Hypothesis):
                 cascade_result = self._cascade_handler.handle_refutation(
-                    hypothesis=v2_curiosity,
+                    hypothesis=curiosity,
                     session_id=self._session_id,
                     child_id=self.child_id,
                     refutation_reasoning=change_reasoning,
                 )
                 logger.info(f"🔄 Hypothesis refutation cascaded to {len(cascade_result.affected_curiosities)} curiosities")
 
-            elif new_status == "confirmed" and isinstance(v2_curiosity, Hypothesis):
+            elif new_status == "confirmed" and isinstance(curiosity, Hypothesis):
                 cascade_result = self._cascade_handler.handle_confirmation(
-                    hypothesis=v2_curiosity,
+                    hypothesis=curiosity,
                     session_id=self._session_id,
                     child_id=self.child_id,
                     confirmation_reasoning=change_reasoning,
                 )
                 logger.info(f"✅ Hypothesis confirmation cascaded to {len(cascade_result.affected_curiosities)} curiosities")
 
-            elif new_status == "dissolved" and isinstance(v2_curiosity, CuriosityPattern):
+            elif new_status == "dissolved" and isinstance(curiosity, CuriosityPattern):
                 cascade_result = self._cascade_handler.handle_pattern_dissolved(
-                    pattern=v2_curiosity,
+                    pattern=curiosity,
                     session_id=self._session_id,
                     child_id=self.child_id,
                     dissolution_reasoning=change_reasoning,
                 )
                 logger.info(f"💨 Pattern dissolution cascaded to {len(cascade_result.affected_curiosities)} curiosities")
-
-        # Also update in old system if found
-        old_curiosity = self._curiosities.find_curiosity_by_focus(focus)
-        if old_curiosity:
-            if new_value is not None:
-                old_curiosity.certainty = new_value
-            if new_pull is not None:
-                old_curiosity.pull = new_pull
-            if new_status is not None:
-                old_curiosity.status = new_status
 
         logger.info(f"🔄 Updated curiosity: {focus} (reason: {change_reasoning[:50]}...)")
 
@@ -1298,18 +1188,18 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
     def _should_synthesize(self) -> bool:
         """Check if conditions suggest synthesis is ready."""
-        # Count understood curiosities (completed investigations)
-        understood_count = sum(
-            1 for c in self._curiosities._dynamic
-            if c.status == "understood"
+        # Count high-confidence hypotheses (confirmed or supported)
+        confident_count = sum(
+            1 for h in self._curiosity_manager.get_by_type("hypothesis")
+            if h.status in ["confirmed", "supported"] or h.confidence >= 0.7
         )
 
         # Conditions for synthesis readiness:
-        # - Multiple curiosities have been understood
+        # - Multiple hypotheses have been confirmed/supported
         # - Multiple stories captured
         # - Sufficient observations accumulated
         return (
-            understood_count >= 2 or
+            confident_count >= 2 or
             len(self.stories) >= 5 or
             len(self.understanding.observations) >= 10
         )
@@ -1333,7 +1223,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             confidence_by_domain[domain] = min(1.0, confidence_by_domain[domain] + 0.1)
 
         # Get open questions from curiosities
-        open_questions = self._curiosities.get_gaps()
+        open_questions = self._curiosity_manager.get_gaps()
 
         # Build essence narrative if we have enough understanding
         essence_narrative = None
@@ -1399,20 +1289,16 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             if hasattr(s, 'timestamp') and s.timestamp and s.timestamp > since
         ]
 
-        new_evidence = []
-        for curiosity in self._curiosities._dynamic:
-            if curiosity.investigation:
-                for evidence in curiosity.investigation.evidence:
-                    if hasattr(evidence, 'timestamp') and evidence.timestamp and evidence.timestamp > since:
-                        new_evidence.append({
-                            "curiosity_focus": curiosity.focus,
-                            "evidence": evidence,
-                        })
+        # Get recently updated curiosities
+        new_curiosities = [
+            c for c in self._curiosity_manager.get_all()
+            if c.last_updated and c.last_updated > since
+        ]
 
         return {
             "observations": new_observations,
             "stories": new_stories,
-            "evidence": new_evidence,
+            "curiosities_updated": new_curiosities,
         }
 
     def is_crystal_stale(self) -> bool:
@@ -1425,11 +1311,12 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
     def get_state_for_persistence(self) -> Dict[str, Any]:
         """Get state for persistence."""
         state = {
-            "curiosities": self._curiosities.to_dict(),
+            "curiosity_manager": self._curiosity_manager.to_dict(),
             "session_history": [
                 {"role": m.role, "content": m.content, "timestamp": m.timestamp.isoformat()}
                 for m in self.session_history
             ],
+            "session_id": self._session_id,
         }
 
         # Include child identity (name, gender, birth_date)
@@ -1453,16 +1340,8 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             state["shared_summaries"] = [s.to_dict() for s in self.shared_summaries]
 
         # Include session flags (guided collection mode, etc.)
-        # These need to persist so guided collection survives page reload
         if self.session_flags:
             state["session_flags"] = self.session_flags
-
-        # V2: Include curiosity manager state
-        if self._curiosity_manager:
-            state["curiosity_manager_v2"] = self._curiosity_manager.to_dict()
-
-        # V2: Include session ID for continuity
-        state["session_id"] = self._session_id
 
         return state
 
@@ -1474,15 +1353,13 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         understanding_data: Optional[Dict] = None,
         stories_data: Optional[List[Dict]] = None,
         journal_data: Optional[List[Dict]] = None,
-        curiosities_data: Optional[Dict] = None,
+        curiosity_manager_data: Optional[Dict] = None,
         session_history_data: Optional[List[Dict]] = None,
         crystal_data: Optional[Dict] = None,
         shared_summaries_data: Optional[List[Dict]] = None,
         child_birth_date: Optional["date"] = None,
         session_flags_data: Optional[Dict] = None,
         child_gender: Optional[str] = None,
-        # V2: New parameters
-        curiosity_manager_data: Optional[Dict] = None,
         session_id: Optional[str] = None,
     ) -> "Darshan":
         """
@@ -1568,13 +1445,10 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 )
                 journal.append(entry)
 
-        # Build curiosities
-        # Support both old "curiosity_engine" key and new "curiosities" key
-        curiosities_data_to_use = curiosities_data
-        if curiosities_data_to_use:
-            curiosities = Curiosities.from_dict(curiosities_data_to_use)
-        else:
-            curiosities = Curiosities()
+        # Build curiosity manager
+        curiosity_manager = None
+        if curiosity_manager_data:
+            curiosity_manager = CuriosityManager.from_dict(curiosity_manager_data)
 
         # Build session history
         session_history = []
@@ -1598,24 +1472,17 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             for summary_data in shared_summaries_data:
                 shared_summaries.append(SharedSummary.from_dict(summary_data))
 
-        # V2: Build curiosity manager from persisted data
-        curiosity_manager = None
-        if curiosity_manager_data:
-            curiosity_manager = CuriosityManager.from_dict(curiosity_manager_data)
-
         darshan = cls(
             child_id=child_id,
             child_name=child_name,
             understanding=understanding,
             stories=stories,
             journal=journal,
-            curiosities=curiosities,
             session_history=session_history,
             crystal=crystal,
             shared_summaries=shared_summaries,
             child_birth_date=child_birth_date,
             child_gender=child_gender,
-            # V2: Pass new components
             curiosity_manager=curiosity_manager,
             session_id=session_id,
         )

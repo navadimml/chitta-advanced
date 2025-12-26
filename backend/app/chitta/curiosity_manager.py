@@ -410,3 +410,98 @@ class CuriosityManager:
             len(self._hypotheses) +
             len(self._patterns)
         )
+
+    # =========================================================================
+    # Gestalt Integration Methods
+    # =========================================================================
+
+    def get_gaps(self) -> List[BaseCuriosity]:
+        """
+        Get curiosities that represent gaps in understanding.
+
+        Returns active curiosities with low fullness/confidence that
+        are worth exploring further.
+        """
+        gaps = []
+        threshold = 0.5  # Below this = gap in understanding
+
+        for question in self._questions.values():
+            if question.status in ["open", "partial"] and question.fullness < threshold:
+                gaps.append(question)
+
+        for hypothesis in self._hypotheses.values():
+            if hypothesis.status in ["weak", "testing"] and hypothesis.confidence < threshold:
+                gaps.append(hypothesis)
+
+        # Sort by pull (highest first) - most pressing gaps first
+        return sorted(gaps, key=lambda c: c.pull, reverse=True)
+
+    def on_observation_learned(self, observation) -> None:
+        """
+        React to a new observation being learned.
+
+        Boosts pull of curiosities related to the observation's domain.
+        """
+        domain = getattr(observation, 'domain', None)
+        if domain:
+            self.on_domain_touched(domain)
+
+    def on_domain_touched(self, domain: str) -> None:
+        """
+        Boost curiosities related to a domain.
+
+        Called when we learn something in a domain - related curiosities
+        become more relevant.
+        """
+        boost_amount = 0.1
+
+        for curiosity in self.get_all():
+            if curiosity.domain == domain:
+                curiosity.pull = min(1.0, curiosity.pull + boost_amount)
+                curiosity.last_updated = datetime.now()
+
+        # Also boost patterns that involve this domain
+        for pattern in self._patterns.values():
+            if domain in pattern.domains_involved:
+                pattern.pull = min(1.0, pattern.pull + boost_amount * 0.5)
+                pattern.last_updated = datetime.now()
+
+    def on_evidence_added(self, focus: str, effect: str) -> None:
+        """
+        Update curiosity based on evidence effect.
+
+        Args:
+            focus: The curiosity focus
+            effect: "supports", "contradicts", or "neutral"
+        """
+        curiosity = self.get_by_focus(focus)
+        if not curiosity:
+            return
+
+        # Only assertive curiosities (Hypothesis, Pattern) have confidence
+        if isinstance(curiosity, (Hypothesis, Pattern)):
+            if effect == "supports":
+                curiosity.confidence = min(1.0, curiosity.confidence + 0.1)
+            elif effect == "contradicts":
+                curiosity.confidence = max(0.0, curiosity.confidence - 0.15)
+            # neutral doesn't change confidence
+
+            curiosity.last_updated = datetime.now()
+
+    def find_by_domains(self, domains: List[str]) -> Optional[Pattern]:
+        """
+        Find a pattern that involves the given domains.
+
+        Returns the first pattern found that matches at least 2 of the domains.
+        """
+        if len(domains) < 2:
+            return None
+
+        domain_set = set(domains)
+        for pattern in self._patterns.values():
+            pattern_domains = set(pattern.domains_involved)
+            # Match if at least 2 domains overlap
+            if len(domain_set & pattern_domains) >= 2:
+                return pattern
+
+        return None
