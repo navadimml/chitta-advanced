@@ -1143,6 +1143,68 @@ class SynthesisReport:
 # === Crystal (Cached Synthesis) ===
 
 @dataclass
+class CrystalDiff:
+    """
+    V2 Architecture: Structured diff between crystal versions.
+
+    Tracks what changed between synthesis iterations for:
+    - Audit trails
+    - Understanding evolution
+    - Expert review
+    """
+    summary: str  # Human-readable summary of changes
+    narrative_changed: bool
+    strengths_added: List[str] = field(default_factory=list)
+    strengths_removed: List[str] = field(default_factory=list)
+    edges_added: List[str] = field(default_factory=list)  # Concerns
+    edges_removed: List[str] = field(default_factory=list)
+    patterns_added: List[str] = field(default_factory=list)
+    patterns_removed: List[str] = field(default_factory=list)
+    open_questions_added: List[str] = field(default_factory=list)
+    open_questions_resolved: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence."""
+        return {
+            "summary": self.summary,
+            "narrative_changed": self.narrative_changed,
+            "strengths_added": self.strengths_added,
+            "strengths_removed": self.strengths_removed,
+            "edges_added": self.edges_added,
+            "edges_removed": self.edges_removed,
+            "patterns_added": self.patterns_added,
+            "patterns_removed": self.patterns_removed,
+            "open_questions_added": self.open_questions_added,
+            "open_questions_resolved": self.open_questions_resolved,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CrystalDiff":
+        """Create from dict."""
+        return cls(
+            summary=data.get("summary", ""),
+            narrative_changed=data.get("narrative_changed", False),
+            strengths_added=data.get("strengths_added", []),
+            strengths_removed=data.get("strengths_removed", []),
+            edges_added=data.get("edges_added", []),
+            edges_removed=data.get("edges_removed", []),
+            patterns_added=data.get("patterns_added", []),
+            patterns_removed=data.get("patterns_removed", []),
+            open_questions_added=data.get("open_questions_added", []),
+            open_questions_resolved=data.get("open_questions_resolved", []),
+        )
+
+    def is_significant(self) -> bool:
+        """Check if changes are significant enough to notify."""
+        return (
+            self.narrative_changed
+            or len(self.patterns_added) > 0
+            or len(self.patterns_removed) > 0
+            or len(self.open_questions_resolved) > 0
+        )
+
+
+@dataclass
 class InterventionPathway:
     """A pathway connecting strength/interest to concern."""
     hook: str              # The strength or interest that can help
@@ -1233,6 +1295,12 @@ class Crystal:
     The Crystal represents our deep understanding of the child at a point in time.
     It's expensive to create (strongest model) but cached and reused.
 
+    V2 Architecture additions:
+    - Versioning with structured diffs
+    - Provenance tracking (source observations, patterns, hypotheses)
+    - Change reasoning for audit trails
+    - Event tracking for cascades
+
     STALENESS DETECTION:
     - based_on_observations_through: timestamp of newest observation when crystal was formed
     - To check staleness: compare with max(fact.t_created, story.timestamp, evidence.timestamp)
@@ -1259,6 +1327,18 @@ class Crystal:
     previous_version_summary: Optional[str] = None  # Brief note on what changed
     expert_recommendations: List[ExpertRecommendation] = field(default_factory=list)  # Non-obvious professional matches
     portrait_sections: List[PortraitSection] = field(default_factory=list)  # Parent-friendly thematic cards
+
+    # V2: Structured diff from previous version
+    changes_from_previous: Optional["CrystalDiff"] = None
+
+    # V2: Provenance tracking
+    source_observations: List[str] = field(default_factory=list)  # Observation IDs used
+    source_patterns: List[str] = field(default_factory=list)  # Pattern IDs synthesized
+    source_hypotheses: List[str] = field(default_factory=list)  # Hypothesis IDs that informed
+
+    # V2: Audit trail
+    change_reasoning: str = ""  # Why was this crystal regenerated?
+    triggered_by_events: List[str] = field(default_factory=list)  # Event IDs that triggered regen
 
     @classmethod
     def create_empty(cls) -> "Crystal":
@@ -1344,6 +1424,15 @@ class Crystal:
             "based_on_observations_through": self.based_on_observations_through.isoformat(),
             "version": self.version,
             "previous_version_summary": self.previous_version_summary,
+            # V2: Structured diff
+            "changes_from_previous": self.changes_from_previous.to_dict() if self.changes_from_previous else None,
+            # V2: Provenance
+            "source_observations": self.source_observations,
+            "source_patterns": self.source_patterns,
+            "source_hypotheses": self.source_hypotheses,
+            # V2: Audit
+            "change_reasoning": self.change_reasoning,
+            "triggered_by_events": self.triggered_by_events,
         }
 
     @classmethod
@@ -1424,6 +1513,11 @@ class Crystal:
             except (ValueError, TypeError):
                 pass
 
+        # V2: Parse structured diff
+        changes_from_previous = None
+        if data.get("changes_from_previous"):
+            changes_from_previous = CrystalDiff.from_dict(data["changes_from_previous"])
+
         return cls(
             essence_narrative=data.get("essence_narrative"),
             temperament=data.get("temperament", []),
@@ -1437,6 +1531,15 @@ class Crystal:
             based_on_observations_through=based_on,
             version=data.get("version", 1),
             previous_version_summary=data.get("previous_version_summary"),
+            # V2: Structured diff
+            changes_from_previous=changes_from_previous,
+            # V2: Provenance
+            source_observations=data.get("source_observations", []),
+            source_patterns=data.get("source_patterns", []),
+            source_hypotheses=data.get("source_hypotheses", []),
+            # V2: Audit
+            change_reasoning=data.get("change_reasoning", ""),
+            triggered_by_events=data.get("triggered_by_events", []),
         )
 
 
