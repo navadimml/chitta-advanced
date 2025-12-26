@@ -49,6 +49,7 @@ export default function ExpertGuide() {
     evidenceDeep: false,
     understanding: false,
     conversation: false,
+    conversationExample: false,
     crystal: false,
     videos: true,
     videoAnalysis: false,
@@ -607,9 +608,9 @@ export default function ExpertGuide() {
               <p className="text-blue-700">השערה: "רגישות שמיעתית גבוהה משפיעה על ויסות"</p>
               <p className="text-blue-700">ודאות התחלתית: <strong>50%</strong></p>
               <div className="border-r-2 border-blue-300 pr-3 mr-2 space-y-1">
-                <p className="text-blue-600">← ההורה: "גם בגן הוא מכסה אוזניים" (תומך) → <strong>60%</strong></p>
-                <p className="text-blue-600">← ההורה: "אבל בהופעה ישב בשקט" (סותר) → <strong>45%</strong></p>
-                <p className="text-blue-600">← ההורה: "אבל זה רק ברעש פתאומי" (משנה) → <strong>40%</strong> (איפוס)</p>
+                <p className="text-blue-600">• ההורה: "גם בגן הוא מכסה אוזניים" (תומך) — ודאות: <strong>60%</strong></p>
+                <p className="text-blue-600">• ההורה: "אבל בהופעה ישב בשקט" (סותר) — ודאות: <strong>45%</strong></p>
+                <p className="text-blue-600">• ההורה: "אבל זה רק ברעש פתאומי" (משנה) — ודאות: <strong>40%</strong> (איפוס)</p>
               </div>
               <p className="text-blue-700 mt-2">עכשיו ההשערה מתחדדת: לא רגישות כללית, אלא לרעשים בלתי צפויים.</p>
             </div>
@@ -676,7 +677,7 @@ export default function ExpertGuide() {
               title="דפוס (Pattern)"
               description="קשר בין תחומים שונים — תובנה רחבה יותר"
               trigger="סיפור שנוגע ב-2+ תחומים עם משמעות גבוהה"
-              example="'רגישות חושית ← קושי בוויסות ← הימנעות חברתית'"
+              example="'רגישות חושית → קושי בוויסות → הימנעות חברתית'"
               isLast
             />
           </div>
@@ -824,6 +825,139 @@ export default function ExpertGuide() {
         </div>
       </GuideSection>
 
+      {/* Section: Conversation Example - Chitta's Inner Voice */}
+      <GuideSection
+        id="conversationExample"
+        icon={<Sparkles className="w-6 h-6" />}
+        title="בתוך הראש של צ'יטה — דוגמה חיה"
+        expanded={expandedSections.conversationExample}
+        onToggle={() => toggleSection('conversationExample')}
+      >
+        <div className="space-y-6">
+          <p>
+            בואו נציץ לתוך "הראש" של צ'יטה במהלך שיחה אמיתית.
+            מה היא חושבת? איך היא מחליטה מה לשאול? הנה דוגמה:
+          </p>
+
+          {/* Setup */}
+          <div className="bg-gray-100 rounded-xl p-4 border border-gray-200">
+            <div className="text-sm text-gray-500 mb-2">📋 מצב התחלתי:</div>
+            <div className="text-gray-700">
+              <strong>ילד:</strong> יואב, בן 4
+              <br />
+              <strong>סקרנויות פתוחות:</strong>
+              <ul className="mr-4 mt-1 space-y-1">
+                <li>• "איך יואב מתמודד עם מעברים?" (שאלה, ודאות 35%, משיכה 0.7)</li>
+                <li>• "מה מאפיין את המשחק שלו?" (גילוי, ודאות 20%, משיכה 0.5)</li>
+                <li>• "רגישות חושית משפיעה על ויסות" (השערה, ודאות 55%, משיכה 0.6)</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Turn 1 */}
+          <ConversationTurnExample
+            turnNumber={1}
+            parentMessage="היום היה לנו בוקר קשה. יואב לא רצה להתלבש בשום אופן, צרח שהחולצה 'עוקצת'"
+            chittaThinking={[
+              "הממ, 'עוקצת'... זה נשמע כמו רגישות טקסטילית. זה מחזק את ההשערה שלי על רגישות חושית!",
+              "אני אוסיפה את זה כראיה תומכת. ודאות עולה מ-55% ל-65%.",
+              "רגע, זה גם קשור למעברים — הוא התקשה במעבר מפיג'מה לבגדים. שתי סקרנויות מתחברות!",
+              "המשיכה של 'מעברים' עכשיו הכי גבוהה (0.8). אבל לא אלחץ — אעקוב אחרי מה שהאמא רוצה לספר.",
+            ]}
+            chittaResponse="זה נשמע כמו בוקר מאתגר. כשהוא אומר שהחולצה 'עוקצת' — זה קורה עם בגדים מסוימים? או שזה משתנה?"
+            toolCalls={[
+              { tool: "notice", content: "תגובה שלילית לטקסטורת בד — מתאר תחושת 'עקיצה'" },
+              { tool: "add_evidence", content: "תומך בהשערת רגישות חושית (מקור: שיחה)" },
+            ]}
+          />
+
+          {/* Turn 2 */}
+          <ConversationTurnExample
+            turnNumber={2}
+            parentMessage="כן, יש חולצות שהוא בכלל לא מוכן ללבוש. רק כותנה רכה. ואסור שיהיו תוויות."
+            chittaThinking={[
+              "וואו, עוד אישור! תוויות וטקסטורות — זה ממש קלאסי לרגישות טקטילית.",
+              "הודאות קופצת ל-75%! זו כבר רמה גבוהה.",
+              "אבל רגע — אני לא רוצה להתקבע. בוא נראה אם זה מתחבר לתחומים אחרים.",
+              "יש לי רעיון: אולי אציע סרטון? לצלם את הבוקר כדי לראות את הרצף המלא...",
+              "לא, עדיין מוקדם. קודם אבין יותר על המעברים בכלל.",
+            ]}
+            chittaResponse="כותנה רכה ובלי תוויות — הוא יודע בדיוק מה מתאים לו. ספרי לי, מלבד ההתלבשות — איך הוא עם מעברים אחרים במהלך היום?"
+            toolCalls={[
+              { tool: "notice", content: "העדפה ברורה לכותנה רכה, רגישות לתוויות" },
+              { tool: "add_evidence", content: "תומך בהשערת רגישות חושית — ודאות 75%" },
+            ]}
+            chittaNote="שימו לב: צ'יטה בחרה לעקוב אחרי הסקרנות עם המשיכה הגבוהה ביותר (מעברים), אבל עשתה את זה בצורה טבעית שמתחברת למה שהאמא סיפרה."
+          />
+
+          {/* Turn 3 */}
+          <ConversationTurnExample
+            turnNumber={3}
+            parentMessage="מעברים? תראי, יציאה מהבית זה תמיד דרמה. אבל דווקא כשאנחנו בגן, הוא נפרד ממני בקלות!"
+            chittaThinking={[
+              "רגע רגע! זה מעניין מאוד!",
+              "הנחתי שהבעיה היא במעברים בכלל, אבל זה לא מדויק.",
+              "הבעיה היא ביציאה מהבית, לא בפרידה. אלה שני דברים שונים!",
+              "זו ראיה שמשנה את ההבנה שלי. לא 'סותרת' — 'משנה' (transforms).",
+              "ההשערה על מעברים צריכה להתחדד: לא 'מעברים' אלא 'מעברים מסביבה מוכרת לבלתי מוכרת'.",
+              "אני אעדכן את הסקרנות. ודאות יורדת ל-40% (איפוס) כי ההבנה השתנתה.",
+            ]}
+            chittaResponse="זה ממש מעניין! אז בגן, כשהוא כבר שם, הפרידה קלה. הקושי הוא דווקא ברגע היציאה מהבית. מה את חושבת שקורה ברגע הזה?"
+            toolCalls={[
+              { tool: "notice", content: "פרידה קלה בגן, קושי ביציאה מהבית — הבחנה חשובה" },
+              { tool: "add_evidence", content: "משנה את הבנת 'מעברים' — ודאות 40% (איפוס)" },
+              { tool: "wonder", content: "שאלה חדשה: מה בסביבה הביתית מקשה על היציאה?" },
+            ]}
+            chittaNote="הנה רגע קריטי: צ'יטה לא נצמדת להשערה הישנה. היא מוכנה 'לאפס' ולהתחיל מחדש עם הבנה מדויקת יותר."
+          />
+
+          {/* Turn 4 - Pattern Emerging */}
+          <ConversationTurnExample
+            turnNumber={4}
+            parentMessage="אני חושבת שזה העומס. בבית הוא יודע בדיוק איפה הכל, מרגיש בשליטה. ברגע שיוצאים — הכל פתוח ולא צפוי."
+            chittaThinking={[
+              "💡 רגע של תובנה!",
+              "הנה הקשר: רגישות חושית + צורך בשליטה + קושי עם חוסר ודאות.",
+              "זה מסביר גם את הבגדים — הוא יודע בדיוק איזה בד 'בטוח'.",
+              "וגם את היציאה — בחוץ הוא לא יודע מה לצפות.",
+              "זה לא שלוש בעיות נפרדות. זה דפוס אחד!",
+              "אני רואה דפוס חוצה-תחומים: חושי + רגשי + התנהגותי.",
+              "עכשיו זה הזמן להציע סרטון — לראות את הרצף ביציאה מהבית.",
+            ]}
+            chittaResponse="את מתארת משהו חשוב מאוד. יואב צריך לדעת מה לצפות — גם בבגדים וגם בסביבה. כשהוא מרגיש בשליטה, הוא מסתדר יפה. האם תרצי שנצלם את רגע היציאה מהבית? זה יכול לעזור לנו להבין בדיוק מה עוזר לו ומה מקשה."
+            toolCalls={[
+              { tool: "notice", content: "צורך בשליטה ובציפיות ברורות — חוצה תחומים" },
+              { tool: "wonder", content: "דפוס: רגישות חושית + צורך בשליטה + חוסר ודאות = קושי" },
+              { tool: "suggest_video", content: "בקשת סרטון — רגע היציאה מהבית" },
+            ]}
+            chittaNote="כאן נוצר דפוס! שלושה תחומים התחברו לתובנה אחת. זה הרגע שבו ההבנה 'מתגבשת'."
+          />
+
+          {/* Summary */}
+          <div className="bg-gradient-to-l from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100">
+            <h4 className="font-medium text-indigo-800 mb-3">מה למדנו מהדוגמה?</h4>
+            <ul className="space-y-2 text-indigo-700">
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-1">✓</span>
+                <span><strong>עקיבה אחרי משיכה:</strong> צ'יטה עקבה אחרי הסקרנות עם המשיכה הגבוהה, אבל בצורה טבעית</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-1">✓</span>
+                <span><strong>ראיות משנות הבנה:</strong> כשהמידע סתר את ההנחה, צ'יטה איפסה ולא התעקשה</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-1">✓</span>
+                <span><strong>דפוס מתגלה:</strong> כשמספיק נקודות התחברו, נוצרה תובנה חוצת-תחומים</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-1">✓</span>
+                <span><strong>סרטון בזמן הנכון:</strong> ההצעה לצלם באה רק כשהיה ברור מה לבדוק</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </GuideSection>
+
       {/* Section: Crystal Deep Dive */}
       <GuideSection
         id="crystal"
@@ -895,11 +1029,11 @@ export default function ExpertGuide() {
             </div>
           </div>
 
-          {/* Three Threads */}
+          {/* Three Layers */}
           <div className="bg-violet-50 border border-violet-100 rounded-xl p-5">
-            <h4 className="font-medium text-violet-800 mb-3">שלושה חוטים נפרדים</h4>
+            <h4 className="font-medium text-violet-800 mb-3">שלושה רבדים נפרדים</h4>
             <p className="text-violet-700 mb-3">
-              במכתב למומחים, המידע מופרד לשלושה חוטים ברורים:
+              במכתב למומחים, המידע מופרד לשלושה רבדים ברורים:
             </p>
             <div className="space-y-2">
               <div className="bg-white/60 rounded-lg p-3 flex items-start gap-3">
@@ -1059,7 +1193,7 @@ export default function ExpertGuide() {
               />
               <VideoValueCard
                 value="שרשרת (chain)"
-                description="לראות את הרצף: טריגר ← תגובה ← תוצאה"
+                description="לראות את הרצף: טריגר → תגובה → תוצאה"
               />
               <VideoValueCard
                 value="גילוי (discovery)"
@@ -1141,7 +1275,7 @@ export default function ExpertGuide() {
               "לא קיים דפוס דומה כבר",
             ]}
             notThis="'הוא רגיש' — תחום יחיד"
-            thisIs="'רגישות שמיעתית ← קושי בוויסות ← הימנעות חברתית' — שלושה תחומים מחוברים"
+            thisIs="'רגישות שמיעתית → קושי בוויסות → הימנעות חברתית' — שלושה תחומים מחוברים"
           />
 
           {/* Evidence */}
@@ -1575,6 +1709,85 @@ function GlossaryItem({ term, color, howDetected, criteria, notThis, thisIs }) {
           <p className="text-emerald-700">{thisIs}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ConversationTurnExample({ turnNumber, parentMessage, chittaThinking, chittaResponse, toolCalls, chittaNote }) {
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      {/* Turn header */}
+      <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+        <span className="text-sm font-medium text-gray-600">תור {turnNumber}</span>
+      </div>
+
+      {/* Parent message */}
+      <div className="p-4 bg-blue-50 border-b border-gray-200">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 text-sm font-medium">
+            👩
+          </div>
+          <div>
+            <div className="text-xs text-blue-600 mb-1">ההורה:</div>
+            <p className="text-blue-800">{parentMessage}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Chitta's thinking - the inner voice */}
+      <div className="p-4 bg-amber-50 border-b border-gray-200">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 bg-amber-200 rounded-full flex items-center justify-center text-amber-700 text-sm">
+            🧠
+          </div>
+          <div className="flex-1">
+            <div className="text-xs text-amber-600 mb-2">מה צ'יטה חושבת:</div>
+            <div className="space-y-2">
+              {chittaThinking.map((thought, i) => (
+                <p key={i} className="text-amber-800 text-sm italic bg-white/50 rounded-lg px-3 py-2">
+                  "{thought}"
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tool calls */}
+      <div className="p-4 bg-gray-50 border-b border-gray-200">
+        <div className="text-xs text-gray-500 mb-2">🔧 כלים שהופעלו:</div>
+        <div className="flex flex-wrap gap-2">
+          {toolCalls.map((tc, i) => (
+            <div key={i} className="bg-white rounded-lg px-3 py-1.5 border border-gray-200 text-xs">
+              <span className="font-mono text-purple-600">{tc.tool}</span>
+              <span className="text-gray-400 mx-1">:</span>
+              <span className="text-gray-600">{tc.content}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Chitta's response */}
+      <div className="p-4 bg-emerald-50">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 bg-emerald-200 rounded-full flex items-center justify-center text-emerald-700 text-sm">
+            🌱
+          </div>
+          <div>
+            <div className="text-xs text-emerald-600 mb-1">תגובת צ'יטה:</div>
+            <p className="text-emerald-800">{chittaResponse}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Expert note */}
+      {chittaNote && (
+        <div className="px-4 py-3 bg-violet-50 border-t border-violet-100">
+          <p className="text-sm text-violet-700">
+            <span className="font-medium">💡 הערה למומחה:</span> {chittaNote}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
