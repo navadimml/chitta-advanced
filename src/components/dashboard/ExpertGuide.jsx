@@ -21,6 +21,16 @@ import {
   Gem,
   Flag,
   Edit3,
+  Zap,
+  ArrowUpRight,
+  Clock,
+  FileText,
+  Play,
+  Camera,
+  Search,
+  Activity,
+  BarChart3,
+  BookMarked,
 } from 'lucide-react';
 
 /**
@@ -36,8 +46,14 @@ export default function ExpertGuide() {
     terms: true,
     curiosityTypes: true,
     evidence: true,
+    evidenceDeep: false,
+    understanding: false,
+    conversation: false,
+    crystal: false,
     videos: true,
+    videoAnalysis: false,
     dashboard: true,
+    glossary: false,
   });
 
   const toggleSection = (section) => {
@@ -526,6 +542,668 @@ export default function ExpertGuide() {
         </div>
       </GuideSection>
 
+      {/* Section: Evidence Deep Dive */}
+      <GuideSection
+        id="evidenceDeep"
+        icon={<Zap className="w-6 h-6" />}
+        title="איך ראיות משפיעות על הודאות"
+        expanded={expandedSections.evidenceDeep}
+        onToggle={() => toggleSection('evidenceDeep')}
+      >
+        <div className="space-y-6">
+          <p>
+            המערכת משתמשת בחישוב מתמטי פשוט אך מדויק כדי לעדכן את רמת הודאות
+            בכל פעם שמתווספת ראיה חדשה.
+          </p>
+
+          {/* The Math */}
+          <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+            <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
+              החישוב
+            </h4>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                <div className="text-2xl">➕</div>
+                <div>
+                  <div className="font-medium text-emerald-800">ראיה תומכת</div>
+                  <div className="text-emerald-600 text-sm">+10% לודאות (עד מקסימום 100%)</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-3 bg-red-50 rounded-lg border border-red-100">
+                <div className="text-2xl">➖</div>
+                <div>
+                  <div className="font-medium text-red-800">ראיה סותרת</div>
+                  <div className="text-red-600 text-sm">-15% מהודאות (עד מינימום 0%)</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="text-2xl">🔄</div>
+                <div>
+                  <div className="font-medium text-amber-800">ראיה משנה (transforms)</div>
+                  <div className="text-amber-600 text-sm">איפוס ל-40% — התחלה מחדש עם הבנה חדשה</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Asymmetry explanation */}
+          <div className="bg-purple-50 border border-purple-100 rounded-xl p-5">
+            <h4 className="font-medium text-purple-800 mb-2">למה האסימטריה?</h4>
+            <p className="text-purple-700 leading-relaxed">
+              שימו לב: ראיה סותרת מורידה יותר (-15%) מאשר ראיה תומכת מעלה (+10%).
+              זה מכוון — קל יותר לצבור ראיות תומכות בהדרגה, אבל ראיה סותרת אחת
+              צריכה לשקול יותר בשקילה מחודשת. זה מונע "אישור הטיה" (confirmation bias).
+            </p>
+          </div>
+
+          {/* Example */}
+          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
+            <h4 className="font-medium text-blue-800 mb-3">דוגמה מעשית</h4>
+            <div className="space-y-2 text-sm">
+              <p className="text-blue-700">השערה: "רגישות שמיעתית גבוהה משפיעה על ויסות"</p>
+              <p className="text-blue-700">ודאות התחלתית: <strong>50%</strong></p>
+              <div className="border-r-2 border-blue-300 pr-3 mr-2 space-y-1">
+                <p className="text-blue-600">← ההורה: "גם בגן הוא מכסה אוזניים" (תומך) → <strong>60%</strong></p>
+                <p className="text-blue-600">← ההורה: "אבל בהופעה ישב בשקט" (סותר) → <strong>45%</strong></p>
+                <p className="text-blue-600">← ההורה: "אבל זה רק ברעש פתאומי" (משנה) → <strong>40%</strong> (איפוס)</p>
+              </div>
+              <p className="text-blue-700 mt-2">עכשיו ההשערה מתחדדת: לא רגישות כללית, אלא לרעשים בלתי צפויים.</p>
+            </div>
+          </div>
+
+          {/* Video vs Conversation */}
+          <div className="bg-violet-50 border border-violet-100 rounded-xl p-4">
+            <p className="text-violet-800">
+              <strong>סרטונים משפיעים יותר:</strong> ראיות מסרטון מקבלות משקל גבוה יותר
+              (עד +15% או -20%) כי הן מבוססות על צפייה ישירה ולא רק על דיווח.
+            </p>
+          </div>
+        </div>
+      </GuideSection>
+
+      {/* Section: Understanding Evolution */}
+      <GuideSection
+        id="understanding"
+        icon={<ArrowUpRight className="w-6 h-6" />}
+        title="איך ההבנה מתפתחת"
+        expanded={expandedSections.understanding}
+        onToggle={() => toggleSection('understanding')}
+      >
+        <div className="space-y-6">
+          <p>
+            ההבנה על הילד לא קופאת במקום — היא מתפתחת דרך שלבים.
+            הנה המסלול הטיפוסי מגילוי ראשוני ועד תמונה מגובשת:
+          </p>
+
+          {/* Evolution Flow */}
+          <div className="relative">
+            <div className="absolute right-6 top-8 bottom-8 w-0.5 bg-gradient-to-b from-emerald-300 via-blue-300 via-purple-300 to-violet-300" />
+
+            <EvolutionStep
+              number={1}
+              color="emerald"
+              title="גילוי (Discovery)"
+              description="שאלות פתוחות, קליטה ללא הנחות מוקדמות"
+              trigger="מתחילות אוטומטית עם פתיחת הפרופיל"
+              example="'מי הילד הזה?' — תמיד פעילה ברקע"
+            />
+
+            <EvolutionStep
+              number={2}
+              color="blue"
+              title="שאלה (Question)"
+              description="כשמשהו עולה מהשיחה ורוצים לדעת עוד"
+              trigger="LLM מזהה נושא שדורש העמקה"
+              example="'מה קורה כשהוא צריך לחכות?' — נולדת מתוך סיפור על תסכול"
+            />
+
+            <EvolutionStep
+              number={3}
+              color="purple"
+              title="השערה (Hypothesis)"
+              description="תיאוריה ספציפית שאפשר לבדוק"
+              trigger="כשיש מספיק מידע לנסח רעיון + אפשרות לבדוק בסרטון"
+              example="'הקושי בהרכבת פאזלים קשור לתכנון מוטורי' — ניתן לבדיקה בסרטון"
+            />
+
+            <EvolutionStep
+              number={4}
+              color="violet"
+              title="דפוס (Pattern)"
+              description="קשר בין תחומים שונים — תובנה רחבה יותר"
+              trigger="סיפור שנוגע ב-2+ תחומים עם משמעות גבוהה"
+              example="'רגישות חושית ← קושי בוויסות ← הימנעות חברתית'"
+              isLast
+            />
+          </div>
+
+          {/* Automatic transitions */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5">
+            <h4 className="font-medium text-indigo-800 mb-3">מעברים אוטומטיים</h4>
+            <ul className="space-y-2 text-indigo-700">
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-500 mt-1">•</span>
+                <span><strong>שאלה → השערה:</strong> כש-LLM מזהה תיאוריה ברת-בדיקה ומציע סרטון</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-500 mt-1">•</span>
+                <span><strong>תצפיות → דפוס:</strong> כשסיפור מחבר 2+ תחומים עם significance ≥ 0.5</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-500 mt-1">•</span>
+                <span><strong>ודאות גבוהה → דעיכה:</strong> סקרנות שהגיעה ל-70%+ ודאות יורדת ב"משיכה" שלה</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Crystallization triggers */}
+          <div className="bg-gradient-to-l from-cyan-50 to-blue-50 rounded-xl p-5 border border-cyan-100">
+            <h4 className="font-medium text-cyan-800 mb-3 flex items-center gap-2">
+              <Gem className="w-5 h-5" />
+              מתי נוצר קריסטל?
+            </h4>
+            <p className="text-cyan-700 mb-3">
+              המערכת מזהה שהגיע הזמן ליצור תמונה מגובשת כשמתקיים אחד מאלה:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-white/60 rounded-lg p-3 text-center">
+                <div className="text-2xl mb-1">2+</div>
+                <div className="text-sm text-cyan-600">השערות שנחקרו</div>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3 text-center">
+                <div className="text-2xl mb-1">5+</div>
+                <div className="text-sm text-cyan-600">סיפורים נאספו</div>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3 text-center">
+                <div className="text-2xl mb-1">10+</div>
+                <div className="text-sm text-cyan-600">תצפיות נרשמו</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </GuideSection>
+
+      {/* Section: Conversation Flow */}
+      <GuideSection
+        id="conversation"
+        icon={<MessageSquare className="w-6 h-6" />}
+        title="איך השיחה מנווטת"
+        expanded={expandedSections.conversation}
+        onToggle={() => toggleSection('conversation')}
+      >
+        <div className="space-y-6">
+          <p>
+            צ'יטה לא עוקבת אחרי סקריפט קבוע. במקום זה, היא מגיבה לכל מה שההורה משתף
+            ומכוונת את השיחה בהתאם. הנה איך זה עובד מאחורי הקלעים:
+          </p>
+
+          {/* Two-Phase Architecture */}
+          <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+            <h4 className="font-semibold text-gray-800 mb-4">ארכיטקטורת שני שלבים</h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Search className="w-5 h-5 text-blue-600" />
+                  <span className="font-medium text-blue-800">שלב 1: תפיסה</span>
+                </div>
+                <p className="text-sm text-blue-700 mb-2">
+                  צ'יטה "קוראת" את ההודעה ומזהה:
+                </p>
+                <ul className="text-xs text-blue-600 space-y-1">
+                  <li>• האם יש כאן סיפור משמעותי?</li>
+                  <li>• האם זה מוסיף ראיה להשערה?</li>
+                  <li>• איזה תחום התפתחותי מוזכר?</li>
+                  <li>• מה הכוונה של ההורה?</li>
+                </ul>
+              </div>
+
+              <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageSquare className="w-5 h-5 text-emerald-600" />
+                  <span className="font-medium text-emerald-800">שלב 2: תגובה</span>
+                </div>
+                <p className="text-sm text-emerald-700 mb-2">
+                  צ'יטה מגיבה בהתאם למה שזוהה:
+                </p>
+                <ul className="text-xs text-emerald-600 space-y-1">
+                  <li>• סיפור → הכרה במשמעות</li>
+                  <li>• שאלה → מענה ישיר + גשר</li>
+                  <li>• רגש → מתן מקום</li>
+                  <li>• מידע → העמקה טבעית</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Pull System */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
+            <h4 className="font-medium text-amber-800 mb-3 flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              מערכת ה"משיכה" (Pull)
+            </h4>
+            <p className="text-amber-700 mb-4">
+              לכל סקרנות יש "משיכה" — עד כמה היא דורשת תשומת לב כרגע.
+              המשיכה מחושבת מחדש בכל תור:
+            </p>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 p-2 bg-white/60 rounded-lg">
+                <span className="text-lg">⬆️</span>
+                <div className="text-sm text-amber-700">
+                  <strong>עולה:</strong> כשיש פערים בתחום (אין מספיק מידע)
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-2 bg-white/60 rounded-lg">
+                <span className="text-lg">⬇️</span>
+                <div className="text-sm text-amber-700">
+                  <strong>יורדת:</strong> כשהודאות גבוהה (כבר מבינים) או שעבר זמן בלי פעילות
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-2 bg-white/60 rounded-lg">
+                <span className="text-lg">🎯</span>
+                <div className="text-sm text-amber-700">
+                  <strong>תחומים קליניים:</strong> מקבלים boost נוסף כי נדרשים למכתבים
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Natural Flow */}
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+            <p className="text-green-800">
+              <strong>העיקרון המנחה:</strong> צ'יטה לא "דוחפת" נושאים אלא "עוקבת אחרי הזרם".
+              הסקרנויות מציעות כיוונים, אבל ההורה מוביל את השיחה.
+              רק כשיש רגע טבעי, צ'יטה עשויה לשזור שאלה רלוונטית.
+            </p>
+          </div>
+        </div>
+      </GuideSection>
+
+      {/* Section: Crystal Deep Dive */}
+      <GuideSection
+        id="crystal"
+        icon={<Gem className="w-6 h-6" />}
+        title="הקריסטל — הפורטרט החי"
+        expanded={expandedSections.crystal}
+        onToggle={() => toggleSection('crystal')}
+      >
+        <div className="space-y-6">
+          <p>
+            הקריסטל הוא סינתזה מגובשת של כל מה שצ'יטה למדה על הילד.
+            זה לא דו"ח או רשימת ממצאים — זה <strong>פורטרט</strong> שמציג מי הילד הזה באמת.
+          </p>
+
+          {/* Two Gifts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-bl from-rose-50 to-pink-50 rounded-xl p-5 border border-rose-100">
+              <h4 className="font-medium text-rose-800 mb-2">🎁 מתנה ראשונה: הכרה</h4>
+              <p className="text-rose-700 text-sm leading-relaxed">
+                "כן! זה בדיוק הוא!" — ההורים מרגישים שמישהו באמת רואה את הילד שלהם.
+                לא תיאור קליני, אלא הכרה אמיתית במי שהוא.
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-bl from-sky-50 to-blue-50 rounded-xl p-5 border border-sky-100">
+              <h4 className="font-medium text-sky-800 mb-2">🎁 מתנה שנייה: תובנה קלינית</h4>
+              <p className="text-sky-700 text-sm leading-relaxed">
+                "לא ראיתי את זה ככה קודם!" — חיבור נקודות שמפתיע ומאיר.
+                ההורים מגלים קשרים שלא היו ברורים להם.
+              </p>
+            </div>
+          </div>
+
+          {/* Crystal Components */}
+          <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+            <h4 className="font-semibold text-gray-800 mb-4">מה יש בקריסטל?</h4>
+
+            <div className="space-y-3">
+              <CrystalComponent
+                icon="✨"
+                name="נרטיב מהות"
+                description="2-3 משפטים על מי הילד הזה — לא מה הבעיות, אלא מי הוא"
+              />
+              <CrystalComponent
+                icon="🌡️"
+                name="טמפרמנט"
+                description="תכונות ליבה בשפה יומיומית — 'סקרן', 'רגיש', 'אנרגטי'"
+              />
+              <CrystalComponent
+                icon="🧩"
+                name="דפוסים"
+                description="קשרים בין תחומים — איך דבר אחד משפיע על השני"
+              />
+              <CrystalComponent
+                icon="🌉"
+                name="נתיבי התערבות"
+                description="גשרים מחוזקות לאתגרים — איך להשתמש במה שהוא אוהב"
+              />
+              <CrystalComponent
+                icon="🔮"
+                name="שאלות פתוחות"
+                description="מה עוד תוהים — לא פערים אלא סקרנות"
+              />
+              <CrystalComponent
+                icon="👩‍⚕️"
+                name="המלצות למומחים"
+                description="התאמה לא-מובנת לאנשי מקצוע ספציפיים"
+              />
+            </div>
+          </div>
+
+          {/* Three Threads */}
+          <div className="bg-violet-50 border border-violet-100 rounded-xl p-5">
+            <h4 className="font-medium text-violet-800 mb-3">שלושה חוטים נפרדים</h4>
+            <p className="text-violet-700 mb-3">
+              במכתב למומחים, המידע מופרד לשלושה חוטים ברורים:
+            </p>
+            <div className="space-y-2">
+              <div className="bg-white/60 rounded-lg p-3 flex items-start gap-3">
+                <span className="text-violet-500 font-bold">1</span>
+                <div>
+                  <div className="font-medium text-violet-800">מה ההורים שיתפו</div>
+                  <div className="text-sm text-violet-600">התצפיות שלהם, במילים שלהם</div>
+                </div>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3 flex items-start gap-3">
+                <span className="text-violet-500 font-bold">2</span>
+                <div>
+                  <div className="font-medium text-violet-800">מה צ'יטה שמה לב</div>
+                  <div className="text-sm text-violet-600">דפוסים ותהיות — מוצעים, לא נקבעים</div>
+                </div>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3 flex items-start gap-3">
+                <span className="text-violet-500 font-bold">3</span>
+                <div>
+                  <div className="font-medium text-violet-800">מה נשאר פתוח</div>
+                  <div className="text-sm text-violet-600">שאלות לחקירה משותפת</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Staleness */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+            <p className="text-amber-800">
+              <strong>עדכניות:</strong> הקריסטל יודע מתי הוא "מיושן" — אם נוספו תצפיות חדשות
+              מאז שנוצר, המערכת תעדכן אותו בצורה הדרגתית במקום לייצר מחדש.
+            </p>
+          </div>
+        </div>
+      </GuideSection>
+
+      {/* Section: Video Analysis Deep Dive */}
+      <GuideSection
+        id="videoAnalysis"
+        icon={<Camera className="w-6 h-6" />}
+        title="ניתוח סרטונים — מאחורי הקלעים"
+        expanded={expandedSections.videoAnalysis}
+        onToggle={() => toggleSection('videoAnalysis')}
+      >
+        <div className="space-y-6">
+          <p>
+            סרטונים הם כלי רב-עוצמה לבדיקת השערות. הנה איך התהליך עובד מקבלת ההסכמה
+            ועד ניתוח התוצאות:
+          </p>
+
+          {/* Guidelines Generation */}
+          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
+            <h4 className="font-medium text-blue-800 mb-3 flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              שלב 1: יצירת הנחיות צילום
+            </h4>
+            <p className="text-blue-700 mb-3">
+              ההנחיות נוצרות באופן אישי להורה, תוך שימוש באוצר המילים שלו:
+            </p>
+            <ul className="space-y-2 text-sm text-blue-600">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                <span>משתמשים בשמות של צעצועים/מקומות שההורה הזכיר</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                <span>ההשערה נשארת פנימית — ההורה לא יודע מה בודקים</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                <span>ההנחיות חמות וספציפיות: "שבו ליד השולחן עם הדינוזאורים..."</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Video Validation */}
+          <div className="bg-amber-50 rounded-xl p-5 border border-amber-100">
+            <h4 className="font-medium text-amber-800 mb-3 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5" />
+              שלב 2: תיקוף הסרטון (שער כניסה)
+            </h4>
+            <p className="text-amber-700 mb-3">
+              לפני שמנתחים, המערכת בודקת:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-white/60 rounded-lg p-3">
+                <div className="font-medium text-amber-800">התאמה לתרחיש</div>
+                <div className="text-sm text-amber-600">האם הסרטון מראה מה שביקשנו?</div>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3">
+                <div className="font-medium text-amber-800">זיהוי הילד</div>
+                <div className="text-sm text-amber-600">האם הילד בסרטון תואם לפרופיל?</div>
+              </div>
+            </div>
+            <p className="text-amber-600 text-sm mt-3 italic">
+              אם התיקוף נכשל, הסרטון לא ינותח והשערות לא יעודכנו.
+            </p>
+          </div>
+
+          {/* Analysis */}
+          <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-100">
+            <h4 className="font-medium text-emerald-800 mb-3 flex items-center gap-2">
+              <Play className="w-5 h-5" />
+              שלב 3: ניתוח תוכן
+            </h4>
+            <p className="text-emerald-700 mb-3">
+              הניתוח מונחה על ידי ההשערה אבל לא מוטה:
+            </p>
+            <ul className="space-y-2 text-sm text-emerald-600">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400">•</span>
+                <span><strong>תצפיות אובייקטיביות:</strong> התנהגויות ספציפיות עם חותמות זמן</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400">•</span>
+                <span><strong>חוזקות (חובה!):</strong> תמיד מחפשים מה הילד עושה טוב</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400">•</span>
+                <span><strong>ראיות להשערה:</strong> תומך / סותר / מעורב / לא ברור</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400">•</span>
+                <span><strong>שאלות חדשות:</strong> מה הסרטון מעלה לחקירה נוספת</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Confidence Updates */}
+          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
+            <h4 className="font-medium text-purple-800 mb-3 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              עדכון ודאות מסרטון
+            </h4>
+            <p className="text-purple-700 mb-3">
+              סרטונים משפיעים יותר משיחה רגילה:
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="bg-emerald-100 rounded-lg p-2 text-center">
+                <div className="font-medium text-emerald-700">תומך + ביטחון גבוה</div>
+                <div className="text-emerald-600">+15%</div>
+              </div>
+              <div className="bg-red-100 rounded-lg p-2 text-center">
+                <div className="font-medium text-red-700">סותר + ביטחון גבוה</div>
+                <div className="text-red-600">-20%</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Video Values */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <h4 className="font-medium text-gray-800 mb-3">סוגי ערך סרטון</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <VideoValueCard
+                value="כיול (calibration)"
+                description="ההורה אמר 'תמיד' או 'אף פעם' — הסרטון יראה את המציאות"
+              />
+              <VideoValueCard
+                value="שרשרת (chain)"
+                description="לראות את הרצף: טריגר ← תגובה ← תוצאה"
+              />
+              <VideoValueCard
+                value="גילוי (discovery)"
+                description="צילום ראשוני להכרות — בסיס ללא השערה ספציפית"
+              />
+              <VideoValueCard
+                value="מסגור מחדש (reframe)"
+                description="דאגה של ההורה שעשויה להיות חוזקה במסגור אחר"
+              />
+            </div>
+          </div>
+        </div>
+      </GuideSection>
+
+      {/* Section: Algorithmic Glossary */}
+      <GuideSection
+        id="glossary"
+        icon={<BookMarked className="w-6 h-6" />}
+        title="מילון אלגוריתמי"
+        expanded={expandedSections.glossary}
+        onToggle={() => toggleSection('glossary')}
+      >
+        <div className="space-y-6">
+          <p>
+            איך המערכת "יודעת" להבחין בין סוגי מידע שונים? הנה ההגדרות האלגוריתמיות:
+          </p>
+
+          {/* Observation */}
+          <GlossaryItem
+            term="תצפית (Observation)"
+            color="emerald"
+            howDetected="LLM קורא את ההודעה ומפעיל כלי 'notice' עם פרטים ספציפיים"
+            criteria={[
+              "תיאור התנהגות ספציפית (לא הכללה)",
+              "יש תחום התפתחותי (מוטורי, רגשי, חושי...)",
+              "יש הקשר זמני (מתי זה קורה)",
+            ]}
+            notThis="'הוא ילד קשה' (הכללה, לא תצפית)"
+            thisIs="'כשמגיעים לגן, הוא נצמד לרגל של אמא ולא נכנס לבד' (התנהגות ספציפית עם הקשר)"
+          />
+
+          {/* Curiosity */}
+          <GlossaryItem
+            term="סקרנות (Curiosity)"
+            color="amber"
+            howDetected="LLM מפעיל כלי 'wonder' עם סוג (גילוי/שאלה/השערה/דפוס)"
+            criteria={[
+              "יש נושא לחקירה (focus)",
+              "יש סוג: discovery/question/hypothesis/pattern",
+              "יש 'משיכה' (pull) ראשונית",
+            ]}
+            notThis="כל שאלה ששואלים (לא כל שאלה היא סקרנות במערכת)"
+            thisIs="שאלה או תהייה שהמערכת רוצה לעקוב אחריה לאורך זמן"
+          />
+
+          {/* Question vs Hypothesis */}
+          <GlossaryItem
+            term="שאלה מול השערה"
+            color="blue"
+            howDetected="ההבדל בפרמטר 'type' של כלי wonder"
+            criteria={[
+              "שאלה (question): רוצים לדעת עוד — אין תיאוריה",
+              "השערה (hypothesis): יש תיאוריה ספציפית לבדיקה",
+              "השערה חייבת שדה 'theory' מלא",
+              "השערה עם video_appropriate=true מתחילה חקירה אוטומטית",
+            ]}
+            notThis="שאלה: 'מה עם השינה?' — כללי מדי"
+            thisIs="השערה: 'הקושי בשינה קשור לעוררות יתר חושית בסוף היום' — תיאוריה בדיקה"
+          />
+
+          {/* Pattern */}
+          <GlossaryItem
+            term="דפוס (Pattern)"
+            color="violet"
+            howDetected="נוצר אוטומטית כשסיפור נוגע ב-2+ תחומים"
+            criteria={[
+              "קשר בין שני תחומים התפתחותיים או יותר",
+              "significance של הסיפור ≥ 0.5",
+              "לא קיים דפוס דומה כבר",
+            ]}
+            notThis="'הוא רגיש' — תחום יחיד"
+            thisIs="'רגישות שמיעתית ← קושי בוויסות ← הימנעות חברתית' — שלושה תחומים מחוברים"
+          />
+
+          {/* Evidence */}
+          <GlossaryItem
+            term="ראיה (Evidence)"
+            color="purple"
+            howDetected="LLM מפעיל כלי 'add_evidence' עם effect"
+            criteria={[
+              "מקושרת לחקירה פעילה (investigation_id)",
+              "יש effect: supports/contradicts/transforms",
+              "יש source: conversation או video",
+            ]}
+            notThis="כל מידע חדש (רק מידע שנוגע לחקירה פעילה)"
+            thisIs="מידע שמשנה את הודאות בהשערה שנחקרת כרגע"
+          />
+
+          {/* Crystal */}
+          <GlossaryItem
+            term="קריסטל (Crystal)"
+            color="cyan"
+            howDetected="נוצר כשמתקיימים תנאי סף (2+ חקירות / 5+ סיפורים / 10+ תצפיות)"
+            criteria={[
+              "סינתזה של כל ההבנה הנוכחית",
+              "נוצר ע״י המודל החזק ביותר",
+              "כולל: מהות, דפוסים, המלצות, שאלות פתוחות",
+              "יודע מתי הוא מיושן ודורש עדכון",
+            ]}
+            notThis="דוח או רשימת ממצאים"
+            thisIs="פורטרט חי של הילד — מי הוא, לא רק מה הבעיות"
+          />
+
+          {/* Pull */}
+          <GlossaryItem
+            term="משיכה (Pull)"
+            color="orange"
+            howDetected="מחושבת מחדש בכל תור לפי נוסחה"
+            criteria={[
+              "base_pull — ערך התחלתי (0-1)",
+              "- 0.02 ליום בלי פעילות (דעיכה)",
+              "+ עד 0.3 לפערים בתחום (gap boost)",
+              "- 0.2 אם ודאות > 70% (דעיכת שביעות רצון)",
+            ]}
+            notThis="מספר קבוע"
+            thisIs="ערך דינמי שמשתנה — סקרנויות ׳רעבות׳ עולות, ׳שבעות׳ יורדות"
+          />
+
+          {/* Certainty */}
+          <GlossaryItem
+            term="ודאות (Certainty)"
+            color="indigo"
+            howDetected="מתעדכנת עם כל ראיה"
+            criteria={[
+              "0-100% — כמה בטוחים בסקרנות/השערה",
+              "עצמאית מסוג הסקרנות (אפשר גילוי בודאות גבוהה!)",
+              "מושפעת מראיות: +10% תומך, -15% סותר, 40% משנה",
+            ]}
+            notThis="ציון איכות או חשיבות"
+            thisIs="כמה ראיות תומכות יש — לא כמה חשוב הנושא"
+          />
+        </div>
+      </GuideSection>
+
       {/* Footer */}
       <div className="mt-8 text-center text-gray-400 text-sm">
         <p>שאלות? פנו לצוות התמיכה</p>
@@ -763,6 +1441,138 @@ function ActionCard({ icon, title, description }) {
         <div>
           <h4 className="font-medium text-gray-800 mb-1">{title}</h4>
           <p className="text-sm text-gray-500">{description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EvolutionStep({ number, color, title, description, trigger, example, isLast }) {
+  const colors = {
+    emerald: 'bg-emerald-500',
+    blue: 'bg-blue-500',
+    purple: 'bg-purple-500',
+    violet: 'bg-violet-500',
+  };
+
+  const bgColors = {
+    emerald: 'bg-emerald-50 border-emerald-100',
+    blue: 'bg-blue-50 border-blue-100',
+    purple: 'bg-purple-50 border-purple-100',
+    violet: 'bg-violet-50 border-violet-100',
+  };
+
+  const textColors = {
+    emerald: 'text-emerald-700',
+    blue: 'text-blue-700',
+    purple: 'text-purple-700',
+    violet: 'text-violet-700',
+  };
+
+  return (
+    <div className={`relative pr-16 ${isLast ? '' : 'pb-6'}`}>
+      <div className={`absolute right-4 w-6 h-6 rounded-full ${colors[color]} flex items-center justify-center text-white text-xs font-bold`}>
+        {number}
+      </div>
+      <div className={`border rounded-xl p-4 ${bgColors[color]}`}>
+        <h4 className={`font-medium ${textColors[color]} mb-1`}>{title}</h4>
+        <p className="text-sm text-gray-600 mb-2">{description}</p>
+        <div className="bg-white/60 rounded-lg p-2 text-sm mb-2">
+          <span className="text-gray-500">🔄 טריגר:</span>
+          <span className="text-gray-700 mr-1">{trigger}</span>
+        </div>
+        <div className="bg-white/60 rounded-lg p-2 text-sm text-gray-600 italic">
+          💡 {example}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CrystalComponent({ icon, name, description }) {
+  return (
+    <div className="flex items-start gap-3 bg-white/60 rounded-lg p-3">
+      <span className="text-xl">{icon}</span>
+      <div>
+        <div className="font-medium text-gray-800">{name}</div>
+        <div className="text-sm text-gray-600">{description}</div>
+      </div>
+    </div>
+  );
+}
+
+function VideoValueCard({ value, description }) {
+  return (
+    <div className="bg-white rounded-lg p-3 border border-gray-100">
+      <div className="font-medium text-gray-800 mb-1">{value}</div>
+      <div className="text-gray-600">{description}</div>
+    </div>
+  );
+}
+
+function GlossaryItem({ term, color, howDetected, criteria, notThis, thisIs }) {
+  const colors = {
+    emerald: 'border-emerald-200 bg-emerald-50',
+    amber: 'border-amber-200 bg-amber-50',
+    blue: 'border-blue-200 bg-blue-50',
+    violet: 'border-violet-200 bg-violet-50',
+    purple: 'border-purple-200 bg-purple-50',
+    cyan: 'border-cyan-200 bg-cyan-50',
+    orange: 'border-orange-200 bg-orange-50',
+    indigo: 'border-indigo-200 bg-indigo-50',
+  };
+
+  const headerColors = {
+    emerald: 'text-emerald-800',
+    amber: 'text-amber-800',
+    blue: 'text-blue-800',
+    violet: 'text-violet-800',
+    purple: 'text-purple-800',
+    cyan: 'text-cyan-800',
+    orange: 'text-orange-800',
+    indigo: 'text-indigo-800',
+  };
+
+  const textColors = {
+    emerald: 'text-emerald-700',
+    amber: 'text-amber-700',
+    blue: 'text-blue-700',
+    violet: 'text-violet-700',
+    purple: 'text-purple-700',
+    cyan: 'text-cyan-700',
+    orange: 'text-orange-700',
+    indigo: 'text-indigo-700',
+  };
+
+  return (
+    <div className={`rounded-xl p-5 border ${colors[color]}`}>
+      <h4 className={`font-semibold ${headerColors[color]} mb-3`}>{term}</h4>
+
+      <div className="mb-3">
+        <div className={`text-sm font-medium ${textColors[color]} mb-1`}>איך המערכת מזהה:</div>
+        <p className="text-sm text-gray-700">{howDetected}</p>
+      </div>
+
+      <div className="mb-3">
+        <div className={`text-sm font-medium ${textColors[color]} mb-1`}>קריטריונים:</div>
+        <ul className="text-sm text-gray-700 space-y-1">
+          {criteria.map((c, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-gray-400 mt-0.5">•</span>
+              <span>{c}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+        <div className="bg-red-50 rounded-lg p-2 border border-red-100">
+          <div className="text-red-600 font-medium text-xs mb-1">❌ זה לא:</div>
+          <p className="text-red-700">{notThis}</p>
+        </div>
+        <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-100">
+          <div className="text-emerald-600 font-medium text-xs mb-1">✓ זה כן:</div>
+          <p className="text-emerald-700">{thisIs}</p>
         </div>
       </div>
     </div>
