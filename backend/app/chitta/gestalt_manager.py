@@ -93,13 +93,14 @@ class GestaltManager:
             understanding_data=child_data.get("understanding"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
-            curiosities_data=child_data.get("curiosity_engine") or child_data.get("curiosities"),
+            curiosity_manager_data=child_data.get("curiosity_manager"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
             shared_summaries_data=child_data.get("shared_summaries"),
             child_birth_date=child_birth_date,
             session_flags_data=child_data.get("session_flags"),
             child_gender=child_gender,
+            session_id=child_data.get("session_id"),
         )
 
         # Cache it
@@ -142,13 +143,14 @@ class GestaltManager:
             understanding_data=child_data.get("understanding"),
             stories_data=child_data.get("stories"),
             journal_data=child_data.get("journal"),
-            curiosities_data=child_data.get("curiosity_engine") or child_data.get("curiosities"),
+            curiosity_manager_data=child_data.get("curiosity_manager"),
             session_history_data=session_history,
             crystal_data=child_data.get("crystal"),
             shared_summaries_data=child_data.get("shared_summaries"),
             child_birth_date=child_birth_date,
             session_flags_data=child_data.get("session_flags"),
             child_gender=child_gender,
+            session_id=child_data.get("session_id"),
         )
 
         # Cache it
@@ -160,7 +162,7 @@ class GestaltManager:
         try:
             async with UnitOfWork() as uow:
                 data = await uow.darshan.load_darshan_data(family_id)
-                if data and (data.get("curiosities") or data.get("journal") or data.get("crystal")):
+                if data and (data.get("curiosity_manager") or data.get("journal") or data.get("crystal")):
                     logger.info(f"Loaded darshan data for {family_id} from database")
                     return data
         except Exception as e:
@@ -175,7 +177,7 @@ class GestaltManager:
             "understanding": None,
             "stories": [],
             "journal": [],
-            "curiosities": None,
+            "curiosity_manager": None,
         }
 
     def _is_session_transition(self, darshan: Darshan) -> bool:
@@ -229,7 +231,8 @@ class GestaltManager:
 
         # Build the data structure for the repository
         darshan_data = {
-            "curiosities": darshan_state.get("curiosities", {}),
+            "curiosity_manager": darshan_state.get("curiosity_manager", {}),
+            "session_id": darshan_state.get("session_id"),
             "journal": [
                 {
                     "summary": e.summary,
