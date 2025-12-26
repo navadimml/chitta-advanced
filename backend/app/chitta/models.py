@@ -227,6 +227,11 @@ class Story:
 
 # === Observations & Evidence ===
 
+def _generate_fact_id() -> str:
+    """Generate a default fact ID."""
+    return generate_id()
+
+
 @dataclass
 class TemporalFact:
     """
@@ -234,6 +239,8 @@ class TemporalFact:
 
     Facts are observations that are true at a point in time.
     "In November, parent said transitions were hard" is always true.
+
+    V2 Architecture: Added id, session_id, addresses_curiosity for lineage tracking.
     """
     content: str
     domain: Optional[str] = None  # Developmental domain
@@ -242,57 +249,136 @@ class TemporalFact:
     t_created: datetime = field(default_factory=datetime.now)
     confidence: float = 0.7
 
+    # V2: Provenance tracking (with defaults for backward compatibility)
+    id: str = field(default_factory=_generate_fact_id)  # Unique observation ID
+    session_id: str = ""  # Which session this was recorded in
+    addresses_curiosity: Optional[str] = None  # Curiosity ID this observation addresses
+
     @classmethod
     def from_observation(
         cls,
         content: str,
         domain: Optional[str] = None,
-        confidence: float = 0.7
+        confidence: float = 0.7,
+        session_id: str = "",
+        addresses_curiosity: Optional[str] = None,
     ) -> "TemporalFact":
         """Create a fact from a conversation observation."""
         return cls(
+            id=generate_id(),
             content=content,
             domain=domain,
             source="conversation",
             confidence=confidence,
+            session_id=session_id,
+            addresses_curiosity=addresses_curiosity,
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict for API responses."""
         return {
+            "id": self.id,
             "content": self.content,
             "domain": self.domain,
             "source": self.source,
             "t_valid": self.t_valid.isoformat() if self.t_valid else None,
             "t_created": self.t_created.isoformat(),
             "confidence": self.confidence,
+            "session_id": self.session_id,
+            "addresses_curiosity": self.addresses_curiosity,
         }
+
+
+def _generate_evidence_id() -> str:
+    """Generate a default evidence ID."""
+    return generate_id()
 
 
 @dataclass
 class Evidence:
     """
-    Evidence for an exploration cycle.
+    Evidence for an exploration cycle / assertive curiosity.
 
     Evidence is immutable and timestamped - a record of what was observed.
+
+    V2 Architecture: Added id, session_id, source_observation, reasoning,
+    and confidence tracking for full provenance.
     """
     content: str
-    effect: str  # "supports" | "contradicts" | "transforms"
-    source: str  # "conversation" | "video"
+    effect: str = "supports"  # "supports" | "contradicts" | "transforms"
+    source: str = "conversation"  # "conversation" | "video"
     timestamp: datetime = field(default_factory=datetime.now)
+
+    # V2: Provenance (with defaults for backward compatibility)
+    id: str = field(default_factory=_generate_evidence_id)  # Unique evidence ID
+    session_id: str = ""  # Which session this was recorded in
+    source_observation: str = ""  # Observation ID this evidence comes from
+    reasoning: str = ""  # Why does this evidence have this effect?
+
+    # V2: Confidence tracking
+    confidence_before: float = 0.0  # Confidence before this evidence
+    confidence_after: float = 0.0  # Confidence after this evidence
 
     @classmethod
     def create(
         cls,
         content: str,
         effect: str = "supports",
-        source: str = "conversation"
+        source: str = "conversation",
+        session_id: str = "",
+        source_observation: str = "",
+        reasoning: str = "",
+        confidence_before: float = 0.0,
+        confidence_after: float = 0.0,
     ) -> "Evidence":
-        """Create new evidence with current timestamp."""
+        """Create new evidence with generated ID and current timestamp."""
         return cls(
+            id=generate_id(),
             content=content,
             effect=effect,
             source=source,
+            session_id=session_id,
+            source_observation=source_observation,
+            reasoning=reasoning,
+            confidence_before=confidence_before,
+            confidence_after=confidence_after,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for API responses."""
+        return {
+            "id": self.id,
+            "content": self.content,
+            "effect": self.effect,
+            "source": self.source,
+            "timestamp": self.timestamp.isoformat(),
+            "session_id": self.session_id,
+            "source_observation": self.source_observation,
+            "reasoning": self.reasoning,
+            "confidence_before": self.confidence_before,
+            "confidence_after": self.confidence_after,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Evidence":
+        """Create from dict."""
+        timestamp = data.get("timestamp")
+        if isinstance(timestamp, str):
+            timestamp = datetime.fromisoformat(timestamp)
+        else:
+            timestamp = timestamp or datetime.now()
+
+        return cls(
+            id=data.get("id", generate_id()),
+            content=data.get("content", ""),
+            effect=data.get("effect", "supports"),
+            source=data.get("source", "conversation"),
+            timestamp=timestamp,
+            session_id=data.get("session_id", ""),
+            source_observation=data.get("source_observation", ""),
+            reasoning=data.get("reasoning", ""),
+            confidence_before=data.get("confidence_before", 0.0),
+            confidence_after=data.get("confidence_after", 0.0),
         )
 
 
@@ -380,12 +466,15 @@ class Understanding:
 
         observations = [
             TemporalFact(
+                id=o.get("id", generate_id()),
                 content=o.get("content", ""),
                 domain=o.get("domain"),
                 source=o.get("source", "conversation"),
                 t_valid=datetime.fromisoformat(o["t_valid"]) if o.get("t_valid") else None,
                 t_created=datetime.fromisoformat(o["t_created"]) if o.get("t_created") else datetime.now(),
                 confidence=o.get("confidence", 0.7),
+                session_id=o.get("session_id", ""),
+                addresses_curiosity=o.get("addresses_curiosity"),
             )
             for o in data.get("observations", [])
         ]
