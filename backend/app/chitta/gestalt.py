@@ -172,6 +172,11 @@ class Darshan:
         self._decay_manager = DecayManager()
         self._cascade_handler = CascadeHandler(self._curiosity_manager)
 
+    @property
+    def _curiosities(self) -> CuriosityManager:
+        """Alias for _curiosity_manager for backwards compatibility."""
+        return self._curiosity_manager
+
     def _get_llm(self):
         """Get LLM provider for conversation (Phase 1 & 2)."""
         if self._llm is None:
@@ -1260,12 +1265,11 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             if hasattr(story, 'timestamp') and story.timestamp:
                 timestamps.append(story.timestamp)
 
-        # Evidence in investigations (from curiosities)
-        for curiosity in self._curiosities._dynamic:
-            if curiosity.investigation:
-                for evidence in curiosity.investigation.evidence:
-                    if hasattr(evidence, 'timestamp') and evidence.timestamp:
-                        timestamps.append(evidence.timestamp)
+        # Evidence in investigations (V2: only hypotheses have investigations)
+        for curiosity in self._curiosities.get_investigating():
+            for evidence in curiosity.investigation.evidence:
+                if hasattr(evidence, 'timestamp') and evidence.timestamp:
+                    timestamps.append(evidence.timestamp)
 
         # Return the most recent, or now if no observations yet
         if timestamps:

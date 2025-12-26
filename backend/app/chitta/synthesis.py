@@ -224,11 +224,11 @@ class SynthesisService:
             for f in understanding.observations[:20]
         ]) or "No facts recorded yet."
 
-        # Format active investigations
+        # Format active investigations (V2: use curiosity_type and confidence)
         investigating = curiosities.get_hypotheses_for_testing()
         cycles_text = "\n".join([
-            f"- [{c.type}] {c.focus}: {c.status}"
-            + (f" (certainty: {c.certainty})" if c.certainty else "")
+            f"- [{c.curiosity_type}] {c.focus}: {c.status}"
+            + (f" (confidence: {c.confidence})" if hasattr(c, 'confidence') and c.confidence else "")
             for c in investigating[:10]
         ]) or "No active investigations yet."
 

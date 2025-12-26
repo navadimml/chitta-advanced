@@ -188,6 +188,10 @@ class CuriosityManager:
         """Get all assertive curiosities (Hypothesis, Pattern)."""
         return list(self._hypotheses.values()) + list(self._patterns.values())
 
+    def get_hypotheses(self) -> List[Hypothesis]:
+        """Get all hypotheses."""
+        return list(self._hypotheses.values())
+
     def get_hypotheses_for_testing(self) -> List[Hypothesis]:
         """Get hypotheses that are actively being tested."""
         return [
@@ -207,6 +211,28 @@ class CuriosityManager:
         return [
             p for p in self._patterns.values()
             if domain in p.domains_involved
+        ]
+
+    def get_investigating(self) -> List[Hypothesis]:
+        """
+        Get hypotheses that have active investigations.
+
+        Returns hypotheses where investigation is started and not stale.
+        """
+        return [
+            h for h in self._hypotheses.values()
+            if h.investigation and h.investigation.status == "active"
+        ]
+
+    def get_video_suggestable(self) -> List[Hypothesis]:
+        """
+        Get hypotheses that are appropriate for video suggestion.
+
+        Returns hypotheses where video is appropriate but not yet requested.
+        """
+        return [
+            h for h in self._hypotheses.values()
+            if h.video_appropriate and not h.video_requested and h.status in ["weak", "testing"]
         ]
 
     # =========================================================================
@@ -534,6 +560,17 @@ class CuriosityManager:
     def baseline_video_requested(self) -> bool:
         """Check if baseline video has been requested."""
         return getattr(self, '_baseline_video_requested', False)
+
+    def should_suggest_baseline_video(self, message_count: int) -> bool:
+        """
+        Check if baseline video should be suggested.
+
+        Suggests between messages 3-15 if not already requested.
+        """
+        if self.baseline_video_requested:
+            return False
+        # Suggest between messages 3-15
+        return 3 <= message_count <= 15
 
     # Alias for backwards compatibility with video_service
     def add_curiosity(self, curiosity: BaseCuriosity) -> None:

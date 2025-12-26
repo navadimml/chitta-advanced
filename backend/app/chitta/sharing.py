@@ -519,12 +519,13 @@ What does this child respond to? How can they use that in treatment?"""
         # Active investigations/concerns with temporal context
         concerns = []
         for curiosity in darshan._curiosities.get_investigating():
-            theory_text = f": {curiosity.theory}" if curiosity.theory else ""
+            theory_text = f": {curiosity.theory}" if hasattr(curiosity, 'theory') and curiosity.theory else ""
             confidence_text = ""
-            if curiosity.certainty is not None:
-                if curiosity.certainty > 0.7:
+            # V2 uses confidence for Hypothesis
+            if hasattr(curiosity, 'confidence') and curiosity.confidence is not None:
+                if curiosity.confidence > 0.7:
                     confidence_text = " (ביטחון גבוה)"
-                elif curiosity.certainty < 0.4:
+                elif curiosity.confidence < 0.4:
                     confidence_text = " (עדיין בבדיקה)"
             concerns.append(f"- {curiosity.focus}{theory_text}{confidence_text}")
         if concerns:
@@ -608,10 +609,8 @@ What does this child respond to? How can they use that in treatment?"""
                     if new_domains:
                         insights.append(f"- לאחרונה התחלנו לבחון גם: {', '.join(new_domains)}")
 
-        # === INVESTIGATION ANALYSIS ===
-        for curiosity in gestalt._curiosities._dynamic:
-            if not curiosity.investigation:
-                continue
+        # === INVESTIGATION ANALYSIS (V2: only hypotheses have investigations) ===
+        for curiosity in gestalt._curiosities.get_investigating():
             inv = curiosity.investigation
 
             # Check for evidence with temporal information
@@ -636,17 +635,19 @@ What does this child respond to? How can they use that in treatment?"""
             # Check investigation age for timeline context
             if inv.started_at:
                 inv_age_days = (datetime.now() - inv.started_at).days
-                if inv_age_days > 14 and curiosity.status == "investigating":
+                # V2: testing status means still investigating
+                if inv_age_days > 14 and curiosity.status == "testing":
                     insights.append(f"- {curiosity.focus}: בבדיקה כבר {inv_age_days} ימים")
 
             # Check status for developmental trajectory
-            if curiosity.status == "understood" and curiosity.certainty and curiosity.certainty > 0.7:
+            # V2: confirmed/supported with high confidence indicates understood
+            if curiosity.status in ("confirmed", "supported") and curiosity.confidence and curiosity.confidence > 0.7:
                 insights.append(f"- {curiosity.focus}: הבנה מגובשת לאחר תקופת מעקב")
 
-        # Check for understood curiosities that might indicate progress
-        understood = [c for c in gestalt._curiosities._dynamic if c.status == "understood"]
-        if understood:
-            insights.append(f"- סיימנו לבחון {len(understood)} תחומים והגענו למסקנות")
+        # Check for confirmed/supported hypotheses that indicate progress
+        confirmed = [h for h in gestalt._curiosities.get_hypotheses() if h.status in ("confirmed", "supported")]
+        if confirmed:
+            insights.append(f"- סיימנו לבחון {len(confirmed)} תחומים והגענו למסקנות")
 
         # === STORY TIMESTAMP ANALYSIS ===
         if gestalt.stories:

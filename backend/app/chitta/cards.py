@@ -67,7 +67,8 @@ class CardsService:
 
             # Stage 1: Suggest video (parent hasn't decided yet)
             # Guidelines NOT generated - only after consent
-            if curiosity.can_suggest_video() and curiosity.certainty < 0.7:
+            # V2: video_appropriate and not video_requested, confidence < 0.7
+            if curiosity.video_appropriate and not curiosity.video_requested and curiosity.confidence < 0.7:
                 cards.append({
                     "type": "video_suggestion",
                     "title": "אפשר להבין את זה טוב יותר בסרטון",
@@ -217,11 +218,10 @@ class CardsService:
         # NOTE: When a specific hypothesis video is suggested, baseline is superseded
         if not cards:  # Only if no other cards pending
             message_count = len(gestalt.session_history)
-            # Check if any curiosity has video (from investigation)
+            # Check if any curiosity has video (from investigation) - V2 uses get_investigating()
             has_any_video = any(
                 scenario.video_path
-                for curiosity in gestalt._curiosities._dynamic
-                if curiosity.investigation
+                for curiosity in gestalt._curiosities.get_investigating()
                 for scenario in curiosity.investigation.video_scenarios
             )
             if not has_any_video and gestalt._curiosities.should_suggest_baseline_video(message_count):
