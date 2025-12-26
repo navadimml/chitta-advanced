@@ -836,8 +836,65 @@ export default function ExpertGuide() {
         <div className="space-y-6">
           <p>
             בואו נציץ לתוך "הראש" של צ'יטה במהלך שיחה אמיתית.
-            מה היא חושבת? איך היא מחליטה מה לשאול? הנה דוגמה:
+            קודם נבין מה המספרים אומרים, ואז נראה דוגמה חיה.
           </p>
+
+          {/* What Pull Actually Is */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+            <h4 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
+              <span>🔥</span>
+              <span>מה זה בעצם "משיכה" (Pull)?</span>
+            </h4>
+            <p className="text-amber-800 mb-4">
+              משיכה = כמה הסקרנות "דוחקת" לתשומת לב. זה <strong>לא</strong> מדד לחוסר,
+              אלא עניין דינמי שמשתנה לפי פעילות, זמן, וודאות.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="bg-white rounded-lg p-3 border border-amber-100">
+                <div className="font-medium text-amber-900 mb-2">מה משפיע על משיכה?</div>
+                <ul className="space-y-1 text-amber-700">
+                  <li>• <strong>דעיכה בזמן:</strong> סקרנות שלא נגעו בה יורדת (-0.02 ליום)</li>
+                  <li>• <strong>פערים בתחום:</strong> חוסר מידע מעלה (+0.05 לפער, עד 0.3)</li>
+                  <li>• <strong>ודאות גבוהה:</strong> מעל 70% מורידה משיכה (-0.2)</li>
+                </ul>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-amber-100">
+                <div className="font-medium text-amber-900 mb-2">איפה משיכה משפיעה בפועל?</div>
+                <ul className="space-y-1 text-amber-700">
+                  <li>• <strong>הצעת סרטון:</strong> רק כשמשיכה מעל 0.7</li>
+                  <li>• <strong>פתיחת חקירה:</strong> רק כשמשיכה מעל 0.7</li>
+                  <li>• <strong>סדר הצגה:</strong> סקרנויות ממוינות לפי משיכה</li>
+                </ul>
+              </div>
+            </div>
+            <div className="mt-4 bg-green-50 rounded-lg p-3 border border-green-200">
+              <p className="text-green-800 text-sm">
+                <strong>חשוב:</strong> צ'יטה <u>לא בוחרת מכנית</u> לפי משיכה. היא עוקבת אחרי ההורה.
+                משיכה משפיעה על מה <em>זמין</em> (כמו הצעת סרטון), לא על מה צ'יטה אומרת.
+              </p>
+            </div>
+          </div>
+
+          {/* What Chitta Actually Sees */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+            <h4 className="font-bold text-slate-800 mb-3">מה צ'יטה באמת רואה בפרומפט?</h4>
+            <p className="text-slate-600 text-sm mb-3">זה הפורמט האמיתי שה-LLM מקבל:</p>
+            <div className="bg-slate-900 text-green-400 font-mono text-xs p-4 rounded-lg overflow-x-auto" dir="ltr">
+              <div className="text-slate-400">## WHAT I'M CURIOUS ABOUT</div>
+              <br />
+              <div>- ❓ איך יואב מתמודד עם מעברים? [███████░░░] 70%</div>
+              <div className="text-slate-500 mr-4">  Question: מה קורה ברגעי מעבר?</div>
+              <br />
+              <div>- 🎯 רגישות חושית משפיעה על ויסות [██████░░░░] 60%</div>
+              <div className="text-slate-500 mr-4">  Theory: רגישות חושית גורמת לקושי (confidence: 55%)</div>
+              <div className="text-slate-500 mr-4">  Video appropriate: Yes</div>
+              <br />
+              <div>- 🔍 מה מאפיין את המשחק שלו? [█████░░░░░] 50%</div>
+            </div>
+            <p className="text-slate-500 text-xs mt-2">
+              סרגל המשיכה הויזואלי [████░░░░░░] עוזר ל-LLM להבין את העדיפות היחסית.
+            </p>
+          </div>
 
           {/* Setup - Enhanced Visual */}
           <div className="bg-gradient-to-l from-slate-100 to-gray-50 rounded-2xl p-5 border border-gray-200 shadow-sm">
@@ -977,24 +1034,23 @@ export default function ExpertGuide() {
             parentMessage="מעברים? תראי, יציאה מהבית זה תמיד דרמה. אבל דווקא כשאנחנו בגן, הוא נפרד ממני בקלות!"
             chittaThinking={[
               "רגע רגע! זה מעניין מאוד!",
-              "הנחתי שהבעיה היא במעברים בכלל, אבל זה לא מדויק.",
-              "הבעיה היא ביציאה מהבית, לא בפרידה. אלה שני דברים שונים!",
-              "זו ראיה שמשנה את ההבנה שלי. לא 'סותרת' — 'משנה' (transforms).",
-              "אני מאפסת את הודאות ל-40% ומנסחת מחדש: 'מעברים מסביבה מוכרת'.",
+              "הנחתי שהבעיה היא 'מעברים בכלל', אבל המידע הזה משנה את ההבנה.",
+              "הבעיה היא ביציאה מהבית, לא בפרידה. זה יותר ספציפי!",
+              "זו ראיה שמשנה (transforms) — לא סותרת, מחדדת.",
+              "אפתח סקרנות חדשה ומדויקת יותר: 'יציאה מסביבה מוכרת'.",
             ]}
             responseThinking="זו תובנה חשובה של האמא. אחזור על ההבחנה שלה (לוודא שהבנתי נכון) ואשאל מה היא חושבת שקורה — היא מכירה את יואב הכי טוב."
             chittaResponse="זה ממש מעניין! אז בגן, כשהוא כבר שם, הפרידה קלה. הקושי הוא דווקא ברגע היציאה מהבית. מה את חושבת שקורה ברגע הזה?"
             toolCalls={[
               { tool: "notice", content: "פרידה קלה בגן, קושי ביציאה מהבית — הבחנה חשובה" },
-              { tool: "add_evidence", content: "משנה את הבנת 'מעברים' — ודאות 40% (איפוס)" },
-              { tool: "wonder", content: "שאלה חדשה: מה בסביבה הביתית מקשה על היציאה?" },
+              { tool: "add_evidence", content: "ראיה משנה (transforms) ל'מעברים' — ודאות מתאפסת" },
+              { tool: "wonder", content: "סקרנות מחודדת: יציאה מסביבה מוכרת" },
             ]}
             stateChanges={[
-              { entity: "מעברים", field: "ודאות", from: "35%", to: "40%", direction: "reset", note: "הבנה חדשה" },
-              { entity: "מעברים", field: "נוסח", from: "מעברים בכלל", to: "יציאה מסביבה מוכרת", direction: "transform" },
-              { entity: "שאלה חדשה", field: "", from: "", to: "מה מקשה על היציאה?", direction: "new" },
+              { entity: "מעברים (כללי)", field: "ודאות", from: "35%", to: "40%", direction: "reset", note: "ראיה משנה" },
+              { entity: "סקרנות חדשה", field: "focus", from: "", to: "יציאה מסביבה מוכרת", direction: "new" },
             ]}
-            chittaNote="הנה רגע קריטי: צ'יטה לא נצמדת להשערה הישנה. היא מוכנה 'לאפס' ולהתחיל מחדש עם הבנה מדויקת יותר."
+            chittaNote="הנה רגע קריטי: כשמידע חדש מחדד את ההבנה, צ'יטה לא נאחזת בניסוח הישן. היא פותחת סקרנות חדשה ומדויקת יותר."
           />
 
           {/* Turn 4 - Pattern Emerging */}
