@@ -21,8 +21,8 @@ import json
 import os
 
 from .gestalt import Darshan
-from .curiosity import Curiosity, InvestigationContext, create_discovery
-from .models import VideoScenario, Evidence, TemporalFact
+from .curiosity_types import BaseCuriosity, Hypothesis, Discovery, Question
+from .models import VideoScenario, Evidence as VideoEvidence, TemporalFact, InvestigationContext
 
 logger = logging.getLogger(__name__)
 
@@ -213,13 +213,17 @@ class VideoService:
         # Create a discovery curiosity with investigation
         child_name = darshan.child_name or "הילד/ה"
 
-        curiosity = create_discovery(
+        # Create discovery with video-appropriate settings
+        # Note: Discovery doesn't have video fields, so we create a Hypothesis for video testing
+        curiosity = Hypothesis.create(
             focus=f"להכיר את {child_name}",
+            theory=f"תצפית בסיסית להכרת {child_name}",
             domain="essence",
+            reasoning="baseline video observation",
+            video_appropriate=True,
+            video_value="discovery",
+            video_value_reason="baseline observation to see the child naturally",
         )
-        curiosity.video_appropriate = True
-        curiosity.video_value = "discovery"
-        curiosity.video_value_reason = "baseline observation to see the child naturally"
 
         # Start investigation and accept video
         curiosity.start_investigation()
@@ -308,8 +312,8 @@ class VideoService:
             return {"error": "Family not found"}
 
         dismissed_count = 0
-        for curiosity in darshan._curiosities._dynamic:
-            if curiosity.investigation:
+        for curiosity in darshan._curiosities.get_all():
+            if isinstance(curiosity, Hypothesis) and curiosity.investigation:
                 for scenario in curiosity.investigation.video_scenarios:
                     if scenario.id in scenario_ids:
                         scenario.dismiss_reminder()
@@ -339,8 +343,8 @@ class VideoService:
             return {"error": "Family not found"}
 
         rejected_count = 0
-        for curiosity in darshan._curiosities._dynamic:
-            if curiosity.investigation:
+        for curiosity in darshan._curiosities.get_all():
+            if isinstance(curiosity, Hypothesis) and curiosity.investigation:
                 for scenario in curiosity.investigation.video_scenarios:
                     if scenario.id in scenario_ids:
                         scenario.reject()
@@ -370,8 +374,8 @@ class VideoService:
             return {"error": "Family not found"}
 
         acknowledged_count = 0
-        for curiosity in darshan._curiosities._dynamic:
-            if curiosity.investigation:
+        for curiosity in darshan._curiosities.get_all():
+            if isinstance(curiosity, Hypothesis) and curiosity.investigation:
                 for scenario in curiosity.investigation.video_scenarios:
                     if scenario.id in scenario_ids and scenario.status == "analyzed":
                         scenario.status = "acknowledged"
@@ -398,8 +402,8 @@ class VideoService:
         if not darshan:
             return {"error": "Family not found"}
 
-        for curiosity in darshan._curiosities._dynamic:
-            if not curiosity.investigation:
+        for curiosity in darshan._curiosities.get_all():
+            if not isinstance(curiosity, Hypothesis) or not curiosity.investigation:
                 continue
             for scenario in curiosity.investigation.video_scenarios:
                 if scenario.id == scenario_id and scenario.status == "needs_confirmation":
@@ -413,12 +417,12 @@ class VideoService:
 
                         # Process evidence from the analysis
                         for observation in analysis_result.get("observations", []):
-                            evidence = Evidence.create(
+                            evidence = VideoEvidence.create(
                                 content=observation.get("content", ""),
                                 effect=observation.get("effect", "supports"),
                                 source="video",
                             )
-                            curiosity.add_evidence(evidence)
+                            curiosity.investigation.evidence.append(evidence)
 
                         await self._persist_darshan(family_id, darshan)
                         return {
@@ -441,8 +445,8 @@ class VideoService:
         if not darshan:
             return {"error": "Family not found"}
 
-        for curiosity in darshan._curiosities._dynamic:
-            if not curiosity.investigation:
+        for curiosity in darshan._curiosities.get_all():
+            if not isinstance(curiosity, Hypothesis) or not curiosity.investigation:
                 continue
             for scenario in curiosity.investigation.video_scenarios:
                 if scenario.id == scenario_id and scenario.status == "needs_confirmation":
@@ -483,8 +487,8 @@ class VideoService:
             return {"error": "Family not found"}
 
         # Find the scenario across all curiosities (by ID or title)
-        for curiosity in darshan._curiosities._dynamic:
-            if not curiosity.investigation:
+        for curiosity in darshan._curiosities.get_all():
+            if not isinstance(curiosity, Hypothesis) or not curiosity.investigation:
                 continue
             for scenario in curiosity.investigation.video_scenarios:
                 # Match by ID or title
@@ -505,7 +509,7 @@ class VideoService:
                     }
 
         logger.warning(f"⚠️ Scenario not found: '{scenario_id}' in family {family_id}")
-        available = [(s.id, s.title) for c in darshan._curiosities._dynamic if c.investigation for s in c.investigation.video_scenarios]
+        available = [(s.id, s.title) for c in darshan._curiosities.get_all() if isinstance(c, Hypothesis) and c.investigation for s in c.investigation.video_scenarios]
         logger.warning(f"   Available scenarios: {available}")
         return {"error": f"Scenario '{scenario_id}' not found"}
 
@@ -527,8 +531,8 @@ class VideoService:
     async def _generate_personalized_video_guidelines(
         self,
         darshan: Darshan,
-        curiosity: "Curiosity",
-    ) -> List["VideoScenario"]:
+        curiosity: Hypothesis,
+    ) -> List[VideoScenario]:
         """
         Generate PERSONALIZED video guidelines using LLM.
 
@@ -653,7 +657,7 @@ Generate the scenario JSON now:
                 focus_points=scenario_data.get("focus_points", []),
                 duration_suggestion=scenario_data.get("duration_suggestion", "3-5 דקות"),
                 example_situations=scenario_data.get("example_situations", []),
-                category="hypothesis_test" if curiosity.type == "hypothesis" else "exploration",
+                category="hypothesis_test" if isinstance(curiosity, Hypothesis) else "exploration",
             )
 
             logger.info(f"✅ Generated personalized video guidelines for curiosity: {curiosity.focus}")
@@ -755,7 +759,7 @@ Generate the scenario JSON now:
             return "\n".join(f"- {s}" for s in strength_facts[:5])
         return "Not yet identified - explore through video."
 
-    def _create_fallback_scenario(self, darshan: Darshan, curiosity: "Curiosity") -> "VideoScenario":
+    def _create_fallback_scenario(self, darshan: Darshan, curiosity: Hypothesis) -> VideoScenario:
         """Create a simple fallback scenario if LLM fails."""
         child_name = darshan.child_name or "הילד/ה"
         investigation_id = curiosity.investigation.id if curiosity.investigation else curiosity.focus
@@ -833,8 +837,6 @@ Generate the scenario JSON now:
 
         Returns insights for the parent (no hypothesis revealed).
         """
-        from .curiosity import create_question
-
         darshan = await self._get_darshan(family_id)
         if not darshan:
             return {"error": "Family not found"}
@@ -855,7 +857,7 @@ Generate the scenario JSON now:
         insights = []
         evidence_added = 0
         strengths_found = []
-        confidence_before = curiosity.certainty
+        confidence_before = curiosity.confidence
         hypothesis_evidence = {}  # Initialize for return statement
         validation_failed_count = 0
 
@@ -893,14 +895,14 @@ Generate the scenario JSON now:
                 # Mark scenario as analyzed with full result
                 scenario.mark_analyzed(analysis_result)
 
-                # Create evidence from observations
+                # Create evidence from observations and add to investigation
                 for observation in analysis_result.get("observations", []):
-                    evidence = Evidence.create(
+                    evidence = VideoEvidence.create(
                         content=observation.get("content", ""),
                         effect=observation.get("effect", "supports"),
                         source="video",
                     )
-                    curiosity.add_evidence(evidence)
+                    curiosity.investigation.evidence.append(evidence)
                     evidence_added += 1
 
                 # Update confidence based on hypothesis_evidence verdict
@@ -908,22 +910,22 @@ Generate the scenario JSON now:
                 verdict = hypothesis_evidence.get("overall_verdict", "inconclusive")
                 confidence_level = hypothesis_evidence.get("confidence_level", "Low")
 
-                if curiosity.type == "hypothesis" and curiosity.certainty is not None:
+                if isinstance(curiosity, Hypothesis) and curiosity.confidence is not None:
                     # More nuanced confidence update based on verdict
                     if verdict == "supports":
                         boost = 0.15 if confidence_level == "High" else 0.10 if confidence_level == "Moderate" else 0.05
-                        curiosity.certainty = min(1.0, curiosity.certainty + boost)
+                        curiosity.confidence = min(1.0, curiosity.confidence + boost)
                     elif verdict == "contradicts":
                         drop = 0.20 if confidence_level == "High" else 0.15 if confidence_level == "Moderate" else 0.10
-                        curiosity.certainty = max(0.0, curiosity.certainty - drop)
+                        curiosity.confidence = max(0.0, curiosity.confidence - drop)
                     elif verdict == "mixed":
                         # Mixed evidence - slight increase if more supports than contradicts
                         supporting = len(hypothesis_evidence.get("supporting_evidence", []))
                         contradicting = len(hypothesis_evidence.get("contradicting_evidence", []))
                         if supporting > contradicting:
-                            curiosity.certainty = min(1.0, curiosity.certainty + 0.05)
+                            curiosity.confidence = min(1.0, curiosity.confidence + 0.05)
                         elif contradicting > supporting:
-                            curiosity.certainty = max(0.0, curiosity.certainty - 0.05)
+                            curiosity.confidence = max(0.0, curiosity.confidence - 0.05)
                         # Equal: no change
 
                 # Capture strengths as facts (strengths are GOLD)
@@ -974,13 +976,14 @@ Generate the scenario JSON now:
                 # Create curiosities from new questions raised by video
                 # This makes video discoveries actionable for future exploration
                 new_questions = hypothesis_evidence.get("new_questions_raised", [])
-                for question in new_questions[:3]:  # Limit to top 3 to avoid overwhelm
-                    logger.info(f"🔮 New curiosity from video: {question}")
-                    new_curiosity = create_question(
-                        focus=question,
-                        question=question,
+                for question_text in new_questions[:3]:  # Limit to top 3 to avoid overwhelm
+                    logger.info(f"🔮 New curiosity from video: {question_text}")
+                    new_curiosity = Question.create(
+                        focus=question_text,
+                        question=question_text,
                         domain=curiosity.domain,  # Inherit domain from parent curiosity
-                        activation=0.6,  # Start moderately active
+                        reasoning="New question raised from video analysis",
+                        pull=0.6,  # Start moderately active
                     )
                     darshan._curiosities.add_curiosity(new_curiosity)
 
@@ -1004,16 +1007,16 @@ Generate the scenario JSON now:
             "validation_failed_count": validation_failed_count,
             "confidence_update": {
                 "before": confidence_before,
-                "after": curiosity.certainty,
+                "after": curiosity.confidence,
                 "verdict": hypothesis_evidence.get("overall_verdict", "unknown"),
-            } if curiosity.type == "hypothesis" and hypothesis_evidence else None,
+            } if isinstance(curiosity, Hypothesis) and hypothesis_evidence else None,
         }
 
     async def _analyze_video(
         self,
         darshan: Darshan,
-        curiosity: "Curiosity",
-        scenario,
+        curiosity: Hypothesis,
+        scenario: VideoScenario,
     ) -> Optional[Dict[str, Any]]:
         """
         Analyze a single video using Gemini's video capabilities.
@@ -1428,8 +1431,8 @@ If asked to film "מעבר מפעילות לפעילות" but video shows child 
     def _create_simulated_analysis(
         self,
         child_name: str,
-        curiosity: "Curiosity",
-        scenario,
+        curiosity: Hypothesis,
+        scenario: VideoScenario,
     ) -> Dict[str, Any]:
         """Create simulated analysis when video cannot be processed."""
         return {

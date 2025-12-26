@@ -11,7 +11,7 @@ User-facing text (responses) should be in Hebrew.
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .curiosity import Curiosity
+    from .curiosity_types import BaseCuriosity
     from .models import Understanding, PerceptionResult, ToolCall, Crystal, ParentContext
 
 
@@ -178,13 +178,16 @@ def format_understanding(understanding: Optional["Understanding"]) -> str:
     return "\n".join(sections) if sections else "Building understanding..."
 
 
-def format_curiosities(curiosities: List["Curiosity"]) -> str:
+def format_curiosities(curiosities: List["BaseCuriosity"]) -> str:
     """
     Format curiosities for prompt with visual pull bars.
 
     Shows what Darshan is curious about right now.
     Returns English for LLM prompt context.
     """
+    # Import here to avoid circular imports
+    from .curiosity_types import Discovery, Question, Hypothesis, Pattern
+
     if not curiosities:
         return "Open to discover who this child is."
 
@@ -195,20 +198,33 @@ def format_curiosities(curiosities: List["Curiosity"]) -> str:
         filled = int(c.pull * 10)
         empty = 10 - filled
         bar = "█" * filled + "░" * empty
-        icon = TYPE_ICONS.get(c.type, "")
+
+        # Determine type from class
+        if isinstance(c, Discovery):
+            curiosity_type = "discovery"
+        elif isinstance(c, Question):
+            curiosity_type = "question"
+        elif isinstance(c, Hypothesis):
+            curiosity_type = "hypothesis"
+        elif isinstance(c, Pattern):
+            curiosity_type = "pattern"
+        else:
+            curiosity_type = "discovery"
+
+        icon = TYPE_ICONS.get(curiosity_type, "")
         percent = int(c.pull * 100)
 
         lines.append(f"- {icon} {c.focus} [{bar}] {percent}%")
 
         # Type-specific details
-        if c.type == "hypothesis" and c.theory:
-            cert_percent = int(c.certainty * 100)
+        if isinstance(c, Hypothesis):
+            cert_percent = int(c.confidence * 100)
             lines.append(f"  Theory: {c.theory} (confidence: {cert_percent}%)")
             if c.video_appropriate:
                 lines.append("  Video appropriate: Yes")
-        elif c.type == "question" and c.question:
+        elif isinstance(c, Question):
             lines.append(f"  Question: {c.question}")
-        elif c.type == "pattern" and c.domains_involved:
+        elif isinstance(c, Pattern):
             domains_text = ", ".join(c.domains_involved)
             lines.append(f"  Domains: {domains_text}")
 

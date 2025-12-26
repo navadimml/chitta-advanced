@@ -375,10 +375,14 @@ async def adjust_curiosity_certainty(
     if not curiosity:
         raise HTTPException(status_code=404, detail="Curiosity not found")
 
-    original_certainty = curiosity.certainty
-
-    # Update the curiosity
-    curiosity.certainty = request.new_certainty
+    # V2 uses 'confidence' for Hypothesis/Pattern, 'fullness' for Discovery/Question
+    from app.chitta.curiosity_types import Hypothesis, Pattern
+    if isinstance(curiosity, (Hypothesis, Pattern)):
+        original_certainty = curiosity.confidence
+        curiosity.confidence = request.new_certainty
+    else:
+        original_certainty = curiosity.fullness
+        curiosity.fullness = request.new_certainty
 
     # Save Darshan state
     await chitta._gestalt_manager.persist_darshan(child_id, darshan)
@@ -443,19 +447,19 @@ async def add_expert_evidence(
 
     # Ensure investigation exists
     if not curiosity.investigation:
-        from app.chitta.curiosity import InvestigationContext
+        from app.chitta.models import InvestigationContext
         curiosity.investigation = InvestigationContext.create()
 
-    curiosity.investigation.add_evidence(evidence)
+    curiosity.investigation.evidence.append(evidence)
 
-    # Apply certainty effect
-    original_certainty = curiosity.certainty
+    # Apply confidence effect (V2 uses confidence, not certainty)
+    original_confidence = curiosity.confidence
     if request.effect == "supports":
-        curiosity.certainty = min(1.0, curiosity.certainty + 0.1)
+        curiosity.confidence = min(1.0, curiosity.confidence + 0.1)
     elif request.effect == "contradicts":
-        curiosity.certainty = max(0.0, curiosity.certainty - 0.15)
+        curiosity.confidence = max(0.0, curiosity.confidence - 0.15)
     elif request.effect == "transforms":
-        curiosity.certainty = 0.4
+        curiosity.confidence = 0.4
 
     # Save Darshan state
     await chitta._gestalt_manager.persist_darshan(child_id, darshan)
@@ -474,11 +478,15 @@ async def add_expert_evidence(
     await uow.dashboard.evidence.mark_applied(db_evidence.id)
     await uow.commit()
 
+    # Get new certainty from confidence (V2)
+    from app.chitta.curiosity_types import Hypothesis, Pattern
+    new_certainty = curiosity.confidence if isinstance(curiosity, (Hypothesis, Pattern)) else curiosity.fullness
+
     return {
         "success": True,
         "evidence_id": str(db_evidence.id),
-        "original_certainty": original_certainty,
-        "new_certainty": curiosity.certainty,
+        "original_certainty": original_confidence,  # Updated variable name from above
+        "new_certainty": new_certainty,
     }
 
 
@@ -716,7 +724,7 @@ async def get_child_videos(
                 strengths_observed=strengths,
                 insights=insights,
                 certainty_before=None,  # TODO: Track this
-                certainty_after=curiosity.certainty if scenario.status == "analyzed" else None,
+                certainty_after=curiosity.confidence if scenario.status == "analyzed" else None,
             ))
 
     # Sort by most recent first
@@ -793,7 +801,7 @@ async def get_video_detail(
                     "hypothesis": {
                         "focus": curiosity.focus,
                         "theory": curiosity.theory,
-                        "certainty": curiosity.certainty,
+                        "certainty": curiosity.confidence,  # V2 uses confidence
                         "domain": curiosity.domain,
                     },
                 }
@@ -1876,35 +1884,55 @@ async def export_training_data(
 # =============================================================================
 
 def _curiosity_to_dict(curiosity, is_perpetual: bool = False) -> Dict[str, Any]:
-    """Convert a Curiosity object to a dict."""
+    """Convert a Curiosity object to a dict (V2 compatible)."""
+    from app.chitta.curiosity_types import Discovery, Question, Hypothesis, Pattern
+
     evidence = []
-    if curiosity.investigation:
+    if hasattr(curiosity, 'investigation') and curiosity.investigation:
         evidence = [
             {
                 "content": e.content,
                 "effect": e.effect,
-                "source": e.source,
-                "timestamp": e.timestamp.isoformat() if e.timestamp else None,
+                "source": getattr(e, 'source', 'unknown'),
+                "timestamp": e.timestamp.isoformat() if hasattr(e, 'timestamp') and e.timestamp else None,
             }
             for e in curiosity.investigation.evidence
         ]
 
+    # Determine type from isinstance check (V2)
+    if isinstance(curiosity, Hypothesis):
+        curiosity_type = "hypothesis"
+        certainty = curiosity.confidence
+    elif isinstance(curiosity, Pattern):
+        curiosity_type = "pattern"
+        certainty = curiosity.confidence
+    elif isinstance(curiosity, Question):
+        curiosity_type = "question"
+        certainty = curiosity.fullness
+    elif isinstance(curiosity, Discovery):
+        curiosity_type = "discovery"
+        certainty = curiosity.fullness
+    else:
+        # Fallback for old Curiosity objects during transition
+        curiosity_type = getattr(curiosity, 'type', 'unknown')
+        certainty = getattr(curiosity, 'certainty', getattr(curiosity, 'confidence', 0.5))
+
     return {
         "focus": curiosity.focus,
-        "type": curiosity.type,
+        "type": curiosity_type,
         "pull": curiosity.pull,
-        "certainty": curiosity.certainty,
+        "certainty": certainty,  # API uses 'certainty', V2 uses 'confidence' or 'fullness'
         "status": curiosity.status if hasattr(curiosity, 'status') else "wondering",
-        "theory": curiosity.theory if hasattr(curiosity, 'theory') else None,
-        "domain": curiosity.domain if hasattr(curiosity, 'domain') else None,
+        "theory": getattr(curiosity, 'theory', None),
+        "domain": getattr(curiosity, 'domain', None),
         "evidence": evidence,
-        "times_explored": curiosity.times_explored if hasattr(curiosity, 'times_explored') else 0,
-        "last_activated": curiosity.last_activated.isoformat() if hasattr(curiosity, 'last_activated') and curiosity.last_activated else None,
+        "times_explored": getattr(curiosity, 'times_explored', 0),
+        "last_activated": curiosity.last_updated.isoformat() if hasattr(curiosity, 'last_updated') and curiosity.last_updated else None,
         "is_perpetual": is_perpetual,
         # Video recommendation fields (for hypotheses)
-        "video_appropriate": curiosity.video_appropriate if hasattr(curiosity, 'video_appropriate') else False,
-        "video_value": curiosity.video_value if hasattr(curiosity, 'video_value') else None,
-        "video_value_reason": curiosity.video_value_reason if hasattr(curiosity, 'video_value_reason') else None,
+        "video_appropriate": getattr(curiosity, 'video_appropriate', False),
+        "video_value": getattr(curiosity, 'video_value', None),
+        "video_value_reason": getattr(curiosity, 'video_value_reason', None),
     }
 
 
@@ -1981,7 +2009,7 @@ def _extract_videos_from_darshan(darshan) -> List[Dict[str, Any]]:
                 "observations": observations,
                 "strengths_observed": strengths,
                 "insights": insights,
-                "certainty_after": curiosity.certainty if scenario.status == "analyzed" else None,
+                "certainty_after": curiosity.confidence if scenario.status == "analyzed" else None,
             })
 
     # Sort by most recent first

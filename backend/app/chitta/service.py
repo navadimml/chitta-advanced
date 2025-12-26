@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from .gestalt import Darshan
-from .curiosity import Curiosity
+from .curiosity_types import BaseCuriosity, Discovery, Question, Hypothesis, Pattern
 from .models import SynthesisReport, Crystal, ParentContext
 from .synthesis import get_synthesis_service
 from .child_space import get_child_space_service
@@ -182,17 +182,12 @@ class ChittaService:
         curiosities = gestalt.get_active_curiosities()
 
         # Check if we should suggest baseline video
-        # This is early in conversation when seeing the child would help
+        # Early in conversation (5-15 messages) when seeing the child would help
         message_count = len(gestalt.session_history)
-        has_any_video = any(
-            scenario.video_path
-            for curiosity in gestalt._curiosities._dynamic
-            if curiosity.investigation
-            for scenario in curiosity.investigation.video_scenarios
-        )
+        video_hypotheses = gestalt._curiosity_manager.get_video_appropriate_hypotheses()
         suggest_baseline_video = (
-            not has_any_video and
-            gestalt._curiosities.should_suggest_baseline_video(message_count)
+            5 <= message_count <= 15 and
+            len(video_hypotheses) == 0  # No video-appropriate hypotheses yet
         )
 
         return {
@@ -200,7 +195,7 @@ class ChittaService:
                 self._curiosity_to_dict(c)
                 for c in curiosities[:5]
             ],
-            "open_questions": gestalt._curiosities.get_gaps(),
+            "open_questions": [c.focus for c in gestalt._curiosity_manager.get_gaps()],
             "suggest_baseline_video": suggest_baseline_video,
         }
 
@@ -453,23 +448,40 @@ class ChittaService:
     # HELPERS
     # ========================================
 
-    def _curiosity_to_dict(self, curiosity: Curiosity) -> Dict[str, Any]:
+    def _curiosity_to_dict(self, curiosity: BaseCuriosity) -> Dict[str, Any]:
         """Convert curiosity to dict for API response."""
+        # Determine type from class
+        if isinstance(curiosity, Hypothesis):
+            curiosity_type = "hypothesis"
+            certainty = curiosity.confidence
+        elif isinstance(curiosity, Question):
+            curiosity_type = "question"
+            certainty = curiosity.fullness
+        elif isinstance(curiosity, Pattern):
+            curiosity_type = "pattern"
+            certainty = curiosity.confidence
+        elif isinstance(curiosity, Discovery):
+            curiosity_type = "discovery"
+            certainty = curiosity.fullness
+        else:
+            curiosity_type = "discovery"
+            certainty = 0.5
+
         result = {
             "focus": curiosity.focus,
-            "type": curiosity.type,
+            "type": curiosity_type,
             "pull": curiosity.pull,
-            "certainty": curiosity.certainty,
+            "certainty": certainty,
         }
 
-        if curiosity.type == "hypothesis":
+        if isinstance(curiosity, Hypothesis):
             result["theory"] = curiosity.theory
             result["video_appropriate"] = curiosity.video_appropriate
 
-        if curiosity.type == "question":
+        if isinstance(curiosity, Question):
             result["question"] = curiosity.question
 
-        if curiosity.type == "pattern":
+        if isinstance(curiosity, Pattern):
             result["domains_involved"] = curiosity.domains_involved
 
         return result

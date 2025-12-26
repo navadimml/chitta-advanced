@@ -25,7 +25,9 @@ async def test_crystallization_generates_all_fields():
         Understanding, TemporalFact,
         Story, Evidence
     )
-    from app.chitta.curiosity import Curiosities, create_hypothesis
+    from app.chitta.curiosity_types import Hypothesis
+    from app.chitta.curiosity_types import Evidence as CuriosityEvidence
+    from app.chitta.curiosity_manager import CuriosityManager
 
     # Create service
     synthesis = SynthesisService()
@@ -42,18 +44,29 @@ async def test_crystallization_generates_all_fields():
         ]
     )
 
-    # Build curiosities with an investigation
-    curiosities = Curiosities()
-    hypothesis = create_hypothesis(
+    # Build curiosities with an investigation (V2)
+    curiosities = CuriosityManager()
+    hypothesis = Hypothesis.create(
         focus="קושי במעברים",
         theory="יכול להיות שמעברים קשים לו כי השינוי מרגיש גדול",
         domain="behavioral",
+        reasoning="Test hypothesis for crystallization",
         video_appropriate=True,
-        certainty=0.6,
+        confidence=0.6,
     )
     hypothesis.start_investigation()  # Start investigation for this hypothesis
-    hypothesis.add_evidence(Evidence(content="מתפרץ כשצריך לצאת מהבית", effect="supports", source="conversation"))
-    curiosities.add_curiosity(hypothesis)
+    # Add evidence through investigation
+    evidence = CuriosityEvidence.create(
+        content="מתפרץ כשצריך לצאת מהבית",
+        effect="supports",
+        session_id="test_session",
+        source_observation="test_obs",
+        reasoning="Test evidence",
+        confidence_before=0.6,
+        confidence_after=0.7,
+    )
+    hypothesis.add_evidence(evidence, "Test evidence added")
+    curiosities.add(hypothesis)
 
     # Build stories
     stories = [

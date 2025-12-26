@@ -331,6 +331,7 @@ class CuriosityManager:
             "questions": [q.to_dict() for q in self._questions.values()],
             "hypotheses": [h.to_dict() for h in self._hypotheses.values()],
             "patterns": [p.to_dict() for p in self._patterns.values()],
+            "baseline_video_requested": getattr(self, '_baseline_video_requested', False),
         }
 
     @classmethod
@@ -349,6 +350,10 @@ class CuriosityManager:
 
         for p_data in data.get("patterns", []):
             manager.add(Pattern.from_dict(p_data))
+
+        # Restore video flags
+        if data.get("baseline_video_requested"):
+            manager._baseline_video_requested = True
 
         return manager
 
@@ -505,3 +510,32 @@ class CuriosityManager:
                 return pattern
 
         return None
+
+    def get_curiosity_by_investigation_id(self, investigation_id: str) -> Optional[Hypothesis]:
+        """
+        Find a hypothesis by its investigation ID.
+
+        Used by video service to find the hypothesis being tested.
+        """
+        for hypothesis in self._hypotheses.values():
+            if hypothesis.investigation and hypothesis.investigation.id == investigation_id:
+                return hypothesis
+        return None
+
+    def mark_baseline_video_requested(self) -> None:
+        """
+        Mark that baseline video has been requested.
+
+        Stored as a flag in the manager state to prevent re-suggesting.
+        """
+        self._baseline_video_requested = True
+
+    @property
+    def baseline_video_requested(self) -> bool:
+        """Check if baseline video has been requested."""
+        return getattr(self, '_baseline_video_requested', False)
+
+    # Alias for backwards compatibility with video_service
+    def add_curiosity(self, curiosity: BaseCuriosity) -> None:
+        """Alias for add() - for compatibility."""
+        self.add(curiosity)

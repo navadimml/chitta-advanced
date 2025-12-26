@@ -863,6 +863,77 @@ class VideoScenario:
         }
 
 
+@dataclass
+class InvestigationContext:
+    """
+    Video investigation workflow attached to a hypothesis.
+
+    Contains evidence collection and video scenario state.
+    """
+    id: str
+    status: str  # "active" | "complete" | "stale"
+    started_at: datetime = field(default_factory=datetime.now)
+
+    # Evidence collection
+    evidence: List["Evidence"] = field(default_factory=list)
+
+    # Video workflow
+    video_accepted: bool = False
+    video_declined: bool = False
+    video_suggested_at: Optional[datetime] = None
+    video_scenarios: List["VideoScenario"] = field(default_factory=list)
+    guidelines_status: Optional[str] = None  # "generating" | "ready" | "error"
+
+    @classmethod
+    def create(cls) -> "InvestigationContext":
+        """Create a new investigation context."""
+        return cls(
+            id=f"inv_{generate_id()[:8]}",
+            status="active",
+            started_at=datetime.now(),
+        )
+
+    def add_evidence(self, evidence: "Evidence"):
+        """Add evidence to this investigation."""
+        self.evidence.append(evidence)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary."""
+        return {
+            "id": self.id,
+            "status": self.status,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "evidence": [e.to_dict() for e in self.evidence],
+            "video_accepted": self.video_accepted,
+            "video_declined": self.video_declined,
+            "video_suggested_at": self.video_suggested_at.isoformat() if self.video_suggested_at else None,
+            "video_scenarios": [s.to_dict() for s in self.video_scenarios],
+            "guidelines_status": self.guidelines_status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "InvestigationContext":
+        """Deserialize from dictionary."""
+        def parse_dt(val):
+            if val is None:
+                return None
+            if isinstance(val, datetime):
+                return val
+            return datetime.fromisoformat(val) if val else None
+
+        return cls(
+            id=data["id"],
+            status=data.get("status", "active"),
+            started_at=parse_dt(data.get("started_at")) or datetime.now(),
+            evidence=[Evidence.from_dict(e) for e in data.get("evidence", [])],
+            video_accepted=data.get("video_accepted", False),
+            video_declined=data.get("video_declined", False),
+            video_suggested_at=parse_dt(data.get("video_suggested_at")),
+            video_scenarios=[VideoScenario.from_dict(s) for s in data.get("video_scenarios", [])],
+            guidelines_status=data.get("guidelines_status"),
+        )
+
+
 # === LLM Interaction Models ===
 
 @dataclass

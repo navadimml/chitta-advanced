@@ -29,7 +29,14 @@ Tool calls and text response CANNOT be reliably combined.
 
 from .service import ChittaService, get_chitta_service
 from .gestalt import Darshan
-from .curiosity import Curiosity, Curiosities, create_hypothesis, create_question, create_pattern, create_discovery
+from .curiosity_types import (
+    BaseCuriosity,
+    Discovery,
+    Question,
+    Hypothesis,
+    Pattern as CuriosityPattern,  # Renamed to avoid conflict with models.Pattern
+)
+from .curiosity_manager import CuriosityManager
 from .tools import get_perception_tools, PERCEPTION_TOOLS
 from .synthesis import SynthesisService, get_synthesis_service
 
@@ -66,13 +73,13 @@ __all__ = [
     "get_chitta_service",
     # Darshan
     "Darshan",
-    # Curiosity
-    "Curiosity",
-    "Curiosities",
-    "create_hypothesis",
-    "create_question",
-    "create_pattern",
-    "create_discovery",
+    # Curiosity V2 Types
+    "BaseCuriosity",
+    "Discovery",
+    "Question",
+    "Hypothesis",
+    "CuriosityPattern",
+    "CuriosityManager",
     # Tools
     "get_perception_tools",
     "PERCEPTION_TOOLS",

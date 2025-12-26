@@ -25,8 +25,11 @@ EVOLUTION PATH:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, TYPE_CHECKING
 import uuid
+
+if TYPE_CHECKING:
+    from .models import InvestigationContext
 
 
 def generate_curiosity_id(prefix: str = "cur") -> str:
@@ -473,6 +476,9 @@ class Hypothesis(AssertiveCuriosity):
     # Evidence chain
     evidence: List[Evidence] = field(default_factory=list)
 
+    # Video investigation workflow
+    investigation: Optional["InvestigationContext"] = None
+
     # Lineage
     source_question: Optional[str] = None  # Question ID this evolved from
     contributed_to_patterns: List[str] = field(default_factory=list)  # Pattern IDs
@@ -516,6 +522,23 @@ class Hypothesis(AssertiveCuriosity):
             self.contributed_to_patterns.append(pattern_id)
         self.touch(reasoning)
 
+    def start_investigation(self):
+        """Start a video investigation for this hypothesis."""
+        from .models import InvestigationContext
+        if self.investigation is None:
+            self.investigation = InvestigationContext.create()
+
+    def accept_video(self):
+        """Accept video recording for this hypothesis."""
+        if self.investigation:
+            self.investigation.video_accepted = True
+            self.investigation.video_suggested_at = datetime.now()
+
+    def decline_video(self):
+        """Decline video recording for this hypothesis."""
+        if self.investigation:
+            self.investigation.video_declined = True
+
     def to_dict(self) -> Dict[str, Any]:
         data = super().to_dict()
         data["theory"] = self.theory
@@ -524,6 +547,7 @@ class Hypothesis(AssertiveCuriosity):
         data["video_value_reason"] = self.video_value_reason
         data["video_requested"] = self.video_requested
         data["evidence"] = [e.to_dict() for e in self.evidence]
+        data["investigation"] = self.investigation.to_dict() if self.investigation else None
         data["source_question"] = self.source_question
         data["contributed_to_patterns"] = self.contributed_to_patterns
         data["predecessor"] = self.predecessor
@@ -532,7 +556,11 @@ class Hypothesis(AssertiveCuriosity):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Hypothesis":
+        from .models import InvestigationContext
         evidence = [Evidence.from_dict(e) for e in data.get("evidence", [])]
+        investigation = None
+        if data.get("investigation"):
+            investigation = InvestigationContext.from_dict(data["investigation"])
         return cls(
             id=data["id"],
             focus=data["focus"],
@@ -550,6 +578,7 @@ class Hypothesis(AssertiveCuriosity):
             video_value_reason=data.get("video_value_reason"),
             video_requested=data.get("video_requested", False),
             evidence=evidence,
+            investigation=investigation,
             source_question=data.get("source_question"),
             contributed_to_patterns=data.get("contributed_to_patterns", []),
             predecessor=data.get("predecessor"),

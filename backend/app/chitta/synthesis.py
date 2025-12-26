@@ -33,7 +33,7 @@ from .models import (
     DevelopmentalMilestone,
 )
 from .portrait_schema import PortraitOutput
-from .curiosity import Curiosities
+from .curiosity_manager import CuriosityManager
 
 # Import LLM abstraction layer
 from app.services.llm.factory import create_llm_provider
@@ -86,7 +86,7 @@ class SynthesisService:
         child_name: Optional[str],
         understanding: Understanding,
         stories: List[Story],
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
     ) -> SynthesisReport:
         """
         Create synthesis report with pattern detection.
@@ -172,14 +172,14 @@ class SynthesisService:
 
     def should_synthesize(
         self,
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
         stories: List[Story],
         understanding: Understanding,
         last_synthesis: Optional[datetime] = None,
     ) -> bool:
         """Check if conditions suggest synthesis is ready."""
         # Get investigations that are complete (understood status)
-        understood_curiosities = [c for c in curiosities._dynamic if c.status == "understood"]
+        understood_curiosities = [c for c in curiosities.get_all() if c.status in ["confirmed", "answered"]]
 
         # Conditions for synthesis readiness:
         # - Multiple investigations have completed
@@ -213,7 +213,7 @@ class SynthesisService:
         child_name: Optional[str],
         understanding: Understanding,
         stories: List[Story],
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
     ) -> str:
         """Build prompt for synthesis."""
         name = child_name or "this child"
@@ -225,7 +225,7 @@ class SynthesisService:
         ]) or "No facts recorded yet."
 
         # Format active investigations
-        investigating = curiosities.get_investigating()
+        investigating = curiosities.get_hypotheses_for_testing()
         cycles_text = "\n".join([
             f"- [{c.type}] {c.focus}: {c.status}"
             + (f" (certainty: {c.certainty})" if c.certainty else "")
@@ -349,7 +349,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         self,
         response_text: str,
         understanding: Understanding,
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
     ) -> SynthesisReport:
         """Parse synthesis response from LLM."""
         # Extract sections from response
@@ -425,7 +425,7 @@ Keep it to 2-3 sentences focusing on what matters most.
     def _create_fallback_synthesis(
         self,
         understanding: Understanding,
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
     ) -> SynthesisReport:
         """Create fallback synthesis without LLM."""
         # Extract existing patterns
@@ -463,7 +463,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         child_name: Optional[str],
         understanding: Understanding,
         stories: List[Story],
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
         latest_observation_at: datetime,
         existing_crystal: Optional[Crystal] = None,
     ) -> Crystal:
@@ -516,7 +516,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         child_name: Optional[str],
         understanding: Understanding,
         stories: List[Story],
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
         latest_observation_at: datetime,
     ) -> Crystal:
         """Create a fresh crystal from all observations using structured output."""
@@ -565,7 +565,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         child_name: Optional[str],
         understanding: Understanding,
         stories: List[Story],
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
         latest_observation_at: datetime,
         existing_crystal: Crystal,
     ) -> Crystal:
@@ -639,7 +639,7 @@ Keep it to 2-3 sentences focusing on what matters most.
         child_name: Optional[str],
         understanding: Understanding,
         stories: List[Story],
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
         is_incremental: bool,
         previous_crystal: Optional[Crystal],
         new_observations: Optional[Dict[str, Any]],
@@ -660,11 +660,12 @@ Keep it to 2-3 sentences focusing on what matters most.
         ]) or "No stories captured yet."
 
         # Format active investigations from curiosities
-        investigating = curiosities.get_investigating()
+        from .curiosity_types import Hypothesis, Question
+        investigating = curiosities.get_hypotheses_for_testing()
         cycles_text = "\n".join([
-            f"- [{c.type}] {c.focus}"
-            + (f" (theory: {c.theory})" if c.theory else "")
-            + (f" (certainty: {c.certainty})" if c.certainty else "")
+            f"- [{c.curiosity_type}] {c.focus}"
+            + (f" (theory: {c.theory})" if hasattr(c, 'theory') and c.theory else "")
+            + (f" (confidence: {c.confidence})" if hasattr(c, 'confidence') else "")
             for c in investigating[:10]
         ]) or "No active investigations."
 
@@ -675,12 +676,12 @@ Keep it to 2-3 sentences focusing on what matters most.
         interests_text = ", ".join(interests[:5]) if interests else "Not yet known"
 
         # Format concerns from investigating curiosities
-        concerns = [c.focus for c in investigating if c.type in ("hypothesis", "question")]
+        concerns = [c.focus for c in investigating if isinstance(c, (Hypothesis, Question))]
         concerns_text = ", ".join(concerns[:5]) if concerns else "None defined"
 
-        # Open questions
-        gaps = curiosities.get_gaps()
-        gaps_text = "\n".join([f"- {g}" for g in gaps]) or "No open questions."
+        # Open questions (get_gaps returns curiosity objects in V2)
+        gap_curiosities = curiosities.get_gaps()
+        gaps_text = "\n".join([f"- {g.focus}" for g in gap_curiosities]) or "No open questions."
 
         # Format developmental milestones (sorted by age)
         def format_milestone(m: DevelopmentalMilestone) -> str:
@@ -1468,7 +1469,7 @@ Remember:
     def _create_fallback_crystal(
         self,
         understanding: Understanding,
-        curiosities: Curiosities,
+        curiosities: CuriosityManager,
         latest_observation_at: datetime,
     ) -> Crystal:
         """Create a fallback crystal without LLM when errors occur."""
