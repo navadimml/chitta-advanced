@@ -688,15 +688,15 @@ export default function ExpertGuide() {
             <ul className="space-y-2 text-indigo-700">
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>שאלה → השערה:</strong> כש-LLM מזהה תיאוריה ברת-בדיקה ומציע סרטון</span>
+                <span><strong>שאלה ← השערה:</strong> כש-LLM מזהה תיאוריה ברת-בדיקה ומציע סרטון</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>תצפיות → דפוס:</strong> כשסיפור מחבר 2+ תחומים עם significance ≥ 0.5</span>
+                <span><strong>תצפיות ← דפוס:</strong> כשסיפור מחבר 2+ תחומים עם significance ≥ 0.5</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>ודאות גבוהה → דעיכה:</strong> סקרנות שהגיעה ל-70%+ ודאות יורדת ב"משיכה" שלה</span>
+                <span><strong>ודאות גבוהה ← דעיכה:</strong> סקרנות שהגיעה ל-70%+ ודאות יורדת ב"משיכה" שלה</span>
               </li>
             </ul>
           </div>
@@ -772,10 +772,10 @@ export default function ExpertGuide() {
                   צ'יטה מגיבה בהתאם למה שזוהה:
                 </p>
                 <ul className="text-xs text-emerald-600 space-y-1">
-                  <li>• סיפור → הכרה במשמעות</li>
-                  <li>• שאלה → מענה ישיר + גשר</li>
-                  <li>• רגש → מתן מקום</li>
-                  <li>• מידע → העמקה טבעית</li>
+                  <li>• סיפור ← הכרה במשמעות</li>
+                  <li>• שאלה ← מענה ישיר + גשר</li>
+                  <li>• רגש ← מתן מקום</li>
+                  <li>• מידע ← העמקה טבעית</li>
                 </ul>
               </div>
             </div>
