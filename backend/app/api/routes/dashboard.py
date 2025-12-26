@@ -213,7 +213,7 @@ async def list_all_children(
                 child_name=darshan.child_name,
                 child_age_months=darshan.child_age_months if hasattr(darshan, 'child_age_months') else None,
                 observation_count=len(darshan.understanding.observations) if darshan.understanding else 0,
-                curiosity_count=len(darshan._curiosities._perpetual) + len(darshan._curiosities._dynamic) if darshan._curiosities else 0,
+                curiosity_count=len(darshan._curiosities.get_all()) if darshan._curiosities else 0,
                 pattern_count=len(darshan.understanding.patterns) if darshan.understanding else 0,
                 last_activity=darshan.last_activity if hasattr(darshan, 'last_activity') else None,
                 has_crystal=darshan.crystal is not None,
@@ -292,10 +292,7 @@ async def get_child_full(
                 for m in (darshan.understanding.milestones if darshan.understanding else [])
             ],
         },
-        "curiosities": {
-            "perpetual": [_curiosity_to_dict(c, is_perpetual=True) for c in darshan._curiosities._perpetual],
-            "dynamic": [_curiosity_to_dict(c, is_perpetual=False) for c in darshan._curiosities._dynamic],
-        },
+        "curiosities": _format_curiosities_v2(darshan._curiosities),
         "stories": [
             {
                 "summary": s.summary,
@@ -330,19 +327,25 @@ async def get_child_curiosities(
     if not darshan:
         raise HTTPException(status_code=404, detail="Child not found")
 
+    # V2: No perpetual/dynamic distinction - group by type
+    all_curiosities = darshan._curiosities.get_all()
+    discoveries = [c for c in all_curiosities if c.curiosity_type == "discovery"]
+    others = [c for c in all_curiosities if c.curiosity_type != "discovery"]
+
+    # Map discoveries to "perpetual" for API compatibility, others to "dynamic"
     perpetual = [
         CuriosityDetail(**_curiosity_to_dict(c, is_perpetual=True))
-        for c in darshan._curiosities._perpetual
+        for c in discoveries
     ]
     dynamic = [
         CuriosityDetail(**_curiosity_to_dict(c, is_perpetual=False))
-        for c in darshan._curiosities._dynamic
+        for c in others
     ]
 
     return CuriositiesResponse(
         perpetual=perpetual,
         dynamic=dynamic,
-        total=len(perpetual) + len(dynamic),
+        total=len(all_curiosities),
     )
 
 
@@ -671,8 +674,8 @@ async def get_child_videos(
 
     videos = []
 
-    # Extract videos from all curiosities with investigations
-    for curiosity in darshan._curiosities._dynamic:
+    # Extract videos from all hypotheses with investigations (V2)
+    for curiosity in darshan._curiosities.get_hypotheses():
         if not curiosity.investigation:
             continue
 
@@ -748,8 +751,8 @@ async def get_video_detail(
     if not darshan:
         raise HTTPException(status_code=404, detail="Child not found")
 
-    # Find the video
-    for curiosity in darshan._curiosities._dynamic:
+    # Find the video (V2: search in hypotheses)
+    for curiosity in darshan._curiosities.get_hypotheses():
         if not curiosity.investigation:
             continue
 
@@ -1475,7 +1478,7 @@ async def get_analytics_overview(
                     total_observations += len(darshan.understanding.observations)
                     total_patterns += len(darshan.understanding.patterns)
                 if darshan._curiosities:
-                    total_curiosities += len(darshan._curiosities._perpetual) + len(darshan._curiosities._dynamic)
+                    total_curiosities += len(darshan._curiosities.get_all())
                 if darshan.crystal:
                     children_with_crystal += 1
         except Exception:
@@ -1883,6 +1886,28 @@ async def export_training_data(
 # HELPER FUNCTIONS
 # =============================================================================
 
+def _format_curiosities_v2(curiosity_manager) -> Dict[str, Any]:
+    """Format V2 curiosities for API response (backward compatible)."""
+    all_curiosities = curiosity_manager.get_all()
+
+    # Group by type for V2 - discoveries are treated as "perpetual" for API compat
+    discoveries = [c for c in all_curiosities if c.curiosity_type == "discovery"]
+    others = [c for c in all_curiosities if c.curiosity_type != "discovery"]
+
+    return {
+        "perpetual": [_curiosity_to_dict(c, is_perpetual=True) for c in discoveries],
+        "dynamic": [_curiosity_to_dict(c, is_perpetual=False) for c in others],
+        # V2 additions - group by actual type
+        "by_type": {
+            "discoveries": [_curiosity_to_dict(c) for c in curiosity_manager.get_by_type("discovery")],
+            "questions": [_curiosity_to_dict(c) for c in curiosity_manager.get_by_type("question")],
+            "hypotheses": [_curiosity_to_dict(c) for c in curiosity_manager.get_hypotheses()],
+            "patterns": [_curiosity_to_dict(c) for c in curiosity_manager.get_by_type("pattern")],
+        },
+        "total": len(all_curiosities),
+    }
+
+
 def _curiosity_to_dict(curiosity, is_perpetual: bool = False) -> Dict[str, Any]:
     """Convert a Curiosity object to a dict (V2 compatible)."""
     from app.chitta.curiosity_types import Discovery, Question, Hypothesis, Pattern
@@ -1959,10 +1984,10 @@ def _crystal_to_dict(crystal) -> Dict[str, Any]:
 
 
 def _extract_videos_from_darshan(darshan) -> List[Dict[str, Any]]:
-    """Extract all video scenarios from Darshan's curiosities."""
+    """Extract all video scenarios from Darshan's curiosities (V2)."""
     videos = []
 
-    for curiosity in darshan._curiosities._dynamic:
+    for curiosity in darshan._curiosities.get_hypotheses():
         if not curiosity.investigation:
             continue
 

@@ -54,6 +54,7 @@ export default function ExpertGuide() {
     videos: true,
     videoAnalysis: false,
     dashboard: true,
+    v2architecture: true,  // V2: New section explaining architecture changes
     glossary: false,
   });
 
@@ -231,39 +232,54 @@ export default function ExpertGuide() {
             note="יש 4 סוגים של סקרנות - ראו בהמשך"
           />
 
-          {/* Certainty */}
+          {/* Fullness - V2 */}
           <TermCard
-            icon={<TrendingUp className="w-6 h-6 text-blue-600" />}
-            term="ודאות"
-            english="Certainty"
-            definition="עד כמה צ'יטה בטוחה במסקנה או בהשערה. מספר בין 0% ל-100%."
-            example="ודאות של 75% אומרת שיש בסיס חזק להשערה, אבל עדיין יש מקום לספק"
+            icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
+            term="מלאות"
+            english="Fullness"
+            definition="עד כמה למדנו על שאלה או גילוי. משמש עבור סקרנויות קולטות (גילוי ושאלה). מספר בין 0% ל-100%."
+            example="מלאות של 60% אומרת שיש לנו כבר תמונה סבירה, אבל עדיין יש מה לגלות"
             scale={[
-              { value: '0-30%', label: 'חלשה', color: 'red' },
-              { value: '31-60%', label: 'בינונית', color: 'amber' },
-              { value: '61-85%', label: 'טובה', color: 'blue' },
-              { value: '86-100%', label: 'גבוהה', color: 'emerald' },
+              { value: '0-30%', label: 'התחלתי', color: 'red' },
+              { value: '31-60%', label: 'בתהליך', color: 'amber' },
+              { value: '61-85%', label: 'מתמלא', color: 'blue' },
+              { value: '86-100%', label: 'מלא', color: 'emerald' },
             ]}
           />
 
-          {/* Hypothesis */}
+          {/* Confidence - V2 */}
           <TermCard
             icon={<Target className="w-6 h-6 text-purple-600" />}
-            term="השערה"
-            english="Hypothesis"
-            definition="סקרנות שהתגבשה לתיאוריה ספציפית שאפשר לבדוק. יש לה 'תיאוריה' - מה אנחנו חושבים שקורה."
-            example="השערה: 'הקושי בהרכבת פאזלים קשור לתכנון מוטורי ולא לתפיסה חזותית' (תיאוריה)"
-            note="השערות הן המועמדות לבדיקה באמצעות סרטון או שאלות נוספות"
+            term="ביטחון"
+            english="Confidence"
+            definition="עד כמה אנחנו בטוחים בהשערה או דפוס. משמש עבור סקרנויות קובעות (השערה ודפוס). מספר בין 0% ל-100%."
+            example="ביטחון של 75% אומר שיש בסיס חזק להשערה, אבל עדיין יש מקום לספק"
+            scale={[
+              { value: '0-30%', label: 'חלש', color: 'red' },
+              { value: '31-60%', label: 'בינוני', color: 'amber' },
+              { value: '61-85%', label: 'טוב', color: 'blue' },
+              { value: '86-100%', label: 'גבוה', color: 'emerald' },
+            ]}
           />
 
-          {/* Pattern */}
+          {/* Hypothesis - V2 */}
+          <TermCard
+            icon={<Lightbulb className="w-6 h-6 text-purple-600" />}
+            term="השערה"
+            english="Hypothesis"
+            definition="סקרנות קובעת עם תיאוריה ספציפית לבדיקה. יש לה 'ביטחון' שעולה/יורד לפי ראיות, וסטטוס (חלשה ← נבדקת ← נתמכת/אושרה/נדחתה)."
+            example="השערה: 'הקושי בהרכבת פאזלים קשור לתכנון מוטורי' — ביטחון 55%, סטטוס: נבדקת"
+            note="השערות יכולות להתחיל חקירה (Investigation) שמנהלת את תהליך בדיקת הסרטון"
+          />
+
+          {/* Pattern - V2 */}
           <TermCard
             icon={<Sparkles className="w-6 h-6 text-violet-600" />}
             term="דפוס"
             english="Pattern"
-            definition="תובנה שמחברת בין מספר תחומים או תצפיות. דפוס הוא יותר מסכום חלקיו - הוא מראה קשר עמוק."
-            example="דפוס: 'רגישות חושית (שמיעה+מגע) קשורה לקושי בויסות רגשי ולהימנעות ממצבים חברתיים'"
-            note="דפוסים מתגלים רק אחרי שנצברו מספיק תצפיות בתחומים שונים"
+            definition="סקרנות קובעת שמחברת בין מספר תחומים או השערות. יש לו 'ביטחון' וסטטוס (זמני ← נתמך ← אושר/נדחה). דפוס יכול להיות תלוי בהשערות שממנו הוא צמח."
+            example="דפוס: 'רגישות חושית + צורך בשליטה = קושי במעברים' — ביטחון 60%, נתמך"
+            note="כשהשערה שתמכה בדפוס נדחית, הדפוס מתעדכן או מתפרק (cascade)"
           />
 
           {/* Crystal */}
@@ -287,10 +303,38 @@ export default function ExpertGuide() {
         onToggle={() => toggleSection('curiosityTypes')}
       >
         <div className="space-y-4">
-          <p className="mb-6">
+          <p className="mb-4">
             לא כל סקרנות היא אותו דבר. יש הבדל בין "מי הילד הזה?" לבין "בוא נבדוק אם X נכון".
-            ארבעת הסוגים מייצגים שלבים שונים בתהליך ההבנה:
           </p>
+
+          {/* V2: Two Natures */}
+          <div className="bg-gradient-to-l from-emerald-50 to-purple-50 rounded-xl p-5 border border-gray-200 mb-6">
+            <h4 className="font-semibold text-gray-800 mb-3">שני טבעים של סקרנות</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white rounded-lg p-4 border border-emerald-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">🌊</span>
+                  <span className="font-medium text-emerald-800">קולטות (Receptive)</span>
+                </div>
+                <p className="text-sm text-emerald-700 mb-2">גילוי ושאלה — פתוחות לקליטת מידע</p>
+                <div className="bg-emerald-50 rounded-lg p-2 text-xs">
+                  <span className="font-medium">מדד: מלאות (Fullness)</span>
+                  <p className="text-emerald-600">כמה למדנו? 0% = ריק, 100% = מלא</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg p-4 border border-purple-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">🎯</span>
+                  <span className="font-medium text-purple-800">קובעות (Assertive)</span>
+                </div>
+                <p className="text-sm text-purple-700 mb-2">השערה ודפוס — יש להן טענה לבדיקה</p>
+                <div className="bg-purple-50 rounded-lg p-2 text-xs">
+                  <span className="font-medium">מדד: ביטחון (Confidence)</span>
+                  <p className="text-purple-600">כמה בטוחים? 0% = חלש, 100% = מאושר</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <CuriosityTypeCard
@@ -300,7 +344,7 @@ export default function ExpertGuide() {
               icon="🔍"
               description="קליטה פתוחה, ללא הנחות מוקדמות"
               question="מי הילד הזה? מה מאפיין אותו?"
-              example="'איך הוא ניגש לפעילויות חדשות?'"
+              example="'איך הוא ניגש לפעילויות חדשות?' — מלאות 30%"
             />
 
             <CuriosityTypeCard
@@ -310,7 +354,7 @@ export default function ExpertGuide() {
               icon="❓"
               description="העמקה בנושא שעלה"
               question="רוצים לדעת עוד על משהו שעלה"
-              example="'מה קורה כשהוא צריך לחכות?'"
+              example="'מה קורה כשהוא צריך לחכות?' — מלאות 45%"
             />
 
             <CuriosityTypeCard
@@ -318,9 +362,9 @@ export default function ExpertGuide() {
               english="Hypothesis"
               color="purple"
               icon="🎯"
-              description="תיאוריה לבדיקה"
-              question="יש לנו רעיון מה קורה - בוא נבדוק"
-              example="'הקושי החברתי נובע מקושי בקריאת רמזים לא-מילוליים'"
+              description="תיאוריה לבדיקה עם סטטוס: חלשה → נבדקת → נתמכת/אושרה/נדחתה"
+              question="יש לנו רעיון מה קורה — בוא נבדוק"
+              example="'הקושי החברתי נובע מקושי בקריאת רמזים' — ביטחון 55%, נבדקת"
             />
 
             <CuriosityTypeCard
@@ -328,17 +372,17 @@ export default function ExpertGuide() {
               english="Pattern"
               color="violet"
               icon="🧩"
-              description="חיבור נקודות בין תחומים"
+              description="חיבור נקודות בין תחומים, יכול להיות תלוי בהשערות"
               question="האם יש קשר בין X ל-Y?"
-              example="'הרגישות החושית והויסות הרגשי קשורים'"
+              example="'הרגישות החושית והויסות הרגשי קשורים' — ביטחון 60%, נתמך"
             />
           </div>
 
           <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 mt-6">
             <p className="text-purple-800">
-              <strong>שימו לב:</strong> סוג הסקרנות ורמת הודאות הם עצמאיים.
-              אפשר שתהיה השערה עם ודאות נמוכה (30%) - כי היא חדשה ועדיין לא נבדקה,
-              או גילוי עם ודאות גבוהה (80%) - כי יש הרבה ראיות תומכות.
+              <strong>שימו לב:</strong> סוג הסקרנות והמדד שלה (מלאות/ביטחון) הם עצמאיים.
+              אפשר שתהיה השערה עם ביטחון נמוך (30%) — כי היא חדשה ועדיין לא נבדקה,
+              או גילוי עם מלאות גבוהה (80%) — כי למדנו הרבה.
             </p>
           </div>
         </div>
@@ -353,10 +397,31 @@ export default function ExpertGuide() {
         onToggle={() => toggleSection('evidence')}
       >
         <div className="space-y-4">
-          <p className="mb-6">
-            ראיות הן מידע חדש שמשפיע על הודאות של סקרנות או השערה.
+          <p className="mb-4">
+            ראיות הן מידע חדש שמשפיע על הביטחון של השערה או דפוס.
             יש שלושה סוגים של השפעה:
           </p>
+
+          {/* V2: Evidence Provenance */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
+            <h4 className="font-medium text-slate-800 mb-2 flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              מקור הראיה (Provenance)
+            </h4>
+            <p className="text-sm text-slate-600 mb-3">
+              ב-V2, כל ראיה חייבת לכלול:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              <div className="bg-white rounded-lg p-2 border border-slate-100">
+                <span className="font-medium text-slate-700">source_observation</span>
+                <p className="text-slate-500">מה בהודעה הוביל לראיה הזו</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 border border-slate-100">
+                <span className="font-medium text-slate-700">effect_reasoning</span>
+                <p className="text-slate-500">למה זה תומך/סותר/משנה</p>
+              </div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <EvidenceCard
@@ -364,9 +429,9 @@ export default function ExpertGuide() {
               english="Supports"
               color="emerald"
               icon={<CheckCircle className="w-6 h-6" />}
-              effect="+10% לודאות"
+              effect="+10% לביטחון"
               description="הראיה מחזקת את ההשערה"
-              example="'שמענו שגם בגן הוא מכסה אוזניים ברעש' - תומך בהשערת הרגישות השמיעתית"
+              example="'שמענו שגם בגן הוא מכסה אוזניים ברעש' — תומך בהשערת הרגישות השמיעתית"
             />
 
             <EvidenceCard
@@ -374,9 +439,9 @@ export default function ExpertGuide() {
               english="Contradicts"
               color="red"
               icon={<XCircle className="w-6 h-6" />}
-              effect="-15% מהודאות"
+              effect="-15% מהביטחון"
               description="הראיה מערערת על ההשערה"
-              example="'בהופעה של הגן הוא ישב בשקט למרות הרעש' - סותר חלקית את הרגישות"
+              example="'בהופעה של הגן הוא ישב בשקט למרות הרעש' — סותר חלקית את הרגישות"
             />
 
             <EvidenceCard
@@ -384,17 +449,38 @@ export default function ExpertGuide() {
               english="Transforms"
               color="amber"
               icon={<RefreshCw className="w-6 h-6" />}
-              effect="מעדכן את ההשערה"
+              effect="איפוס ל-40%"
               description="הראיה משנה את ההבנה לכיוון חדש"
-              example="'הבעיה היא לא רעש אלא רעש בלתי צפוי' - מחדד את ההשערה"
+              example="'הבעיה היא לא רעש אלא רעש בלתי צפוי' — מחדד את ההשערה"
             />
           </div>
 
-          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mt-6">
+          {/* V2: Video Evidence */}
+          <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 mt-4">
+            <h4 className="font-medium text-violet-800 mb-2 flex items-center gap-2">
+              <Video className="w-4 h-4" />
+              ראיות מסרטון (Video Evidence)
+            </h4>
+            <p className="text-violet-700 text-sm mb-2">
+              ראיות מסרטון נפרדות מראיות שיחה ומשפיעות יותר:
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-emerald-100 rounded-lg p-2 text-center">
+                <span className="text-emerald-700">תומך בביטחון גבוה</span>
+                <div className="font-bold text-emerald-800">+15%</div>
+              </div>
+              <div className="bg-red-100 rounded-lg p-2 text-center">
+                <span className="text-red-700">סותר בביטחון גבוה</span>
+                <div className="font-bold text-red-800">-20%</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mt-4">
             <p className="text-gray-700">
               <strong>איך זה עובד:</strong> ראיות מצטברות לאורך זמן.
-              ראיות תומכות מעלות את הודאות, ראיות סותרות מורידות אותה.
-              ראיות משנות יכולות לשנות את נוסח ההשערה עצמה.
+              ראיות תומכות מעלות את הביטחון, ראיות סותרות מורידות אותו.
+              ראיות משנות מאפסות את הביטחון ל-40% — התחלה מחדש עם הבנה מחודדת.
             </p>
           </div>
         </div>
@@ -547,21 +633,21 @@ export default function ExpertGuide() {
       <GuideSection
         id="evidenceDeep"
         icon={<Zap className="w-6 h-6" />}
-        title="איך ראיות משפיעות על הודאות"
+        title="איך ראיות משפיעות על הביטחון"
         expanded={expandedSections.evidenceDeep}
         onToggle={() => toggleSection('evidenceDeep')}
       >
         <div className="space-y-6">
           <p>
-            המערכת משתמשת בחישוב מתמטי פשוט אך מדויק כדי לעדכן את רמת הודאות
-            בכל פעם שמתווספת ראיה חדשה.
+            המערכת משתמשת בחישוב מתמטי פשוט אך מדויק כדי לעדכן את רמת הביטחון
+            בכל פעם שמתווספת ראיה חדשה להשערה או דפוס.
           </p>
 
           {/* The Math */}
           <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
             <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              החישוב
+              החישוב (V2)
             </h4>
 
             <div className="space-y-4">
@@ -569,7 +655,7 @@ export default function ExpertGuide() {
                 <div className="text-2xl">➕</div>
                 <div>
                   <div className="font-medium text-emerald-800">ראיה תומכת</div>
-                  <div className="text-emerald-600 text-sm">+10% לודאות (עד מקסימום 100%)</div>
+                  <div className="text-emerald-600 text-sm">+10% לביטחון (עד מקסימום 100%)</div>
                 </div>
               </div>
 
@@ -577,7 +663,7 @@ export default function ExpertGuide() {
                 <div className="text-2xl">➖</div>
                 <div>
                   <div className="font-medium text-red-800">ראיה סותרת</div>
-                  <div className="text-red-600 text-sm">-15% מהודאות (עד מינימום 0%)</div>
+                  <div className="text-red-600 text-sm">-15% מהביטחון (עד מינימום 0%)</div>
                 </div>
               </div>
 
@@ -586,6 +672,33 @@ export default function ExpertGuide() {
                 <div>
                   <div className="font-medium text-amber-800">ראיה משנה (transforms)</div>
                   <div className="text-amber-600 text-sm">איפוס ל-40% — התחלה מחדש עם הבנה חדשה</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* V2: Status Transitions */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5">
+            <h4 className="font-medium text-indigo-800 mb-3">מעברי סטטוס (V2)</h4>
+            <p className="text-indigo-700 text-sm mb-3">
+              הביטחון משפיע על הסטטוס של השערות ודפוסים:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                <div className="font-medium text-indigo-800 mb-2">השערה</div>
+                <div className="space-y-1 text-indigo-600">
+                  <p>• חלשה (weak): ביטחון {'<'} 50%</p>
+                  <p>• נבדקת (testing): ביטחון 50-70%</p>
+                  <p>• נתמכת (supported): ביטחון {'>'} 70%</p>
+                  <p>• אושרה (confirmed): ביטחון {'>'} 85%</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                <div className="font-medium text-indigo-800 mb-2">דפוס</div>
+                <div className="space-y-1 text-indigo-600">
+                  <p>• זמני (tentative): ביטחון {'<'} 50%</p>
+                  <p>• נתמך (supported): ביטחון 50-70%</p>
+                  <p>• אושר (confirmed): ביטחון {'>'} 70%</p>
                 </div>
               </div>
             </div>
@@ -606,11 +719,11 @@ export default function ExpertGuide() {
             <h4 className="font-medium text-blue-800 mb-3">דוגמה מעשית</h4>
             <div className="space-y-2 text-sm">
               <p className="text-blue-700">השערה: "רגישות שמיעתית גבוהה משפיעה על ויסות"</p>
-              <p className="text-blue-700">ודאות התחלתית: <strong>50%</strong></p>
+              <p className="text-blue-700">ביטחון התחלתי: <strong>50%</strong> (סטטוס: נבדקת)</p>
               <div className="border-r-2 border-blue-300 pr-3 mr-2 space-y-1">
-                <p className="text-blue-600">• ההורה: "גם בגן הוא מכסה אוזניים" (תומך) — ודאות: <strong>60%</strong></p>
-                <p className="text-blue-600">• ההורה: "אבל בהופעה ישב בשקט" (סותר) — ודאות: <strong>45%</strong></p>
-                <p className="text-blue-600">• ההורה: "אבל זה רק ברעש פתאומי" (משנה) — ודאות: <strong>40%</strong> (איפוס)</p>
+                <p className="text-blue-600">• ההורה: "גם בגן הוא מכסה אוזניים" (תומך) — ביטחון: <strong>60%</strong></p>
+                <p className="text-blue-600">• ההורה: "אבל בהופעה ישב בשקט" (סותר) — ביטחון: <strong>45%</strong></p>
+                <p className="text-blue-600">• ההורה: "אבל זה רק ברעש פתאומי" (משנה) — ביטחון: <strong>40%</strong> (איפוס)</p>
               </div>
               <p className="text-blue-700 mt-2">עכשיו ההשערה מתחדדת: לא רגישות כללית, אלא לרעשים בלתי צפויים.</p>
             </div>
@@ -619,7 +732,7 @@ export default function ExpertGuide() {
           {/* Video vs Conversation */}
           <div className="bg-violet-50 border border-violet-100 rounded-xl p-4">
             <p className="text-violet-800">
-              <strong>סרטונים משפיעים יותר:</strong> ראיות מסרטון מקבלות משקל גבוה יותר
+              <strong>סרטונים משפיעים יותר:</strong> ראיות מסרטון (VideoEvidence) מקבלות משקל גבוה יותר
               (עד +15% או -20%) כי הן מבוססות על צפייה ישירה ולא רק על דיווח.
             </p>
           </div>
@@ -1359,6 +1472,134 @@ export default function ExpertGuide() {
         </div>
       </GuideSection>
 
+      {/* Section: V2 Architecture */}
+      <GuideSection
+        id="v2architecture"
+        icon={<Layers className="w-6 h-6" />}
+        title="ארכיטקטורת V2 — מה חדש"
+        expanded={expandedSections.v2architecture}
+        onToggle={() => toggleSection('v2architecture')}
+      >
+        <div className="space-y-6">
+          <p>
+            גרסה 2 של מערכת הסקרנות מביאה שינויים משמעותיים באופן שבו צ'יטה
+            עוקבת אחרי מידע, בונה הבנה, ומתקנת את עצמה.
+          </p>
+
+          {/* Investigation Context */}
+          <div className="bg-violet-50 border border-violet-100 rounded-xl p-5">
+            <h4 className="font-medium text-violet-800 mb-3 flex items-center gap-2">
+              <Search className="w-5 h-5" />
+              חקירה (Investigation)
+            </h4>
+            <p className="text-violet-700 text-sm mb-3">
+              כל השערה יכולה להתחיל "חקירה" — תהליך מובנה לבדיקת התיאוריה.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+              <div className="bg-white rounded-lg p-2 border border-violet-100">
+                <span className="font-medium text-violet-700">סטטוס</span>
+                <p className="text-violet-500">active / paused / completed</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 border border-violet-100">
+                <span className="font-medium text-violet-700">תרחישי סרטון</span>
+                <p className="text-violet-500">מצב כל סרטון בתהליך</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 border border-violet-100">
+                <span className="font-medium text-violet-700">סיכום</span>
+                <p className="text-violet-500">מה למדנו מהחקירה</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Event Sourcing */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-5">
+            <h4 className="font-medium text-blue-800 mb-3 flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              מעקב אירועים (Event Sourcing)
+            </h4>
+            <p className="text-blue-700 text-sm mb-3">
+              כל שינוי בסקרנות נשמר כאירוע — אפשר לעקוב אחרי ההיסטוריה המלאה.
+            </p>
+            <div className="bg-white rounded-lg p-3 border border-blue-100 text-xs font-mono">
+              <div className="text-blue-600">CuriosityEvent:</div>
+              <div className="text-blue-400 mr-4">• created_at: 2024-01-15 10:30</div>
+              <div className="text-blue-400 mr-4">• event_type: confidence_changed</div>
+              <div className="text-blue-400 mr-4">• changes: [{'{'}field: confidence, old: 0.5, new: 0.6{'}'}]</div>
+              <div className="text-blue-400 mr-4">• trigger: evidence_added</div>
+            </div>
+          </div>
+
+          {/* Provenance */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
+            <h4 className="font-medium text-amber-800 mb-3 flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              מקור (Provenance)
+            </h4>
+            <p className="text-amber-700 text-sm mb-3">
+              כל פעולה חייבת לכלול הסבר למה היא נעשתה — לשקיפות ותיקון.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              <div className="bg-white rounded-lg p-2 border border-amber-100">
+                <span className="font-medium text-amber-700">assessment_reasoning</span>
+                <p className="text-amber-500">למה ה-LLM החליט כך</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 border border-amber-100">
+                <span className="font-medium text-amber-700">source_observation</span>
+                <p className="text-amber-500">מה בהודעה הוביל לזה</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Cascades */}
+          <div className="bg-red-50 border border-red-100 rounded-xl p-5">
+            <h4 className="font-medium text-red-800 mb-3 flex items-center gap-2">
+              <GitBranch className="w-5 h-5" />
+              מפלים (Cascades)
+            </h4>
+            <p className="text-red-700 text-sm mb-3">
+              כשהשערה נדחית או אושרה, זה משפיע על דפוסים שתלויים בה.
+            </p>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-red-100">
+                <span className="text-red-500">🔴</span>
+                <span className="text-red-700">השערה נדחתה → דפוסים שתלויים בה מתפרקים או מתעדכנים</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-emerald-100">
+                <span className="text-emerald-500">🟢</span>
+                <span className="text-emerald-700">השערה אושרה → דפוסים שתלויים בה מתחזקים</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-blue-100">
+                <span className="text-blue-500">🔵</span>
+                <span className="text-blue-700">דפוס אושר/נדחה → קריסטל מתעדכן אוטומטית</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lineage */}
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
+            <h4 className="font-medium text-emerald-800 mb-3 flex items-center gap-2">
+              <GitBranch className="w-5 h-5" />
+              שושלת (Lineage)
+            </h4>
+            <p className="text-emerald-700 text-sm mb-3">
+              סקרנויות יכולות לצמוח אחת מהשנייה — שאלה הופכת להשערה, השערות מתחברות לדפוס.
+            </p>
+            <div className="bg-white rounded-lg p-3 border border-emerald-100">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">שאלה</span>
+                <span className="text-emerald-400">→</span>
+                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded">השערה</span>
+                <span className="text-emerald-400">→</span>
+                <span className="bg-violet-100 text-violet-700 px-2 py-1 rounded">דפוס</span>
+              </div>
+              <p className="text-xs text-emerald-600 mt-2">
+                כל צעד שומר את ה-emerges_from וה-source_hypotheses לתיעוד מלא
+              </p>
+            </div>
+          </div>
+        </div>
+      </GuideSection>
+
       {/* Section: Algorithmic Glossary */}
       <GuideSection
         id="glossary"
@@ -1475,19 +1716,35 @@ export default function ExpertGuide() {
             thisIs="ערך דינמי שמשתנה — סקרנויות ׳רעבות׳ עולות, ׳שבעות׳ יורדות"
           />
 
-          {/* Certainty */}
+          {/* Fullness - V2 */}
           <GlossaryItem
-            term="ודאות (Certainty)"
-            color="indigo"
-            belongsTo="תכונה של סקרנות"
-            howDetected="מתעדכנת עם כל ראיה"
+            term="מלאות (Fullness)"
+            color="emerald"
+            belongsTo="תכונה של סקרנויות קולטות (גילוי, שאלה)"
+            howDetected="מתעדכנת כשנוסף מידע רלוונטי"
             criteria={[
-              "0-100% — כמה בטוחים בסקרנות/השערה",
-              "עצמאית מסוג הסקרנות (אפשר גילוי בודאות גבוהה!)",
-              "מושפעת מראיות: +10% תומך, -15% סותר, 40% משנה",
+              "0-100% — כמה למדנו על הנושא",
+              "משמשת עבור Discovery ו-Question בלבד",
+              "עולה עם תצפיות וסיפורים רלוונטיים",
             ]}
-            notThis="ציון איכות או חשיבות"
-            thisIs="כמה ראיות תומכות יש — לא כמה חשוב הנושא"
+            notThis="כמה בטוחים (זה ביטחון, לא מלאות)"
+            thisIs="כמה מידע אספנו — 0% = ריק, 100% = למדנו הכל"
+          />
+
+          {/* Confidence - V2 */}
+          <GlossaryItem
+            term="ביטחון (Confidence)"
+            color="purple"
+            belongsTo="תכונה של סקרנויות קובעות (השערה, דפוס)"
+            howDetected="מתעדכן עם כל ראיה"
+            criteria={[
+              "0-100% — כמה בטוחים בהשערה/דפוס",
+              "משמש עבור Hypothesis ו-Pattern בלבד",
+              "מושפע מראיות: +10% תומך, -15% סותר, 40% משנה",
+              "משפיע על סטטוס: weak → testing → supported → confirmed",
+            ]}
+            notThis="כמה מידע יש (זה מלאות, לא ביטחון)"
+            thisIs="כמה ראיות תומכות/סותרות יש — לא כמה חשוב הנושא"
           />
         </div>
       </GuideSection>
