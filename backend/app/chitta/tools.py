@@ -1,19 +1,26 @@
 """
-Chitta Tool Definitions - Simplified
+Chitta Tool Definitions - V2 Architecture
 
-5 tools for Darshan to perceive and learn.
+מינימום המורכבות הנדרשת - minimum NECESSARY complexity.
+
+8 tools for Darshan to perceive and learn with REQUIRED PROVENANCE.
 
 DESIGN PRINCIPLES:
-- Minimum NECESSARY complexity
 - Each tool has a clear, distinct purpose
 - Gemini-compatible schemas (at least one required field)
+- REQUIRED provenance: reasoning and evidence_refs for all decisions
+- Support for new type hierarchy (Discovery, Question, Hypothesis, Pattern)
+- Support for fullness (receptive) vs confidence (assertive)
 
 Tools:
 1. notice - Record observation about child
-2. wonder - Spawn new curiosity (4 types)
+2. wonder - Spawn new curiosity (4 types) with required provenance
 3. capture_story - Capture meaningful story
-4. add_evidence - Add evidence to active exploration
-5. spawn_exploration - Start focused exploration
+4. add_evidence - Add evidence with reasoning and source tracking
+5. record_milestone - Record developmental milestone
+6. set_child_identity - Set child identity info
+7. see_pattern - Record emerging pattern (NEW)
+8. update_curiosity - Reassess existing curiosity (NEW)
 """
 
 from typing import List, Dict, Any
@@ -76,6 +83,10 @@ For CHANGE over time - use TWO notices:
             "confidence": {
                 "type": "number",
                 "description": "How confident (0-1). Default 0.7"
+            },
+            "addresses_curiosity": {
+                "type": "string",
+                "description": "Focus of curiosity this observation addresses (if answering a question or supporting/contradicting a hypothesis)"
             }
         },
         "required": ["observation", "domain"]
@@ -87,60 +98,69 @@ TOOL_WONDER = {
     "name": "wonder",
     "description": """Spawn a new curiosity about the child.
 
+PROVENANCE IS REQUIRED: You must provide assessment_reasoning and evidence_refs.
+
 Choose the type based on what kind of exploration this is:
 
 - **discovery**: Open receiving, no specific question
   Example: "Understanding his essence", "What makes her unique"
+  Uses FULLNESS (0-1): How complete is our picture of this domain?
 
 - **question**: Following a specific thread
   Example: "What triggers meltdowns?", "How does he communicate needs?"
+  Uses FULLNESS (0-1): How much do we know about the answer?
 
 - **hypothesis**: Testing a theory that could be confirmed/refuted
   Example: "Music helps him regulate", "Transitions are harder in mornings"
+  Uses CONFIDENCE (0-1): How sure are we this is true?
   Set video_appropriate=true if this could be tested by observing video
 
   IMPORTANT: Frame the theory as TENTATIVE, not as fact:
   ❌ "הקושי במעברים נובע מרגישות חושית" (stating mechanism as fact)
   ✅ "יכול להיות שמעברים קשים כי השינוי מרגיש גדול עבורו" (tentative)
 
-- **pattern**: Connecting dots across domains
-  Example: "Sensory input affects regulation", "Social challenges link to communication"
+- **pattern**: Connecting dots across domains (prefer see_pattern tool)
+  Example: "Sensory input affects regulation"
+  Uses CONFIDENCE (0-1): How sure are we this pattern holds?
 
-IMPORTANT: Certainty is INDEPENDENT of type.
-- Low certainty (0.2-0.3) = just starting to explore
-- High certainty (0.7-0.8) = nearly confirmed/answered
+FULLNESS vs CONFIDENCE:
+- Discovery/Question (receptive): fullness - how complete is our picture
+- Hypothesis/Pattern (assertive): confidence - how sure are we this is true
 
 VIDEO VALUE:
-When you notice that video observation could add value beyond conversation,
-specify WHY in video_value. Only use when video provides something
-conversation cannot:
-
-- "calibration": Parent made absolute claim ("never", "always") about
-  clinically significant behavior. Video could show the actual picture.
-- "chain": Multiple domains seem connected. Video could reveal the sequence.
-- "discovery": We've never seen this child. Baseline observation could
-  reveal things we don't know to ask about.
-- "reframe": Parent describes concern that might actually be a strength
-  when seen in context.
-- "relational": The parent-child interaction pattern itself is the question.
+When video observation could add value beyond conversation:
+- "calibration": Parent made absolute claim, video could show actual picture
+- "chain": Multiple domains connected, video could reveal sequence
+- "discovery": Never seen this child, baseline observation could reveal unknowns
+- "reframe": Concern might be strength when seen in context
+- "relational": Parent-child interaction pattern is the question
 
 Leave video_value empty if conversation is sufficient.
 """,
     "parameters": {
         "type": "object",
         "properties": {
-            "about": {
+            "focus": {
                 "type": "string",
-                "description": "What we're curious about"
+                "description": "What we're curious about (the curiosity's focus)"
             },
             "type": {
                 "type": "string",
                 "enum": ["discovery", "question", "hypothesis", "pattern"],
                 "description": "Type of curiosity"
             },
-            "certainty": {
+            "fullness_or_confidence": {
                 "type": "number",
-                "description": "How confident within this type (0-1). Low=just starting, High=nearly answered/confirmed"
+                "description": "Your assessment (0-1). For discovery/question: fullness (how complete). For hypothesis/pattern: confidence (how sure)."
+            },
+            "assessment_reasoning": {
+                "type": "string",
+                "description": "REQUIRED: Why this level of fullness/confidence? What led you to this assessment?"
+            },
+            "evidence_refs": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Observation content/IDs that inform this curiosity"
             },
             "domain": {
                 "type": "string",
@@ -171,9 +191,18 @@ Leave video_value empty if conversation is sufficient.
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "For pattern: domains that are connected"
+            },
+            "emerges_from": {
+                "type": "string",
+                "description": "Curiosity focus this evolved from (e.g., question spawning hypothesis)"
+            },
+            "source_hypotheses": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "For pattern: hypothesis focuses that contributed to this pattern"
             }
         },
-        "required": ["about", "type"]
+        "required": ["focus", "type", "fullness_or_confidence", "assessment_reasoning"]
     }
 }
 
@@ -238,24 +267,29 @@ Be generous with what a story reveals. Look for:
 
 TOOL_ADD_EVIDENCE = {
     "name": "add_evidence",
-    "description": """Add evidence to an active exploration.
+    "description": """Add evidence to an active curiosity (hypothesis or question).
+
+PROVENANCE IS REQUIRED: You must provide effect_reasoning and source_observation.
 
 Use this when:
-- Something the parent shared relates to an active exploration
+- Something the parent shared relates to an active curiosity
 - You have new information that supports/contradicts/transforms a hypothesis
-- You're gathering data for an ongoing investigation
+- You're gathering data for an ongoing question
 
 Effects:
-- "supports": Increases confidence in hypothesis
-- "contradicts": Decreases confidence in hypothesis
+- "supports": Increases confidence in hypothesis (for assertive curiosities)
+- "contradicts": Decreases confidence in hypothesis (for assertive curiosities)
 - "transforms": Changes our understanding - hypothesis may need revision
+
+For questions (receptive): evidence increases fullness toward answering the question.
+For hypotheses (assertive): evidence affects confidence based on effect type.
 """,
     "parameters": {
         "type": "object",
         "properties": {
-            "cycle_id": {
+            "curiosity_focus": {
                 "type": "string",
-                "description": "ID of the active exploration"
+                "description": "Focus of the curiosity to add evidence to"
             },
             "evidence": {
                 "type": "string",
@@ -264,10 +298,22 @@ Effects:
             "effect": {
                 "type": "string",
                 "enum": ["supports", "contradicts", "transforms"],
-                "description": "How this evidence affects the exploration"
+                "description": "How this evidence affects the curiosity"
+            },
+            "new_confidence": {
+                "type": "number",
+                "description": "Your assessment of new confidence level after this evidence (0-1)"
+            },
+            "effect_reasoning": {
+                "type": "string",
+                "description": "REQUIRED: Why does this evidence have this effect? What's the connection?"
+            },
+            "source_observation": {
+                "type": "string",
+                "description": "REQUIRED: What observation/statement from the parent is this evidence based on?"
             }
         },
-        "required": ["cycle_id", "evidence"]
+        "required": ["curiosity_focus", "evidence", "effect", "effect_reasoning", "source_observation"]
     }
 }
 
@@ -361,6 +407,120 @@ This updates the child's permanent identity record.""",
 }
 
 
+# === NEW V2 Tools ===
+
+TOOL_SEE_PATTERN = {
+    "name": "see_pattern",
+    "description": """Record a pattern emerging across multiple curiosities.
+
+PROVENANCE IS REQUIRED: You must provide reasoning and connects.
+
+Use this when you see a cross-domain connection emerging:
+- Multiple hypotheses point to a common underlying theme
+- Observations across different domains reveal a connected picture
+- A meta-insight emerges from accumulated understanding
+
+Patterns are assertive (they make claims) and need evidence to support them.
+Unlike hypotheses that test a specific theory, patterns describe HOW multiple
+things are connected.
+
+Example: After observing:
+- Hypothesis: "Music helps him regulate" (confirmed)
+- Hypothesis: "Transitions are harder with noise" (supported)
+- Question: "What helps with sensory overload?" (partial)
+
+Pattern: "Auditory input is key to his regulation" connecting regulation + sensory.
+""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "pattern": {
+                "type": "string",
+                "description": "Short description of the pattern"
+            },
+            "insight": {
+                "type": "string",
+                "description": "The cross-domain insight this pattern represents"
+            },
+            "confidence": {
+                "type": "number",
+                "description": "How confident are we this pattern holds (0-1)"
+            },
+            "domains_involved": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Developmental domains this pattern connects"
+            },
+            "connects": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "REQUIRED: Curiosity focuses that contributed to seeing this pattern"
+            },
+            "reasoning": {
+                "type": "string",
+                "description": "REQUIRED: Why do you see this pattern? What connects these dots?"
+            }
+        },
+        "required": ["pattern", "insight", "confidence", "connects", "reasoning"]
+    }
+}
+
+
+TOOL_UPDATE_CURIOSITY = {
+    "name": "update_curiosity",
+    "description": """Reassess an existing curiosity based on new understanding.
+
+PROVENANCE IS REQUIRED: You must provide change_reasoning and triggered_by.
+
+Use this when:
+- New information changes your assessment of fullness/confidence
+- A curiosity should become dormant (no longer actively exploring)
+- A curiosity is revived by new relevant information
+- A hypothesis is confirmed/refuted
+- A question evolves into a hypothesis
+
+Status transitions:
+- Discovery: sparse → growing → rich → dormant
+- Question: open → partial → answered → evolved → dormant
+- Hypothesis: weak → testing → supported → confirmed → refuted → transformed → dormant
+- Pattern: emerging → solid → foundational → questioned → dissolved
+
+Only set the fields you want to change. Unspecified fields remain unchanged.
+""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "focus": {
+                "type": "string",
+                "description": "Focus of the curiosity to update"
+            },
+            "new_fullness_or_confidence": {
+                "type": "number",
+                "description": "New assessment value (0-1)"
+            },
+            "new_pull": {
+                "type": "number",
+                "description": "New pull/activation level (0-1)"
+            },
+            "new_status": {
+                "type": "string",
+                "enum": ["active", "dormant", "evolved", "refuted", "confirmed", "answered", "transformed", "questioned", "dissolved"],
+                "description": "New status for the curiosity"
+            },
+            "change_reasoning": {
+                "type": "string",
+                "description": "REQUIRED: Why this change? What new understanding prompted this?"
+            },
+            "triggered_by": {
+                "type": "string",
+                "description": "REQUIRED: What observation or evidence triggered this reassessment?"
+            }
+        },
+        "required": ["focus", "change_reasoning", "triggered_by"]
+    }
+}
+
+
 # === Tool Collections ===
 
 PERCEPTION_TOOLS = [
@@ -370,6 +530,8 @@ PERCEPTION_TOOLS = [
     TOOL_ADD_EVIDENCE,
     TOOL_RECORD_MILESTONE,
     TOOL_SET_CHILD_IDENTITY,
+    TOOL_SEE_PATTERN,        # V2: Pattern emergence
+    TOOL_UPDATE_CURIOSITY,   # V2: Reassess existing curiosity
 ]
 
 
