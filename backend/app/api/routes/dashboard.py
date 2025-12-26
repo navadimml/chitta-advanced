@@ -548,22 +548,29 @@ async def update_observation_domain(
 
     # Also update the cognitive_turns table so timeline reflects the change
     try:
-        turns = await uow.dashboard.cognitive_turns.get_turns(child_id, limit=200)
+        from sqlalchemy.orm.attributes import flag_modified
+        import json
+
+        turns = await uow.dashboard.cognitive_turns.get_by_child(child_id, limit=200)
         for turn in turns:
             if not turn.tool_calls:
                 continue
-            import json
-            tool_calls = json.loads(turn.tool_calls) if isinstance(turn.tool_calls, str) else turn.tool_calls
+            tool_calls = turn.tool_calls if isinstance(turn.tool_calls, list) else json.loads(turn.tool_calls)
             updated = False
             for tc in tool_calls:
-                if tc.get("name") == "notice" and tc.get("arguments", {}).get("observation") == request.observation_content:
-                    tc["arguments"]["domain"] = request.new_domain
-                    updated = True
+                tool_name = tc.get("name") or tc.get("tool_name")
+                if tool_name == "notice":
+                    obs_content = tc.get("arguments", {}).get("observation", "").strip()
+                    if obs_content == normalized_content or normalized_content in obs_content or obs_content in normalized_content:
+                        tc["arguments"]["domain"] = request.new_domain
+                        updated = True
+                        logger.info(f"Updated domain in cognitive_turn {turn.turn_id}")
             if updated:
-                turn.tool_calls = json.dumps(tool_calls, ensure_ascii=False)
-                await uow.session.flush()
+                turn.tool_calls = tool_calls  # Assign the modified list/dict
+                flag_modified(turn, "tool_calls")  # Tell SQLAlchemy the column changed
+        await uow.session.flush()
     except Exception as e:
-        logger.warning(f"Could not update cognitive_turns: {e}")
+        logger.warning(f"Could not update cognitive_turns: {e}", exc_info=True)
 
     # Create audit record
     await uow.dashboard.corrections.create_correction(
