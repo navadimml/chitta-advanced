@@ -1193,6 +1193,10 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     )
                     if cascade_result.crystal_needs_regeneration:
                         logger.info(f"🔄 Hypothesis confirmation triggered crystal regeneration need")
+                    # Terminal status: reduce pull to let conversation find new curiosities
+                    old_pull = curiosity.pull
+                    curiosity.pull = 0.1
+                    logger.info(f"📉 Confirmed hypothesis pull reduced: {old_pull:.2f} → 0.1")
                 elif curiosity.status == "refuted":
                     cascade_result = self._cascade_handler.handle_refutation(
                         hypothesis=curiosity,
@@ -1202,6 +1206,16 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     )
                     if cascade_result.crystal_needs_regeneration:
                         logger.info(f"🔄 Hypothesis refutation triggered crystal regeneration need")
+                    # Terminal status: reduce pull to let conversation find new curiosities
+                    old_pull = curiosity.pull
+                    curiosity.pull = 0.1
+                    logger.info(f"📉 Refuted hypothesis pull reduced: {old_pull:.2f} → 0.1")
+
+            # Threshold-based pull reduction: when confidence crosses 0.8, reduce urgency
+            if old_confidence < 0.8 <= curiosity.confidence:
+                old_pull = curiosity.pull
+                curiosity.pull = max(0.15, curiosity.pull * 0.5)
+                logger.info(f"📉 Hypothesis crossed 80% confidence, pull reduced: {old_pull:.2f} → {curiosity.pull:.2f}")
 
             # Log changes (async event recording handled by service layer)
             logger.info(
@@ -1231,6 +1245,11 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     )
                     if cascade_result.crystal_needs_regeneration:
                         logger.info(f"🔄 Evidence contradiction triggered crystal regeneration need")
+                # Threshold-based pull reduction: when confidence crosses 0.8, reduce urgency
+                if old_confidence < 0.8 <= curiosity.confidence:
+                    old_pull = curiosity.pull
+                    curiosity.pull = max(0.15, curiosity.pull * 0.5)
+                    logger.info(f"📉 Pattern crossed 80% confidence, pull reduced: {old_pull:.2f} → {curiosity.pull:.2f}")
             else:
                 self._curiosity_manager.on_evidence_added(curiosity_focus, effect)
 
@@ -1269,7 +1288,16 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             # Check if Question becomes answered (fullness >= 0.9)
             if isinstance(curiosity, Question) and curiosity.fullness >= 0.9:
                 curiosity.status = "answered"
-                logger.info(f"🎯 Question answered: {curiosity.focus}")
+                # Terminal status: reduce pull to let conversation find new curiosities
+                old_pull = curiosity.pull
+                curiosity.pull = 0.1
+                logger.info(f"🎯 Question answered: {curiosity.focus}, pull reduced: {old_pull:.2f} → 0.1")
+
+            # Threshold-based pull reduction: when fullness crosses 0.8, reduce urgency
+            if old_fullness < 0.8 <= curiosity.fullness:
+                old_pull = curiosity.pull
+                curiosity.pull = max(0.15, curiosity.pull * 0.5)
+                logger.info(f"📉 {curiosity.curiosity_type} crossed 80% fullness, pull reduced: {old_pull:.2f} → {curiosity.pull:.2f}")
 
             logger.info(
                 f"📝 Evidence added to {curiosity.curiosity_type} {curiosity.focus}: "
@@ -1355,7 +1383,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         if curiosity:
             curiosity.last_updated_reasoning = change_reasoning
 
-            # Handle status transitions that trigger cascades
+            # Handle status transitions that trigger cascades + pull reduction
             if new_status == "refuted" and isinstance(curiosity, Hypothesis):
                 cascade_result = self._cascade_handler.handle_refutation(
                     hypothesis=curiosity,
@@ -1363,7 +1391,9 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     child_id=self.child_id,
                     refutation_reasoning=change_reasoning,
                 )
-                logger.info(f"🔄 Hypothesis refutation cascaded to {len(cascade_result.affected_curiosities)} curiosities")
+                # Terminal status: reduce pull
+                curiosity.pull = 0.1
+                logger.info(f"🔄 Hypothesis refutation cascaded to {len(cascade_result.affected_curiosities)} curiosities, pull → 0.1")
 
             elif new_status == "confirmed" and isinstance(curiosity, Hypothesis):
                 cascade_result = self._cascade_handler.handle_confirmation(
@@ -1372,7 +1402,9 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     child_id=self.child_id,
                     confirmation_reasoning=change_reasoning,
                 )
-                logger.info(f"✅ Hypothesis confirmation cascaded to {len(cascade_result.affected_curiosities)} curiosities")
+                # Terminal status: reduce pull
+                curiosity.pull = 0.1
+                logger.info(f"✅ Hypothesis confirmation cascaded to {len(cascade_result.affected_curiosities)} curiosities, pull → 0.1")
 
             elif new_status == "dissolved" and isinstance(curiosity, CuriosityPattern):
                 cascade_result = self._cascade_handler.handle_pattern_dissolved(
@@ -1381,7 +1413,14 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     child_id=self.child_id,
                     dissolution_reasoning=change_reasoning,
                 )
-                logger.info(f"💨 Pattern dissolution cascaded to {len(cascade_result.affected_curiosities)} curiosities")
+                # Terminal status: reduce pull
+                curiosity.pull = 0.1
+                logger.info(f"💨 Pattern dissolution cascaded to {len(cascade_result.affected_curiosities)} curiosities, pull → 0.1")
+
+            elif new_status == "answered" and isinstance(curiosity, Question):
+                # Terminal status: reduce pull
+                curiosity.pull = 0.1
+                logger.info(f"🎯 Question answered, pull → 0.1")
 
         logger.info(f"🔄 Updated curiosity: {focus} (reason: {change_reasoning[:50]}...)")
 
