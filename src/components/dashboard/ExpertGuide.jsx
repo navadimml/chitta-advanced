@@ -429,8 +429,8 @@ export default function ExpertGuide() {
               english="Supports"
               color="emerald"
               icon={<CheckCircle className="w-6 h-6" />}
-              effect="+10% לביטחון"
-              description="הראיה מחזקת את ההשערה"
+              effect="מעלה את הביטחון"
+              description="הראיה מחזקת את ההשערה — ה-LLM מעריך את ההשפעה"
               example="'שמענו שגם בגן הוא מכסה אוזניים ברעש' — תומך בהשערת הרגישות השמיעתית"
             />
 
@@ -439,8 +439,8 @@ export default function ExpertGuide() {
               english="Contradicts"
               color="red"
               icon={<XCircle className="w-6 h-6" />}
-              effect="-15% מהביטחון"
-              description="הראיה מערערת על ההשערה"
+              effect="מוריד את הביטחון"
+              description="הראיה מערערת על ההשערה — ה-LLM מעריך את ההשפעה"
               example="'בהופעה של הגן הוא ישב בשקט למרות הרעש' — סותר חלקית את הרגישות"
             />
 
@@ -449,8 +449,8 @@ export default function ExpertGuide() {
               english="Transforms"
               color="amber"
               icon={<RefreshCw className="w-6 h-6" />}
-              effect="איפוס ל-40%"
-              description="הראיה משנה את ההבנה לכיוון חדש"
+              effect="משנה את ההבנה"
+              description="הראיה מחדדת או משנה את התיאוריה לכיוון חדש"
               example="'הבעיה היא לא רעש אלא רעש בלתי צפוי' — מחדד את ההשערה"
             />
           </div>
@@ -462,25 +462,27 @@ export default function ExpertGuide() {
               ראיות מסרטון (Video Evidence)
             </h4>
             <p className="text-violet-700 text-sm mb-2">
-              ראיות מסרטון נפרדות מראיות שיחה ומשפיעות יותר:
+              ראיות מסרטון מבוססות על צפייה ישירה ולכן ה-LLM נותן להן משקל גבוה יותר
+              בהערכת הביטחון. הסרטון מספק מידע אובייקטיבי שלא תלוי בדיווח בלבד.
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-emerald-100 rounded-lg p-2 text-center">
-                <span className="text-emerald-700">תומך בביטחון גבוה</span>
-                <div className="font-bold text-emerald-800">+15%</div>
+                <span className="text-emerald-700">תומך מסרטון</span>
+                <div className="font-bold text-emerald-800">השפעה חזקה יותר</div>
               </div>
               <div className="bg-red-100 rounded-lg p-2 text-center">
-                <span className="text-red-700">סותר בביטחון גבוה</span>
-                <div className="font-bold text-red-800">-20%</div>
+                <span className="text-red-700">סותר מסרטון</span>
+                <div className="font-bold text-red-800">השפעה חזקה יותר</div>
               </div>
             </div>
           </div>
 
           <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mt-4">
             <p className="text-gray-700">
-              <strong>איך זה עובד:</strong> ראיות מצטברות לאורך זמן.
-              ראיות תומכות מעלות את הביטחון, ראיות סותרות מורידות אותו.
-              ראיות משנות מאפסות את הביטחון ל-40% — התחלה מחדש עם הבנה מחודדת.
+              <strong>איך זה עובד (V2):</strong> ה-LLM מעריך את ההשפעה של כל ראיה
+              ומחליט ישירות מה הביטחון החדש. הוא מביא בחשבון את כל ההקשר —
+              לא רק הראיה הבודדת, אלא את מכלול הראיות והסיפור הרחב.
+              כל החלטה מלווה בהסבר (reasoning) למה הביטחון השתנה.
             </p>
           </div>
         </div>
@@ -639,31 +641,31 @@ export default function ExpertGuide() {
       >
         <div className="space-y-6">
           <p>
-            המערכת משתמשת בחישוב מתמטי פשוט אך מדויק כדי לעדכן את רמת הביטחון
-            בכל פעם שמתווספת ראיה חדשה להשערה או דפוס.
+            ב-V2, ה-LLM מעריך את ההשפעה של כל ראיה ומחליט ישירות מה הביטחון החדש.
+            הוא מביא בחשבון את ההקשר המלא — לא רק הראיה הבודדת, אלא את כל מה שנלמד עד כה.
           </p>
 
-          {/* The Math */}
+          {/* The Logic */}
           <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
             <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              החישוב (V2)
+              הלוגיקה (V2) — LLM מחליט
             </h4>
 
             <div className="space-y-4">
               <div className="flex items-center gap-4 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
                 <div className="text-2xl">➕</div>
                 <div>
-                  <div className="font-medium text-emerald-800">ראיה תומכת</div>
-                  <div className="text-emerald-600 text-sm">+10% לביטחון (עד מקסימום 100%)</div>
+                  <div className="font-medium text-emerald-800">ראיה תומכת (supports)</div>
+                  <div className="text-emerald-600 text-sm">ה-LLM מעלה את הביטחון לפי עוצמת הראיה והקשר</div>
                 </div>
               </div>
 
               <div className="flex items-center gap-4 p-3 bg-red-50 rounded-lg border border-red-100">
                 <div className="text-2xl">➖</div>
                 <div>
-                  <div className="font-medium text-red-800">ראיה סותרת</div>
-                  <div className="text-red-600 text-sm">-15% מהביטחון (עד מינימום 0%)</div>
+                  <div className="font-medium text-red-800">ראיה סותרת (contradicts)</div>
+                  <div className="text-red-600 text-sm">ה-LLM מוריד את הביטחון לפי חומרת הסתירה</div>
                 </div>
               </div>
 
@@ -671,9 +673,16 @@ export default function ExpertGuide() {
                 <div className="text-2xl">🔄</div>
                 <div>
                   <div className="font-medium text-amber-800">ראיה משנה (transforms)</div>
-                  <div className="text-amber-600 text-sm">איפוס ל-40% — התחלה מחדש עם הבנה חדשה</div>
+                  <div className="text-amber-600 text-sm">ה-LLM מחדד את התיאוריה — יכול ליצור השערה חדשה ומדויקת יותר</div>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 bg-blue-50 rounded-lg p-3 border border-blue-100">
+              <p className="text-blue-700 text-sm">
+                <strong>חשוב:</strong> כל עדכון ביטחון מלווה ב-<code className="bg-blue-100 px-1 rounded">effect_reasoning</code> —
+                הסבר למה ה-LLM החליט כך. זה מאפשר שקיפות וביקורת.
+              </p>
             </div>
           </div>
 
@@ -685,32 +694,36 @@ export default function ExpertGuide() {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
               <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                <div className="font-medium text-indigo-800 mb-2">השערה</div>
+                <div className="font-medium text-indigo-800 mb-2">השערה (Hypothesis)</div>
                 <div className="space-y-1 text-indigo-600">
-                  <p>• חלשה (weak): ביטחון {'<'} 50%</p>
-                  <p>• נבדקת (testing): ביטחון 50-70%</p>
-                  <p>• נתמכת (supported): ביטחון {'>'} 70%</p>
-                  <p>• אושרה (confirmed): ביטחון {'>'} 85%</p>
+                  <p>• חלשה (weak): ביטחון {'<'} 25%</p>
+                  <p>• נבדקת (testing): ביטחון 25-55%</p>
+                  <p>• נתמכת (supported): ביטחון 55-75%</p>
+                  <p>• אושרה (confirmed): ביטחון {'>'} 75%</p>
+                  <p>• נדחתה (refuted): נסתרה עם ביטחון נמוך</p>
+                  <p>• השתנתה (transformed): הבנה שינתה כיוון</p>
                 </div>
               </div>
               <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                <div className="font-medium text-indigo-800 mb-2">דפוס</div>
+                <div className="font-medium text-indigo-800 mb-2">דפוס (Pattern)</div>
                 <div className="space-y-1 text-indigo-600">
-                  <p>• זמני (tentative): ביטחון {'<'} 50%</p>
-                  <p>• נתמך (supported): ביטחון 50-70%</p>
-                  <p>• אושר (confirmed): ביטחון {'>'} 70%</p>
+                  <p>• מתהווה (emerging): ביטחון {'<'} 45%</p>
+                  <p>• יציב (solid): ביטחון 45-70%</p>
+                  <p>• יסודי (foundational): ביטחון {'>'} 70%</p>
+                  <p>• מוטל בספק (questioned): מקורות נחלשו</p>
+                  <p>• התפרק (dissolved): הדפוס כבר לא מחזיק</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Asymmetry explanation */}
+          {/* LLM Judgment Principles */}
           <div className="bg-purple-50 border border-purple-100 rounded-xl p-5">
-            <h4 className="font-medium text-purple-800 mb-2">למה האסימטריה?</h4>
+            <h4 className="font-medium text-purple-800 mb-2">עקרונות שיקול הדעת של ה-LLM</h4>
             <p className="text-purple-700 leading-relaxed">
-              שימו לב: ראיה סותרת מורידה יותר (-15%) מאשר ראיה תומכת מעלה (+10%).
-              זה מכוון — קל יותר לצבור ראיות תומכות בהדרגה, אבל ראיה סותרת אחת
-              צריכה לשקול יותר בשקילה מחודשת. זה מונע "אישור הטיה" (confirmation bias).
+              ה-LLM נוטה לתת משקל גבוה יותר לראיות סותרות — ראיה אחת שמערערת על השערה
+              משמעותית יותר ממספר ראיות תומכות קטנות. זה מונע "אישור הטיה" (confirmation bias).
+              בנוסף, ראיות מסרטון מקבלות משקל גבוה יותר מדיווחים בשיחה כי הן אובייקטיביות.
             </p>
           </div>
 
@@ -719,21 +732,25 @@ export default function ExpertGuide() {
             <h4 className="font-medium text-blue-800 mb-3">דוגמה מעשית</h4>
             <div className="space-y-2 text-sm">
               <p className="text-blue-700">השערה: "רגישות שמיעתית גבוהה משפיעה על ויסות"</p>
-              <p className="text-blue-700">ביטחון התחלתי: <strong>50%</strong> (סטטוס: נבדקת)</p>
+              <p className="text-blue-700">ביטחון התחלתי: <strong>35%</strong> (סטטוס: נבדקת)</p>
               <div className="border-r-2 border-blue-300 pr-3 mr-2 space-y-1">
-                <p className="text-blue-600">• ההורה: "גם בגן הוא מכסה אוזניים" (תומך) — ביטחון: <strong>60%</strong></p>
-                <p className="text-blue-600">• ההורה: "אבל בהופעה ישב בשקט" (סותר) — ביטחון: <strong>45%</strong></p>
-                <p className="text-blue-600">• ההורה: "אבל זה רק ברעש פתאומי" (משנה) — ביטחון: <strong>40%</strong> (איפוס)</p>
+                <p className="text-blue-600">• ההורה: "גם בגן הוא מכסה אוזניים" (תומך)</p>
+                <p className="text-blue-500 text-xs mr-4">→ LLM: "ראיה נוספת מסביבה אחרת — מעלה ביטחון ל-50%"</p>
+                <p className="text-blue-600">• ההורה: "אבל בהופעה ישב בשקט" (סותר)</p>
+                <p className="text-blue-500 text-xs mr-4">→ LLM: "סותר את הכלליות — מוריד ל-35%"</p>
+                <p className="text-blue-600">• ההורה: "אה, זה רק ברעש פתאומי!" (משנה)</p>
+                <p className="text-blue-500 text-xs mr-4">→ LLM: "התיאוריה צריכה לחדד — יוצר השערה חדשה: רגישות לרעשים בלתי צפויים"</p>
               </div>
-              <p className="text-blue-700 mt-2">עכשיו ההשערה מתחדדת: לא רגישות כללית, אלא לרעשים בלתי צפויים.</p>
+              <p className="text-blue-700 mt-2">ה-LLM מסביר כל החלטה ב-reasoning — שקיפות מלאה.</p>
             </div>
           </div>
 
           {/* Video vs Conversation */}
           <div className="bg-violet-50 border border-violet-100 rounded-xl p-4">
             <p className="text-violet-800">
-              <strong>סרטונים משפיעים יותר:</strong> ראיות מסרטון (VideoEvidence) מקבלות משקל גבוה יותר
-              (עד +15% או -20%) כי הן מבוססות על צפייה ישירה ולא רק על דיווח.
+              <strong>סרטונים משפיעים יותר:</strong> ה-LLM נותן משקל גבוה יותר לראיות מסרטון
+              כי הן מבוססות על צפייה ישירה ולא רק על דיווח. ראיה מסרטון יכולה לשנות
+              את הביטחון יותר מראיה מדיווח — ולכל כיוון.
             </p>
           </div>
         </div>
@@ -795,21 +812,21 @@ export default function ExpertGuide() {
             />
           </div>
 
-          {/* Automatic transitions */}
+          {/* LLM-driven transitions (V2) */}
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5">
-            <h4 className="font-medium text-indigo-800 mb-3">מעברים אוטומטיים</h4>
+            <h4 className="font-medium text-indigo-800 mb-3">מעברים (V2 — LLM מחליט)</h4>
             <ul className="space-y-2 text-indigo-700">
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>שאלה ← השערה:</strong> כש-LLM מזהה תיאוריה ברת-בדיקה ומציע סרטון</span>
+                <span><strong>שאלה ← השערה:</strong> LLM משתמש ב-wonder עם type=hypothesis כשמזהה תיאוריה</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>תצפיות ← דפוס:</strong> כשסיפור מחבר 2+ תחומים עם significance ≥ 0.5</span>
+                <span><strong>תצפיות ← דפוס:</strong> LLM משתמש ב-see_pattern כשמזהה קשר חוצה-סקרנויות</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>ודאות גבוהה ← דעיכה:</strong> סקרנות שהגיעה ל-70%+ ודאות יורדת ב"משיכה" שלה</span>
+                <span><strong>דעיכה:</strong> רק משיכה (pull) דועכת אוטומטית בזמן — fullness/confidence לא משתנים לבד</span>
               </li>
             </ul>
           </div>
@@ -898,32 +915,37 @@ export default function ExpertGuide() {
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
             <h4 className="font-medium text-amber-800 mb-3 flex items-center gap-2">
               <Activity className="w-5 h-5" />
-              מערכת ה"משיכה" (Pull)
+              מערכת ה"משיכה" (Pull) — V2
             </h4>
             <p className="text-amber-700 mb-4">
-              לכל סקרנות יש "משיכה" — עד כמה היא דורשת תשומת לב כרגע.
-              המשיכה מחושבת מחדש בכל תור:
+              לכל סקרנות יש "משיכה" (pull) — עד כמה היא דורשת תשומת לב כרגע.
+              ב-V2, ה-LLM קובע את המשיכה הראשונית, והמערכת רק מחילה דעיכה בזמן.
             </p>
 
             <div className="space-y-2">
               <div className="flex items-center gap-3 p-2 bg-white/60 rounded-lg">
-                <span className="text-lg">⬆️</span>
+                <span className="text-lg">🎯</span>
                 <div className="text-sm text-amber-700">
-                  <strong>עולה:</strong> כשיש פערים בתחום (אין מספיק מידע)
+                  <strong>LLM קובע:</strong> כשנוצרת סקרנות, ה-LLM מעריך את המשיכה הראשונית (0-1)
                 </div>
               </div>
               <div className="flex items-center gap-3 p-2 bg-white/60 rounded-lg">
                 <span className="text-lg">⬇️</span>
                 <div className="text-sm text-amber-700">
-                  <strong>יורדת:</strong> כשהודאות גבוהה (כבר מבינים) או שעבר זמן בלי פעילות
+                  <strong>דעיכה בזמן:</strong> המערכת מורידה משיכה אוטומטית עם הזמן בלי פעילות
                 </div>
               </div>
               <div className="flex items-center gap-3 p-2 bg-white/60 rounded-lg">
-                <span className="text-lg">🎯</span>
+                <span className="text-lg">🔄</span>
                 <div className="text-sm text-amber-700">
-                  <strong>תחומים קליניים:</strong> מקבלים boost נוסף כי נדרשים למכתבים
+                  <strong>עדכון:</strong> LLM יכול לעדכן משיכה דרך <code className="bg-amber-100 px-1 rounded text-xs">update_curiosity</code>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-3 bg-amber-100/50 rounded-lg p-2 text-xs text-amber-700">
+              <strong>חשוב:</strong> מלאות/ביטחון לא משפיעים אוטומטית על משיכה.
+              רק דעיכה בזמן היא אוטומטית — כל שינוי אחר הוא החלטת LLM.
             </div>
           </div>
 
@@ -956,56 +978,60 @@ export default function ExpertGuide() {
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
             <h4 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
               <span>🔥</span>
-              <span>מה זה בעצם "משיכה" (Pull)?</span>
+              <span>מה זה בעצם "משיכה" (Pull)? — V2</span>
             </h4>
             <p className="text-amber-800 mb-4">
-              משיכה = כמה הסקרנות "דוחקת" לתשומת לב. זה <strong>לא</strong> מדד לחוסר,
-              אלא עניין דינמי שמשתנה לפי פעילות, זמן, וודאות.
+              משיכה = כמה הסקרנות "דוחקת" לתשומת לב. ב-V2, ה-LLM קובע את הערך הראשוני,
+              והמערכת רק מחילה דעיכה בזמן.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="bg-white rounded-lg p-3 border border-amber-100">
-                <div className="font-medium text-amber-900 mb-2">מה משפיע על משיכה?</div>
+                <div className="font-medium text-amber-900 mb-2">איך משיכה עובדת ב-V2</div>
                 <ul className="space-y-1 text-amber-700">
-                  <li>• <strong>דעיכה בזמן:</strong> סקרנות שלא נגעו בה יורדת (-0.02 ליום)</li>
-                  <li>• <strong>פערים בתחום:</strong> חוסר מידע מעלה (+0.05 לפער, עד 0.3)</li>
-                  <li>• <strong>ודאות גבוהה:</strong> מעל 70% מורידה משיכה (-0.2)</li>
+                  <li>• <strong>LLM קובע:</strong> ערך ראשוני (0-1) כשנוצרת סקרנות</li>
+                  <li>• <strong>דעיכה בזמן:</strong> יורדת אוטומטית (~0.01 ליום)</li>
+                  <li>• <strong>עדכון:</strong> LLM יכול לשנות דרך update_curiosity</li>
                 </ul>
               </div>
               <div className="bg-white rounded-lg p-3 border border-amber-100">
-                <div className="font-medium text-amber-900 mb-2">איפה משיכה משפיעה בפועל?</div>
+                <div className="font-medium text-amber-900 mb-2">איפה משיכה משפיעה?</div>
                 <ul className="space-y-1 text-amber-700">
-                  <li>• <strong>הצעת סרטון:</strong> רק כשמשיכה מעל 0.7</li>
-                  <li>• <strong>פתיחת חקירה:</strong> רק כשמשיכה מעל 0.7</li>
-                  <li>• <strong>סדר הצגה:</strong> סקרנויות ממוינות לפי משיכה</li>
+                  <li>• <strong>פרומפט:</strong> מופיעה כערך ליד כל סקרנות</li>
+                  <li>• <strong>סדר:</strong> סקרנויות ממוינות לפי משיכה</li>
+                  <li>• <strong>הקשר:</strong> עוזרת ל-LLM להבין מה דורש תשומת לב</li>
                 </ul>
               </div>
             </div>
             <div className="mt-4 bg-green-50 rounded-lg p-3 border border-green-200">
               <p className="text-green-800 text-sm">
-                <strong>חשוב:</strong> צ'יטה <u>לא בוחרת מכנית</u> לפי משיכה. היא עוקבת אחרי ההורה.
-                משיכה משפיעה על מה <em>זמין</em> (כמו הצעת סרטון), לא על מה צ'יטה אומרת.
+                <strong>חשוב:</strong> צ'יטה עוקבת אחרי ההורה, לא בוחרת מכנית לפי משיכה.
+                משיכה היא הקשר — לא כלל החלטה אוטומטי.
               </p>
             </div>
           </div>
 
           {/* What Chitta Actually Sees */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-            <h4 className="font-bold text-slate-800 mb-3">מה צ'יטה באמת רואה בפרומפט?</h4>
+            <h4 className="font-bold text-slate-800 mb-3">מה צ'יטה באמת רואה בפרומפט? (V2)</h4>
             <p className="text-slate-600 text-sm mb-3">זה הפורמט האמיתי שה-LLM מקבל:</p>
             <div className="bg-slate-900 text-green-400 font-mono text-xs p-4 rounded-lg overflow-x-auto" dir="ltr">
               <div className="text-slate-400">## WHAT I'M CURIOUS ABOUT</div>
               <br />
-              <div>- ❓ איך יואב מתמודד עם מעברים? [███████░░░] 70%</div>
-              <div className="text-slate-500 mr-4">  Question: מה קורה ברגעי מעבר?</div>
+              <div className="text-emerald-400">- 🔍 מי הילד הזה? (Discovery) pull=0.6</div>
+              <div className="text-slate-500 mr-4">  fullness: 25% | status: growing</div>
               <br />
-              <div>- 🎯 רגישות חושית משפיעה על ויסות [██████░░░░] 60%</div>
-              <div className="text-slate-500 mr-4">  Theory: רגישות חושית גורמת לקושי (confidence: 55%)</div>
-              <div className="text-slate-500 mr-4">  Video appropriate: Yes</div>
+              <div className="text-blue-400">- ❓ איך יואב מתמודד עם מעברים? (Question) pull=0.7</div>
+              <div className="text-slate-500 mr-4">  fullness: 40% | status: partial</div>
               <br />
-              <div>- 🔍 עולם המשחק שלו [█████░░░░░] 50%</div>
+              <div className="text-purple-400">- 🎯 רגישות חושית משפיעה על ויסות (Hypothesis) pull=0.65</div>
+              <div className="text-slate-500 mr-4">  confidence: 55% | status: testing</div>
+              <div className="text-slate-500 mr-4">  theory: רגישות חושית גורמת לקושי בוויסות</div>
+              <br />
+              <div className="text-violet-400">- 🧩 רגישות + שליטה = מעברים קשים (Pattern) pull=0.5</div>
+              <div className="text-slate-500 mr-4">  confidence: 45% | status: emerging</div>
             </div>
             <p className="text-slate-500 text-xs mt-2">
-              סרגל המשיכה הויזואלי [████░░░░░░] עוזר ל-LLM להבין את העדיפות היחסית.
+              שימו לב: סקרנויות קולטות מציגות fullness, קובעות מציגות confidence.
             </p>
           </div>
 
@@ -1043,7 +1069,7 @@ export default function ExpertGuide() {
                 </div>
                 <p className="text-gray-800 font-medium mb-2">"איך יואב מתמודד עם מעברים?"</p>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">ודאות:</span>
+                  <span className="text-xs text-gray-400">מלאות:</span>
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-blue-400 rounded-full" style={{width: '35%'}}></div>
                   </div>
@@ -1065,7 +1091,7 @@ export default function ExpertGuide() {
                 </div>
                 <p className="text-gray-800 font-medium mb-2">"רגישות חושית משפיעה על ויסות"</p>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">ודאות:</span>
+                  <span className="text-xs text-gray-400">ביטחון:</span>
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-purple-400 rounded-full" style={{width: '55%'}}></div>
                   </div>
@@ -1087,7 +1113,7 @@ export default function ExpertGuide() {
                 </div>
                 <p className="text-gray-800 font-medium mb-2">"עולם המשחק שלו"</p>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">ודאות:</span>
+                  <span className="text-xs text-gray-400">מלאות:</span>
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-400 rounded-full" style={{width: '20%'}}></div>
                   </div>
@@ -1103,19 +1129,19 @@ export default function ExpertGuide() {
             parentMessage="היום היה לנו בוקר קשה. יואב לא רצה להתלבש בשום אופן, צרח שהחולצה 'עוקצת'"
             chittaThinking={[
               "הממ, 'עוקצת'... זה נשמע כמו רגישות טקטילית. זה מחזק את ההשערה שלי על רגישות חושית!",
-              "אוסיף את זה כראיה תומכת. הודאות תעלה מ-55% ל-65%.",
+              "אוסיף את זה כראיה תומכת עם הסבר למה זה תומך.",
               "אני רוצה להבין יותר — האם זה כל הבגדים או ספציפיים? זה יעזור להבין את הדפוס.",
             ]}
             responseThinking="האמא סיפרה על הבוקר הקשה. אעקוב אחרי מה שהיא הביאה — הרגישות לבגדים. אשאל שאלה ממוקדת שתעזור להבין את ההיקף."
             chittaResponse="זה נשמע כמו בוקר מאתגר. כשהוא אומר שהחולצה 'עוקצת' — זה קורה עם בגדים מסוימים? או שזה משתנה?"
             toolCalls={[
               { tool: "notice", content: "תגובה שלילית לטקסטורת בד — מתאר תחושת 'עקיצה'" },
-              { tool: "add_evidence", content: "תומך בהשערת רגישות חושית (מקור: שיחה)" },
+              { tool: "add_evidence", content: "effect=supports, new_confidence=0.65, reasoning: 'ראיה נוספת לרגישות'" },
             ]}
             stateChanges={[
-              { entity: "רגישות חושית", field: "ודאות", from: "55%", to: "65%", direction: "up" },
+              { entity: "רגישות חושית", field: "ביטחון", from: "55%", to: "65%", direction: "up" },
             ]}
-            chittaNote="שימו לב: צ'יטה עוקבת אחרי מה שהאמא מביאה. ראיה תומכת מעלה ודאות (+10%), לא משיכה."
+            chittaNote="שימו לב: ה-LLM מחליט על הביטחון החדש (65%) עם reasoning. לא נוסחה קבועה."
           />
 
           {/* Turn 2 */}
@@ -1124,21 +1150,21 @@ export default function ExpertGuide() {
             parentMessage="כן, יש חולצות שהוא בכלל לא מוכן ללבוש. רק כותנה רכה. ואסור שיהיו תוויות."
             chittaThinking={[
               "עוד אישור חזק! תוויות וטקסטורות — זה קלאסי לרגישות טקטילית.",
-              "הודאות עולה ל-75%. זו רמה גבוהה — מעל 70%!",
-              "אבל רגע, ודאות גבוהה מורידה משיכה. הסקרנות הזו 'מרוצה' — פחות דוחפת לחקור.",
-              "זה מאפשר לי לשים לב לקשרים אחרים. ההתלבשות היא גם סוג של מעבר...",
+              "זו ראיה משמעותית — אעלה את הביטחון משמעותית.",
+              "יש לי כבר הבנה טובה על הרגישות. עכשיו אני יכולה לחפש קשרים לתחומים אחרים.",
+              "ההתלבשות היא גם סוג של מעבר...",
             ]}
             responseThinking="יש לי כבר הבנה טובה על הרגישות החושית. עכשיו אני יכולה לראות איך זה מתחבר לתחומים אחרים. ההתלבשות היא מעבר — אשאל על מעברים נוספים."
             chittaResponse="כותנה רכה ובלי תוויות — הוא יודע בדיוק מה מתאים לו. ספרי לי, מלבד ההתלבשות — איך הוא עם מעברים אחרים במהלך היום?"
             toolCalls={[
               { tool: "notice", content: "העדפה ברורה לכותנה רכה, רגישות לתוויות" },
-              { tool: "add_evidence", content: "תומך בהשערת רגישות חושית — ודאות 75%" },
+              { tool: "add_evidence", content: "effect=supports, new_confidence=0.75, reasoning: 'ראיה חזקה נוספת'" },
             ]}
             stateChanges={[
-              { entity: "רגישות חושית", field: "ודאות", from: "65%", to: "75%", direction: "up" },
-              { entity: "רגישות חושית", field: "משיכה", from: "0.6", to: "0.4", direction: "down", note: "ודאות גבוהה מרגיעה" },
+              { entity: "רגישות חושית", field: "ביטחון", from: "65%", to: "75%", direction: "up" },
+              { entity: "רגישות חושית", field: "סטטוס", from: "testing", to: "supported", direction: "up" },
             ]}
-            chittaNote="כאן רואים מכניזם מפתח: ודאות מעל 70% מורידה משיכה בכ-0.2. כשסקרנות 'מרוצה', היא פחות דוחפת. זה פותח מקום לחקור קשרים חדשים."
+            chittaNote="שימו לב: ה-LLM מחליט שביטחון 75% = סטטוס 'supported'. אין נוסחה אוטומטית — ה-LLM שוקל את כל ההקשר."
           />
 
           {/* Turn 3 */}
@@ -1149,21 +1175,19 @@ export default function ExpertGuide() {
               "רגע רגע! זה מעניין מאוד!",
               "הנחתי שהבעיה היא 'מעברים בכלל', אבל המידע הזה משנה את ההבנה.",
               "הבעיה היא ביציאה מהבית, לא בפרידה. זה יותר ספציפי!",
-              "זו ראיה שמשנה (transforms) — לא סותרת, מחדדת.",
-              "אפתח סקרנות חדשה ומדויקת יותר: 'יציאה מסביבה מוכרת'.",
+              "המידע הזה מחדד את השאלה — אני צריכה לפתוח סקרנות יותר מדויקת.",
             ]}
             responseThinking="זו תובנה חשובה של האמא. אחזור על ההבחנה שלה (לוודא שהבנתי נכון) ואשאל מה היא חושבת שקורה — היא מכירה את יואב הכי טוב."
             chittaResponse="זה ממש מעניין! אז בגן, כשהוא כבר שם, הפרידה קלה. הקושי הוא דווקא ברגע היציאה מהבית. מה את חושבת שקורה ברגע הזה?"
             toolCalls={[
               { tool: "notice", content: "פרידה קלה בגן, קושי ביציאה מהבית — הבחנה חשובה" },
-              { tool: "add_evidence", content: "ראיה משנה (transforms) ל'מעברים' — ודאות מתאפסת" },
-              { tool: "wonder", content: "סקרנות מחודדת: יציאה מסביבה מוכרת" },
+              { tool: "wonder", content: "type=question, focus='יציאה מסביבה מוכרת', pull=0.8" },
             ]}
             stateChanges={[
-              { entity: "מעברים (כללי)", field: "ודאות", from: "35%", to: "40%", direction: "reset", note: "ראיה משנה" },
+              { entity: "מעברים (כללי)", field: "מלאות", from: "35%", to: "50%", direction: "up", note: "למדנו יותר" },
               { entity: "סקרנות חדשה", field: "focus", from: "", to: "יציאה מסביבה מוכרת", direction: "new" },
             ]}
-            chittaNote="הנה רגע קריטי: כשמידע חדש מחדד את ההבנה, צ'יטה לא נאחזת בניסוח הישן. היא פותחת סקרנות חדשה ומדויקת יותר."
+            chittaNote="הנה רגע קריטי: כשמידע חדש מחדד את ההבנה, צ'יטה פותחת סקרנות חדשה ומדויקת יותר. הישנה נשארת עם מלאות גבוהה יותר."
           />
 
           {/* Turn 4 - Pattern Emerging */}
@@ -1178,44 +1202,43 @@ export default function ExpertGuide() {
               "זה לא שלוש בעיות נפרדות. זה דפוס אחד!",
               "אני רואה דפוס חוצה-תחומים: חושי + רגשי + התנהגותי.",
             ]}
-            responseThinking="האמא הגיעה לתובנה בעצמה! אני אחזק את זה ואציע סרטון — עכשיו יש לנו השערה ברורה לבדוק: הקשר בין שליטה/צפיות לבין התנהגות."
-            chittaResponse="את מתארת משהו חשוב מאוד. יואב צריך לדעת מה לצפות — גם בבגדים וגם בסביבה. כשהוא מרגיש בשליטה, הוא מסתדר יפה. האם תרצי שנצלם את רגע היציאה מהבית? זה יכול לעזור לנו להבין בדיוק מה עוזר לו ומה מקשה."
+            responseThinking="האמא הגיעה לתובנה בעצמה! אני אחזק את זה — עכשיו אני רואה דפוס שמחבר בין ההשערות."
+            chittaResponse="את מתארת משהו חשוב מאוד. יואב צריך לדעת מה לצפות — גם בבגדים וגם בסביבה. כשהוא מרגיש בשליטה, הוא מסתדר יפה."
             toolCalls={[
               { tool: "notice", content: "צורך בשליטה ובציפיות ברורות — חוצה תחומים" },
-              { tool: "wonder", content: "דפוס: רגישות חושית + צורך בשליטה + חוסר ודאות = קושי" },
-              { tool: "suggest_video", content: "בקשת סרטון — רגע היציאה מהבית" },
+              { tool: "see_pattern", content: "connects: [רגישות חושית, יציאה מבית], confidence=0.45" },
             ]}
             stateChanges={[
-              { entity: "דפוס חדש!", field: "סוג", from: "", to: "חוצה-תחומים", direction: "pattern" },
-              { entity: "דפוס", field: "תחומים", from: "", to: "חושי + רגשי + התנהגותי", direction: "new" },
-              { entity: "סרטון", field: "סטטוס", from: "", to: "הוצע להורה", direction: "video" },
+              { entity: "דפוס חדש!", field: "סוג", from: "", to: "pattern", direction: "pattern" },
+              { entity: "דפוס", field: "ביטחון", from: "", to: "45% (emerging)", direction: "new" },
+              { entity: "דפוס", field: "connects", from: "", to: "חושי + רגשי + התנהגותי", direction: "new" },
             ]}
-            chittaNote="כאן נוצר דפוס! שלושה תחומים התחברו לתובנה אחת. זה הרגע שבו ההבנה 'מתגבשת'."
+            chittaNote="כאן נוצר דפוס עם see_pattern! ה-LLM מחבר בין סקרנויות קיימות ליצירת תובנה חדשה."
           />
 
           {/* Summary */}
           <div className="bg-gradient-to-l from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100">
-            <h4 className="font-medium text-indigo-800 mb-3">מה למדנו מהדוגמה?</h4>
+            <h4 className="font-medium text-indigo-800 mb-3">מה למדנו מהדוגמה? (V2)</h4>
             <ul className="space-y-2 text-indigo-700">
               <li className="flex items-start gap-2">
                 <span className="text-indigo-400 mt-1">✓</span>
-                <span><strong>עקיבה אחרי ההורה:</strong> צ'יטה עוקבת אחרי מה שההורה מביא, לא בוחרת מכנית לפי משיכה</span>
+                <span><strong>עקיבה אחרי ההורה:</strong> צ'יטה עוקבת אחרי מה שההורה מביא, לא בוחרת מכנית</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-400 mt-1">✓</span>
-                <span><strong>ראיות מעלות ודאות:</strong> ראיה תומכת מעלה ודאות (+10%), סותרת מורידה (-15%)</span>
+                <span><strong>LLM מעריך ראיות:</strong> ה-LLM מחליט על הביטחון החדש עם reasoning — לא נוסחה קבועה</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-400 mt-1">✓</span>
-                <span><strong>ודאות גבוהה מרגיעה:</strong> כשודאות עוברת 70%, המשיכה יורדת — הסקרנות "מרוצה"</span>
+                <span><strong>שני טבעים:</strong> שאלות/גילויים משתמשות במלאות, השערות/דפוסים משתמשים בביטחון</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-400 mt-1">✓</span>
-                <span><strong>ראיה משנה מאפסת:</strong> כשמידע משנה את ההבנה, הודאות מתאפסת ל-40%</span>
+                <span><strong>כלים ייעודיים:</strong> notice, wonder, add_evidence, see_pattern — כל אחד עם תפקיד</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-400 mt-1">✓</span>
-                <span><strong>דפוסים מתגלים:</strong> כשמספיק נקודות מתחברות, נוצרת תובנה חוצת-תחומים</span>
+                <span><strong>דפוסים מתגלים:</strong> כשמספיק נקודות מתחברות, ה-LLM משתמש ב-see_pattern</span>
               </li>
             </ul>
           </div>
@@ -1486,27 +1509,35 @@ export default function ExpertGuide() {
             עוקבת אחרי מידע, בונה הבנה, ומתקנת את עצמה.
           </p>
 
-          {/* Investigation Context */}
+          {/* V2 Tools */}
           <div className="bg-violet-50 border border-violet-100 rounded-xl p-5">
             <h4 className="font-medium text-violet-800 mb-3 flex items-center gap-2">
               <Search className="w-5 h-5" />
-              חקירה (Investigation)
+              הכלים של ה-LLM (V2 Tools)
             </h4>
             <p className="text-violet-700 text-sm mb-3">
-              כל השערה יכולה להתחיל "חקירה" — תהליך מובנה לבדיקת התיאוריה.
+              ב-V2, ל-LLM יש כלים ייעודיים לכל פעולה:
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
               <div className="bg-white rounded-lg p-2 border border-violet-100">
-                <span className="font-medium text-violet-700">סטטוס</span>
-                <p className="text-violet-500">active / paused / completed</p>
+                <span className="font-medium text-violet-700">notice</span>
+                <p className="text-violet-500">רישום תצפית עם תחום</p>
               </div>
               <div className="bg-white rounded-lg p-2 border border-violet-100">
-                <span className="font-medium text-violet-700">תרחישי סרטון</span>
-                <p className="text-violet-500">מצב כל סרטון בתהליך</p>
+                <span className="font-medium text-violet-700">wonder</span>
+                <p className="text-violet-500">יצירת/עדכון סקרנות</p>
               </div>
               <div className="bg-white rounded-lg p-2 border border-violet-100">
-                <span className="font-medium text-violet-700">סיכום</span>
-                <p className="text-violet-500">מה למדנו מהחקירה</p>
+                <span className="font-medium text-violet-700">add_evidence</span>
+                <p className="text-violet-500">הוספת ראיה להשערה</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 border border-violet-100">
+                <span className="font-medium text-violet-700">see_pattern</span>
+                <p className="text-violet-500">זיהוי דפוס חוצה-סקרנויות</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 border border-violet-100">
+                <span className="font-medium text-violet-700">update_curiosity</span>
+                <p className="text-violet-500">הערכה מחדש של סקרנות</p>
               </div>
             </div>
           </div>
@@ -1660,29 +1691,29 @@ export default function ExpertGuide() {
           <GlossaryItem
             term="דפוס (Pattern)"
             color="violet"
-            howDetected="נוצר אוטומטית כשסיפור נוגע ב-2+ תחומים"
+            howDetected="LLM מפעיל כלי 'see_pattern' כשמזהה קשר חוצה-סקרנויות"
             criteria={[
-              "קשר בין שני תחומים התפתחותיים או יותר",
-              "significance של הסיפור ≥ 0.5",
-              "לא קיים דפוס דומה כבר",
+              "קשר בין שתיים או יותר סקרנויות/השערות קיימות",
+              "LLM מספק reasoning למה זה דפוס",
+              "יש לו confidence ו-status משלו (emerging/solid/foundational)",
             ]}
-            notThis="'הוא רגיש' — תחום יחיד"
-            thisIs="'רגישות שמיעתית ← קושי בוויסות ← הימנעות חברתית' — שלושה תחומים מחוברים"
+            notThis="'הוא רגיש' — תחום יחיד, לא חיבור בין סקרנויות"
+            thisIs="'רגישות שמיעתית ← קושי בוויסות ← הימנעות חברתית' — חיבור בין השערות"
           />
 
           {/* Evidence */}
           <GlossaryItem
             term="ראיה (Evidence)"
             color="purple"
-            belongsTo="שייכת לחקירה (Investigation) של סקרנות"
-            howDetected="LLM מפעיל כלי 'add_evidence' עם effect"
+            belongsTo="שייכת להשערה (Hypothesis) קיימת"
+            howDetected="LLM מפעיל כלי 'add_evidence' עם effect ו-new_confidence"
             criteria={[
-              "מקושרת לחקירה פעילה (investigation_id)",
+              "מקושרת להשערה קיימת (curiosity_id)",
               "יש effect: supports/contradicts/transforms",
-              "יש source: conversation או video",
+              "LLM קובע new_confidence עם effect_reasoning",
             ]}
-            notThis="כל מידע חדש (רק מידע שנוגע לחקירה פעילה)"
-            thisIs="מידע שמשנה את הודאות בהשערה שנחקרת כרגע"
+            notThis="כל מידע חדש (רק מידע שנוגע להשערה)"
+            thisIs="מידע שה-LLM מעריך שמשנה את הביטחון בהשערה"
           />
 
           {/* Crystal */}
@@ -1705,15 +1736,15 @@ export default function ExpertGuide() {
             term="משיכה (Pull)"
             color="orange"
             belongsTo="תכונה של סקרנות"
-            howDetected="מחושבת מחדש בכל תור לפי נוסחה"
+            howDetected="LLM קובע ערך ראשוני, המערכת רק מחילה דעיכה בזמן"
             criteria={[
-              "base_pull — ערך התחלתי (0-1)",
-              "- 0.02 ליום בלי פעילות (דעיכה)",
-              "+ עד 0.3 לפערים בתחום (gap boost)",
-              "- 0.2 אם ודאות > 70% (דעיכת שביעות רצון)",
+              "LLM קובע pull ראשוני (0-1) כשנוצרת סקרנות",
+              "המערכת מחילה דעיכה בזמן (~0.01 ליום)",
+              "LLM יכול לעדכן דרך update_curiosity",
+              "אין שינוי אוטומטי לפי fullness/confidence",
             ]}
-            notThis="מספר קבוע"
-            thisIs="ערך דינמי שמשתנה — סקרנויות ׳רעבות׳ עולות, ׳שבעות׳ יורדות"
+            notThis="נוסחה אוטומטית עם gap boost וכו'"
+            thisIs="ערך ש-LLM קובע ורק דעיכה בזמן משנה אוטומטית"
           />
 
           {/* Fullness - V2 */}
@@ -1721,14 +1752,14 @@ export default function ExpertGuide() {
             term="מלאות (Fullness)"
             color="emerald"
             belongsTo="תכונה של סקרנויות קולטות (גילוי, שאלה)"
-            howDetected="מתעדכנת כשנוסף מידע רלוונטי"
+            howDetected="LLM קובע עם wonder או update_curiosity"
             criteria={[
               "0-100% — כמה למדנו על הנושא",
               "משמשת עבור Discovery ו-Question בלבד",
-              "עולה עם תצפיות וסיפורים רלוונטיים",
+              "LLM מעריך כמה מלאה התמונה ומעדכן עם reasoning",
             ]}
             notThis="כמה בטוחים (זה ביטחון, לא מלאות)"
-            thisIs="כמה מידע אספנו — 0% = ריק, 100% = למדנו הכל"
+            thisIs="הערכת LLM לגבי כמה מידע יש לנו — 0% = ריק, 100% = תמונה מלאה"
           />
 
           {/* Confidence - V2 */}
@@ -1736,15 +1767,15 @@ export default function ExpertGuide() {
             term="ביטחון (Confidence)"
             color="purple"
             belongsTo="תכונה של סקרנויות קובעות (השערה, דפוס)"
-            howDetected="מתעדכן עם כל ראיה"
+            howDetected="LLM קובע עם add_evidence או update_curiosity"
             criteria={[
               "0-100% — כמה בטוחים בהשערה/דפוס",
               "משמש עבור Hypothesis ו-Pattern בלבד",
-              "מושפע מראיות: +10% תומך, -15% סותר, 40% משנה",
+              "LLM קובע את הערך החדש עם reasoning — לא נוסחה קבועה",
               "משפיע על סטטוס: weak → testing → supported → confirmed",
             ]}
             notThis="כמה מידע יש (זה מלאות, לא ביטחון)"
-            thisIs="כמה ראיות תומכות/סותרות יש — לא כמה חשוב הנושא"
+            thisIs="הערכת LLM לגבי חוזק ההשערה לאור כל הראיות"
           />
         </div>
       </GuideSection>
