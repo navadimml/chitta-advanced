@@ -267,7 +267,7 @@ export default function ExpertGuide() {
             icon={<Lightbulb className="w-6 h-6 text-purple-600" />}
             term="השערה"
             english="Hypothesis"
-            definition="סקרנות קובעת עם תיאוריה ספציפית לבדיקה. יש לה 'ביטחון' שעולה/יורד לפי ראיות, וסטטוס (חלשה ← נבדקת ← נתמכת/אושרה/נדחתה)."
+            definition="סקרנות קובעת עם תיאוריה ספציפית לבדיקה. יש לה 'ביטחון' שעולה/יורד לפי ראיות, וסטטוס (חלשה → נבדקת → נתמכת/אושרה/נדחתה)."
             example="השערה: 'הקושי בהרכבת פאזלים קשור לתכנון מוטורי' — ביטחון 55%, סטטוס: נבדקת"
             note="השערות יכולות להתחיל חקירה (Investigation) שמנהלת את תהליך בדיקת הסרטון"
           />
@@ -277,7 +277,7 @@ export default function ExpertGuide() {
             icon={<Sparkles className="w-6 h-6 text-violet-600" />}
             term="דפוס"
             english="Pattern"
-            definition="סקרנות קובעת שמחברת בין מספר תחומים או השערות. יש לו 'ביטחון' וסטטוס (זמני ← נתמך ← אושר/נדחה). דפוס יכול להיות תלוי בהשערות שממנו הוא צמח."
+            definition="סקרנות קובעת שמחברת בין מספר תחומים או השערות. יש לו 'ביטחון' וסטטוס (זמני → נתמך → אושר/נדחה). דפוס יכול להיות תלוי בהשערות שממנו הוא צמח."
             example="דפוס: 'רגישות חושית + צורך בשליטה = קושי במעברים' — ביטחון 60%, נתמך"
             note="כשהשערה שתמכה בדפוס נדחית, הדפוס מתעדכן או מתפרק (cascade)"
           />
@@ -309,7 +309,7 @@ export default function ExpertGuide() {
 
           {/* V2: Two Natures */}
           <div className="bg-gradient-to-l from-emerald-50 to-purple-50 rounded-xl p-5 border border-gray-200 mb-6">
-            <h4 className="font-semibold text-gray-800 mb-3">שני טבעים של סקרנות</h4>
+            <h4 className="font-semibold text-gray-800 mb-3">שני סוגי סקרנות</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white rounded-lg p-4 border border-emerald-200">
                 <div className="flex items-center gap-2 mb-2">
@@ -807,7 +807,7 @@ export default function ExpertGuide() {
               title="דפוס (Pattern)"
               description="קשר בין תחומים שונים — תובנה רחבה יותר"
               trigger="סיפור שנוגע ב-2+ תחומים עם משמעות גבוהה"
-              example="'רגישות חושית ← קושי בוויסות ← הימנעות חברתית'"
+              example="'רגישות חושית → קושי בוויסות → הימנעות חברתית'"
               isLast
             />
           </div>
@@ -818,11 +818,11 @@ export default function ExpertGuide() {
             <ul className="space-y-2 text-indigo-700">
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>שאלה ← השערה:</strong> LLM משתמש ב-wonder עם type=hypothesis כשמזהה תיאוריה</span>
+                <span><strong>שאלה → השערה:</strong> LLM משתמש ב-wonder עם type=hypothesis כשמזהה תיאוריה</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>תצפיות ← דפוס:</strong> LLM משתמש ב-see_pattern כשמזהה קשר חוצה-סקרנויות</span>
+                <span><strong>תצפיות → דפוס:</strong> LLM משתמש ב-see_pattern כשמזהה קשר חוצה-סקרנויות</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
@@ -902,10 +902,10 @@ export default function ExpertGuide() {
                   צ'יטה מגיבה בהתאם למה שזוהה:
                 </p>
                 <ul className="text-xs text-emerald-600 space-y-1">
-                  <li>• סיפור ← הכרה במשמעות</li>
-                  <li>• שאלה ← מענה ישיר + גשר</li>
-                  <li>• רגש ← מתן מקום</li>
-                  <li>• מידע ← העמקה טבעית</li>
+                  <li>• סיפור → הכרה במשמעות</li>
+                  <li>• שאלה → מענה ישיר + גשר</li>
+                  <li>• רגש → מתן מקום</li>
+                  <li>• מידע → העמקה טבעית</li>
                 </ul>
               </div>
             </div>
@@ -1230,7 +1230,7 @@ export default function ExpertGuide() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-400 mt-1">✓</span>
-                <span><strong>שני טבעים:</strong> שאלות/גילויים משתמשות במלאות, השערות/דפוסים משתמשים בביטחון</span>
+                <span><strong>שני סוגים:</strong> שאלות/גילויים משתמשות במלאות, השערות/דפוסים משתמשים בביטחון</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-400 mt-1">✓</span>
@@ -1480,7 +1480,7 @@ export default function ExpertGuide() {
               />
               <VideoValueCard
                 value="שרשרת (chain)"
-                description="לראות את הרצף: טריגר ← תגובה ← תוצאה"
+                description="לראות את הרצף: טריגר → תגובה → תוצאה"
               />
               <VideoValueCard
                 value="גילוי (discovery)"
@@ -1698,7 +1698,7 @@ export default function ExpertGuide() {
               "יש לו confidence ו-status משלו (emerging/solid/foundational)",
             ]}
             notThis="'הוא רגיש' — תחום יחיד, לא חיבור בין סקרנויות"
-            thisIs="'רגישות שמיעתית ← קושי בוויסות ← הימנעות חברתית' — חיבור בין השערות"
+            thisIs="'רגישות שמיעתית → קושי בוויסות → הימנעות חברתית' — חיבור בין השערות"
           />
 
           {/* Evidence */}
