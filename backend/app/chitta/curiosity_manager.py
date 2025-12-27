@@ -132,6 +132,36 @@ class CuriosityManager:
             return self.get_by_id(curiosity_id)
         return None
 
+    def get_by_focus_fuzzy(self, query: str) -> Optional[BaseCuriosity]:
+        """
+        Find a curiosity that approximately matches the query.
+
+        Uses simple substring matching - finds curiosities where the
+        query appears in the focus or vice versa.
+
+        For semantic matching, we'd need embeddings - but this simple
+        approach handles cases like crystal open questions mapping to
+        existing curiosities with similar wording.
+        """
+        query_lower = query.lower().strip()
+        if not query_lower:
+            return None
+
+        # First try exact match
+        exact = self.get_by_focus(query)
+        if exact:
+            return exact
+
+        # Then try substring matches
+        for curiosity in self.get_all():
+            focus_lower = curiosity.focus.lower()
+            # Query is subset of focus or focus is subset of query
+            if query_lower in focus_lower or focus_lower in query_lower:
+                return curiosity
+
+        # No match found
+        return None
+
     def get_by_type(self, curiosity_type: str) -> List[BaseCuriosity]:
         """Get all curiosities of a specific type."""
         type_map = {
@@ -191,6 +221,10 @@ class CuriosityManager:
     def get_hypotheses(self) -> List[Hypothesis]:
         """Get all hypotheses."""
         return list(self._hypotheses.values())
+
+    def get_patterns(self) -> List[Pattern]:
+        """Get all patterns."""
+        return list(self._patterns.values())
 
     def get_hypotheses_for_testing(self) -> List[Hypothesis]:
         """Get hypotheses that are actively being tested."""

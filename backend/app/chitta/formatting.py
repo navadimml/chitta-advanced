@@ -307,6 +307,9 @@ def format_turn_guidance(
     added_evidence: bool = False,
     perceived_intent: str = "conversational",
     clinical_gaps: list = None,
+    top_curiosity_pull: float = None,
+    top_curiosity_focus: str = None,
+    response_type: str = None,
 ) -> str:
     """
     Compute turn-specific guidance based on what was extracted.
@@ -317,9 +320,70 @@ def format_turn_guidance(
     Clinical gaps are surfaced as SOFT hints - opportunities to
     naturally weave in questions, not rigid agenda items.
 
+    top_curiosity_pull: If provided, the pull of the most urgent curiosity.
+    top_curiosity_focus: Focus of that curiosity (for context).
+    response_type: LLM-classified response type (acknowledgment, brief_answer, etc.)
+
     Returns English for LLM alignment.
     """
     clinical_gaps = clinical_gaps or []
+
+    # Response type-aware guidance (LLM classified, no string matching!)
+    if response_type == "acknowledgment":
+        return """
+## TURN GUIDANCE: ACKNOWLEDGMENT RECEIVED
+
+Parent simply confirmed/acknowledged what you said.
+Do NOT ask another question immediately - that would feel like interrogation.
+
+Options:
+- Reflect back what was understood
+- Share a small observation or insight
+- Offer space: "אם יש משהו נוסף שעולה לך, אשמח לשמוע"
+- Let them lead the next topic
+"""
+
+    if response_type == "brief_answer":
+        return """
+## TURN GUIDANCE: BRIEF ANSWER
+
+Parent gave a short answer without elaboration.
+They've answered - accept it gracefully.
+
+Options:
+- Acknowledge what they shared briefly
+- Don't push for more on the same topic
+- Move naturally to something else if they seem done
+- Or simply be present - not every response needs a follow-up question
+"""
+
+    if response_type == "emotional":
+        return """
+## TURN GUIDANCE: EMOTIONAL EXPRESSION
+
+Parent expressed feeling or emotion.
+This is not the moment for questions or problem-solving.
+
+Options:
+- Hold space. Acknowledge what they're feeling.
+- Reflect: "נשמע כמו הרבה לשאת"
+- Be a human presence, not an expert gathering data
+- Let them feel heard before moving forward
+"""
+
+    if response_type == "redirect":
+        return """
+## TURN GUIDANCE: REDIRECT
+
+Parent changed the topic or asked their own question.
+Follow their lead - they're steering the conversation now.
+
+Options:
+- Answer their question if they asked one
+- Follow the new topic they introduced
+- Your previous thread can wait - this is their space
+"""
+
     # Summary/share request - guide to ChildSpace
     if perceived_intent == "summary_request":
         return """
@@ -402,6 +466,17 @@ Respond naturally to what was shared.
 - Follow the flow of conversation
 - One question at a time, if any
 - Let curiosity guide, not agenda
+"""
+
+    # Add high-pull urgency notice if applicable
+    if top_curiosity_pull is not None and top_curiosity_pull > 0.7:
+        urgency_pct = int(top_curiosity_pull * 100)
+        focus_hint = f" ({top_curiosity_focus})" if top_curiosity_focus else ""
+        base_guidance += f"""
+## HIGH URGENCY CURIOSITY
+Top curiosity has pull {urgency_pct}%{focus_hint}.
+If the moment feels natural, consider gently steering toward this.
+Don't force it - but this is what your curiosity is most drawn to right now.
 """
 
     # Add clinical gap hints if we have significant gaps

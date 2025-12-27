@@ -29,6 +29,7 @@ from .curiosity_types import (
     Question,
     Hypothesis,
     Pattern as CuriosityPattern,  # Renamed to avoid conflict with models.Pattern
+    Evidence,
 )
 from .curiosity_manager import CuriosityManager
 from .events import CuriosityEvent, Change
@@ -156,6 +157,9 @@ class Darshan:
         # Used for guided collection mode and other temporary states
         self.session_flags: Dict[str, Any] = {}
 
+        # Topic switch detection - track domains from previous turn
+        self._last_turn_domains: List[str] = []
+
         # Lazy-loaded LLM providers
         self._llm = None
         self._strong_llm = None
@@ -202,6 +206,96 @@ class Darshan:
         return self._strong_llm
 
     # ========================================
+    # PHASE 0: Decay (Mechanical)
+    # ========================================
+
+    def _apply_decay_and_check_dormancy(self) -> None:
+        """
+        Apply time-based pull decay and transition dormant curiosities.
+
+        This is PHASE 0 - happens before perception, purely mechanical.
+        - Pull decays exponentially based on time since last update
+        - Curiosities with low pull + long inactivity become dormant
+        - Events are recorded for provenance
+
+        Only PULL decays - fullness/confidence represent understanding
+        and persist until explicitly changed via evidence/update.
+        """
+        now = datetime.now()
+
+        # Apply decay to all curiosities
+        all_curiosities = self._curiosity_manager.get_all()
+        decay_results = self._decay_manager.apply_decay_batch(all_curiosities, now=now)
+
+        # Log significant decay
+        for curiosity_id, decay_amount in decay_results:
+            if decay_amount > 0.01:  # Only log meaningful decay
+                logger.debug(f"Decay applied to {curiosity_id}: -{decay_amount:.3f} pull")
+
+        # Check for dormancy candidates
+        dormancy_candidates = self._decay_manager.find_dormancy_candidates(
+            all_curiosities, now=now
+        )
+
+        for curiosity in dormancy_candidates:
+            old_status = curiosity.status
+            curiosity.status = "dormant"
+            curiosity.last_updated = now
+            curiosity.last_updated_reasoning = (
+                f"Dormancy: pull={curiosity.pull:.2f}, inactive beyond threshold"
+            )
+
+            # Log dormancy transition (event recording is async, handled elsewhere)
+            logger.info(f"Curiosity '{curiosity.focus}' transitioned to dormant (pull={curiosity.pull:.2f})")
+
+    def _extract_domains_from_tool_calls(self, tool_calls: List[ToolCall]) -> List[str]:
+        """Extract domains touched in this turn from tool calls."""
+        domains = set()
+        for tc in tool_calls:
+            if tc.name in ("notice", "wonder", "capture_story"):
+                domain = tc.args.get("domain")
+                if domain:
+                    domains.add(domain)
+                # capture_story may have domains list
+                if tc.name == "capture_story":
+                    for d in tc.args.get("domains", []):
+                        domains.add(d)
+        return list(domains)
+
+    def _detect_topic_shift(self, new_domains: List[str]) -> bool:
+        """Detect if parent shifted to a new topic area."""
+        if not self._last_turn_domains or not new_domains:
+            return False
+        overlap = set(new_domains) & set(self._last_turn_domains)
+        # Shift if no overlap and new domains exist
+        return len(overlap) == 0
+
+    def _apply_topic_shift_decay(self, new_domains: List[str]) -> None:
+        """
+        Apply extra decay to curiosities not matching the new topic.
+
+        When parent shifts topic, curiosities about the old topic become
+        less immediately relevant. This doesn't mean they're unimportant -
+        just that the conversation's focus has moved.
+        """
+        if not new_domains:
+            return
+
+        active_curiosities = self._curiosity_manager.get_active()
+        for curiosity in active_curiosities:
+            curiosity_domain = getattr(curiosity, "domain", "general")
+            if curiosity_domain not in new_domains and curiosity_domain != "general":
+                old_pull = curiosity.pull
+                # Apply 30% extra decay for off-topic curiosities
+                curiosity.pull = max(0.1, curiosity.pull * 0.7)
+                if old_pull - curiosity.pull > 0.01:
+                    logger.debug(
+                        f"Topic shift decay: {curiosity.focus[:30]}... "
+                        f"({curiosity_domain} not in {new_domains}): "
+                        f"{old_pull:.2f} → {curiosity.pull:.2f}"
+                    )
+
+    # ========================================
     # THREE PUBLIC METHODS - The Surface
     # ========================================
 
@@ -212,6 +306,10 @@ class Darshan:
     ) -> Response:
         """
         Process a parent message with TWO-PHASE architecture.
+
+        Phase 0: Decay (mechanical)
+          - Apply time-based pull decay to all curiosities
+          - Transition dormant curiosities
 
         Phase 1: Perception (with tools)
           - LLM perceives intent, context, significance
@@ -225,6 +323,9 @@ class Darshan:
 
         Also creates a CognitiveTurn for dashboard review.
         """
+        # PHASE 0: Apply decay before anything else
+        self._apply_decay_and_check_dormancy()
+
         # Calculate turn number
         turn_number = len(self.cognitive_turns) + 1
 
@@ -255,6 +356,15 @@ class Darshan:
         # Apply learnings from tool calls (returns StateDelta)
         state_delta = self._apply_learnings(perception_result.tool_calls)
         cognitive_turn.state_delta = state_delta
+
+        # Topic shift detection - decay off-topic curiosities
+        new_domains = self._extract_domains_from_tool_calls(perception_result.tool_calls)
+        if self._detect_topic_shift(new_domains):
+            logger.info(f"📍 Topic shift detected: {self._last_turn_domains} → {new_domains}")
+            self._apply_topic_shift_decay(new_domains)
+        # Update last turn domains for next turn
+        if new_domains:
+            self._last_turn_domains = new_domains
 
         # PHASE 2: Response without tools
         response_text = await self._phase2_respond(turn_context, perception_result)
@@ -294,9 +404,18 @@ class Darshan:
         - Story captured (stories are GOLD)
         - Hypothesis created or spawned exploration
         - Significant evidence added
+        - Early conversation: First crystal after ~5 observations (for holistic context)
 
         We don't crystallize on every turn - only on meaningful learning.
         """
+        # Early conversation: trigger first synthesis after enough observations
+        # This ensures early turns have some holistic context
+        if self.crystal is None:
+            observation_count = len(self.understanding.observations)
+            if observation_count >= 5:
+                logger.info(f"🌟 Early synthesis trigger: {observation_count} observations, no crystal yet")
+                return True
+
         if not tool_calls:
             return False
 
@@ -513,6 +632,25 @@ When parent says "לא", "אין", "לא היה" - this is ALSO valuable informa
         # Child gender context for appropriate pronouns
         child_gender_section = format_child_gender_context(self.child_gender, self.child_name)
 
+        # Find solid patterns that haven't spawned questions yet
+        solid_patterns_section = ""
+        patterns_needing_questions = [
+            p for p in self._curiosity_manager.get_patterns()
+            if p.status == "solid" and len(p.spawned_questions) == 0
+        ]
+        if patterns_needing_questions:
+            pattern_lines = [
+                f"- **{p.focus}**: {p.insight}" for p in patterns_needing_questions[:3]
+            ]
+            solid_patterns_section = f"""
+## SOLID PATTERNS READY FOR DEEPER EXPLORATION
+
+These patterns are well-established but haven't generated follow-up questions yet.
+Consider using wonder(type='question') to explore their implications:
+
+{chr(10).join(pattern_lines)}
+"""
+
         return f"""
 # CHITTA - Perception Phase
 
@@ -526,7 +664,7 @@ You are perceiving what a parent shared and extracting relevant information.
 ## WHAT I'M CURIOUS ABOUT
 
 {format_curiosities(context.curiosities)}
-
+{solid_patterns_section}
 ## YOUR TASK
 
 Read the parent's message and extract what's relevant:
@@ -595,48 +733,37 @@ Read the parent's message and extract what's relevant:
                     recipient_type, current_gaps
                 )
             else:
-                # All gaps filled! Transition back to regular conversation
-                logger.info(f"All guided collection gaps filled for {self.child_id}, switching to regular mode")
+                # All gaps filled! Offer graceful exit with user choice
+                logger.info(f"All guided collection gaps filled for {self.child_id}, offering graceful exit")
 
-                # Clear guided collection flags - state will be persisted after response
-                self.session_flags.pop("preparing_summary_for", None)
-                self.session_flags.pop("guided_collection_gaps", None)
-
-                # Get active curiosities for proactive lead
-                active_curiosities = self.get_active_curiosities()
-
-                # Build curiosity hint for proactive lead
-                curiosity_hint = ""
-                if active_curiosities:
-                    top_curiosity = active_curiosities[0]
-                    question_line = f"Question: {top_curiosity.question}" if getattr(top_curiosity, 'question', None) else ""
-                    theory_line = f"Theory: {top_curiosity.theory}" if getattr(top_curiosity, 'theory', None) else ""
-                    curiosity_hint = f"""
-**PROACTIVE LEAD - Pick up on this curiosity:**
-You're curious about: {top_curiosity.focus}
-{question_line}
-{theory_line}
-
-After acknowledging the summary is ready, naturally lead into this curiosity.
-Example: "...ובינתיים, קודם הזכרת ש... סיפרי לי עוד על זה?"
-"""
+                # Don't clear flags yet - let parent confirm they're ready
+                # Flags will be cleared when they create the summary in ChildSpace
 
                 guided_collection_section = f"""
-## GUIDED COLLECTION COMPLETE - TRANSITION TO PROACTIVE CONVERSATION
+## GUIDED COLLECTION COMPLETE - OFFER CHOICE
 
-All the information needed for the summary has been collected.
+All the information needed for the {recipient_type} summary has been collected.
+
+**OFFER THE PARENT A CHOICE (don't just switch):**
+
+Option 1: Create summary now
+"יש לי מספיק מידע ליצור את הסיכום ל{recipient_type}. רוצה שתלכי לחלל הילד ליצור אותו עכשיו?"
+
+Option 2: Check if they want to add anything
+"לפני שאני מסיימת לאסוף - יש משהו נוסף שחשוב לך שאדע לקראת הפגישה?"
 
 **YOUR RESPONSE MUST:**
-1. Warmly acknowledge completion: "מעולה! יש לי את כל מה שצריך לסיכום"
-2. Mention Child Space (חלל הילד): "כשתרצו, אפשר ללכת לחלל הילד וליצור את הסיכום"
-3. **PROACTIVELY lead** to the next topic - don't just wait!
-{curiosity_hint}
-If no specific curiosity, ask about something from what was shared:
-"ובינתיים, רציתי לשאול עוד על מה שסיפרת קודם..."
+1. Warmly acknowledge completion: "מעולה! יש לי את כל מה שצריך"
+2. **ASK** if they want to add anything or create the summary now
+3. Let THEM decide the next step
+
+**EXAMPLE RESPONSE:**
+"מעולה, יש לי מספיק מידע לסיכום.
+לפני שתלכי ליצור אותו בחלל הילד - יש משהו נוסף שחשוב לך להוסיף?"
 
 **DO NOT:**
-- Say "go back" or "return to" anywhere
-- Just say "I'm here if you need" and wait passively
+- Immediately pivot to a new topic without asking
+- Assume they're done without checking
 - End with a closed statement
 """
 
@@ -644,6 +771,13 @@ If no specific curiosity, ask about something from what was shared:
         captured_story = any(tc.name == "capture_story" for tc in perception.tool_calls)
         spawned_curiosity = any(tc.name == "wonder" for tc in perception.tool_calls)
         added_evidence = any(tc.name == "add_evidence" for tc in perception.tool_calls)
+
+        # Extract response type if LLM classified it (no string matching!)
+        response_type = None
+        for tc in perception.tool_calls:
+            if tc.name == "classify_response":
+                response_type = tc.args.get("response_type")
+                break
 
         # Detect general clinical gaps for soft guidance
         # These are NOT agenda items - just hints for natural weaving
@@ -662,12 +796,26 @@ If no specific curiosity, ask about something from what was shared:
             if all_gaps:
                 clinical_gaps = all_gaps[:5]  # Limit to top 5
 
+        # Get top-pull curiosity for urgency awareness
+        top_curiosity_pull = None
+        top_curiosity_focus = None
+        active_curiosities = self._curiosity_manager.get_active()
+        if active_curiosities:
+            sorted_by_pull = sorted(active_curiosities, key=lambda c: c.pull, reverse=True)
+            if sorted_by_pull:
+                top = sorted_by_pull[0]
+                top_curiosity_pull = top.pull
+                top_curiosity_focus = top.focus
+
         guidance = format_turn_guidance(
             captured_story=captured_story,
             spawned_curiosity=spawned_curiosity,
             added_evidence=added_evidence,
             perceived_intent=perception.perceived_intent,
             clinical_gaps=clinical_gaps,
+            top_curiosity_pull=top_curiosity_pull,
+            top_curiosity_focus=top_curiosity_focus,
+            response_type=response_type,
         )
 
         # Parent gender context for appropriate verb forms
@@ -819,6 +967,12 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                         "old": None,
                         "new": call.args.get("new_status") or call.args.get("new_fullness_or_confidence"),
                     })
+                elif call.name == "classify_response":
+                    # Just log - the classification will be used in turn guidance
+                    response_type = call.args.get("response_type", "substantive")
+                    reasoning = call.args.get("reasoning", "")
+                    logger.info(f"📋 Response classified as: {response_type} ({reasoning})")
+                    state_delta.response_type = response_type
             except Exception as e:
                 logger.error(f"Error handling tool call {call.name}: {e}")
 
@@ -852,6 +1006,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         - assessment_reasoning (REQUIRED)
         - evidence_refs
         - emerges_from, source_hypotheses (lineage)
+        - initial_pull: Override default pull urgency (0-1)
         """
         # Support both old ("about") and new ("focus") field names
         focus = args.get("focus", args.get("about", ""))
@@ -861,6 +1016,7 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         reasoning = args.get("assessment_reasoning", "Spawned during conversation")
         value = args.get("fullness_or_confidence", args.get("certainty", 0.3))
         emerges_from = args.get("emerges_from")
+        initial_pull = args.get("initial_pull")  # May be None, meaning use type default
 
         if curiosity_type == "hypothesis":
             curiosity = Hypothesis.create(
@@ -873,6 +1029,8 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 video_value=args.get("video_value"),
                 source_question=emerges_from,
             )
+            if initial_pull is not None:
+                curiosity.pull = initial_pull
             self._curiosity_manager.add(curiosity)
 
         elif curiosity_type == "question":
@@ -884,7 +1042,16 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 question=args.get("question", focus),
                 source_discovery=emerges_from,
             )
+            if initial_pull is not None:
+                curiosity.pull = initial_pull
             self._curiosity_manager.add(curiosity)
+
+            # Track if this question spawned from a pattern
+            if emerges_from:
+                source = self._curiosity_manager.get_by_focus(emerges_from)
+                if source and isinstance(source, CuriosityPattern):
+                    source.spawn_question(curiosity.id, reasoning)
+                    logger.info(f"🌱 Pattern spawned question: {emerges_from} → {focus}")
 
         elif curiosity_type == "pattern":
             curiosity = CuriosityPattern.create(
@@ -895,6 +1062,8 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 reasoning=reasoning,
                 confidence=value,
             )
+            if initial_pull is not None:
+                curiosity.pull = initial_pull
             self._curiosity_manager.add(curiosity)
 
         else:  # discovery
@@ -904,9 +1073,12 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                 fullness=value,
                 reasoning=reasoning,
             )
+            if initial_pull is not None:
+                curiosity.pull = initial_pull
             self._curiosity_manager.add(curiosity)
 
-        logger.info(f"✨ Spawned {curiosity_type}: {focus} (reasoning: {reasoning[:50]}...)")
+        pull_info = f", pull={initial_pull}" if initial_pull is not None else ""
+        logger.info(f"✨ Spawned {curiosity_type}: {focus}{pull_info} (reasoning: {reasoning[:50]}...)")
 
     def _handle_capture_story(self, args: Dict[str, Any]):
         """Capture a story and its developmental signals."""
@@ -957,7 +1129,9 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
         Tool fields:
         - curiosity_focus (or "cycle_id" for compatibility)
-        - new_confidence
+        - evidence: The evidence content
+        - effect: supports/contradicts/transforms
+        - new_confidence: LLM's assessment of new confidence
         - effect_reasoning (REQUIRED)
         - source_observation (REQUIRED)
         """
@@ -966,14 +1140,78 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
         if not curiosity_focus:
             return
 
-        # Get provenance fields
+        # Get all provenance fields
+        evidence_content = args.get("evidence", "")
         reasoning = args.get("effect_reasoning", "Evidence from conversation")
         effect = args.get("effect", "supports")
         new_confidence = args.get("new_confidence")
+        source_observation = args.get("source_observation", "")
 
         # Find curiosity and update
         curiosity = self._curiosity_manager.get_by_focus(curiosity_focus)
-        if curiosity and isinstance(curiosity, (Hypothesis, CuriosityPattern)):
+        if curiosity and isinstance(curiosity, Hypothesis):
+            old_confidence = curiosity.confidence
+            old_status = curiosity.status
+
+            # Calculate new confidence if not provided
+            if new_confidence is None:
+                # Use effect to adjust confidence
+                if effect == "supports":
+                    new_confidence = min(1.0, old_confidence + 0.1)
+                elif effect == "contradicts":
+                    new_confidence = max(0.0, old_confidence - 0.15)
+                else:  # transforms
+                    new_confidence = old_confidence  # Transforms don't change confidence
+
+            # Create Evidence object with full provenance
+            evidence = Evidence.create(
+                content=evidence_content,
+                effect=effect,
+                session_id=self._session_id,
+                source_observation=source_observation,
+                reasoning=reasoning,
+                confidence_before=old_confidence,
+                confidence_after=new_confidence,
+            )
+
+            # Use add_evidence method - this triggers auto-status transitions!
+            curiosity.add_evidence(evidence, reasoning)
+
+            # Record event
+            changes = [{"field": "confidence", "old": old_confidence, "new": curiosity.confidence}]
+            if old_status != curiosity.status:
+                changes.append({"field": "status", "old": old_status, "new": curiosity.status})
+                logger.info(f"🔄 Hypothesis status auto-transitioned: {old_status} → {curiosity.status}")
+
+                # Trigger cascades on status change
+                if curiosity.status == "confirmed":
+                    cascade_result = self._cascade_handler.handle_confirmation(
+                        hypothesis=curiosity,
+                        session_id=self._session_id,
+                        child_id=self.child_id,
+                        confirmation_reasoning=reasoning,
+                    )
+                    if cascade_result.crystal_needs_regeneration:
+                        logger.info(f"🔄 Hypothesis confirmation triggered crystal regeneration need")
+                elif curiosity.status == "refuted":
+                    cascade_result = self._cascade_handler.handle_refutation(
+                        hypothesis=curiosity,
+                        session_id=self._session_id,
+                        child_id=self.child_id,
+                        refutation_reasoning=reasoning,
+                    )
+                    if cascade_result.crystal_needs_regeneration:
+                        logger.info(f"🔄 Hypothesis refutation triggered crystal regeneration need")
+
+            # Log changes (async event recording handled by service layer)
+            logger.info(
+                f"📝 Evidence added to {curiosity.focus}: "
+                f"confidence {old_confidence:.2f} → {curiosity.confidence:.2f}"
+                + (f", status {old_status} → {curiosity.status}" if old_status != curiosity.status else "")
+            )
+
+        elif curiosity and isinstance(curiosity, CuriosityPattern):
+            # For patterns, use simpler confidence update
             old_confidence = curiosity.confidence
 
             if new_confidence is not None:
@@ -983,7 +1221,6 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
 
                 # Check for significant contradiction
                 if effect == "contradicts" and (old_confidence - new_confidence) > 0.3:
-                    # Trigger cascade handling for significant contradiction
                     cascade_result = self._cascade_handler.handle_evidence_contradiction(
                         curiosity=curiosity,
                         old_confidence=old_confidence,
@@ -995,7 +1232,6 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
                     if cascade_result.crystal_needs_regeneration:
                         logger.info(f"🔄 Evidence contradiction triggered crystal regeneration need")
             else:
-                # No explicit new_confidence - use effect to adjust
                 self._curiosity_manager.on_evidence_added(curiosity_focus, effect)
 
         logger.info(f"📊 Added evidence to {curiosity_focus}: {effect} (reasoning: {reasoning[:50]}...)")

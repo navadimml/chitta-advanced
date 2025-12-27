@@ -200,6 +200,10 @@ Leave video_value empty if conversation is sufficient.
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "For pattern: hypothesis focuses that contributed to this pattern"
+            },
+            "initial_pull": {
+                "type": "number",
+                "description": "Initial urgency/activation level (0-1). Default: 0.5 for discovery, 0.6 for question/hypothesis, 0.4 for pattern. Set higher (0.7-0.9) for urgent concerns, lower (0.2-0.4) for background curiosities."
             }
         },
         "required": ["focus", "type", "fullness_or_confidence", "assessment_reasoning"]
@@ -521,6 +525,48 @@ Only set the fields you want to change. Unspecified fields remain unchanged.
 }
 
 
+# === Response Classification Tool ===
+
+TOOL_CLASSIFY_RESPONSE = {
+    "name": "classify_response",
+    "description": """Classify the nature of the parent's response.
+
+Use this when the parent's message is primarily an acknowledgment,
+short answer, or emotional expression rather than new information.
+
+This helps Chitta respond appropriately:
+- Not interrogating after acknowledgments
+- Giving space after emotional expressions
+- Accepting brief answers without pushing for more
+
+response_type options:
+- "acknowledgment": Simple confirmation (yes, no, ok, right, I see)
+- "brief_answer": Short answer to a question without elaboration
+- "emotional": Expressing feeling without new content
+- "redirect": Changing topic or asking their own question
+- "substantive": Contains new information worth extracting
+
+IMPORTANT: Only use this when the response lacks substantial extractable content.
+For substantive responses, use notice/wonder/capture_story instead.
+""",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "response_type": {
+                "type": "string",
+                "enum": ["acknowledgment", "brief_answer", "emotional", "redirect", "substantive"],
+                "description": "The nature of the parent's response"
+            },
+            "reasoning": {
+                "type": "string",
+                "description": "Brief explanation of why this classification"
+            }
+        },
+        "required": ["response_type", "reasoning"]
+    }
+}
+
+
 # === Tool Collections ===
 
 PERCEPTION_TOOLS = [
@@ -532,6 +578,7 @@ PERCEPTION_TOOLS = [
     TOOL_SET_CHILD_IDENTITY,
     TOOL_SEE_PATTERN,        # V2: Pattern emergence
     TOOL_UPDATE_CURIOSITY,   # V2: Reassess existing curiosity
+    TOOL_CLASSIFY_RESPONSE,  # V2: Response type classification
 ]
 
 

@@ -1042,6 +1042,7 @@ class StateDelta:
     curiosities_updated: List[Dict[str, Any]] = field(default_factory=list)  # {focus, field, old, new}
     evidence_added: List[Dict[str, Any]] = field(default_factory=list)  # {curiosity_focus, content, effect}
     child_identity_set: Dict[str, Any] = field(default_factory=dict)  # {name, age, gender}
+    response_type: Optional[str] = None  # LLM-classified response type (acknowledgment, brief_answer, etc.)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict for persistence."""
@@ -1051,6 +1052,7 @@ class StateDelta:
             "curiosities_updated": self.curiosities_updated,
             "evidence_added": self.evidence_added,
             "child_identity_set": self.child_identity_set,
+            "response_type": self.response_type,
         }
 
     @classmethod
@@ -1062,6 +1064,7 @@ class StateDelta:
             curiosities_updated=data.get("curiosities_updated", []),
             evidence_added=data.get("evidence_added", []),
             child_identity_set=data.get("child_identity_set", {}),
+            response_type=data.get("response_type"),
         )
 
     def is_empty(self) -> bool:

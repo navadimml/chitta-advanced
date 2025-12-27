@@ -291,6 +291,30 @@ class ChittaService:
         # Update gestalt with new crystal
         gestalt.crystal = crystal
 
+        # Connect crystal open questions to curiosities
+        if crystal.open_questions:
+            from .curiosity_types import Question as CuriosityQuestion
+            for oq in crystal.open_questions:
+                # Try to find existing curiosity matching this open question
+                existing = gestalt._curiosity_manager.get_by_focus_fuzzy(oq)
+                if existing:
+                    # Boost pull if crystal says this is important
+                    existing.pull = max(existing.pull, 0.6)
+                    existing.touch(f"Boosted by crystal open question")
+                    logger.info(f"📈 Crystal boosted existing curiosity: {oq[:40]}...")
+                else:
+                    # Create new question curiosity
+                    new_q = CuriosityQuestion.create(
+                        focus=oq,
+                        domain="general",
+                        fullness=0.0,
+                        reasoning="Crystal synthesis identified this as an open question",
+                        question=oq,
+                    )
+                    new_q.pull = 0.6  # Important enough to surface
+                    gestalt._curiosity_manager.add(new_q)
+                    logger.info(f"🌱 Crystal spawned new question curiosity: {oq[:40]}...")
+
         # Persist
         await self._gestalt_manager.persist_darshan(family_id, gestalt)
 
