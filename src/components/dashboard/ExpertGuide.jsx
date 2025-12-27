@@ -1527,6 +1527,10 @@ export default function ExpertGuide() {
                 <span className="font-medium text-violet-700">wonder</span>
                 <p className="text-violet-500">יצירת/עדכון סקרנות</p>
               </div>
+              <div className="bg-white rounded-lg p-2 border border-amber-200 bg-amber-50">
+                <span className="font-medium text-amber-700">capture_story ⭐</span>
+                <p className="text-amber-600">לכידת סיפור — סיפורים הם זהב!</p>
+              </div>
               <div className="bg-white rounded-lg p-2 border border-violet-100">
                 <span className="font-medium text-violet-700">add_evidence</span>
                 <p className="text-violet-500">הוספת ראיה להשערה</p>
@@ -1538,6 +1542,55 @@ export default function ExpertGuide() {
               <div className="bg-white rounded-lg p-2 border border-violet-100">
                 <span className="font-medium text-violet-700">update_curiosity</span>
                 <p className="text-violet-500">הערכה מחדש של סקרנות</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Stories are Gold */}
+          <div className="bg-gradient-to-l from-amber-50 to-yellow-50 rounded-xl p-5 border-2 border-amber-200">
+            <h4 className="font-medium text-amber-800 mb-3 flex items-center gap-2">
+              <span className="text-xl">✨</span>
+              סיפורים הם זהב (Stories are GOLD)
+            </h4>
+            <p className="text-amber-700 text-sm mb-4">
+              כשהורה משתף סיפור על הילד, זה האוצר הכי יקר. מתבונן מיומן רואה
+              <strong> איתותים רבים בסיפור אחד</strong>.
+            </p>
+
+            <div className="bg-white rounded-lg p-4 border border-amber-200 mb-4">
+              <div className="text-sm text-amber-800 mb-2 font-medium">דוגמה:</div>
+              <div className="text-amber-600 text-sm mb-3 italic">
+                "אתמול בגן ראתה ילד אחר בוכה והלכה לטפוח לו על הגב"
+              </div>
+              <div className="text-xs text-amber-700 space-y-1">
+                <div><strong>reveals:</strong></div>
+                <ul className="mr-4 space-y-0.5">
+                  <li>• "שמה לב כשמישהו עצוב"</li>
+                  <li>• "ניגשת לעזור מעצמה"</li>
+                  <li>• "לא מפחדת מילדים לא מוכרים"</li>
+                </ul>
+                <div className="mt-2"><strong>domains:</strong> social, emotional</div>
+                <div><strong>significance:</strong> 0.8 (גבוה — חושף את הליבה)</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="bg-amber-100 rounded-lg p-3">
+                <div className="font-medium text-amber-800 mb-1">מה עושים עם סיפור?</div>
+                <ul className="text-amber-700 space-y-1">
+                  <li>• מזהים מה זה חושף על הילד</li>
+                  <li>• מחברים לתחומים התפתחותיים</li>
+                  <li>• מפעילים יצירת קריסטל (synthesis)</li>
+                  <li>• יוצרים סקרנות דפוס (אם 2+ תחומים)</li>
+                </ul>
+              </div>
+              <div className="bg-amber-100 rounded-lg p-3">
+                <div className="font-medium text-amber-800 mb-1">שפה סיטואציונית, לא קלינית:</div>
+                <ul className="text-amber-700 space-y-1">
+                  <li>✗ "empathy" → ✓ "שם לב כשמישהו עצוב"</li>
+                  <li>✗ "regulation" → ✓ "יודע להירגע אחרי כעס"</li>
+                  <li>✗ "prosocial" → ✓ "רוצה לעזור לאחרים"</li>
+                </ul>
               </div>
             </div>
           </div>
