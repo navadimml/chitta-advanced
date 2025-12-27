@@ -267,7 +267,7 @@ export default function ExpertGuide() {
             icon={<Lightbulb className="w-6 h-6 text-purple-600" />}
             term="השערה"
             english="Hypothesis"
-            definition="סקרנות קובעת עם תיאוריה ספציפית לבדיקה. יש לה 'ביטחון' שעולה/יורד לפי ראיות, וסטטוס (חלשה → נבדקת → נתמכת/אושרה/נדחתה)."
+            definition="סקרנות קובעת עם תיאוריה ספציפית לבדיקה. יש לה 'ביטחון' שעולה/יורד לפי ראיות, וסטטוס (חלשה » נבדקת » נתמכת/אושרה/נדחתה)."
             example="השערה: 'הקושי בהרכבת פאזלים קשור לתכנון מוטורי' — ביטחון 55%, סטטוס: נבדקת"
             note="השערות יכולות להתחיל חקירה (Investigation) שמנהלת את תהליך בדיקת הסרטון"
           />
@@ -277,7 +277,7 @@ export default function ExpertGuide() {
             icon={<Sparkles className="w-6 h-6 text-violet-600" />}
             term="דפוס"
             english="Pattern"
-            definition="סקרנות קובעת שמחברת בין מספר תחומים או השערות. יש לו 'ביטחון' וסטטוס (זמני → נתמך → אושר/נדחה). דפוס יכול להיות תלוי בהשערות שממנו הוא צמח."
+            definition="סקרנות קובעת שמחברת בין מספר תחומים או השערות. יש לו 'ביטחון' וסטטוס (זמני » נתמך » אושר/נדחה). דפוס יכול להיות תלוי בהשערות שממנו הוא צמח."
             example="דפוס: 'רגישות חושית + צורך בשליטה = קושי במעברים' — ביטחון 60%, נתמך"
             note="כשהשערה שתמכה בדפוס נדחית, הדפוס מתעדכן או מתפרק (cascade)"
           />
@@ -362,7 +362,7 @@ export default function ExpertGuide() {
               english="Hypothesis"
               color="purple"
               icon="🎯"
-              description="תיאוריה לבדיקה עם סטטוס: חלשה → נבדקת → נתמכת/אושרה/נדחתה"
+              description="תיאוריה לבדיקה עם סטטוס: חלשה » נבדקת » נתמכת/אושרה/נדחתה"
               question="יש לנו רעיון מה קורה — בוא נבדוק"
               example="'הקושי החברתי נובע מקושי בקריאת רמזים' — ביטחון 55%, נבדקת"
             />
@@ -807,7 +807,7 @@ export default function ExpertGuide() {
               title="דפוס (Pattern)"
               description="קשר בין תחומים שונים — תובנה רחבה יותר"
               trigger="סיפור שנוגע ב-2+ תחומים עם משמעות גבוהה"
-              example="'רגישות חושית → קושי בוויסות → הימנעות חברתית'"
+              example="'רגישות חושית » קושי בוויסות » הימנעות חברתית'"
               isLast
             />
           </div>
@@ -818,11 +818,11 @@ export default function ExpertGuide() {
             <ul className="space-y-2 text-indigo-700">
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>שאלה → השערה:</strong> LLM משתמש ב-wonder עם type=hypothesis כשמזהה תיאוריה</span>
+                <span><strong>שאלה » השערה:</strong> LLM משתמש ב-wonder עם type=hypothesis כשמזהה תיאוריה</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
-                <span><strong>תצפיות → דפוס:</strong> LLM משתמש ב-see_pattern כשמזהה קשר חוצה-סקרנויות</span>
+                <span><strong>תצפיות » דפוס:</strong> LLM משתמש ב-see_pattern כשמזהה קשר חוצה-סקרנויות</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-1">•</span>
@@ -902,10 +902,10 @@ export default function ExpertGuide() {
                   צ'יטה מגיבה בהתאם למה שזוהה:
                 </p>
                 <ul className="text-xs text-emerald-600 space-y-1">
-                  <li>• סיפור → הכרה במשמעות</li>
-                  <li>• שאלה → מענה ישיר + גשר</li>
-                  <li>• רגש → מתן מקום</li>
-                  <li>• מידע → העמקה טבעית</li>
+                  <li>• סיפור » הכרה במשמעות</li>
+                  <li>• שאלה » מענה ישיר + גשר</li>
+                  <li>• רגש » מתן מקום</li>
+                  <li>• מידע » העמקה טבעית</li>
                 </ul>
               </div>
             </div>
@@ -1480,7 +1480,7 @@ export default function ExpertGuide() {
               />
               <VideoValueCard
                 value="שרשרת (chain)"
-                description="לראות את הרצף: טריגר → תגובה → תוצאה"
+                description="לראות את הרצף: טריגר » תגובה » תוצאה"
               />
               <VideoValueCard
                 value="גילוי (discovery)"
@@ -1646,15 +1646,15 @@ export default function ExpertGuide() {
             <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-red-100">
                 <span className="text-red-500">🔴</span>
-                <span className="text-red-700">השערה נדחתה → דפוסים שתלויים בה מתפרקים או מתעדכנים</span>
+                <span className="text-red-700">השערה נדחתה » דפוסים שתלויים בה מתפרקים או מתעדכנים</span>
               </div>
               <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-emerald-100">
                 <span className="text-emerald-500">🟢</span>
-                <span className="text-emerald-700">השערה אושרה → דפוסים שתלויים בה מתחזקים</span>
+                <span className="text-emerald-700">השערה אושרה » דפוסים שתלויים בה מתחזקים</span>
               </div>
               <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-blue-100">
                 <span className="text-blue-500">🔵</span>
-                <span className="text-blue-700">דפוס אושר/נדחה → קריסטל מתעדכן אוטומטית</span>
+                <span className="text-blue-700">דפוס אושר/נדחה » קריסטל מתעדכן אוטומטית</span>
               </div>
             </div>
           </div>
@@ -1751,7 +1751,7 @@ export default function ExpertGuide() {
               "יש לו confidence ו-status משלו (emerging/solid/foundational)",
             ]}
             notThis="'הוא רגיש' — תחום יחיד, לא חיבור בין סקרנויות"
-            thisIs="'רגישות שמיעתית → קושי בוויסות → הימנעות חברתית' — חיבור בין השערות"
+            thisIs="'רגישות שמיעתית » קושי בוויסות » הימנעות חברתית' — חיבור בין השערות"
           />
 
           {/* Evidence */}
@@ -1825,7 +1825,7 @@ export default function ExpertGuide() {
               "0-100% — כמה בטוחים בהשערה/דפוס",
               "משמש עבור Hypothesis ו-Pattern בלבד",
               "LLM קובע את הערך החדש עם reasoning — לא נוסחה קבועה",
-              "משפיע על סטטוס: weak → testing → supported → confirmed",
+              "משפיע על סטטוס: weak » testing » supported » confirmed",
             ]}
             notThis="כמה מידע יש (זה מלאות, לא ביטחון)"
             thisIs="הערכת LLM לגבי חוזק ההשערה לאור כל הראיות"
