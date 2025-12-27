@@ -1234,6 +1234,48 @@ RESPOND IN NATURAL HEBREW. Be warm, professional, insightful.
             else:
                 self._curiosity_manager.on_evidence_added(curiosity_focus, effect)
 
+            logger.info(f"📝 Evidence added to pattern {curiosity.focus}: confidence → {curiosity.confidence:.2f}")
+
+        elif curiosity and isinstance(curiosity, (Question, Discovery)):
+            # For receptive curiosities (Question, Discovery), evidence increases fullness
+            old_fullness = curiosity.fullness
+            old_status = curiosity.status
+
+            # Calculate fullness increase based on effect
+            if effect == "supports":
+                # Supporting evidence means we're learning more about this
+                fullness_increase = 0.15
+            elif effect == "contradicts":
+                # Contradicting might mean the question itself needs reframing
+                fullness_increase = 0.05
+            else:  # transforms
+                fullness_increase = 0.1
+
+            new_fullness_value = min(1.0, old_fullness + fullness_increase)
+            curiosity.fullness = new_fullness_value
+            curiosity.last_updated = datetime.now()
+            curiosity.last_updated_reasoning = reasoning
+
+            # Track evidence for explainability
+            curiosity.add_evidence_source(
+                content=evidence_content,
+                effect=effect,
+                reasoning=reasoning,
+                source_observation=source_observation,
+                fullness_before=old_fullness,
+                fullness_after=new_fullness_value,
+            )
+
+            # Check if Question becomes answered (fullness >= 0.9)
+            if isinstance(curiosity, Question) and curiosity.fullness >= 0.9:
+                curiosity.status = "answered"
+                logger.info(f"🎯 Question answered: {curiosity.focus}")
+
+            logger.info(
+                f"📝 Evidence added to {curiosity.curiosity_type} {curiosity.focus}: "
+                f"fullness {old_fullness:.2f} → {curiosity.fullness:.2f}"
+            )
+
         logger.info(f"📊 Added evidence to {curiosity_focus}: {effect} (reasoning: {reasoning[:50]}...)")
 
     # Note: spawn_exploration tool has been removed.

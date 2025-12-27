@@ -147,6 +147,7 @@ class ReceptiveCuriosity(BaseCuriosity):
     Fullness does NOT decay (understanding persists).
     """
     fullness: float = 0.1  # 0-1, how complete is our picture
+    evidence_sources: List[Dict[str, Any]] = field(default_factory=list)  # Provenance tracking
 
     @property
     def nature(self) -> str:
@@ -164,6 +165,37 @@ class ReceptiveCuriosity(BaseCuriosity):
         """Update fullness with required reasoning."""
         self.fullness = max(0.0, min(1.0, new_fullness))
         self.touch(reasoning)
+
+    def add_evidence_source(
+        self,
+        content: str,
+        effect: str,
+        reasoning: str,
+        source_observation: str,
+        fullness_before: float,
+        fullness_after: float,
+    ):
+        """
+        Record evidence that contributed to this curiosity's fullness.
+
+        For explainability - tracks what observations/evidence
+        contributed to our understanding.
+        """
+        self.evidence_sources.append({
+            "content": content,
+            "effect": effect,
+            "reasoning": reasoning,
+            "source_observation": source_observation,
+            "fullness_before": fullness_before,
+            "fullness_after": fullness_after,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dict including evidence_sources for explainability."""
+        data = super().to_dict()
+        data["evidence_sources"] = self.evidence_sources
+        return data
 
 
 @dataclass
@@ -249,6 +281,7 @@ class Discovery(ReceptiveCuriosity):
             last_updated_reasoning=data.get("last_updated_reasoning", ""),
             fullness=data.get("fullness", 0.1),
             spawned_curiosities=data.get("spawned_curiosities", []),
+            evidence_sources=data.get("evidence_sources", []),
         )
 
     @classmethod
@@ -340,6 +373,7 @@ class Question(ReceptiveCuriosity):
             source_discovery=data.get("source_discovery"),
             spawned_hypothesis=data.get("spawned_hypothesis"),
             related_observations=data.get("related_observations", []),
+            evidence_sources=data.get("evidence_sources", []),
         )
 
     @classmethod
